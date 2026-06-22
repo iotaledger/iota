@@ -4,17 +4,15 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Argument, Event, ObjectData, ObjectId, Owner, TypeTag};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
-    event::Event,
-    object::{Data, MoveObjectExt, Object, Owner},
+    object::{MoveObjectExt, Object},
     storage::BackingPackageStore,
-    transaction::Argument,
 };
 
 /// A type containing all of the information needed to work with a deleted
@@ -26,7 +24,7 @@ use crate::{
 ///    as a read-only shared object.
 /// 3. The transaction digest of the previous transaction that used this shared
 ///    object mutably or took it by value.
-pub type DeletedSharedObjectInfo = (ObjectID, SequenceNumber, bool, TransactionDigest);
+pub type DeletedSharedObjectInfo = (ObjectId, SequenceNumber, bool, TransactionDigest);
 
 /// A sequence of information about deleted shared objects in the transaction's
 /// inputs.
@@ -36,7 +34,7 @@ pub type DeletedSharedObjects = Vec<DeletedSharedObjectInfo>;
 pub enum SharedInput {
     Existing(ObjectRef),
     Deleted(DeletedSharedObjectInfo),
-    Cancelled((ObjectID, SequenceNumber)),
+    Cancelled((ObjectId, SequenceNumber)),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -64,17 +62,17 @@ pub enum ExecutionResults {
 pub struct ExecutionResultsV1 {
     /// All objects written regardless of whether they were mutated, created, or
     /// unwrapped.
-    pub written_objects: BTreeMap<ObjectID, Object>,
+    pub written_objects: BTreeMap<ObjectId, Object>,
     /// All objects that existed prior to this transaction, and are modified in
     /// this transaction. This includes any type of modification, including
     /// mutated, wrapped and deleted objects.
-    pub modified_objects: BTreeSet<ObjectID>,
+    pub modified_objects: BTreeSet<ObjectId>,
     /// All object IDs created in this transaction.
-    pub created_object_ids: BTreeSet<ObjectID>,
+    pub created_object_ids: BTreeSet<ObjectId>,
     /// All object IDs deleted in this transaction.
     /// No object ID should be in both created_object_ids and
     /// deleted_object_ids.
-    pub deleted_object_ids: BTreeSet<ObjectID>,
+    pub deleted_object_ids: BTreeSet<ObjectId>,
     /// All Move events emitted in this transaction.
     pub user_events: Vec<Event>,
 }
@@ -109,7 +107,7 @@ impl ExecutionResultsV1 {
         &mut self,
         lamport_version: SequenceNumber,
         prev_tx: TransactionDigest,
-        input_objects: &BTreeMap<ObjectID, Object>,
+        input_objects: &BTreeMap<ObjectId, Object>,
     ) {
         for (id, obj) in self.written_objects.iter_mut() {
             // TODO: We can now get rid of the following logic by passing in lamport version
@@ -118,12 +116,12 @@ impl ExecutionResultsV1 {
 
             // Update the version for the written object.
             match &mut obj.data {
-                Data::Struct(obj) => {
+                ObjectData::Struct(obj) => {
                     // Move objects all get the transaction's lamport timestamp
                     obj.increment_version_to(lamport_version);
                 }
 
-                Data::Package(pkg) => {
+                ObjectData::Package(pkg) => {
                     // Modified packages get their version incremented (this is a special case that
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
@@ -144,7 +142,7 @@ impl ExecutionResultsV1 {
                     assert_eq!(
                         *initial_shared_version,
                         SequenceNumber::default(),
-                        "Initial version should be blank before this point for {id:?}",
+                        "Initial version should be blank before this point for {id}",
                     );
                     *initial_shared_version = lamport_version;
                 }

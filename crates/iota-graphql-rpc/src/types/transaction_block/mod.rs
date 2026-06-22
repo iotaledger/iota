@@ -15,14 +15,13 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
+use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, TransactionExpiration};
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
-    event::Event as NativeEvent,
     message_envelope::Message,
     transaction::{
         SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI, TransactionExpiration,
+        TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -206,7 +205,7 @@ impl TransactionBlock {
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
-        (sender != NativeIotaAddress::ZERO).then(|| Address {
+        (sender != NativeAddress::ZERO).then(|| Address {
             address: IotaAddress::from(sender),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
         })
@@ -254,7 +253,7 @@ impl TransactionBlock {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
                 .iter()
-                .map(|sig| Base64::from(sig.as_ref()))
+                .map(|sig| Base64::from(sig.to_bytes()))
                 .collect()
         })
     }

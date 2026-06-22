@@ -10,8 +10,11 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag,
+    move_package::MovePackage,
+};
+pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -20,19 +23,16 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest,
-    },
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::{default_hash, deterministic_random_account_key},
+    crypto::deterministic_random_account_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     timelock::timelock::TimeLock,
 };
 
@@ -44,14 +44,14 @@ pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
 pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
 /// Index marking the end of the object's ID + the beginning of its version
-pub const ID_END_INDEX: usize = ObjectID::LENGTH;
+pub const ID_END_INDEX: usize = ObjectId::LENGTH;
 
-mod move_object_ext_private {
+mod move_object_ext {
     pub trait Sealed {}
-    impl Sealed for iota_sdk_types::MoveStruct {}
+    impl Sealed for super::MoveObject {}
 }
 
-pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
+pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
     fn new_from_execution(
         tag: StructTag,
         version: SequenceNumber,
@@ -64,8 +64,8 @@ pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError>;
-    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self;
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self;
+    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self;
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self;
     fn get_coin_value_unchecked(&self) -> u64;
     fn set_coin_value_unchecked(&mut self, value: u64);
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
@@ -131,7 +131,7 @@ impl MoveObjectExt for MoveObject {
         Self::new(tag.into(), version, contents).map_err(ExecutionError::invariant_violation)
     }
 
-    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -143,7 +143,7 @@ impl MoveObjectExt for MoveObject {
         .unwrap()
     }
 
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -184,12 +184,14 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Update the `timestamp_ms: u64` field of the `Clock` type.
-    ///
-    /// Panics if the object isn't a `Clock`.
+    /// Useful for updating the clock without deserializing the object into a
+    /// Move value. It is the caller's responsibility to check that `self` is a
+    /// `Clock`.
+    /// This function may panic or do something unexpected otherwise.
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
-        assert!(self.struct_tag().is_clock());
+        debug_assert!(self.struct_tag().is_clock());
         // 32 bytes for object ID, 8 for timestamp
-        assert!(self.contents().len() == 40);
+        debug_assert!(self.contents().len() == 40);
 
         let mut new_contents = self.contents().to_vec();
         new_contents[ID_END_INDEX..].copy_from_slice(&timestamp_ms.to_le_bytes());
@@ -334,21 +336,6 @@ impl MoveObjectExt for MoveObject {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-#[serde(rename = "Object")]
-pub struct ObjectInner {
-    /// The meat of the object
-    pub data: Data,
-    /// The owner that unlocks this object
-    pub owner: Owner,
-    /// The digest of the transaction that created or last mutated this object
-    pub previous_transaction: TransactionDigest,
-    /// The amount of IOTA we would rebate if this object gets deleted.
-    /// This number is re-calculated each time the object is mutated based on
-    /// the present storage gas price.
-    pub storage_rebate: u64,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 #[serde(from = "ObjectInner")]
 pub struct Object(Arc<ObjectInner>);
 
@@ -370,12 +357,8 @@ impl Object {
         &self.0
     }
 
-    pub fn owner(&self) -> &Owner {
-        &self.0.owner
-    }
-
     pub fn new_from_genesis(
-        data: Data,
+        data: ObjectData,
         owner: Owner,
         previous_transaction: TransactionDigest,
     ) -> Self {
@@ -391,7 +374,7 @@ impl Object {
     /// Create a new Move object
     pub fn new_move(o: MoveObject, owner: Owner, previous_transaction: TransactionDigest) -> Self {
         ObjectInner {
-            data: Data::Struct(o),
+            data: ObjectData::Struct(o),
             owner,
             previous_transaction,
             storage_rebate: 0,
@@ -399,7 +382,10 @@ impl Object {
         .into()
     }
 
-    pub fn new_package_from_data(data: Data, previous_transaction: TransactionDigest) -> Self {
+    pub fn new_package_from_data(
+        data: ObjectData,
+        previous_transaction: TransactionDigest,
+    ) -> Self {
         ObjectInner {
             data,
             owner: Owner::Immutable,
@@ -411,7 +397,7 @@ impl Object {
 
     // Note: this will panic if `modules` is empty
     pub fn new_from_package(package: MovePackage, previous_transaction: TransactionDigest) -> Self {
-        Self::new_package_from_data(Data::Package(package), previous_transaction)
+        Self::new_package_from_data(ObjectData::Package(package), previous_transaction)
     }
 
     pub fn new_package<'p>(
@@ -421,7 +407,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(MovePackage::new_initial(
+            ObjectData::Package(MovePackage::new_initial(
                 modules,
                 protocol_config,
                 dependencies,
@@ -432,14 +418,14 @@ impl Object {
 
     pub fn new_upgraded_package<'p>(
         previous_package: &MovePackage,
-        new_package_id: ObjectID,
+        new_package_id: ObjectId,
         modules: &[CompiledModule],
         previous_transaction: TransactionDigest,
         protocol_config: &ProtocolConfig,
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(previous_package.new_upgraded(
+            ObjectData::Package(previous_package.new_upgraded(
                 new_package_id,
                 modules,
                 protocol_config,
@@ -464,11 +450,11 @@ impl Object {
     pub fn new_system_package(
         modules: &[CompiledModule],
         version: SequenceNumber,
-        dependencies: Vec<ObjectID>,
+        dependencies: Vec<ObjectId>,
         previous_transaction: TransactionDigest,
     ) -> Self {
         let ret = Self::new_package_from_data(
-            Data::Package(MovePackage::new_system(version, modules, dependencies)),
+            ObjectData::Package(MovePackage::new_system(version, modules, dependencies)),
             previous_transaction,
         );
 
@@ -492,89 +478,14 @@ impl std::ops::DerefMut for Object {
     }
 }
 
-impl ObjectInner {
-    /// Returns true if the object is a system package.
-    pub fn is_system_package(&self) -> bool {
-        self.is_package() && self.id().is_system_package()
-    }
-
-    pub fn is_immutable(&self) -> bool {
-        self.owner.is_immutable()
-    }
-
-    pub fn is_address_owned(&self) -> bool {
-        self.owner.is_address()
-    }
-
-    pub fn is_child_object(&self) -> bool {
-        self.owner.is_object()
-    }
-
-    pub fn is_shared(&self) -> bool {
-        self.owner.is_shared()
-    }
-
-    pub fn get_single_owner(&self) -> Option<IotaAddress> {
-        self.owner.address_or_object().copied()
-    }
-
-    // It's a common pattern to retrieve both the owner and object ID
-    // together, if it's owned by a single owner.
-    pub fn get_owner_and_id(&self) -> Option<(Owner, ObjectID)> {
-        Some((self.owner, self.id()))
-    }
-
-    /// Return true if this object is a Move package, false if it is a Move
-    /// value
-    pub fn is_package(&self) -> bool {
-        matches!(&self.data, Data::Package(_))
-    }
-
-    pub fn compute_object_reference(&self) -> ObjectRef {
-        ObjectRef::new(self.id(), self.version(), self.digest())
-    }
-
-    pub fn digest(&self) -> ObjectDigest {
-        ObjectDigest::new(default_hash(self))
-    }
-
-    pub fn id(&self) -> ObjectID {
-        use Data::*;
-
-        match &self.data {
-            Struct(v) => v.id(),
-            Package(m) => m.id(),
-        }
-    }
-
-    pub fn version(&self) -> SequenceNumber {
-        use Data::*;
-
-        match &self.data {
-            Struct(o) => o.version(),
-            Package(p) => p.version(),
-        }
-    }
-
+impl Object {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         self.data.opt_object_type()
-    }
-
-    pub fn struct_tag(&self) -> Option<StructTag> {
-        self.data.opt_struct_tag()
     }
 
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
-        } else {
-            false
-        }
-    }
-
-    pub fn is_gas_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_opt_struct() {
-            move_object.struct_tag().is_gas_coin()
         } else {
             false
         }
@@ -599,14 +510,6 @@ impl ObjectInner {
         }
     }
 
-    pub fn coin_type_opt(&self) -> Option<&TypeTag> {
-        if let Some(move_object) = self.data.as_opt_struct() {
-            move_object.struct_tag().coin_type_opt()
-        } else {
-            None
-        }
-    }
-
     /// Return the `value: u64` field of a `Coin<T>` type.
     /// Useful for reading the coin without deserializing the object into a Move
     /// value It is the caller's responsibility to check that `self` is a
@@ -625,15 +528,10 @@ impl ObjectInner {
     pub fn object_size_for_gas_metering(&self) -> usize {
         let meta_data_size = size_of::<Owner>() + size_of::<TransactionDigest>() + size_of::<u64>();
         let data_size = match &self.data {
-            Data::Struct(m) => m.object_size_for_gas_metering(),
-            Data::Package(p) => p.size(),
+            ObjectData::Struct(m) => m.object_size_for_gas_metering(),
+            ObjectData::Package(p) => p.size(),
         };
         meta_data_size + data_size
-    }
-
-    /// Change the owner of `self` to `new_owner`.
-    pub fn transfer(&mut self, new_owner: IotaAddress) {
-        self.owner = Owner::Address(new_owner);
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -646,8 +544,8 @@ impl ObjectInner {
         resolver: &impl GetModule,
     ) -> Result<Option<MoveStructLayout>, IotaError> {
         match &self.data {
-            Data::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
-            Data::Package(_) => Ok(None),
+            ObjectData::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
+            ObjectData::Package(_) => Ok(None),
         }
     }
 
@@ -668,10 +566,6 @@ impl ObjectInner {
         let type_tag = move_struct.type_params()[0].clone();
         Ok(type_tag)
     }
-
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        self.data.as_opt_struct().and_then(|data| data.to_rust())
-    }
 }
 
 // Testing-related APIs.
@@ -684,13 +578,13 @@ impl Object {
     ) -> Result<u64, IotaError> {
         Ok(self.storage_rebate
             + match &self.data {
-                Data::Struct(m) => m.get_total_iota(layout_resolver)?,
-                Data::Package(_) => 0,
+                ObjectData::Struct(m) => m.get_total_iota(layout_resolver)?,
+                ObjectData::Package(_) => 0,
             })
     }
 
-    pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
-        let data = Data::Struct(
+    pub fn immutable_with_id_for_testing(id: ObjectId) -> Self {
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
@@ -709,7 +603,7 @@ impl Object {
 
     pub fn immutable_for_testing() -> Self {
         thread_local! {
-            static IMMUTABLE_OBJECT_ID: ObjectID = ObjectID::random();
+            static IMMUTABLE_OBJECT_ID: ObjectId = ObjectId::random();
         }
 
         Self::immutable_with_id_for_testing(IMMUTABLE_OBJECT_ID.with(|id| *id))
@@ -717,14 +611,14 @@ impl Object {
 
     /// Make a new random test shared object.
     pub fn shared_for_testing() -> Object {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
-    pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
-        let data = Data::Struct(
+    pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: Address, gas: u64) -> Self {
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
@@ -742,7 +636,7 @@ impl Object {
     }
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
-        let data = Data::Struct(
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_treasury_cap(struct_tag).into(),
                 OBJECT_START_VERSION,
@@ -760,7 +654,7 @@ impl Object {
     }
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
-        let data = Data::Struct(
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_coin_metadata(struct_tag).into(),
                 OBJECT_START_VERSION,
@@ -777,8 +671,8 @@ impl Object {
         .into()
     }
 
-    pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
-        let data = Data::Struct(
+    pub fn with_object_owner_for_testing(id: ObjectId, owner: ObjectId) -> Self {
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
@@ -795,17 +689,17 @@ impl Object {
         .into()
     }
 
-    pub fn with_id_owner_for_testing(id: ObjectID, owner: IotaAddress) -> Self {
+    pub fn with_id_owner_for_testing(id: ObjectId, owner: Address) -> Self {
         // For testing, we provide sufficient gas by default.
         Self::with_id_owner_gas_for_testing(id, owner, GAS_VALUE_FOR_TESTING)
     }
 
     pub fn with_id_owner_version_for_testing(
-        id: ObjectID,
+        id: ObjectId,
         version: SequenceNumber,
         owner: Owner,
     ) -> Self {
-        let data = Data::Struct(
+        let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
                 version,
@@ -822,14 +716,14 @@ impl Object {
         .into()
     }
 
-    pub fn with_owner_for_testing(owner: IotaAddress) -> Self {
-        Self::with_id_owner_for_testing(ObjectID::random(), owner)
+    pub fn with_owner_for_testing(owner: Address) -> Self {
+        Self::with_id_owner_for_testing(ObjectId::random(), owner)
     }
 
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
-    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: IotaAddress) -> Self {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), value);
+    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: Address) -> Self {
+        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
         Object::new_move(
             obj,
             Owner::Address(owner),
@@ -839,7 +733,7 @@ impl Object {
 
     /// Generate a new gas coin object with default balance and random owner.
     pub fn new_gas_for_testing() -> Self {
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         let (owner, _) = deterministic_random_account_key();
         Object::with_id_owner_for_testing(gas_object_id, owner)
     }
@@ -850,7 +744,7 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
     thread_local! {
         static GAS_OBJECTS: Vec<Object> = (0..50)
             .map(|_| {
-                let gas_object_id = ObjectID::random();
+                let gas_object_id = ObjectId::random();
                 let (owner, _) = deterministic_random_account_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
@@ -863,7 +757,7 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "status", content = "details")]
 pub enum ObjectRead {
-    NotExists(ObjectID),
+    NotExists(ObjectId),
     Exists(ObjectRef, Object, Option<MoveStructLayout>),
     Deleted(ObjectRef),
 }
@@ -893,7 +787,7 @@ impl ObjectRead {
         }
     }
 
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             Self::Deleted(oref) => oref.object_id,
             Self::NotExists(id) => *id,
@@ -909,7 +803,7 @@ impl Display for ObjectRead {
                 write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({id:?})")
+                write!(f, "ObjectRead::NotExists ({id})")
             }
             Self::Exists(oref, _, _) => {
                 write!(f, "ObjectRead::Exists ({oref:?})")
@@ -922,16 +816,16 @@ impl Display for ObjectRead {
 #[serde(tag = "status", content = "details")]
 pub enum PastObjectRead {
     /// The object does not exist
-    ObjectNotExists(ObjectID),
+    ObjectNotExists(ObjectId),
     /// The object is found to be deleted with this version
     ObjectDeleted(ObjectRef),
     /// The object exists and is found with this version
     VersionFound(ObjectRef, Object, Option<MoveStructLayout>),
     /// The object exists but not found with this version
-    VersionNotFound(ObjectID, SequenceNumber),
+    VersionNotFound(ObjectId, SequenceNumber),
     /// The asked object version is higher than the latest
     VersionTooHigh {
-        object_id: ObjectID,
+        object_id: ObjectId,
         asked_version: SequenceNumber,
         latest_version: SequenceNumber,
     },
@@ -971,7 +865,7 @@ impl Display for PastObjectRead {
                 write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
+                write!(f, "PastObjectRead::ObjectNotExists ({id})")
             }
             Self::VersionFound(oref, _, _) => {
                 write!(f, "PastObjectRead::VersionFound ({oref:?})")
@@ -979,7 +873,7 @@ impl Display for PastObjectRead {
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
+                    "PastObjectRead::VersionNotFound ({object_id}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -989,7 +883,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
+                    "PastObjectRead::VersionTooHigh ({object_id}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }
@@ -998,8 +892,10 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{Address, ObjectId};
+
     use crate::{
-        base_types::{IotaAddress, ObjectID, TransactionDigest},
+        base_types::TransactionDigest,
         gas_coin::GasCoin,
         object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     };
@@ -1009,12 +905,8 @@ mod tests {
     #[test]
     fn test_object_digest_and_serialized_format() {
         let g =
-            GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
-        let o = Object::new_move(
-            g,
-            Owner::Address(IotaAddress::ZERO),
-            TransactionDigest::ZERO,
-        );
+            GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123).to_object(OBJECT_START_VERSION);
+        let o = Object::new_move(g, Owner::Address(Address::ZERO), TransactionDigest::ZERO);
         let bytes = bcs::to_bytes(&o).unwrap();
 
         assert_eq!(
@@ -1027,9 +919,9 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
-        let objref = o.compute_object_reference();
+        let objref = o.object_ref();
 
-        assert_eq!(objref.object_id, ObjectID::ZERO);
+        assert_eq!(objref.object_id, ObjectId::ZERO);
         assert_eq!(objref.version, 1);
         assert_eq!(
             objref.digest.to_string(),

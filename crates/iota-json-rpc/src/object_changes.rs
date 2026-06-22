@@ -5,10 +5,10 @@
 use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
+    base_types::{ObjectRef, SequenceNumber},
     effects::ObjectRemoveKind,
-    object::Owner,
     storage::WriteKind,
 };
 
@@ -16,8 +16,8 @@ use crate::ObjectProvider;
 
 pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    sender: IotaAddress,
-    modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
+    sender: Address,
+    modified_at_versions: Vec<(ObjectId, SequenceNumber)>,
     all_changed_objects: Vec<(ObjectRef, Owner, WriteKind)>,
     all_removed_objects: Vec<(ObjectRef, ObjectRemoveKind)>,
 ) -> Result<Vec<ObjectChange>, E> {

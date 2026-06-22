@@ -20,6 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
+use iota_sdk_types::ObjectId;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -35,7 +36,6 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    message_envelope::Message,
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, LayoutGenerationOption, ObjectInfoRequest,
@@ -480,7 +480,7 @@ struct ProcessCertificateState {
 #[derive(Debug)]
 pub enum ProcessTransactionResult {
     Certified {
-        certificate: CertifiedTransaction,
+        certificate: Box<CertifiedTransaction>,
         /// Whether this certificate is newly created by aggregating 2f+1
         /// signatures. If a validator returned a cert directly, this
         /// will be false. This is used to inform the quorum driver,
@@ -488,14 +488,14 @@ pub enum ProcessTransactionResult {
         /// such as settlement latency.
         newly_formed: bool,
     },
-    Executed(VerifiedCertifiedTransactionEffects, TransactionEvents),
+    Executed(Box<VerifiedCertifiedTransactionEffects>, TransactionEvents),
 }
 
 impl ProcessTransactionResult {
     /// Returns the `CertifiedTransaction` if it is a `Certified` variant.
     pub fn into_cert_for_testing(self) -> CertifiedTransaction {
         match self {
-            Self::Certified { certificate, .. } => certificate,
+            Self::Certified { certificate, .. } => *certificate,
             Self::Executed(..) => panic!("Wrong type"),
         }
     }
@@ -505,7 +505,7 @@ impl ProcessTransactionResult {
     pub fn into_effects_for_testing(self) -> VerifiedCertifiedTransactionEffects {
         match self {
             Self::Certified { .. } => panic!("Wrong type"),
-            Self::Executed(effects, ..) => effects,
+            Self::Executed(effects, ..) => *effects,
         }
     }
 }
@@ -623,6 +623,14 @@ impl<A: Clone> AuthorityAggregator<A> {
     /// Gets the authority client for the given name.
     pub fn get_client(&self, name: &AuthorityName) -> Option<&Arc<SafeClient<A>>> {
         self.authority_clients.get(name)
+    }
+
+    /// Gets a human-readable display name for a validator.
+    pub fn get_display_name(&self, name: &AuthorityName) -> String {
+        self.validator_display_names
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.concise().to_string())
     }
 
     /// Gets the cloned authority client for the given name.
@@ -939,7 +947,7 @@ where
     /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Object> {
         #[derive(Debug, Default)]
         struct State {
@@ -1383,7 +1391,7 @@ where
                     CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
                 certificate.verify_committee_sigs_only(&self.committee)?;
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: true,
                 }))
             }
@@ -1406,7 +1414,7 @@ where
                 // A certificate in a past epoch does not guarantee finality
                 // and validators may reject to process it.
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: false,
                 }))
             }
@@ -1440,7 +1448,7 @@ where
                             cert_sig,
                         );
                         Ok(Some(ProcessTransactionResult::Executed(
-                            ct.verify(&self.committee)?,
+                            Box::new(ct.verify(&self.committee)?),
                             events,
                         )))
                     }
@@ -1483,7 +1491,7 @@ where
                 } else {
                     // TODO: Figure out a more reliable way to detect invariance violations.
                     error!(
-                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest:?}. Non-quorum effects: {non_quorum_effects:?}."
+                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest}. Non-quorum effects: {non_quorum_effects:?}."
                     );
                 }
             }
@@ -1839,9 +1847,9 @@ where
             .process_transaction(transaction.clone(), client_addr)
             .await?;
         let cert = match result {
-            ProcessTransactionResult::Certified { certificate, .. } => certificate,
+            ProcessTransactionResult::Certified { certificate, .. } => *certificate,
             ProcessTransactionResult::Executed(effects, _) => {
-                return Ok(effects);
+                return Ok(*effects);
             }
         };
         self.metrics.total_tx_certificates_created.inc();
@@ -1922,18 +1930,14 @@ where
             self.committee.clone(),
             self.authority_clients.clone(),
             CapabilityNotificationState::default(),
-            |name, client| {
-                Box::pin(async move {
-                    let concise_name = name.concise_owned();
-                    client
-                        .authority_client()
-                        .handle_capability_notification_v1(request.clone())
-                        .instrument(trace_span!("handle_capability_notification_v1", authority = ?concise_name))
-                        .await
-                })
+            |_name, client| {
+                Box::pin(async move { client.notify_capabilities_v2(request.clone()).await })
             },
             |mut state, name, weight, response| {
-                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                let display_name = validator_display_names
+                    .get(&name)
+                    .unwrap_or(&name.concise().to_string())
+                    .clone();
                 Box::pin(async move {
                     match response {
                         Ok(_) => {
@@ -1958,7 +1962,7 @@ where
                             Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
 
                             let (retryable, _categorized) = err.is_retryable();
-                            if  retryable {
+                            if retryable {
                                 // Other retryable errors (timeouts, etc.)
                                 state.retryable_errors += weight;
                             } else {
@@ -1967,8 +1971,15 @@ where
                             }
                             state.errors.push((err, vec![name], weight));
 
-                            // Check if we have reached 2f+1 non-retryable errors OR we have reached 2f+1 total errors, and there is still a chance to reach the validity threshold with retryable errors and good responses.
-                            if state.non_retryable_errors >= quorum_threshold || (state.non_retryable_errors + state.retryable_errors  >= quorum_threshold && state.good_responses + state.retryable_errors >= validity_threshold) {
+                            // Check if we have reached 2f+1 non-retryable errors OR we have reached
+                            // 2f+1 total errors, and there is still a chance to reach the validity
+                            // threshold with retryable errors and good responses.
+                            if state.non_retryable_errors >= quorum_threshold
+                                || (state.non_retryable_errors + state.retryable_errors
+                                    >= quorum_threshold
+                                    && state.good_responses + state.retryable_errors
+                                        >= validity_threshold)
+                            {
                                 return ReduceOutput::Failed(state);
                             }
                         }
@@ -1979,7 +1990,8 @@ where
             },
             // Use pre_quorum_timeout for capability notifications
             self.timeouts.pre_quorum_timeout,
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(_) => {
@@ -2057,6 +2069,14 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a committee of the given
+    /// size (for tests).
+    #[cfg(test)]
+    pub fn from_committee_size(committee_size: usize) -> Self {
+        let (committee, _keypairs) = Committee::new_simple_test_committee_of_size(committee_size);
+        Self::from_committee(committee)
+    }
+
     /// Sets the `CommitteeStore`.
     pub fn with_committee_store(mut self, committee_store: Arc<CommitteeStore>) -> Self {
         self.committee_store = Some(committee_store);
@@ -2106,6 +2126,27 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         );
         let auth_agg = self.build_custom_clients(auth_clients.clone());
         (auth_agg, auth_clients)
+    }
+
+    #[cfg(test)]
+    pub fn build_mock_authority_aggregator(
+        self,
+    ) -> AuthorityAggregator<crate::test_authority_clients::MockAuthorityApi> {
+        use crate::test_authority_clients::MockAuthorityApi;
+        let committee = self.get_committee();
+        let clients = committee
+            .names()
+            .map(|name| {
+                (
+                    *name,
+                    MockAuthorityApi::new(
+                        Duration::from_millis(100),
+                        Arc::new(std::sync::Mutex::new(30)),
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        self.build_custom_clients(clients)
     }
 
     pub fn build_custom_clients<C: Clone>(

@@ -13,14 +13,13 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
+use iota_sdk_types::{Event, ExecutionStatus};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    event::Event,
-    execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::{CallArg, SharedObjectRef},
 };
@@ -325,16 +324,16 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared(SharedObjectRef {
-        object_id: counter_id,
-        initial_shared_version: counter_initial_shared_version,
-        mutable: true,
-    });
-    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef {
-        object_id: counter_id,
-        initial_shared_version: counter_initial_shared_version,
-        mutable: false,
-    });
+    let counter_object_arg = CallArg::Shared(SharedObjectRef::new(
+        counter_id,
+        counter_initial_shared_version,
+        true,
+    ));
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef::new(
+        counter_id,
+        counter_initial_shared_version,
+        false,
+    ));
     let counter_creation_transaction = test_cluster
         .get_object_from_fullnode_store(&counter_id)
         .await
@@ -507,8 +506,8 @@ async fn access_clock_object_test() {
         .unwrap();
     assert!(matches!(effects.status(), ExecutionStatus::Success));
 
-    assert_eq!(1, events.data.len());
-    let event = events.data.first().unwrap();
+    assert_eq!(1, events.len());
+    let event = events.first().unwrap();
     let Event { contents, .. } = event;
 
     use serde::{Deserialize, Serialize};

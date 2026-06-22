@@ -10,9 +10,10 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
+use iota_sdk_types::{Address, ObjectId};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -31,7 +32,7 @@ use crate::{
 
 pub struct BenchmarkContext {
     validator: SingleValidator,
-    user_accounts: BTreeMap<IotaAddress, Account>,
+    user_accounts: BTreeMap<Address, Account>,
     admin_account: Account,
     benchmark_component: Component,
 }
@@ -96,9 +97,9 @@ impl BenchmarkContext {
     /// address.
     pub(crate) async fn preparing_dynamic_fields(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_dynamic_fields: u64,
-    ) -> HashMap<IotaAddress, ObjectRef> {
+    ) -> HashMap<Address, ObjectRef> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {
@@ -118,11 +119,11 @@ impl BenchmarkContext {
         let mut new_gas_objects = HashMap::new();
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );
@@ -144,9 +145,9 @@ impl BenchmarkContext {
 
     pub(crate) async fn prepare_shared_objects(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, SequenceNumber)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {
@@ -189,10 +190,10 @@ impl BenchmarkContext {
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );
@@ -484,7 +485,7 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectID, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectRef>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account

@@ -10,7 +10,7 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_types::base_types::{Identifier, IotaAddress, ObjectID, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
 use self::name::Name;
@@ -18,7 +18,7 @@ use self::name::Name;
 /// An object to manage a second-level name (SLN).
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct NameRegistration {
-    id: ObjectID,
+    id: ObjectId,
     name: Name,
     name_str: String,
     expiration_timestamp_ms: u64,
@@ -27,7 +27,7 @@ pub struct NameRegistration {
 /// An object to manage a subname.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SubnameRegistration {
-    id: ObjectID,
+    id: ObjectId,
     nft: NameRegistration,
 }
 
@@ -42,7 +42,7 @@ pub trait IotaNamesNft {
     const MODULE: Identifier;
     const TYPE_NAME: Identifier;
 
-    fn type_(package_id: IotaAddress) -> StructTag {
+    fn type_(package_id: Address) -> StructTag {
         StructTag::new(package_id, Self::MODULE, Self::TYPE_NAME, vec![])
     }
 
@@ -60,7 +60,7 @@ pub trait IotaNamesNft {
         self.expiration_time() <= SystemTime::now()
     }
 
-    fn id(&self) -> ObjectID;
+    fn id(&self) -> ObjectId;
 }
 
 impl IotaNamesNft for NameRegistration {
@@ -79,7 +79,7 @@ impl IotaNamesNft for NameRegistration {
         self.expiration_timestamp_ms
     }
 
-    fn id(&self) -> ObjectID {
+    fn id(&self) -> ObjectId {
         self.id
     }
 }
@@ -100,7 +100,7 @@ impl IotaNamesNft for SubnameRegistration {
         self.nft.expiration_timestamp_ms()
     }
 
-    fn id(&self) -> ObjectID {
+    fn id(&self) -> ObjectId {
         self.id
     }
 }

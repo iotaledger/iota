@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     slice,
     sync::Arc,
 };
@@ -12,17 +12,20 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
-    object::{Object, Owner},
+    object::Object,
     transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
@@ -33,21 +36,20 @@ use crate::{
     errors::IndexerError,
     ingestion::{
         common::prepare::{CheckpointObjectChanges, extract_df_kind},
-        primary::persist::{
-            CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        },
+        primary::persist::{CheckpointDataToCommit, EpochToCommit},
     },
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+        objects::StoredBackwardHistoryObject,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
+        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEpochInfoEvent, IndexedEvent,
         IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
-        TxIndex,
+        ObjectStatus, TxIndex,
     },
 };
 
@@ -157,7 +159,7 @@ impl PrimaryWorker {
 
         let event = transactions
             .iter()
-            .flat_map(|t| t.events.as_ref().map(|e| &e.data))
+            .flat_map(|t| t.events.as_ref().map(|events| events.iter()))
             .flatten()
             .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
             .map(|ev| {
@@ -205,17 +207,29 @@ impl PrimaryWorker {
         }))
     }
 
-    fn derive_object_versions(
-        object_history_changes: &TransactionObjectChangesToCommit,
-    ) -> IndexerResult<Vec<StoredObjectVersion>> {
-        let mut object_versions = vec![];
-        for changed_obj in object_history_changes.changed_objects.iter() {
-            object_versions.push(changed_obj.try_into()?);
-        }
-        for deleted_obj in object_history_changes.deleted_objects.iter() {
-            object_versions.push(deleted_obj.into());
-        }
-        Ok(object_versions)
+    /// Builds one `objects_version` row per object touched (modified / deleted
+    /// / wrapped / unwrapped-then-deleted) in this checkpoint
+    fn index_object_versions(data: &CheckpointData) -> Vec<StoredObjectVersion> {
+        let cp_sequence_number = data.checkpoint_summary.sequence_number as i64;
+        let removed = data
+            .transactions
+            .iter()
+            .flat_map(|tx| tx.removed_object_refs_post_version())
+            .map(|obj_ref| StoredObjectVersion {
+                object_id: obj_ref.object_id.as_bytes().to_vec(),
+                object_version: obj_ref.version.as_u64() as i64,
+                cp_sequence_number,
+            });
+        let output = data
+            .transactions
+            .iter()
+            .flat_map(|tx| &tx.output_objects)
+            .map(|o| StoredObjectVersion {
+                object_id: o.id().as_bytes().to_vec(),
+                object_version: o.version().as_u64() as i64,
+                cp_sequence_number,
+            });
+        removed.chain(output).collect()
     }
 
     async fn index_checkpoint(
@@ -231,9 +245,8 @@ impl PrimaryWorker {
 
         // Index Objects
         let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
-        let object_history_changes: TransactionObjectChangesToCommit =
-            Self::index_objects_history(data).await?;
-        let object_versions = Self::derive_object_versions(&object_history_changes)?;
+        let object_versions = Self::index_object_versions(data);
+        let backward_history_changes = Self::index_objects_backward_history(data)?;
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -288,7 +301,7 @@ impl PrimaryWorker {
             event_indices: db_event_indices,
             display_updates: db_displays,
             object_changes,
-            object_history_changes,
+            backward_history_changes,
             object_versions,
             packages,
             epoch,
@@ -386,10 +399,7 @@ impl PrimaryWorker {
 
         let tx_digest = sender_signed_data.digest();
         let tx = sender_signed_data.transaction_data();
-        let events = events
-            .as_ref()
-            .map(|events| events.data.clone())
-            .unwrap_or_default();
+        let events = events.clone().unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
 
@@ -464,7 +474,7 @@ impl PrimaryWorker {
         let move_calls = tx
             .move_calls()
             .iter()
-            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
         let db_tx_indices = TxIndex {
@@ -504,7 +514,7 @@ impl PrimaryWorker {
         let events = tx
             .events
             .as_ref()
-            .map(|events| events.data.clone())
+            .map(|TransactionEvents(events)| events.clone())
             .unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx_data.kind());
@@ -546,76 +556,89 @@ impl PrimaryWorker {
         data.try_into()
     }
 
-    pub(crate) async fn index_objects(
+    /// Builds backward history entries for a checkpoint.
+    ///
+    /// For each transaction, records the *previous* state of every object that
+    /// was superseded, so that a consistent view at an earlier checkpoint can
+    /// be reconstructed by applying backward diffs to the current
+    /// `checkpointed_objects` snapshot.
+    ///
+    /// The logic is split into three categories:
+    ///
+    /// 1. **Input objects that were mutated or removed** (mutate, delete,
+    ///    wrap): these had an active prior state available in `input_objects` →
+    ///    `ACTIVE` entries with full data.
+    ///
+    /// 2. **Created objects**: did not exist before → `NOT_YET_CREATED`.
+    ///
+    /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously
+    ///    wrapped so no prior data is available → `WRAPPED_OR_DELETED` with a
+    ///    lamport version approximation.
+    fn index_objects_backward_history(
         data: &CheckpointData,
-        metrics: &IndexerMetrics,
-    ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
-        let _timer = metrics.indexing_objects_latency.start_timer();
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
+    ) -> Result<Vec<StoredBackwardHistoryObject>, IndexerError> {
+        let checkpoint_seq = data.checkpoint_summary.sequence_number as i64;
+        let mut result = Vec::new();
 
-        let eventually_removed_object_refs_post_version =
-            data.eventually_removed_object_refs_post_version();
-        let indexed_eventually_removed_objects = eventually_removed_object_refs_post_version
-            .into_iter()
-            .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.object_id,
-                object_version: obj_ref.version.as_u64(),
-                checkpoint_sequence_number: checkpoint_seq,
-            })
-            .collect();
+        for tx in &data.transactions {
+            let effects = &tx.effects;
 
-        let latest_live_output_objects = data.latest_live_output_objects();
-        let changed_objects = latest_live_output_objects
-            .into_iter()
-            .map(|o| {
-                let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
-            })
-            .collect::<Vec<_>>();
-        Ok(TransactionObjectChangesToCommit {
-            changed_objects,
-            deleted_objects: indexed_eventually_removed_objects,
-        })
-    }
+            // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
+            //    prior state — record it from input_objects. Collect the affected IDs so we
+            //    can iterate input_objects once.
+            let superseded_ids: HashSet<ObjectId> = effects
+                .mutated()
+                .into_iter()
+                .map(|(r, _)| r.object_id)
+                .chain(
+                    effects
+                        .all_removed_objects()
+                        .into_iter()
+                        .map(|(r, _)| r.object_id),
+                )
+                .collect();
 
-    // similar to index_objects, but objects_history keeps all versions of objects
-    async fn index_objects_history(
-        data: &CheckpointData,
-    ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-        let deleted_objects = data
-            .transactions
-            .iter()
-            .flat_map(|tx| tx.removed_object_refs_post_version())
-            .collect::<Vec<_>>();
-        let indexed_deleted_objects: Vec<IndexedDeletedObject> = deleted_objects
-            .into_iter()
-            .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.object_id,
-                object_version: obj_ref.version.as_u64(),
-                checkpoint_sequence_number: checkpoint_seq,
-            })
-            .collect();
+            for input_obj in &tx.input_objects {
+                if superseded_ids.contains(&input_obj.id()) {
+                    let df_kind = extract_df_kind(input_obj);
+                    let indexed = IndexedObject::from_object(
+                        Some(checkpoint_seq as u64),
+                        input_obj.clone(),
+                        df_kind,
+                    );
+                    result.push(StoredBackwardHistoryObject::try_from(indexed).expect(
+                        "backward history conversion should not fail for active input objects",
+                    ));
+                }
+            }
 
-        let output_objects: Vec<_> = data
-            .transactions
-            .iter()
-            .flat_map(|tx| &tx.output_objects)
-            .collect();
-        // TODO(gegaowp): the current df_info implementation is not correct,
-        // but we have decided remove all df_* except df_kind.
-        let changed_objects = output_objects
-            .into_iter()
-            .map(|o| {
-                let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
-            })
-            .collect::<Vec<_>>();
+            // 2. Created objects did not exist before this transaction. Use lamport version
+            //    - 1 so the version is monotonic with other backward-history rows for the
+            //    same object.
+            for (r, _) in effects.created() {
+                result.push(StoredBackwardHistoryObject::from_empty(
+                    r.object_id,
+                    r.version.as_u64() as i64 - 1,
+                    ObjectStatus::NotYetCreated,
+                    checkpoint_seq,
+                ));
+            }
 
-        Ok(TransactionObjectChangesToCommit {
-            changed_objects,
-            deleted_objects: indexed_deleted_objects,
-        })
+            // 3. Unwrapped and unwrapped-then-deleted objects were previously wrapped — no
+            //    data available. Use lamport version - 1 as approximation.
+            let unwrapped_refs = effects.unwrapped().into_iter().map(|(r, _)| r);
+            let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
+            for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
+                result.push(StoredBackwardHistoryObject::from_empty(
+                    r.object_id,
+                    r.version.as_u64() as i64 - 1,
+                    ObjectStatus::WrappedOrDeleted,
+                    checkpoint_seq,
+                ));
+            }
+        }
+
+        Ok(result)
     }
 
     fn index_packages(
@@ -631,7 +654,7 @@ impl PrimaryWorker {
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
                     .filter_map(|o| {
-                        if let iota_types::object::Data::Package(p) = &o.data {
+                        if let iota_sdk_types::ObjectData::Package(p) = &o.data {
                             Some(IndexedPackage {
                                 package_id: o.id(),
                                 move_package: p.clone(),
@@ -658,8 +681,8 @@ impl PrimaryWorker {
 }
 
 pub struct InMemObjectCache {
-    id_map: HashMap<ObjectID, Object>,
-    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+    id_map: HashMap<ObjectId, Object>,
+    seq_map: HashMap<(ObjectId, SequenceNumber), Object>,
 }
 
 impl InMemObjectCache {
@@ -675,7 +698,7 @@ impl InMemObjectCache {
         self.seq_map.insert((obj.id(), obj.version()), obj);
     }
 
-    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+    pub fn get(&self, id: &ObjectId, version: Option<&SequenceNumber>) -> Option<&Object> {
         if let Some(version) = version {
             self.seq_map.get(&(*id, *version))
         } else {
@@ -715,10 +738,7 @@ impl InMemTxChanges {
         tx: &TransactionData,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
-    ) -> IndexerResult<(
-        Vec<iota_json_rpc_types::BalanceChange>,
-        Vec<IndexedObjectChange>,
-    )> {
+    ) -> IndexerResult<(Vec<IndexedBalanceChange>, Vec<IndexedObjectChange>)> {
         let _timer = self
             .metrics
             .indexing_tx_object_changes_latency
@@ -738,11 +758,14 @@ impl InMemTxChanges {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
+                panic!("checkpointed tx {tx_digest} has invalid input objects: {e}")
             }),
             None,
         )
-        .await?;
+        .await?
+        .into_iter()
+        .map(IndexedBalanceChange::from)
+        .collect();
         Ok((balance_change, object_change))
     }
 }
@@ -753,7 +776,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
         let object = self
@@ -773,7 +796,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
@@ -832,7 +855,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects
@@ -844,7 +867,7 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self

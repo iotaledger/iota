@@ -6,8 +6,9 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, TypeTag},
+    base_types::ObjectRef,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
@@ -156,7 +157,7 @@ impl RemovedObject {
         self.indexed_object.object_version
     }
 
-    pub(crate) fn object_id(&self) -> ObjectID {
+    pub(crate) fn object_id(&self) -> ObjectId {
         self.indexed_object.object_id
     }
 
@@ -220,8 +221,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 ) -> CheckpointObjectChanges {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, LiveObject>::new();
-    let mut deletions = HashMap::<ObjectID, RemovedObject>::new();
+    let mut mutations = HashMap::<ObjectId, LiveObject>::new();
+    let mut deletions = HashMap::<ObjectId, RemovedObject>::new();
 
     for change in checkpoint_batch_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
@@ -234,7 +235,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
                     existing.version() < version,
-                    "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    "mutation version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }
@@ -242,7 +243,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = mutations.insert(id, mutation) {
                 assert!(
                     existing.object().version() < version,
-                    "mutation version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    "mutation version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version()
                 );
             }
@@ -255,7 +256,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
                     existing.object().version() < version,
-                    "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    "deletion version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version(),
                 );
             }
@@ -263,7 +264,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = deletions.insert(id, deletion) {
                 assert!(
                     existing.version() < version,
-                    "deletion version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    "deletion version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }

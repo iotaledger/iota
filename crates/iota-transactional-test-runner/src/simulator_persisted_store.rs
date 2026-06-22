@@ -7,11 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber,
-    },
+    base_types::{ObjectRef, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -21,7 +20,7 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::{Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
         load_package_object_from_object_store,
@@ -70,8 +69,8 @@ pub struct PersistedStoreInner {
     last_checkpoints_per_epoch: DBMap<EpochId, CheckpointSequenceNumber>,
 
     // Object data
-    live_objects: DBMap<ObjectID, SequenceNumber>,
-    objects: DBMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
+    live_objects: DBMap<ObjectId, SequenceNumber>,
+    objects: DBMap<ObjectId, BTreeMap<SequenceNumber, Object>>,
 }
 
 impl PersistedStore {
@@ -178,7 +177,7 @@ impl SimulatorStore for PersistedStore {
             .map(|(_, checkpoint)| checkpoint.into())
     }
 
-    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+    fn get_object(&self, id: &ObjectId) -> Option<Object> {
         let version = self
             .read_write
             .live_objects
@@ -187,7 +186,7 @@ impl SimulatorStore for PersistedStore {
         self.get_object_at_version(id, version)
     }
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object> {
         self.read_write
             .objects
             .get(id)
@@ -200,7 +199,7 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn get_clock(&self) -> iota_types::clock::Clock {
-        SimulatorStore::get_object(self, &ObjectID::CLOCK)
+        SimulatorStore::get_object(self, &ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -221,7 +220,7 @@ impl SimulatorStore for PersistedStore {
         None
     }
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(
             self.read_write
                 .live_objects
@@ -276,7 +275,7 @@ impl SimulatorStore for PersistedStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         let deleted_objects = effects.deleted();
         let tx_digest = *effects.transaction_digest();
@@ -309,7 +308,7 @@ impl SimulatorStore for PersistedStore {
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
         deleted_objects: Vec<ObjectRef>,
     ) {
         for object_ref in deleted_objects {
@@ -358,7 +357,7 @@ impl SimulatorStore for PersistedStore {
 impl BackingPackageStore for PersistedStore {
     fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> iota_types::error::IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
@@ -367,8 +366,8 @@ impl BackingPackageStore for PersistedStore {
 impl ChildObjectResolver for PersistedStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match SimulatorStore::get_object(self, child) {
@@ -397,8 +396,8 @@ impl ChildObjectResolver for PersistedStore {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
@@ -433,7 +432,7 @@ impl ModuleResolver for PersistedStore {
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
-            .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
+            .get_package_object(&ObjectId::new(module_id.address().into_bytes()))?
             .and_then(|package| {
                 package
                     .move_package()
@@ -447,14 +446,14 @@ impl ModuleResolver for PersistedStore {
 impl ObjectStore for PersistedStore {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(SimulatorStore::get_object(self, object_id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version))
@@ -606,7 +605,7 @@ impl ReadStore for PersistedStore {
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();
 
@@ -621,7 +620,7 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.sync();

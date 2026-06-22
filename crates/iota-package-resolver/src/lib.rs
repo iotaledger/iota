@@ -10,14 +10,16 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, SequenceNumber, StructTag, TypeTag, is_primitive_type_tag,
-    },
-    iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
+use iota_sdk_types::{
+    Address, Argument, Command, Identifier, MakeMoveVector, ProgrammableTransaction, StructTag,
+    TypeTag,
     move_package::{MovePackage, TypeOrigin},
+};
+use iota_types::{
+    base_types::{SequenceNumber, is_primitive_type_tag},
+    iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     object::Object,
-    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
+    transaction::CallArg,
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -77,19 +79,19 @@ pub struct Limits {
 /// backend db and if package version is stale locally, it updates the local
 /// state before returning to the user
 pub struct PackageStoreWithLruCache<T> {
-    pub(crate) packages: Mutex<LruCache<IotaAddress, Arc<Package>>>,
+    pub(crate) packages: Mutex<LruCache<Address, Arc<Package>>>,
     pub(crate) inner: T,
 }
 
 #[derive(Clone, Debug)]
 pub struct Package {
     /// The ID this package was loaded from on-chain.
-    storage_id: IotaAddress,
+    storage_id: Address,
 
     /// The ID that this package is associated with at runtime.  Bytecode in
     /// other packages refers to types and functions from this package using
     /// this ID.
-    runtime_id: IotaAddress,
+    runtime_id: Address,
 
     /// The package's transitive dependencies as a mapping from the package's
     /// runtime ID (the ID it is referred to by in other packages) to its
@@ -103,7 +105,7 @@ pub struct Package {
     modules: BTreeMap<String, Module>,
 }
 
-type Linkage = BTreeMap<IotaAddress, IotaAddress>;
+type Linkage = BTreeMap<Address, Address>;
 
 /// A `CleverError` is a special kind of abort code that is used to encode more
 /// information than a normal abort code. These clever errors are used to encode
@@ -170,11 +172,11 @@ pub struct Module {
 
     /// Index mapping struct names to their defining ID, and the index for their
     /// definition in the bytecode, to speed up definition lookups.
-    struct_index: BTreeMap<String, (IotaAddress, StructDefinitionIndex)>,
+    struct_index: BTreeMap<String, (Address, StructDefinitionIndex)>,
 
     /// Index mapping enum names to their defining ID and the index of their
     /// definition in the bytecode. This speeds up definition lookups.
-    enum_index: BTreeMap<String, (IotaAddress, EnumDefinitionIndex)>,
+    enum_index: BTreeMap<String, (Address, EnumDefinitionIndex)>,
     /// Index mapping function names to the index for their definition in the
     /// bytecode, to speed up definition lookups.
     function_index: BTreeMap<String, FunctionDefinitionIndex>,
@@ -184,7 +186,7 @@ pub struct Module {
 #[derive(Debug)]
 pub struct DataDef {
     /// The storage ID of the package that first introduced this type.
-    pub defining_id: IotaAddress,
+    pub defining_id: Address,
 
     /// This type's abilities.
     pub abilities: AbilitySet,
@@ -246,7 +248,7 @@ pub struct FunctionDef {
 /// without having to allocate strings on the heap.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Hash)]
 pub struct DatatypeRef<'m, 'n> {
-    pub package: IotaAddress,
+    pub package: Address,
     pub module: Cow<'m, str>,
     pub name: Cow<'n, str>,
 }
@@ -310,14 +312,14 @@ struct ResolutionContext<'l> {
 pub trait PackageStore: Send + Sync + 'static {
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>>;
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>>;
 }
 
 macro_rules! as_ref_impl {
     ($type:ty) => {
         #[async_trait]
         impl PackageStore for $type {
-            async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
+            async fn fetch(&self, id: Address) -> Result<Arc<Package>> {
                 self.as_ref().fetch(id).await
             }
         }
@@ -455,7 +457,7 @@ impl<S: PackageStore> Resolver<S> {
     /// in the package store, assuming the function exists.
     pub async fn function_signature(
         &self,
-        pkg: IotaAddress,
+        pkg: Address,
         module: &str,
         function: &str,
     ) -> Result<FunctionDef> {
@@ -562,11 +564,9 @@ impl<S: PackageStore> Resolver<S> {
                 Command::MakeMoveVector(MakeMoveVector {
                     type_: Some(tag),
                     elements,
-                }) => {
-                    if is_primitive_type_tag(tag) {
-                        for elem in elements {
-                            register_type(elem, tag)?;
-                        }
+                }) if is_primitive_type_tag(tag) => {
+                    for elem in elements {
+                        register_type(elem, tag)?;
                     }
                 }
                 _ => { /* nop */ }
@@ -603,10 +603,10 @@ impl<S: PackageStore> Resolver<S> {
     pub async fn resolve_module_id(
         &self,
         module_id: ModuleId,
-        context: IotaAddress,
+        context: Address,
     ) -> Result<ModuleId> {
         let package = self.package_store.fetch(context).await?;
-        let storage_id = package.relocate(IotaAddress::new(module_id.address().into_bytes()))?;
+        let storage_id = package.relocate(Address::new(module_id.address().into_bytes()))?;
         Ok(ModuleId::new(
             AccountAddress::new(storage_id.into_bytes()),
             module_id.name().to_owned(),
@@ -637,7 +637,7 @@ impl<S: PackageStore> Resolver<S> {
         let bitset = ErrorBitset::from_u64(abort_code)?;
         let package = self
             .package_store
-            .fetch(IotaAddress::new(module_id.address().into_bytes()))
+            .fetch(Address::new(module_id.address().into_bytes()))
             .await
             .ok()?;
         let module = package.module(module_id.name().as_str()).ok()?.bytecode();
@@ -701,7 +701,7 @@ impl<T> PackageStoreWithLruCache<T> {
     /// Removes all packages with ids in `ids` from the cache, if they exist.
     /// Does nothing for ids that are not in the cache. Accepts `self`
     /// immutably as it operates under the lock.
-    pub fn evict(&self, ids: impl IntoIterator<Item = IotaAddress>) {
+    pub fn evict(&self, ids: impl IntoIterator<Item = Address>) {
         let mut packages = self.packages.lock().unwrap();
         for id in ids {
             packages.pop(&id);
@@ -711,7 +711,7 @@ impl<T> PackageStoreWithLruCache<T> {
 
 #[async_trait]
 impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>> {
         if let Some(package) = {
             // Release the lock after getting the package
             let mut packages = self.packages.lock().unwrap();
@@ -754,7 +754,7 @@ impl Package {
     }
 
     pub fn read_from_package(package: &MovePackage) -> Result<Self> {
-        let mut type_origins: BTreeMap<String, BTreeMap<String, IotaAddress>> = BTreeMap::new();
+        let mut type_origins: BTreeMap<String, BTreeMap<String, Address>> = BTreeMap::new();
         for TypeOrigin {
             module_name,
             datatype_name,
@@ -774,7 +774,7 @@ impl Package {
             let bytecode = CompiledModule::deserialize_with_defaults(bytes)
                 .map_err(|e| Error::Deserialize(e.finish(Location::Undefined)))?;
 
-            runtime_id = Some(IotaAddress::new(bytecode.address().into_bytes()));
+            runtime_id = Some(Address::new(bytecode.address().into_bytes()));
 
             let name = name.clone();
             match Module::read(bytecode, origins) {
@@ -833,7 +833,7 @@ impl Package {
     /// Translate the `runtime_id` of a package to a specific storage ID using
     /// this package's linkage table.  Returns an error if the package in
     /// question is not present in the linkage table.
-    fn relocate(&self, runtime_id: IotaAddress) -> Result<IotaAddress> {
+    fn relocate(&self, runtime_id: Address) -> Result<Address> {
         // Special case the current package, because it doesn't get an entry in the
         // linkage table.
         if runtime_id == self.runtime_id {
@@ -854,7 +854,7 @@ impl Module {
     /// case.
     fn read(
         bytecode: CompiledModule,
-        mut origins: BTreeMap<String, IotaAddress>,
+        mut origins: BTreeMap<String, Address>,
     ) -> std::result::Result<Self, String> {
         let mut struct_index = BTreeMap::new();
         for (index, def) in bytecode.struct_defs.iter().enumerate() {
@@ -1205,7 +1205,7 @@ impl DatatypeKey {
         let sh = bytecode.datatype_handle_at(ix);
         let mh = bytecode.module_handle_at(sh.module);
 
-        let package = IotaAddress::new(bytecode.address_identifier_at(mh.address).into_bytes());
+        let package = Address::new(bytecode.address_identifier_at(mh.address).into_bytes());
         let module = bytecode.identifier_at(mh.name).to_string().into();
         let name = bytecode.identifier_at(sh.name).to_string().into();
 
@@ -1850,10 +1850,8 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_types::{
-        base_types::{Identifier, ObjectID, random_object_ref},
-        error::IotaResult,
-    };
+    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
 
@@ -2405,7 +2403,7 @@ mod tests {
     async fn test_enums() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let a0 = cache
-            .fetch(IotaAddress::from_str("0xa0").unwrap())
+            .fetch(Address::from_str("0xa0").unwrap())
             .await
             .unwrap();
         let m = a0.module("m").unwrap();
@@ -3082,7 +3080,7 @@ mod tests {
         Arc<RwLock<InnerStore>>,
         PackageStoreWithLruCache<InMemoryPackageStore>,
     ) {
-        let packages_by_storage_id: BTreeMap<IotaAddress, _> = packages
+        let packages_by_storage_id: BTreeMap<Address, _> = packages
             .into_iter()
             .map(|(version, package, origins)| {
                 (package_storage_id(&package), (version, package, origins))
@@ -3097,7 +3095,7 @@ mod tests {
                     .published
                     .values()
                     .map(|dep_id| {
-                        let storage_id = IotaAddress::from(*dep_id);
+                        let storage_id = Address::from(*dep_id);
                         let runtime_id = package_runtime_id(
                             &packages_by_storage_id
                                 .get(&storage_id)
@@ -3165,8 +3163,8 @@ mod tests {
         }
     }
 
-    fn package_storage_id(package: &CompiledPackage) -> IotaAddress {
-        IotaAddress::new(
+    fn package_storage_id(package: &CompiledPackage) -> Address {
+        Address::new(
             package
                 .published_at
                 .as_ref()
@@ -3180,8 +3178,8 @@ mod tests {
         )
     }
 
-    fn package_runtime_id(package: &CompiledPackage) -> IotaAddress {
-        IotaAddress::new(
+    fn package_runtime_id(package: &CompiledPackage) -> Address {
+        Address::new(
             package
                 .published_root_module()
                 .expect("No compiled module")
@@ -3196,12 +3194,12 @@ mod tests {
         BuildConfig::new_for_testing().build(&path)
     }
 
-    fn addr(a: &str) -> IotaAddress {
-        IotaAddress::from_str(a).unwrap()
+    fn addr(a: &str) -> Address {
+        Address::from_str(a).unwrap()
     }
 
-    fn obj_id(a: &str) -> ObjectID {
-        ObjectID::from_str(a).unwrap()
+    fn obj_id(a: &str) -> ObjectId {
+        ObjectId::from_str(a).unwrap()
     }
 
     fn datakey(a: &str, m: &'static str, n: &'static str) -> DatatypeKey {
@@ -3228,13 +3226,13 @@ mod tests {
     }
 
     struct InnerStore {
-        packages: BTreeMap<IotaAddress, Package>,
+        packages: BTreeMap<Address, Package>,
         fetches: usize,
     }
 
     #[async_trait]
     impl PackageStore for InMemoryPackageStore {
-        async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
+        async fn fetch(&self, id: Address) -> Result<Arc<Package>> {
             let mut inner = self.inner.as_ref().write().unwrap();
             inner.fetches += 1;
             inner
@@ -3247,7 +3245,7 @@ mod tests {
     }
 
     impl InnerStore {
-        fn replace(&mut self, id: IotaAddress, package: Package) {
+        fn replace(&mut self, id: Address, package: Package) {
             self.packages.insert(id, package);
         }
     }

@@ -6,13 +6,13 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
+use iota_sdk_types::{Address, Argument, Owner};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     move_package::UpgradePolicy,
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -72,8 +72,6 @@ pub struct IotaInitArgs {
     pub default_gas_price: Option<u64>,
     #[clap(long = "move-auth")]
     pub move_auth: Option<bool>,
-    #[command(flatten)]
-    pub snapshot_config: SnapshotLagConfig,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this
@@ -479,7 +477,7 @@ impl IotaExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+            let address: Address = Address::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -545,7 +543,7 @@ impl IotaValue {
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
-        Ok(CallArg::Receiving(obj.compute_object_reference()))
+        Ok(CallArg::Receiving(obj.object_ref()))
     }
 
     fn read_shared_arg(
@@ -556,11 +554,11 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            Ok(CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: false,
-            }))
+                false,
+            )))
         } else {
             bail!("{fake_id} is not a shared object.")
         }
@@ -574,13 +572,13 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: true,
-            })),
+                true,
+            ))),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                let obj_ref = obj.compute_object_reference();
+                let obj_ref = obj.object_ref();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))
             }
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
@@ -691,7 +689,7 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+        let address: Address = Address::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }

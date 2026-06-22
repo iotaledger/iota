@@ -17,6 +17,7 @@ use crate::{
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
+        objects::StoredBackwardHistoryObject,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
@@ -34,14 +35,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn get_available_checkpoint_range(&self) -> Result<(u64, u64), IndexerError>;
 
-    async fn get_latest_object_snapshot_watermark(
-        &self,
-    ) -> Result<Option<CommitterWatermark>, IndexerError>;
-
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
-        &self,
-    ) -> Result<Option<u64>, IndexerError>;
-
     async fn get_chain_identifier(&self) -> Result<Option<Vec<u8>>, IndexerError>;
 
     fn persist_protocol_configs_and_feature_flags(
@@ -49,19 +42,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         chain_id: Vec<u8>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_object_history(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_object_versions(
         &self,
         object_versions: Vec<StoredObjectVersion>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_objects_snapshot(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_checkpoints(
@@ -138,7 +121,17 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     /// the db.
     async fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError>;
 
-    async fn persist_checkpoint_objects(
+    async fn persist_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_object_backward_history(
+        &self,
+        objects: Vec<StoredBackwardHistoryObject>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_checkpointed_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError>;
@@ -168,6 +161,14 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     /// Uses DELETE with LIMIT to maintain consistent batch sizes.
     /// Returns the number of rows deleted.
     async fn prune_table_by_global_seq_with_limit(
+        &self,
+        table: &PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError>;
+
+    async fn prune_table_by_checkpoint_with_limit(
         &self,
         table: &PrunableTable,
         start: u64,

@@ -49,6 +49,19 @@ const NUM_BUCKETS: &[f64] = &[
     1_000_000.0,
 ];
 
+/// Integer-aligned buckets for committee-size-bounded counts (e.g. the size
+/// of a strong-blame set). Each cumulative bucket `le=N.5` captures exactly
+/// the integer value N — so 0 and 1 land in different buckets, which is what
+/// `histogram_quantile` / heatmap visualisations need to distinguish a clean
+/// strong vote (`missing.len() == 0`) from a single-authority blame
+/// (`missing.len() == 1`). Boundaries cover the full `AuthorityIndex: u8`
+/// range; fine-grained at the low end where the common case lives, coarser
+/// for outliers.
+const COMMITTEE_COUNT_BUCKETS: &[f64] = &[
+    0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 12.5, 15.5, 20.5, 30.5, 50.5, 100.5,
+    256.5,
+];
+
 const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9,
     1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5,
@@ -186,6 +199,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
+    pub(crate) commit_observer_last_recovered_commit_index: IntGauge,
     pub(crate) last_commit_time_diff: Histogram,
     pub(crate) last_known_own_block_header_round: IntGauge,
     pub(crate) sync_last_known_own_block_header_retries: IntCounter,
@@ -220,6 +234,13 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_block_headers: IntGauge,
     pub(crate) block_manager_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
+    pub(crate) block_manager_gc_floor: IntGauge,
+    pub(crate) block_manager_gc_evicted_missing_ancestors_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_fetch_entries_total: IntCounter,
+    pub(crate) block_manager_gc_unsuspended_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_suspended_transactions_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_old_headers_total: IntCounter,
+    pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
@@ -245,6 +266,16 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
+    pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
+    pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
+    pub(crate) equivocations_by_authority: IntGaugeVec,
+    pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    pub(crate) strong_vote_extra_wait_seconds: Histogram,
+    pub(crate) strong_vote_missing_authorities: Histogram,
+    pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
+    pub(crate) strong_blames_received_from_voter: IntCounterVec,
+    pub(crate) adaptive_ack_excluded_authorities: IntGauge,
+    pub(crate) adaptive_ack_acks_dropped: IntCounter,
 }
 
 impl NodeMetrics {
@@ -790,6 +821,11 @@ impl NodeMetrics {
                 "Index of the last commit.",
                 registry,
             ).unwrap(),
+            commit_observer_last_recovered_commit_index: register_int_gauge_with_registry!(
+                "commit_observer_last_recovered_commit_index",
+                "The last commit index recovered by the commit observer",
+                registry,
+            ).unwrap(),
             last_commit_time_diff: register_histogram_with_registry!(
                 "last_commit_time_diff",
                 "The time diff between the last commit and previous one.",
@@ -929,6 +965,42 @@ impl NodeMetrics {
                 "block_manager_missing_ancestors_by_authority",
                 "The number of headers that are missing or suspended in the block manager by authority",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            block_manager_gc_floor: register_int_gauge_with_registry!(
+                "block_manager_gc_floor",
+                "The last GC round floor applied by the block manager. Suspended state at or below this round has been evicted.",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_missing_ancestors_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_missing_ancestors_total",
+                "Total number of missing-ancestor entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_fetch_entries_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_fetch_entries_total",
+                "Total number of headers_to_fetch entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_unsuspended_total: register_int_counter_with_registry!(
+                "block_manager_gc_unsuspended_total",
+                "Total number of headers unsuspended by the block manager GC sweep because all their missing ancestors fell below the GC floor",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_suspended_transactions_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_suspended_transactions_total",
+                "Total number of suspended_transactions entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_old_headers_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_old_headers_total",
+                "Total number of incoming block headers dropped because their round is at or below the GC floor",
+                registry,
+            ).unwrap(),
+            dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
+                "dropped_far_future_headers_total",
+                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
+                &["source"],
                 registry,
             ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(
@@ -1098,6 +1170,64 @@ impl NodeMetrics {
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
+                registry,
+            ).unwrap(),
+            faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_provable_by_authority",
+                "Provably faulty blocks per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            faulty_blocks_unprovable_by_peer: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_unprovable_by_peer",
+                "Unprovably faulty blocks per peer (source: persisted or in_memory)",
+                &["peer", "source"],
+                registry,
+            ).unwrap(),
+            equivocations_by_authority: register_int_gauge_vec_with_registry!(
+                "equivocations_by_authority",
+                "Equivocations per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
+                "missing_proposals_by_authority",
+                "Missing proposals per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            strong_vote_extra_wait_seconds: register_histogram_with_registry!(
+                "strong_vote_extra_wait_seconds",
+                "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
+                FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            strong_vote_missing_authorities: register_histogram_with_registry!(
+                "strong_vote_missing_authorities",
+                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
+                COMMITTEE_COUNT_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            strong_blames_emitted_for_leader: register_int_counter_vec_with_registry!(
+                "strong_blames_emitted_for_leader",
+                "Number of proposed blocks that strong-blame the leader (non-empty `missing` set), labeled by leader authority.",
+                &["leader"],
+                registry,
+            ).unwrap(),
+            strong_blames_received_from_voter: register_int_counter_vec_with_registry!(
+                "strong_blames_received_from_voter",
+                "Number of strong blames received against this node (when acting as leader), labeled by the voter authority that emitted the blame.",
+                &["voter"],
+                registry,
+            ).unwrap(),
+            adaptive_ack_excluded_authorities: register_int_gauge_with_registry!(
+                "adaptive_ack_excluded_authorities",
+                "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal. Empty when consensus_starfish_speed or enable_starfish_speed_adaptive_acknowledgments is off.",
+                registry,
+            ).unwrap(),
+            adaptive_ack_acks_dropped: register_int_counter_with_registry!(
+                "adaptive_ack_acks_dropped",
+                "Total pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at proposal time. Skipped refs remain pending and may be included later if the author leaves the exclusion set.",
                 registry,
             ).unwrap(),
         }

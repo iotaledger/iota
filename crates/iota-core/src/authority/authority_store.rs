@@ -14,7 +14,7 @@ use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{SequenceNumber, VerifiedExecutionData},
     digests::TransactionEventsDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -22,7 +22,6 @@ use iota_types::{
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
-    message_envelope::Message,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },
@@ -289,7 +288,6 @@ impl AuthorityStore {
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
@@ -337,7 +335,6 @@ impl AuthorityStore {
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
                     let events_iter = events
-                        .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
@@ -430,7 +427,7 @@ impl AuthorityStore {
             .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
             .map_ok(|(_, event)| event)
             .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents { data }))
+        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
     }
 
     pub fn multi_get_events(
@@ -500,7 +497,7 @@ impl AuthorityStore {
 
     pub fn get_marker_value(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: &SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
@@ -513,7 +510,7 @@ impl AuthorityStore {
 
     pub fn get_latest_marker(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
         let min_key = (epoch_id, ObjectKey::min_for_id(object_id));
@@ -613,7 +610,7 @@ impl AuthorityStore {
 
     pub fn object_exists_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> IotaResult<bool> {
         Ok(self
@@ -652,7 +649,7 @@ impl AuthorityStore {
     }
 
     /// Get many objects
-    pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
+    pub fn get_objects(&self, objects: &[ObjectId]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
             result.push(self.try_get_object(id)?);
@@ -662,7 +659,7 @@ impl AuthorityStore {
 
     pub fn have_deleted_owned_object_at_version_or_after(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
         epoch_id: EpochId,
     ) -> Result<bool, IotaError> {
@@ -697,7 +694,7 @@ impl AuthorityStore {
     pub(crate) fn insert_genesis_object(&self, object: Object) -> IotaResult {
         // We only side load objects with a genesis parent transaction.
         debug_assert!(object.previous_transaction == TransactionDigest::GENESIS_MARKER);
-        let object_ref = object.compute_object_reference();
+        let object_ref = object.object_ref();
         self.insert_object_direct(object_ref, &object)
     }
 
@@ -715,7 +712,7 @@ impl AuthorityStore {
         )?;
 
         // Update the index
-        if object.get_single_owner().is_some() {
+        if object.single_owner().is_some() {
             // Only initialize live object markers for address owned objects.
             if !object.is_child_object() {
                 self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref])?;
@@ -732,10 +729,7 @@ impl AuthorityStore {
     #[instrument(level = "debug", skip_all)]
     pub(crate) fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult<()> {
         let mut batch = self.perpetual_tables.objects.batch();
-        let ref_and_objects: Vec<_> = objects
-            .iter()
-            .map(|o| (o.compute_object_reference(), o))
-            .collect();
+        let ref_and_objects: Vec<_> = objects.iter().map(|o| (o.object_ref(), o)).collect();
 
         batch.insert_batch(
             &self.perpetual_tables.objects,
@@ -772,7 +766,7 @@ impl AuthorityStore {
                     batch.insert_batch(
                         &perpetual_db.objects,
                         std::iter::once((
-                            ObjectKey::from(object.compute_object_reference()),
+                            ObjectKey::from(object.object_ref()),
                             store_object_wrapper,
                         )),
                     )?;
@@ -780,7 +774,7 @@ impl AuthorityStore {
                         Self::initialize_live_object_markers(
                             &perpetual_db.live_owned_object_markers,
                             &mut batch,
-                            &[object.compute_object_reference()],
+                            &[object.object_ref()],
                         )?;
                     }
                 }
@@ -923,7 +917,6 @@ impl AuthorityStore {
         // Continue writing events into the old table for now keyed off of events digest
         let event_digest = events.digest();
         let events = events
-            .data
             .iter()
             .enumerate()
             .map(|(i, e)| ((event_digest, i), e));
@@ -946,7 +939,7 @@ impl AuthorityStore {
                 [(transaction_digest, effects_digest)],
             )?;
 
-        debug!(effects_digest = ?effects.digest(), "commit_certificate finished");
+        debug!(effects_digest = ?effects.digest(), "commit_transaction finished");
 
         Ok(())
     }
@@ -1068,7 +1061,7 @@ impl AuthorityStore {
     /// object.
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<ObjectRef> {
         let mut iterator = self
             .perpetual_tables
@@ -1272,7 +1265,7 @@ impl AuthorityStore {
                             return None;
                         }
 
-                        let obj_ref = obj.compute_object_reference();
+                        let obj_ref = obj.object_ref();
                         Some(obj.is_address_owned().then_some(obj_ref))
                     })
             };
@@ -1304,7 +1297,7 @@ impl AuthorityStore {
     /// have version number less then or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         self.perpetual_tables
@@ -1323,7 +1316,7 @@ impl AuthorityStore {
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         self.perpetual_tables
             .get_latest_object_ref_or_tombstone(object_id)
@@ -1333,7 +1326,7 @@ impl AuthorityStore {
     /// live (i.e. it does not return tombstones)
     pub fn get_latest_object_ref_if_alive(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
             Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
@@ -1347,7 +1340,7 @@ impl AuthorityStore {
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         let Some((object_key, store_object)) = self
             .perpetual_tables
@@ -1700,7 +1693,7 @@ impl AuthorityStore {
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
             for (object_id, seq_number) in effects.modified_at_versions() {
-                info!("Pruning object {:?} version {:?}", object_id, seq_number);
+                info!("Pruning object {} version {:?}", object_id, seq_number);
                 object_keys_to_prune.push(ObjectKey(object_id, seq_number));
             }
         }
@@ -1713,7 +1706,7 @@ impl AuthorityStore {
     // Counts the number of versions exist in object store for `object_id`. This
     // includes tombstone.
     #[cfg(msim)]
-    pub fn count_object_versions(&self, object_id: ObjectID) -> usize {
+    pub fn count_object_versions(&self, object_id: ObjectId) -> usize {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
@@ -1772,14 +1765,14 @@ impl ObjectStore for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.perpetual_tables.as_ref().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.perpetual_tables

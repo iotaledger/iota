@@ -6,15 +6,14 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
+use iota_sdk_types::{ObjectId, Owner, move_package::MovePackage};
 use iota_types::{
     balance::Balance,
-    base_types::ObjectID,
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
-    move_package::MovePackage,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::{
         timelock::{TimeLock, is_timelocked_gas_balance},
@@ -98,7 +97,7 @@ pub fn examine_genesis_checkpoint(
         owner_map.insert(object.id(), object.owner);
 
         match &object.data {
-            iota_types::object::Data::Struct(move_object) => {
+            iota_sdk_types::ObjectData::Struct(move_object) => {
                 if let Ok(gas) = GasCoin::try_from(&object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
@@ -176,7 +175,7 @@ pub fn examine_genesis_checkpoint(
                     other_object_map.insert(object.id(), move_object.clone());
                 }
             }
-            iota_types::object::Data::Package(p) => {
+            iota_sdk_types::ObjectData::Package(p) => {
                 package_map.insert(object.id(), p.clone());
             }
         }
@@ -262,18 +261,18 @@ fn examine_validators(
 }
 
 fn examine_object(
-    owner_map: &BTreeMap<ObjectID, Owner>,
-    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
-    package_map: &BTreeMap<ObjectID, MovePackage>,
-    iota_map: &BTreeMap<ObjectID, GasCoin>,
-    staked_iota_map: &BTreeMap<ObjectID, StakedIota>,
-    timelocked_iota_map: &BTreeMap<ObjectID, TimeLock<Balance>>,
-    timelocked_staked_iota: &BTreeMap<ObjectID, TimelockedStakedIota>,
-    alias_output_iota_map: &BTreeMap<ObjectID, AliasOutput>,
-    basic_output_iota_map: &BTreeMap<ObjectID, BasicOutput>,
-    nft_output_iota_map: &BTreeMap<ObjectID, NftOutput>,
-    coin_metadata_map: &BTreeMap<ObjectID, CoinMetadata>,
-    other_object_map: &BTreeMap<ObjectID, MoveObject>,
+    owner_map: &BTreeMap<ObjectId, Owner>,
+    validator_pool_id_map: &BTreeMap<ObjectId, &IotaValidatorGenesis>,
+    package_map: &BTreeMap<ObjectId, MovePackage>,
+    iota_map: &BTreeMap<ObjectId, GasCoin>,
+    staked_iota_map: &BTreeMap<ObjectId, StakedIota>,
+    timelocked_iota_map: &BTreeMap<ObjectId, TimeLock<Balance>>,
+    timelocked_staked_iota: &BTreeMap<ObjectId, TimelockedStakedIota>,
+    alias_output_iota_map: &BTreeMap<ObjectId, AliasOutput>,
+    basic_output_iota_map: &BTreeMap<ObjectId, BasicOutput>,
+    nft_output_iota_map: &BTreeMap<ObjectId, NftOutput>,
+    coin_metadata_map: &BTreeMap<ObjectId, CoinMetadata>,
+    other_object_map: &BTreeMap<ObjectId, MoveObject>,
 ) {
     let object_options: Vec<&str> = vec![
         STR_IOTA,
@@ -470,7 +469,7 @@ fn display_validator(validator: &IotaValidatorGenesis) {
     print_divider(&metadata.name);
 }
 
-fn display_iota(gas_coin: &GasCoin, owner_map: &BTreeMap<ObjectID, Owner>) {
+fn display_iota(gas_coin: &GasCoin, owner_map: &BTreeMap<ObjectId, Owner>) {
     println!("ID: {}", gas_coin.id());
     println!("Balance: {}", gas_coin.value());
     println!("Owner: {}\n", owner_map.get(gas_coin.id()).unwrap());
@@ -478,8 +477,8 @@ fn display_iota(gas_coin: &GasCoin, owner_map: &BTreeMap<ObjectID, Owner>) {
 
 fn display_staked_iota(
     staked_iota: &StakedIota,
-    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
-    owner_map: &BTreeMap<ObjectID, Owner>,
+    validator_pool_id_map: &BTreeMap<ObjectId, &IotaValidatorGenesis>,
+    owner_map: &BTreeMap<ObjectId, Owner>,
 ) {
     println!("{staked_iota:#?}");
     display_staked(
@@ -492,8 +491,8 @@ fn display_staked_iota(
 
 fn display_timelocked_staked_iota(
     timelocked_staked_iota: &TimelockedStakedIota,
-    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
-    owner_map: &BTreeMap<ObjectID, Owner>,
+    validator_pool_id_map: &BTreeMap<ObjectId, &IotaValidatorGenesis>,
+    owner_map: &BTreeMap<ObjectId, Owner>,
 ) {
     println!("{timelocked_staked_iota:#?}");
     display_staked(
@@ -505,10 +504,10 @@ fn display_timelocked_staked_iota(
 }
 
 fn display_staked(
-    pool_id: &ObjectID,
-    staked_object_id: &ObjectID,
-    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
-    owner_map: &BTreeMap<ObjectID, Owner>,
+    pool_id: &ObjectId,
+    staked_object_id: &ObjectId,
+    validator_pool_id_map: &BTreeMap<ObjectId, &IotaValidatorGenesis>,
+    owner_map: &BTreeMap<ObjectId, Owner>,
 ) {
     let validator = validator_pool_id_map.get(pool_id).unwrap();
     println!(

@@ -15,16 +15,15 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::{Identifier, ObjectID, TypeTag},
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
-        transaction::{Argument, CallArg, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -47,7 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // The custom NFT module is obtained from a Move example in the docs.
     // It is the same used in the Nft migration example.
     let custom_nft_package_id =
-        publish_custom_nft_package(sender, &mut keystore, &iota_client).await?;
+        publish_custom_nft_package(&iota_client, &mut keystore, sender).await?;
 
     // Get a gas coin
     let gas_coin = iota_client
@@ -61,7 +60,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get an AliasOutput object id
     let alias_output_object_id =
-        ObjectID::from_hex("0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554")?;
+        ObjectId::from_hex("0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554")?;
 
     // Get an AliasOutput object
     let alias_output_object = iota_client
@@ -125,7 +124,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
             vec![GAS::type_tag()],
@@ -164,7 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let nft_description = builder.pure("NFT description").unwrap();
             let nft_url_value = builder.pure("NFT URL").unwrap();
             let nft_url = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::URL_MODULE,
                 Identifier::from_static("new_unsafe"),
                 vec![],
@@ -196,7 +195,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract IOTA balance
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 vec![GAS::type_tag()],
@@ -212,7 +211,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
                 // Extract a native token balance.
                 extracted_native_tokens_bag = builder.programmable_move_call(
-                    ObjectID::STARDUST,
+                    ObjectId::STARDUST,
                     Identifier::from_static("utilities"),
                     Identifier::from_static("extract_and_send_to"),
                     type_arguments,
@@ -222,7 +221,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Cleanup bag.
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],

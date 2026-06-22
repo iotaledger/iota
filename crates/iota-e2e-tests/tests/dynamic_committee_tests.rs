@@ -11,19 +11,20 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
+use iota_sdk_types::{Address, Argument, Command, ObjectId, Owner, ProgrammableTransaction};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::ObjectRef,
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::CallArg,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -36,8 +37,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::base_types::Identifier::from_static(stringify!($module_name)),
-            iota_types::base_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -69,14 +70,14 @@ trait StatePredicate {
 struct StressTestRunner {
     pub post_epoch_predicates: Vec<Box<dyn StatePredicate + Send + Sync>>,
     pub test_cluster: TestCluster,
-    pub accounts: Vec<IotaAddress>,
-    pub active_validators: BTreeSet<IotaAddress>,
-    pub preactive_validators: BTreeMap<IotaAddress, u64>,
-    pub removed_validators: BTreeSet<IotaAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectID, IotaAddress>,
+    pub accounts: Vec<Address>,
+    pub active_validators: BTreeSet<Address>,
+    pub preactive_validators: BTreeMap<Address, u64>,
+    pub removed_validators: BTreeSet<Address>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectId, Address>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectID, IotaAddress>,
-    pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
+    pub delegations: BTreeMap<ObjectId, Address>,
+    pub reports: BTreeMap<Address, BTreeSet<Address>>,
     pub rng: StdRng,
 }
 
@@ -108,7 +109,7 @@ impl StressTestRunner {
         }
     }
 
-    pub fn pick_random_sender(&mut self) -> IotaAddress {
+    pub fn pick_random_sender(&mut self) -> Address {
         self.accounts[self.rng.gen_range(0..self.accounts.len())]
     }
 
@@ -131,11 +132,7 @@ impl StressTestRunner {
         random_committee_member
     }
 
-    pub async fn run(
-        &self,
-        sender: IotaAddress,
-        pt: ProgrammableTransaction,
-    ) -> TransactionEffects {
+    pub async fn run(&self, sender: Address, pt: ProgrammableTransaction) -> TransactionEffects {
         let rgp = self.test_cluster.get_reference_gas_price().await;
         let gas_object = self
             .test_cluster
@@ -218,7 +215,9 @@ impl StressTestRunner {
         let pre_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         self.test_cluster.force_new_epoch().await;
@@ -226,7 +225,9 @@ impl StressTestRunner {
         let post_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         info!("Changing epoch from {} to {}", pre_epoch, post_epoch);
@@ -283,9 +284,9 @@ mod add_stake {
     pub struct RequestAddStakeGen;
 
     pub struct RequestAddStake {
-        sender: IotaAddress,
+        sender: Address,
         stake_amount: u64,
-        staked_with: IotaAddress,
+        staked_with: Address,
     }
 
     impl GenStateChange for RequestAddStakeGen {
@@ -315,7 +316,7 @@ mod add_stake {
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (ObjectID::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (ObjectId::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };

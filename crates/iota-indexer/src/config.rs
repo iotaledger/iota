@@ -7,7 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tracing::warn;
@@ -17,10 +17,6 @@ use crate::{
     backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
     types::IndexerResult,
 };
-
-/// The primary purpose of objects_history is to serve consistency query.
-/// A short retention is sufficient.
-const OBJECTS_HISTORY_EPOCHS_TO_KEEP: u64 = 2;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -45,19 +41,19 @@ pub struct IndexerConfig {
 pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().package_address)]
     #[arg(long = "iota-names-package-address")]
-    pub package_address: IotaAddress,
+    pub package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
-    pub payments_package_address: IotaAddress,
+    pub payments_package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
-    pub registry_id: ObjectID,
+    pub registry_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
     #[arg(long = "iota-names-reverse-registry-id")]
-    pub reverse_registry_id: ObjectID,
+    pub reverse_registry_id: ObjectId,
 }
 
 impl From<IotaNamesOptions> for IotaNamesConfig {
@@ -283,8 +279,6 @@ pub enum Command {
     },
     JsonRpcService(JsonRpcConfig),
     AnalyticalWorker,
-    /// Print help for the deprecated interface.
-    HelpDeprecated,
     /// Backfill DB tables for some ID range [start, end].
     /// The tool will automatically slice it into smaller ranges and for each
     /// range, it first makes a read query to the DB to get data needed for
@@ -305,19 +299,49 @@ pub enum Command {
     },
 }
 
-#[derive(Args, Default, Debug, Clone)]
+pub const DEFAULT_PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours
+pub const DEFAULT_PRUNING_BATCH_SIZE: u64 = 1000;
+
+#[derive(Args, Debug, Clone)]
 pub struct PruningOptions {
-    /// Argument left for backward compatibility, users are encouraged to use
-    /// pruning_config_path
+    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
+    /// pointing at a TOML retention config instead.
     #[arg(long, env = "EPOCHS_TO_KEEP")]
     pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
-    /// DEPRECATED: This parameter is no longer used. Optimistic transactions
-    /// are now pruned by the unified pruner with the same batching strategy.
+    /// Delay in milliseconds between a watermark's lower bound being advanced
+    /// and the pruner acting on it. Lets in-flight reads complete or timeout
+    /// before their data is pruned.
+    #[arg(long, env = "PRUNING_DELAY_MS", default_value_t = DEFAULT_PRUNING_DELAY_MS)]
+    pub pruning_delay_ms: u64,
+    /// Upper bound on units (checkpoints, transactions, or global sequence
+    /// numbers) pruned per chunk, and on rows deleted per statement for the
+    /// `WithLimit` strategies. Must be > 0.
+    #[arg(
+        long,
+        env = "PRUNING_BATCH_SIZE",
+        default_value_t = DEFAULT_PRUNING_BATCH_SIZE,
+        value_parser = clap::value_parser!(u64).range(1..),
+    )]
+    pub pruning_batch_size: u64,
+    /// DEPRECATED: will be removed in v1.29.0. This parameter is no longer
+    /// used. Optimistic transactions are now pruned by the unified pruner.
     #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
     pub optimistic_pruner_batch_size: Option<u64>,
+}
+
+impl Default for PruningOptions {
+    fn default() -> Self {
+        Self {
+            epochs_to_keep: None,
+            pruning_config_path: None,
+            pruning_delay_ms: DEFAULT_PRUNING_DELAY_MS,
+            pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
+            optimistic_pruner_batch_size: None,
+        }
+    }
 }
 
 /// Represents the default retention policy and overrides for prunable tables.
@@ -342,6 +366,7 @@ impl PruningOptions {
             };
             warn!(
                 "using the deprecated --epochs-to-keep argument for pruning configuration. \
+                 This argument will be removed in v1.28.0. \
                  Please use --pruning-config-path to specify a TOML configuration file instead."
             );
             return Ok(Some(RetentionConfig::new(
@@ -352,7 +377,8 @@ impl PruningOptions {
 
         if self.epochs_to_keep.is_some() {
             warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
+                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
             );
         };
 
@@ -393,23 +419,11 @@ impl RetentionConfig {
         }
     }
 
-    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        let mut overrides = HashMap::new();
-        overrides.insert(
-            PrunableTable::ObjectsHistory,
-            OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-        );
-
-        Self::new(epochs_to_keep, HashMap::new())
-    }
-
     /// Consumes the struct and produces a mapping of every prunable table
     /// and its retention policy.
     ///
     /// By default, every prunable table will have the default retention policy
-    /// from `epochs_to_keep`. Some tables like `objects_history` will
-    /// observe a different default retention policy. These default values
-    /// are overridden by any entries in `overrides`.
+    /// from `epochs_to_keep`, overridden by any entries in `overrides`.
     pub fn retention_policies(self) -> HashMap<PrunableTable, u64> {
         let RetentionConfig {
             epochs_to_keep,
@@ -417,311 +431,33 @@ impl RetentionConfig {
         } = self;
 
         for table in PrunableTable::iter() {
-            let default_retention = match table {
-                PrunableTable::ObjectsHistory => OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-                _ => epochs_to_keep,
-            };
-
-            overrides.entry(table).or_insert(default_retention);
+            overrides.entry(table).or_insert(epochs_to_keep);
         }
 
         overrides
     }
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Default, Debug, Clone)]
 pub struct SnapshotLagConfig {
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
     #[arg(
         long = "objects-snapshot-min-checkpoint-lag",
-        default_value_t = Self::DEFAULT_MIN_LAG,
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG",
+        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
     )]
-    pub snapshot_min_lag: usize,
+    pub snapshot_min_lag: Option<usize>,
 
-    #[arg(
-        long = "objects-snapshot-sleep-duration",
-        default_value_t = Self::DEFAULT_SLEEP_DURATION_SEC,
-    )]
-    pub sleep_duration: u64,
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
+    #[arg(long = "objects-snapshot-sleep-duration")]
+    pub sleep_duration: Option<u64>,
 }
 
 impl SnapshotLagConfig {
-    pub const DEFAULT_MIN_LAG: usize = 300;
-    pub const DEFAULT_SLEEP_DURATION_SEC: u64 = 5;
-}
-
-impl Default for SnapshotLagConfig {
-    fn default() -> Self {
-        SnapshotLagConfig {
-            snapshot_min_lag: Self::DEFAULT_MIN_LAG,
-            sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
-        }
-    }
-}
-
-pub mod deprecated {
-    use std::{net::SocketAddr, path::PathBuf, time::Duration};
-
-    use anyhow::bail;
-    use clap::Parser;
-    use secrecy::{ExposeSecret, Secret};
-    use url::Url;
-
-    use crate::{
-        config::{
-            Command, IndexerConfig, IngestionConfig, IngestionSources, IotaNamesOptions,
-            JsonRpcConfig, PruningOptions, SnapshotLagConfig,
-        },
-        db::ConnectionPoolConfig,
-        errors::IndexerError,
-    };
-
-    #[derive(Parser, Clone, Debug)]
-    #[command(
-        name = "IOTA indexer",
-        about = "An off-fullnode service serving data from IOTA protocol"
-    )]
-    pub struct OldIndexerConfig {
-        #[arg(long)]
-        pub db_url: Option<Secret<String>>,
-        #[arg(long)]
-        pub db_user_name: Option<String>,
-        #[arg(long)]
-        pub db_password: Option<Secret<String>>,
-        #[arg(long)]
-        pub db_host: Option<String>,
-        #[arg(long)]
-        pub db_port: Option<u16>,
-        #[arg(long)]
-        pub db_name: Option<String>,
-        #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
-        pub rpc_client_url: String,
-        #[arg(long, default_value = Some("http://0.0.0.0:50051"), global = true)]
-        pub remote_store_url: Option<String>,
-        #[arg(long, default_value = "0.0.0.0", global = true)]
-        pub client_metric_host: String,
-        #[arg(long, default_value = "9184", global = true)]
-        pub client_metric_port: u16,
-        #[arg(long, default_value = "0.0.0.0", global = true)]
-        pub rpc_server_url: String,
-        #[arg(long, default_value = "9000", global = true)]
-        pub rpc_server_port: u16,
-        #[arg(long)]
-        pub reset_db: bool,
-        #[arg(long)]
-        pub fullnode_sync_worker: bool,
-        #[arg(long)]
-        pub rpc_server_worker: bool,
-        #[arg(long)]
-        pub data_ingestion_path: Option<PathBuf>,
-        #[arg(long)]
-        pub analytical_worker: bool,
-        #[command(flatten)]
-        pub iota_names_options: IotaNamesOptions,
-    }
-
-    impl OldIndexerConfig {
-        /// returns connection url without the db name
-        pub fn base_connection_url(&self) -> anyhow::Result<String, anyhow::Error> {
-            let url_secret = self.get_db_url()?;
-            let url_str = url_secret.expose_secret();
-            let url = Url::parse(url_str).expect("failed to parse URL");
-            Ok(format!(
-                "{}://{}:{}@{}:{}/",
-                url.scheme(),
-                url.username(),
-                url.password().unwrap_or_default(),
-                url.host_str().unwrap_or_default(),
-                url.port().unwrap_or_default()
-            ))
-        }
-
-        pub fn get_db_url(&self) -> anyhow::Result<Secret<String>, anyhow::Error> {
-            match (
-                &self.db_url,
-                &self.db_user_name,
-                &self.db_password,
-                &self.db_host,
-                &self.db_port,
-                &self.db_name,
-            ) {
-                (Some(db_url), _, _, _, _, _) => Ok(db_url.clone()),
-                (
-                    None,
-                    Some(db_user_name),
-                    Some(db_password),
-                    Some(db_host),
-                    Some(db_port),
-                    Some(db_name),
-                ) => Ok(secrecy::Secret::new(format!(
-                    "postgres://{}:{}@{}:{}/{}",
-                    db_user_name,
-                    db_password.expose_secret(),
-                    db_host,
-                    db_port,
-                    db_name
-                ))),
-                _ => bail!(
-                    "invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
-                ),
-            }
-        }
-    }
-
-    impl Default for OldIndexerConfig {
-        fn default() -> Self {
-            Self {
-                db_url: Some(secrecy::Secret::new(
-                    "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
-                )),
-                db_user_name: None,
-                db_password: None,
-                db_host: None,
-                db_port: None,
-                db_name: None,
-                rpc_client_url: "http://127.0.0.1:9000".to_string(),
-                remote_store_url: Some("http://127.0.0.1:50051".to_string()),
-                client_metric_host: "0.0.0.0".to_string(),
-                client_metric_port: 9184,
-                rpc_server_url: "0.0.0.0".to_string(),
-                rpc_server_port: 9000,
-                reset_db: false,
-                fullnode_sync_worker: true,
-                rpc_server_worker: true,
-                data_ingestion_path: None,
-                analytical_worker: false,
-                iota_names_options: IotaNamesOptions::default(),
-            }
-        }
-    }
-
-    fn pool_config_from_env() -> ConnectionPoolConfig {
-        let db_pool_size = std::env::var("DB_POOL_SIZE")
-            .ok()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(ConnectionPoolConfig::DEFAULT_POOL_SIZE);
-        let conn_timeout_secs = std::env::var("DB_CONNECTION_TIMEOUT")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(ConnectionPoolConfig::DEFAULT_CONNECTION_TIMEOUT);
-        let statement_timeout_secs = std::env::var("DB_STATEMENT_TIMEOUT")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(ConnectionPoolConfig::DEFAULT_STATEMENT_TIMEOUT);
-
-        ConnectionPoolConfig {
-            pool_size: db_pool_size,
-            connection_timeout: Duration::from_secs(conn_timeout_secs),
-            statement_timeout: Duration::from_secs(statement_timeout_secs),
-        }
-    }
-
-    impl TryFrom<OldIndexerConfig> for IndexerConfig {
-        type Error = IndexerError;
-        fn try_from(old_conf: OldIndexerConfig) -> Result<Self, Self::Error> {
-            let db_url = old_conf.get_db_url();
-
-            // NOTE: this parses the input host addr and port number for socket addr,
-            // so unwrap() is safe here.
-            let metrics_address = format!(
-                "{}:{}",
-                old_conf.client_metric_host, old_conf.client_metric_port
-            )
-            .parse()
-            .unwrap();
-
-            let download_queue_size = std::env::var("DOWNLOAD_QUEUE_SIZE")
-                .unwrap_or_else(|_| {
-                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE.to_string()
-                })
-                .parse::<usize>()
-                .expect("invalid DOWNLOAD_QUEUE_SIZE");
-            let ingestion_reader_timeout_secs = std::env::var("INGESTION_READER_TIMEOUT_SECS")
-                .unwrap_or_else(|_| {
-                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_TIMEOUT.to_string()
-                })
-                .parse::<u64>()
-                .expect("invalid INGESTION_READER_TIMEOUT_SECS");
-            let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
-                .unwrap_or(
-                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES.to_string(),
-                )
-                .parse::<usize>()
-                .unwrap();
-
-            let snapshot_min_lag = std::env::var("OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG")
-                .ok()
-                .and_then(|s| s.parse::<usize>().ok())
-                .unwrap_or(SnapshotLagConfig::DEFAULT_MIN_LAG);
-
-            let command = if old_conf.analytical_worker {
-                Command::AnalyticalWorker
-            } else if old_conf.rpc_server_worker {
-                Command::JsonRpcService(JsonRpcConfig {
-                    iota_names_options: old_conf.iota_names_options,
-                    rpc_address: SocketAddr::new(
-                        old_conf
-                            .rpc_server_url
-                            .as_str()
-                            .parse()
-                            .expect("rpc server url should be valid"),
-                        old_conf.rpc_server_port,
-                    ),
-                    rpc_client_url: old_conf.rpc_client_url,
-                    historic_fallback_options: Default::default(),
-                })
-            } else if old_conf.fullnode_sync_worker {
-                Command::Indexer {
-                    ingestion_config: IngestionConfig {
-                        sources: IngestionSources {
-                            data_ingestion_path: old_conf.data_ingestion_path,
-                            remote_store_url: old_conf.remote_store_url.map(|url| {
-                                url.parse().expect("remote store url should be correct")
-                            }),
-                            live_checkpoints_store_url: None,
-                        },
-                        checkpoint_download_queue_size: download_queue_size,
-                        checkpoint_download_timeout: ingestion_reader_timeout_secs,
-                        checkpoint_download_queue_size_bytes: data_limit,
-                    },
-                    snapshot_config: SnapshotLagConfig {
-                        snapshot_min_lag,
-                        sleep_duration: SnapshotLagConfig::DEFAULT_SLEEP_DURATION_SEC,
-                    },
-                    pruning_options: PruningOptions {
-                        epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
-                            .map(|s| s.parse::<u64>().ok())
-                            .unwrap_or_else(|_e| None),
-                        optimistic_pruner_batch_size: std::env::var("OPTIMISTIC_PRUNER_BATCH_SIZE")
-                            .map(|s| s.parse::<u64>().ok())
-                            .unwrap_or_default(),
-                        pruning_config_path: None,
-                    },
-                    reset_db: old_conf.reset_db,
-                }
-            } else {
-                return Err(IndexerError::InvalidArgument(
-                    "worker type argument not specified".into(),
-                ));
-            };
-
-            Ok(IndexerConfig {
-                database_url: Some(
-                    db_url
-                        .map_err(|e| {
-                            IndexerError::PgPoolConnection(format!(
-                                "failed parsing database url with error {e:?}"
-                            ))
-                        })?
-                        .expose_secret()
-                        .parse()
-                        .expect("database url should be correct"),
-                ),
-                connection_pool_config: pool_config_from_env(),
-                metrics_address,
-                command,
-            })
-        }
+    /// Returns `true` if any deprecated flag was explicitly provided.
+    pub fn is_set(&self) -> bool {
+        self.snapshot_min_lag.is_some() || self.sleep_duration.is_some()
     }
 }
 
@@ -810,58 +546,7 @@ mod test {
     }
 
     #[test]
-    fn pruning_options_with_objects_history_override() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let toml_content = r#"
-        epochs_to_keep = 5
-        [overrides]
-        objects_history = 10
-        transactions = 20
-        "#;
-        temp_file.write_all(toml_content.as_bytes()).unwrap();
-        let temp_path: PathBuf = temp_file.path().to_path_buf();
-        let pruning_options = PruningOptions {
-            epochs_to_keep: None,
-            pruning_config_path: Some(temp_path),
-            optimistic_pruner_batch_size: None,
-        };
-        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
-
-        // Assert the parsed values
-        assert_eq!(retention_config.epochs_to_keep, 5);
-        assert_eq!(
-            retention_config
-                .overrides
-                .get(&PrunableTable::ObjectsHistory)
-                .copied(),
-            Some(10)
-        );
-        assert_eq!(
-            retention_config
-                .overrides
-                .get(&PrunableTable::Transactions)
-                .copied(),
-            Some(20)
-        );
-        assert_eq!(retention_config.overrides.len(), 2);
-
-        let retention_policies = retention_config.retention_policies();
-
-        for table in PrunableTable::iter() {
-            let Some(retention) = retention_policies.get(&table).copied() else {
-                panic!("expected a retention policy for table {table:?}");
-            };
-
-            match table {
-                PrunableTable::ObjectsHistory => assert_eq!(retention, 10),
-                PrunableTable::Transactions => assert_eq!(retention, 20),
-                _ => assert_eq!(retention, 5),
-            };
-        }
-    }
-
-    #[test]
-    fn pruning_options_no_objects_history_override() {
+    fn pruning_options_with_overrides() {
         let mut temp_file = NamedTempFile::new().unwrap();
         let toml_content = r#"
         epochs_to_keep = 5
@@ -872,9 +557,8 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
-            epochs_to_keep: None,
             pruning_config_path: Some(temp_path),
-            optimistic_pruner_batch_size: None,
+            ..Default::default()
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 
@@ -904,9 +588,6 @@ mod test {
             };
 
             match table {
-                PrunableTable::ObjectsHistory => {
-                    assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
-                }
                 PrunableTable::TxSenders => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
@@ -919,7 +600,7 @@ mod test {
         let toml_str = r#"
         epochs_to_keep = 5
         [overrides]
-        objects_history = 10
+        tx_senders = 10
         transactions = 20
         invalid_table = 30
         "#;

@@ -44,10 +44,12 @@ CallArg:
         NEWTYPE:
           TYPENAME: ObjectArg
 CancelledTransaction:
-  TUPLESTRUCT:
-    - TYPENAME: Digest
-    - SEQ:
-        TYPENAME: VersionAssignment
+  STRUCT:
+    - digest:
+        TYPENAME: Digest
+    - version_assignments:
+        SEQ:
+          TYPENAME: VersionAssignment
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -106,6 +108,16 @@ ChangeEpochV4:
     - scores:
         SEQ: U64
     - adjust_rewards_by_score: BOOL
+ChangedObject:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - input_state:
+        TYPENAME: ObjectIn
+    - output_state:
+        TYPENAME: ObjectOut
+    - id_operation:
+        TYPENAME: IdOperation
 CheckpointCommitment:
   ENUM:
     0:
@@ -237,26 +249,6 @@ CommandArgumentError:
       SharedObjectOperationNotAllowed: UNIT
     12:
       InvalidArgumentArity: UNIT
-CompressedSignature:
-  ENUM:
-    0:
-      Ed25519:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
-    1:
-      Secp256k1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
-    2:
-      Secp256r1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -272,9 +264,10 @@ ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
       CancelledTransactions:
-        NEWTYPE:
-          SEQ:
-            TYPENAME: CancelledTransaction
+        STRUCT:
+          - cancelled_transactions:
+              SEQ:
+                TYPENAME: CancelledTransaction
 DeleteKind:
   ENUM:
     0:
@@ -289,14 +282,6 @@ ECMHLiveObjectSetDigest:
   STRUCT:
     - digest:
         TYPENAME: Digest
-EffectsObjectChange:
-  STRUCT:
-    - input_state:
-        TYPENAME: ObjectIn
-    - output_state:
-        TYPENAME: ObjectOut
-    - id_operation:
-        TYPENAME: IDOperation
 EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
@@ -352,7 +337,7 @@ ExecutionDigests:
         TYPENAME: Digest
     - effects:
         TYPENAME: Digest
-ExecutionFailureStatus:
+ExecutionError:
   ENUM:
     0:
       InsufficientGas: UNIT
@@ -494,7 +479,7 @@ ExecutionStatus:
       Failure:
         STRUCT:
           - error:
-              TYPENAME: ExecutionFailureStatus
+              TYPENAME: ExecutionError
           - command:
               OPTION: U64
 FullCheckpointContents:
@@ -517,7 +502,7 @@ GasPayment:
   STRUCT:
     - objects:
         SEQ:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
     - owner:
         TYPENAME: Address
     - price: U64
@@ -542,14 +527,14 @@ GenesisTransaction:
     - events:
         SEQ:
           TYPENAME: Event
-IDOperation:
+IdOperation:
   ENUM:
     0:
-      None: UNIT
+      none: UNIT
     1:
-      Created: UNIT
+      created: UNIT
     2:
-      Deleted: UNIT
+      deleted: UNIT
 Intent:
   STRUCT:
     - scope: U8
@@ -640,22 +625,6 @@ MoveStruct:
         TYPENAME: MoveObjectType
     - version: U64
     - contents: BYTES
-MultiSig:
-  STRUCT:
-    - sigs:
-        SEQ:
-          TYPENAME: CompressedSignature
-    - bitmap: U16
-    - multisig_pk:
-        TYPENAME: MultiSigPublicKey
-MultiSigPublicKey:
-  STRUCT:
-    - pk_map:
-        SEQ:
-          TUPLE:
-            - TYPENAME: PublicKey
-            - U8
-    - threshold: U16
 Object:
   STRUCT:
     - data:
@@ -670,7 +639,7 @@ ObjectArg:
     0:
       ImmutableOrOwned:
         NEWTYPE:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
     1:
       Shared:
         STRUCT:
@@ -681,7 +650,7 @@ ObjectArg:
     2:
       Receiving:
         NEWTYPE:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
 ObjectData:
   ENUM:
     0:
@@ -698,15 +667,15 @@ ObjectId:
 ObjectIn:
   ENUM:
     0:
-      NotExist: UNIT
+      Missing: UNIT
     1:
-      Exist:
-        NEWTYPE:
-          TUPLE:
-            - TUPLE:
-                - U64
-                - TYPENAME: Digest
-            - TYPENAME: Owner
+      Data:
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
+          - owner:
+              TYPENAME: Owner
 ObjectInfoRequestKind:
   ENUM:
     0:
@@ -717,33 +686,40 @@ ObjectInfoRequestKind:
 ObjectOut:
   ENUM:
     0:
-      NotExist: UNIT
+      Missing: UNIT
     1:
       ObjectWrite:
-        NEWTYPE:
-          TUPLE:
-            - TYPENAME: Digest
-            - TYPENAME: Owner
+        STRUCT:
+          - digest:
+              TYPENAME: Digest
+          - owner:
+              TYPENAME: Owner
     2:
       PackageWrite:
-        NEWTYPE:
-          TUPLE:
-            - U64
-            - TYPENAME: Digest
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
+ObjectReference:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - version: U64
+    - digest:
+        TYPENAME: Digest
 Owner:
   ENUM:
     0:
-      AddressOwner:
+      Address:
         NEWTYPE:
           TYPENAME: Address
     1:
-      ObjectOwner:
+      Object:
         NEWTYPE:
-          TYPENAME: Address
+          TYPENAME: ObjectId
     2:
       Shared:
-        STRUCT:
-          - initial_shared_version: U64
+        NEWTYPE: U64
     3:
       Immutable: UNIT
 PackageUpgradeError:
@@ -786,26 +762,6 @@ ProgrammableTransaction:
           TYPENAME: Command
 ProtocolVersion:
   NEWTYPESTRUCT: U64
-PublicKey:
-  ENUM:
-    0:
-      Ed25519:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 32
-    1:
-      Secp256k1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 33
-    2:
-      Secp256r1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 33
 Publish:
   STRUCT:
     - modules:
@@ -870,8 +826,8 @@ TransactionEffectsV1:
   STRUCT:
     - status:
         TYPENAME: ExecutionStatus
-    - executed_epoch: U64
-    - gas_used:
+    - epoch: U64
+    - gas_cost_summary:
         TYPENAME: GasCostSummary
     - transaction_digest:
         TYPENAME: Digest
@@ -886,22 +842,17 @@ TransactionEffectsV1:
     - lamport_version: U64
     - changed_objects:
         SEQ:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - TYPENAME: EffectsObjectChange
+          TYPENAME: ChangedObject
     - unchanged_shared_objects:
         SEQ:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - TYPENAME: UnchangedSharedKind
-    - aux_data_digest:
+          TYPENAME: UnchangedSharedObject
+    - auxiliary_data_digest:
         OPTION:
           TYPENAME: Digest
 TransactionEvents:
-  STRUCT:
-    - data:
-        SEQ:
-          TYPENAME: Event
+  NEWTYPESTRUCT:
+    SEQ:
+      TYPENAME: Event
 TransactionExpiration:
   ENUM:
     0:
@@ -951,11 +902,6 @@ TransferObjects:
           TYPENAME: Argument
     - address:
         TYPENAME: Argument
-TupleObjectReference:
-  TUPLESTRUCT:
-    - TYPENAME: ObjectId
-    - U64
-    - TYPENAME: Digest
 TypeArgumentError:
   ENUM:
     0:
@@ -1035,6 +981,12 @@ UnchangedSharedKind:
           - version: U64
     4:
       PerEpochConfig: UNIT
+UnchangedSharedObject:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - kind:
+        TYPENAME: UnchangedSharedKind
 Upgrade:
   STRUCT:
     - modules:
@@ -1052,9 +1004,10 @@ UpgradeInfo:
         TYPENAME: ObjectId
     - upgraded_version: U64
 VersionAssignment:
-  TUPLESTRUCT:
-    - TYPENAME: ObjectId
-    - U64
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - version: U64
 "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:

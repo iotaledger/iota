@@ -59,3 +59,4 @@ jobs:
           commit-message: "release: bump version to `${{ env.IOTA_VERSION }}`"
           body: Automated version bump to `${{ env.IOTA_VERSION }}`.
           delete-branch: true
+          sign-commits: true

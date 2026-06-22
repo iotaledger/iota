@@ -16,27 +16,29 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{
+        Address, Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
+        ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
+    };
     use iota_types::{
         auth_context,
         base_types::{
-            Identifier, IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
+            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
+            TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
-        execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
+            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::{Command, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{
@@ -248,7 +250,7 @@ mod checked {
                     .enumerate()
                     .map(|(idx, arg)| context.by_value_arg(CommandKind::TransferObjects, idx, arg))
                     .collect::<Result<_, _>>()?;
-                let addr: IotaAddress =
+                let addr: Address =
                     context.by_value_arg(CommandKind::TransferObjects, objs.len(), addr_arg)?;
                 for obj in objs {
                     obj.ensure_public_transfer_eligible()?;
@@ -539,7 +541,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -557,7 +559,7 @@ mod checked {
         // since Move objects and Move packages cannot interact
         let runtime_id = if Mode::packages_are_predefined() {
             // do not calculate or substitute id for predefined packages
-            ObjectID::new(modules[0].self_id().address().into_bytes())
+            ObjectId::new(modules[0].self_id().address().into_bytes())
         } else {
             let id = context.tx_context.borrow_mut().fresh_id();
             substitute_package_id(&mut modules, id)?;
@@ -619,8 +621,8 @@ mod checked {
     fn execute_move_upgrade<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        current_package_id: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        current_package_id: ObjectId,
         upgrade_ticket_arg: Arg,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -846,7 +848,7 @@ mod checked {
     /// does not match the expected count.
     fn fetch_package(
         context: &ExecutionContext<'_, '_, '_>,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> Result<PackageObject, ExecutionError> {
         let mut fetched_packages = fetch_packages(context, vec![package_id])?;
         assert_invariant!(
@@ -866,7 +868,7 @@ mod checked {
     /// and attempts to retrieve the corresponding packages from the state view.
     fn fetch_packages<'ctx, 'vm, 'state, 'a>(
         context: &'ctx ExecutionContext<'vm, 'state, 'a>,
-        package_ids: impl IntoIterator<Item = &'ctx ObjectID>,
+        package_ids: impl IntoIterator<Item = &'ctx ObjectId>,
     ) -> Result<Vec<PackageObject>, ExecutionError> {
         let package_ids: BTreeSet<_> = package_ids.into_iter().collect();
         match get_package_objects(&context.state_view, package_ids) {
@@ -902,8 +904,8 @@ mod checked {
     fn create_and_freeze_package_metadata_if_present(
         context: &mut ExecutionContext<'_, '_, '_>,
         modules: &[CompiledModule],
-        storage_id: ObjectID,
-        runtime_id: ObjectID,
+        storage_id: ObjectId,
+        runtime_id: ObjectId,
         package_version: u64,
     ) -> Result<(), ExecutionError> {
         let mut modules_metadata_map = BTreeMap::new();
@@ -1125,7 +1127,7 @@ mod checked {
     /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
         // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
@@ -1456,15 +1458,14 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let module_addr = module_id.address();
         let module_name = module_id.name();
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE
-        {
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name == TRANSFER_MODULE
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
@@ -1478,7 +1479,7 @@ mod checked {
             ));
         }
 
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name == ACCOUNT_MODULE
             && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
         {
@@ -1564,7 +1565,7 @@ mod checked {
         let mut by_mut_ref = vec![];
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
-            package: ObjectID::new(module_id.address().into_bytes()),
+            package: ObjectId::new(module_id.address().into_bytes()),
             module: module_id.name(),
             function,
         };
@@ -1771,7 +1772,7 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        let is_tx_context_type = module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
             && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
@@ -2048,7 +2049,7 @@ mod checked {
                     Ok(())
                 }
                 PrimitiveArgumentLayout::Address => {
-                    IotaAddress::deserialize(deserializer)?;
+                    Address::deserialize(deserializer)?;
                     Ok(())
                 }
             }

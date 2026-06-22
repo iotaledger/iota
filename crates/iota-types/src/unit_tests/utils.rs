@@ -5,18 +5,24 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_crypto::{
+    Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+};
+use iota_sdk_types::{
+    Address, ObjectId, SimpleSignature, TransactionKind,
+    crypto::{Intent, IntentMessage},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
-    IotaAddress,
-    base_types::{ObjectID, dbg_addr},
+    base_types::{dbg_addr, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
-        get_key_pair, get_key_pair_from_rng,
+        ToFromBytes as _, get_key_pair, get_key_pair_from_rng,
     },
-    multisig::{MultiSig, MultiSigPublicKey},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -60,7 +66,7 @@ where
 pub fn create_fake_transaction() -> Transaction {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -69,7 +75,7 @@ pub fn create_fake_transaction() -> Transaction {
     };
     let data = TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
@@ -77,9 +83,9 @@ pub fn create_fake_transaction() -> Transaction {
     to_sender_signed_transaction(data, &sender_key)
 }
 
-pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
+pub fn make_transaction_data(sender: Address) -> TransactionData {
     let object =
-        Object::immutable_with_id_for_testing(ObjectID::generate(StdRng::from_seed([0; 32])));
+        Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
@@ -87,18 +93,38 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     };
     TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
     )
 }
 
+/// Make sponsored [`TransactionData`] with a transfer-IOTA programmable
+/// transaction and a random gas object, for use in tests.
+pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> TransactionData {
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(dbg_addr(2), None);
+        builder.finish()
+    };
+    TransactionData::new_with_gas_coins_allow_sponsor(
+        TransactionKind::new_programmable(pt),
+        sender,
+        vec![random_object_ref()],
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
+        1,
+        sponsor,
+    )
+}
+
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: IotaAddress, kp: &IotaKeyPair) -> Transaction {
+pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    Transaction::from_data_and_signer(data, vec![kp])
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = IotaKeyPair::from_bytes(&kp.to_bytes()).unwrap();
+    Transaction::from_data_and_signer(data, vec![&kp])
 }
 
 // This is used to sign transaction with signer using default Intent.
@@ -137,67 +163,169 @@ pub fn keys() -> Vec<IotaKeyPair> {
     let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
     let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
     let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+
     vec![kp1, kp2, kp3]
 }
 
-pub fn make_upgraded_multisig_tx() -> Transaction {
+pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
     let keys = keys();
-    let pk1 = &keys[0].public();
-    let pk2 = &keys[1].public();
-    let pk3 = &keys[2].public();
+    let kp1 = Ed25519PrivateKey::from_bytes(keys[0].to_bytes_no_flag()).unwrap();
+    let kp2 = Secp256k1PrivateKey::from_bytes(keys[1].to_bytes_no_flag()).unwrap();
+    let kp3 = Secp256r1PrivateKey::from_bytes(keys[2].to_bytes_no_flag()).unwrap();
+
+    (kp1, kp2, kp3)
+}
+
+pub fn make_upgraded_multisig_tx() -> Transaction {
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
+    let pk3 = kp3.public_key();
 
     let multisig_pk = MultiSigPublicKey::new(
-        vec![pk1.clone(), pk2.clone(), pk3.clone()],
-        vec![1, 1, 1],
+        vec![
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(pk3, 1),
+        ],
         2,
     )
     .unwrap();
-    let addr = IotaAddress::from(&multisig_pk);
-    let tx = make_transaction(addr, &keys[0]);
+    let addr = Address::from(&multisig_pk);
+    let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
-    let sig1 = Signature::new_secure(&msg, &keys[0]).into();
-    let sig2 = Signature::new_secure(&msg, &keys[1]).into();
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
+        .signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&*msg);
+    let sig2: SimpleSignature = kp2.sign(&*msg);
 
     // Any 2 of 3 signatures verifies ok.
-    let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
+    let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     Transaction::new(SenderSignedData::new(
         tx.transaction_data().clone(),
         vec![GenericSignature::MultiSig(multi_sig1)],
     ))
 }
 
+/// Make a sponsored transaction where both sender and sponsor sign with regular
+/// (Ed25519) signatures, for use in tests.
+///
+/// Returns the transaction together with the sender's and sponsor's addresses
+/// so callers can locate each signature within the transaction.
+pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
+    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sponsor, sponsor_kp): (_, AccountKeyPair) = get_key_pair();
+    let tx_data = make_sponsored_transaction_data(sender, sponsor);
+    let sender_sig: GenericSignature =
+        Transaction::signature_from_signer(tx_data.clone(), Intent::iota_transaction(), &sender_kp)
+            .into();
+    let tx =
+        to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_kp));
+    (tx, sender, sponsor)
+}
+
 mod move_authenticator {
+    use fastcrypto::hash::HashFunction;
+    use iota_sdk_types::{Address, Digest};
+
     pub use crate::move_authenticator::MoveAuthenticator;
     use crate::{
-        base_types::IotaAddress,
+        crypto::DefaultHash,
         object::OBJECT_START_VERSION,
         signature::GenericSignature,
         transaction::{CallArg, SenderSignedData, SharedObjectRef, Transaction},
-        utils::make_transaction_data,
+        utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 
     /// Make a transaction signed with `MoveAuthenticator` for testing.
-    pub fn make_move_authenticator_tx(address: IotaAddress) -> Transaction {
+    pub fn make_move_authenticator_tx(address: Address) -> Transaction {
         let data = make_transaction_data(address);
-
-        // There is no a real Move account behind this address.
-        //
-        // TODO: if it is necessary, AA accounts need to be supported properly in the
-        // `AuthorityState` used for testing.
-        let self_call_arg = CallArg::Shared(SharedObjectRef {
-            object_id: address.into(),
-            initial_shared_version: OBJECT_START_VERSION,
-            mutable: false,
-        });
-        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-            vec![],
-            vec![],
-            self_call_arg,
-        ));
-
+        let (authenticator, _) = make_move_authenticator_sig(address);
         Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+    }
+
+    /// Build a [`GenericSignature::MoveAuthenticator`] and the underlying
+    /// [`MoveAuthenticator`] for the given address, for use in tests.
+    ///
+    /// There is no real Move account behind this address.
+    ///
+    /// TODO: if it is necessary, AA accounts need to be supported properly in
+    /// the `AuthorityState` used for testing.
+    pub fn make_move_authenticator_sig(address: Address) -> (GenericSignature, MoveAuthenticator) {
+        let authenticator = MoveAuthenticator::new_v1(
+            vec![],
+            vec![],
+            CallArg::Shared(SharedObjectRef {
+                object_id: address.into(),
+                initial_shared_version: OBJECT_START_VERSION,
+                mutable: false,
+            }),
+        );
+        let sig = GenericSignature::MoveAuthenticator(authenticator.clone());
+        (sig, authenticator)
+    }
+
+    /// Make a sponsored transaction where both sender and sponsor sign with
+    /// [`MoveAuthenticator`], for use in tests.
+    ///
+    /// Returns the transaction together with the sender's and sponsor's
+    /// [`MoveAuthenticator`] so callers can independently verify the expected
+    /// auth digests.
+    pub fn make_sponsored_move_authenticator_tx(
+        sender_addr: Address,
+        sponsor_addr: Address,
+    ) -> (Transaction, MoveAuthenticator, MoveAuthenticator) {
+        let (sender_sig, sender_auth) = make_move_authenticator_sig(sender_addr);
+        let (sponsor_sig, sponsor_auth) = make_move_authenticator_sig(sponsor_addr);
+        let tx_data = make_sponsored_transaction_data(sender_addr, sponsor_addr);
+        let tx = Transaction::new(SenderSignedData::new(
+            tx_data,
+            vec![sender_sig, sponsor_sig],
+        ));
+        (tx, sender_auth, sponsor_auth)
+    }
+
+    /// Compute the Blake2b256 hash of the serialized (flag-prefixed) bytes of a
+    /// [`GenericSignature`], matching the digest used for
+    /// non-[`MoveAuthenticator`] signatures by
+    /// [`crate::transaction::auth_digest_for_sig`].
+    pub fn blake2b256_of_sig(sig: &GenericSignature) -> Digest {
+        let mut hasher = DefaultHash::default();
+        hasher.update(sig.to_bytes());
+        Digest::new(hasher.finalize().into())
     }
 }
 
 pub use move_authenticator::*;
+
+mod passkey {
+    use fastcrypto::secp256r1::Secp256r1KeyPair;
+
+    use super::*;
+    use crate::{
+        crypto::{Signature, Signer, get_key_pair},
+        passkey_authenticator::PasskeyAuthenticator,
+        signature::GenericSignature,
+    };
+
+    /// Build a [`GenericSignature::PasskeyAuthenticator`] backed by a
+    /// freshly-generated Secp256r1 key pair, for use in tests.
+    ///
+    /// The challenge field is 32 zero-bytes encoded as base64url without
+    /// padding, satisfying the length requirement without needing a real
+    /// WebAuthn round-trip.
+    pub fn make_passkey_authenticator_sig() -> GenericSignature {
+        let (_, r1_kp): (_, Secp256r1KeyPair) = get_key_pair();
+        let user_sig: Signature = r1_kp.sign(&[0u8; 32]);
+        let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
+        let passkey = PasskeyAuthenticator::new(
+            vec![],
+            client_data_json.to_string(),
+            SimpleSignature::from_bytes(user_sig.as_bytes()).unwrap(),
+        )
+        .unwrap();
+        GenericSignature::PasskeyAuthenticator(passkey)
+    }
+}
+
+pub use passkey::*;

@@ -47,7 +47,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(filter: {signAddress: "@{A}" transactionIds: []}) {
+  transactionBlocks(filter: {sentAddress: "@{A}" transactionIds: []}) {
     pageInfo {
       hasNextPage
       hasPreviousPage

@@ -21,15 +21,14 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -55,9 +54,9 @@ type Signatures = Vec<Base64>;
 const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
 async fn prepare_and_sign_object_transfer_tx(
-    sender: IotaAddress,
+    sender: Address,
     sender_key_pair: AccountKeyPair,
-    receiver: IotaAddress,
+    receiver: Address,
     object_to_transfer: ObjectRef,
     gas: ObjectRef,
 ) -> (TxBytes, Signatures) {
@@ -77,7 +76,7 @@ fn assert_transaction_success(res: &IotaTransactionBlockResponse) {
     );
 }
 
-async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
+async fn get_counter_value(counter_obj_id: ObjectId, client: &HttpClient) -> u64 {
     let counter_content = client
         .get_object(
             counter_obj_id,
@@ -101,8 +100,7 @@ async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64
         counter_value_str.parse().unwrap()
     } else {
         panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
+            "Counter value field is not a string (expected u64 serialized as string), got: {value_field:?}"
         );
     }
 }
@@ -744,8 +742,7 @@ fn test_parallel_shared_object_updates() {
                 let counter_value = get_counter_value(counter_obj, client).await;
                 assert_eq!(
                     counter_value, expected_count,
-                    "Counter value should be {} but was {} at iteration {}",
-                    expected_count, counter_value, i
+                    "Counter value should be {expected_count} but was {counter_value} at iteration {i}"
                 );
             }
 
@@ -938,7 +935,7 @@ fn test_repeatedly_update_display() {
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
-        let display_obj_id = ObjectID::from_prefixed_short_hex(
+        let display_obj_id = ObjectId::from_prefixed_short_hex(
             res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
                 .as_str()
                 .unwrap(),
@@ -1003,8 +1000,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         None,
         Some(PruningOptions {
             epochs_to_keep: Some(1),
-            pruning_config_path: None,
-            optimistic_pruner_batch_size: None,
+            ..Default::default()
         }),
     )
     .await;
@@ -1069,11 +1065,11 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 }
 
 pub(crate) async fn create_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
-) -> Result<ObjectID, anyhow::Error> {
+    package_id: &ObjectId,
+) -> Result<ObjectId, anyhow::Error> {
     let res = execute_move_call(
         client,
         address,
@@ -1099,12 +1095,12 @@ pub(crate) async fn create_basic_object(
 }
 
 async fn wrap_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
-    object_id: &ObjectID,
-) -> Result<(IotaTransactionBlockResponse, ObjectID), anyhow::Error> {
+    package_id: &ObjectId,
+    object_id: &ObjectId,
+) -> Result<(IotaTransactionBlockResponse, ObjectId), anyhow::Error> {
     let res = execute_move_call(
         client,
         address,
@@ -1132,11 +1128,11 @@ async fn wrap_basic_object(
 }
 
 async fn unwrap_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
-    object_id: &ObjectID,
+    package_id: &ObjectId,
+    object_id: &ObjectId,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     execute_move_call(
         client,
@@ -1153,10 +1149,10 @@ async fn unwrap_basic_object(
 }
 
 async fn update_display_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    display_object_id: &ObjectID,
+    display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
     name_to_update: &str,
     new_value: &str,
@@ -1165,7 +1161,7 @@ async fn update_display_object(
         client,
         address,
         address_kp,
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         "display".to_string(),
         "edit".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1181,17 +1177,17 @@ async fn update_display_object(
 }
 
 async fn bump_display_object_version(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    display_object_id: &ObjectID,
+    display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     execute_move_call(
         client,
         address,
         address_kp,
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         "display".to_string(),
         "update_version".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1202,11 +1198,11 @@ async fn bump_display_object_version(
 }
 
 async fn create_counter_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
-) -> Result<(IotaTransactionBlockResponse, ObjectID), anyhow::Error> {
+    package_id: &ObjectId,
+) -> Result<(IotaTransactionBlockResponse, ObjectId), anyhow::Error> {
     let res = execute_move_call(
         client,
         address,
@@ -1233,12 +1229,12 @@ async fn create_counter_object(
 }
 
 async fn increment_counter(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
-    counter_id: &ObjectID,
-    gas: Option<ObjectID>,
+    package_id: &ObjectId,
+    counter_id: &ObjectId,
+    gas: Option<ObjectId>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     execute_move_call(
         client,
@@ -1255,12 +1251,12 @@ async fn increment_counter(
 }
 
 async fn create_new_bear(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     name: &str,
-) -> Result<(IotaTransactionBlockResponse, ObjectID), anyhow::Error> {
+) -> Result<(IotaTransactionBlockResponse, ObjectId), anyhow::Error> {
     let module = "demo_bear".to_string();
     let function = "new".to_string();
 
@@ -1314,18 +1310,18 @@ async fn create_new_bear(
 }
 
 pub(crate) async fn deploy_basics_pkg(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-) -> (IotaTransactionBlockResponse, ObjectID) {
+) -> (IotaTransactionBlockResponse, ObjectId) {
     deploy_package(address, address_kp, client, "../../examples/move/basics").await
 }
 
 async fn deploy_bear_pkg(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
-) -> (IotaTransactionBlockResponse, ObjectID) {
+) -> (IotaTransactionBlockResponse, ObjectId) {
     deploy_package(
         address,
         address_kp,
@@ -1336,11 +1332,11 @@ async fn deploy_bear_pkg(
 }
 
 async fn deploy_package(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     pkg_path: &str,
-) -> (IotaTransactionBlockResponse, ObjectID) {
+) -> (IotaTransactionBlockResponse, ObjectId) {
     let compiled_package = BuildConfig::new_for_testing()
         .build(Path::new(pkg_path))
         .unwrap();
@@ -1456,6 +1452,29 @@ fn move_view_function_call() {
         };
         assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
+
+        // Test mixed object, bool and address arguments.
+        let fn_name = format!("{}::wat_counter::has_address_arg", object_ref.object_id);
+        let address =
+            Address::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
+        let view_results = client
+            .view_function_call(
+                fn_name,
+                None,
+                vec![
+                    call_arg!(review_id).unwrap(),
+                    call_arg!("true").unwrap(),
+                    call_arg!(address).unwrap(),
+                ],
+            )
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        assert_eq!(
+            view_results.into_return_values(),
+            vec![IotaMoveValue::Bool(true)]
+        );
     });
 }
 
@@ -1570,7 +1589,9 @@ fn dry_run_request_add_stake() {
         let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
             IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(s) => s.active_validators[0].iota_address,
-            _ => unimplemented!("there is a new system state summary variant that must be handled"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         let tx_bytes: TransactionBlockBytes = client

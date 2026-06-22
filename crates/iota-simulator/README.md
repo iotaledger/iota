@@ -193,8 +193,6 @@ Documentation of network configuration is not finished yet, but reading the code
 
 There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/develop/crates/iota-simulator/src/lib.rs).
 
-There are also some examples of network configuration at https://github.com/iotaledger/iota/blob/develop/crates/iota-benchmark/tests/simtest.rs#L52.
-
 ### The `nondeterministic!` macro
 
 Occasionally a test needs an escape hatch from its deterministic environment.

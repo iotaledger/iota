@@ -15,13 +15,13 @@ use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use iota_package_management::{
     PublishedAtError, resolve_published_id,
-    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
+use iota_sdk_types::{Address, ObjectId, move_package::MovePackage};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
     },
 };
@@ -90,7 +90,7 @@ pub mod test_utils {
 pub struct CompiledPackage {
     pub package: MoveCompiledPackage,
     /// Address the package is recorded as being published at.
-    pub published_at: Result<ObjectID, PublishedAtError>,
+    pub published_at: Result<ObjectId, PublishedAtError>,
     /// The dependency IDs of this package
     pub dependency_ids: PackageDependencies,
     /// The bytecode modules that this package depends on (both directly and
@@ -139,7 +139,7 @@ impl BuildConfig {
 
     pub fn new_for_testing_replace_addresses<I, S>(dep_original_addresses: I) -> Self
     where
-        I: IntoIterator<Item = (S, ObjectID)>,
+        I: IntoIterator<Item = (S, ObjectId)>,
         S: Into<String>,
     {
         let mut build_config = Self::new_for_testing();
@@ -155,7 +155,7 @@ impl BuildConfig {
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
-            let mod_addr = IotaAddress::new(u.named_module.address.into_bytes());
+            let mod_addr = Address::new(u.named_module.address.into_bytes());
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {
@@ -495,7 +495,7 @@ impl CompiledPackage {
     /// Return the set of Object IDs corresponding to this package's transitive
     /// dependencies' storage package IDs (where to load those packages
     /// on-chain).
-    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectID> {
+    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().copied().collect()
     }
 
@@ -533,26 +533,26 @@ impl CompiledPackage {
     /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::SYSTEM.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::SYSTEM.as_bytes())
     }
 
     /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::FRAMEWORK.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::FRAMEWORK.as_bytes())
     }
 
     /// Get bytecode modules from the Move stdlib that are used by this package
     pub fn get_stdlib_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STD.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::STD.as_bytes())
     }
 
     /// Get bytecode modules from Stardust that are used by this package
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STARDUST.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::STARDUST.as_bytes())
     }
 
     /// Generate layout schemas for all types declared by this package, as well
@@ -695,7 +695,7 @@ impl CompiledPackage {
         })
     }
 
-    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectID> {
+    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().cloned().collect()
     }
 
@@ -704,7 +704,7 @@ impl CompiledPackage {
     pub fn find_immediate_deps_pkgs_to_keep(
         &self,
         with_unpublished_deps: bool,
-    ) -> Result<BTreeMap<Symbol, ObjectID>, anyhow::Error> {
+    ) -> Result<BTreeMap<Symbol, ObjectId>, anyhow::Error> {
         // Start from the root modules (or all modules if with_unpublished_deps is true
         // as we need to include modules with 0x0 address)
         let root_modules: Vec<_> = if with_unpublished_deps {
@@ -836,7 +836,7 @@ impl PackageHooks for IotaPackageHooks {
 #[derive(Debug, Clone)]
 pub struct PackageDependencies {
     /// Set of published dependencies (name and address).
-    pub published: BTreeMap<Symbol, ObjectID>,
+    pub published: BTreeMap<Symbol, ObjectId>,
     /// Set of unpublished dependencies (name).
     pub unpublished: BTreeSet<Symbol>,
     /// Set of dependencies with invalid `published-at` addresses.
@@ -844,7 +844,7 @@ pub struct PackageDependencies {
     /// Set of dependencies that have conflicting `published-at` addresses. The
     /// key refers to the package, and the tuple refers to the address in
     /// the (Move.lock, Move.toml) respectively.
-    pub conflicting: BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    pub conflicting: BTreeMap<Symbol, (ObjectId, ObjectId)>,
 }
 
 /// Partition packages in `resolution_graph` into one of four groups:
@@ -856,7 +856,7 @@ pub struct PackageDependencies {
 pub fn gather_published_ids(
     resolution_graph: &ResolvedGraph,
     chain_id: Option<String>,
-) -> (Result<ObjectID, PublishedAtError>, PackageDependencies) {
+) -> (Result<ObjectId, PublishedAtError>, PackageDependencies) {
     let root = resolution_graph.root_package();
 
     let mut published = BTreeMap::new();
@@ -903,7 +903,7 @@ pub fn gather_published_ids(
     )
 }
 
-pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, PublishedAtError> {
+pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectId, PublishedAtError> {
     let Some(value) = manifest
         .package
         .custom_properties
@@ -912,7 +912,7 @@ pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, Publ
         return Err(PublishedAtError::NotPresent);
     };
 
-    ObjectID::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
+    ObjectId::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
 }
 
 pub fn check_unpublished_dependencies(unpublished: &BTreeSet<Symbol>) -> Result<(), IotaError> {
@@ -966,7 +966,7 @@ pub fn check_invalid_dependencies(invalid: &BTreeMap<Symbol, String>) -> Result<
 }
 
 pub fn check_conflicting_addresses(
-    conflicting: &BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    conflicting: &BTreeMap<Symbol, (ObjectId, ObjectId)>,
     dump_bytecode_base64: bool,
 ) -> Result<(), IotaError> {
     if conflicting.is_empty() {
@@ -1003,4 +1003,40 @@ pub fn check_conflicting_addresses(
     };
 
     Err(err)
+}
+
+/// Create a set of [Dependencies] from a [SystemPackagesVersion] that resolve
+/// to the system package sources on the local filesystem, relative to this
+/// crate's location in the iota source tree.
+pub fn local_implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    // This relies on the compile-time `CARGO_MANIFEST_DIR` still existing on disk
+    // at runtime, which holds when the binary is built and run on the same host.
+    // `CARGO_MANIFEST_DIR` is `<repo>/crates/iota-move-build`, so the repo root is
+    // two levels up and each system package lives at `<repo>/<repo_path>`.
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("iota-move-build manifest dir should have a grandparent");
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Local(repo_root.join(&package.repo_path)),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
+}
+
+/// Useful for callers (e.g. the `#[sim_test]` static initializer) that don't
+/// have a [SystemPackagesVersion] on hand and just want the framework resolved
+/// from the local checkout.
+pub fn local_implicit_deps_latest() -> Dependencies {
+    local_implicit_deps(latest_system_packages())
 }

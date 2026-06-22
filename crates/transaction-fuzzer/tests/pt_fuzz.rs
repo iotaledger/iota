@@ -2,13 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
-    base_types::{ObjectID, ObjectRef},
-    effects::TransactionEffectsAPI,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::Owner,
-    transaction::{CallArg, ProgrammableTransaction},
-};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner, ProgrammableTransaction};
+use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI, transaction::CallArg};
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
@@ -38,7 +33,7 @@ fn publish_coin_factory(
 ) -> (ObjectRef, ObjectRef) {
     let effects = exec.publish(
         "coin_factory",
-        vec![ObjectID::STD, ObjectID::FRAMEWORK],
+        vec![ObjectId::STD, ObjectId::FRAMEWORK],
         account,
     );
     let package = effects
@@ -97,7 +92,7 @@ pub fn run_pt_success(
         matches!(
             status,
             ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
+                error: ExecutionError::UnusedValueWithoutDrop { .. },
                 command: _,
             }
         ),

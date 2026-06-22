@@ -11,7 +11,7 @@ use iota_sdk::{
     error::Error as SdkError,
     rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::{Address, ObjectId};
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_symbol_pool::Symbol;
@@ -39,7 +39,7 @@ pub enum ValidationMode {
 
         /// Look for the root package on-chain at the specified address, rather
         /// than the address in its manifest.
-        at: Option<IotaAddress>,
+        at: Option<Address>,
     },
 }
 
@@ -48,7 +48,7 @@ pub struct BytecodeSourceVerifier<'a> {
 }
 
 /// Map package addresses and module names to package names and bytecode.
-type LocalModules = HashMap<(IotaAddress, Symbol), (Symbol, CompiledModule)>;
+type LocalModules = HashMap<(Address, Symbol), (Symbol, CompiledModule)>;
 
 #[derive(Default)]
 struct OnChainRepresentation {
@@ -56,11 +56,11 @@ struct OnChainRepresentation {
     /// only be present if root package verification was requested, in which
     /// case the keys from this mapping must match the source package's
     /// dependencies.
-    on_chain_dependencies: Option<HashSet<IotaAddress>>,
+    on_chain_dependencies: Option<HashSet<Address>>,
 
     /// Map package addresses and module names to bytecode (package names are
     /// gone in the on-chain representation).
-    modules: HashMap<(IotaAddress, Symbol), CompiledModule>,
+    modules: HashMap<(Address, Symbol), CompiledModule>,
 }
 
 impl ValidationMode {
@@ -81,7 +81,7 @@ impl ValidationMode {
 
     /// Only verify that the root package matches its on-chain version, but
     /// override the location to look for the root package to `address`.
-    pub fn root_at(address: IotaAddress) -> Self {
+    pub fn root_at(address: Address) -> Self {
         Self::Root {
             deps: false,
             at: Some(address),
@@ -100,7 +100,7 @@ impl ValidationMode {
 
     /// Verify both the root package and its dependencies, but override the
     /// location to look for the root package to `address`.
-    pub fn root_and_deps_at(address: IotaAddress) -> Self {
+    pub fn root_and_deps_at(address: Address) -> Self {
         Self::Root {
             deps: true,
             at: Some(address),
@@ -114,7 +114,7 @@ impl ValidationMode {
 
     /// If the root package needs to be verified, what address should it be
     /// fetched from?
-    fn root_address(&self, package: &CompiledPackage) -> Result<Option<IotaAddress>, Error> {
+    fn root_address(&self, package: &CompiledPackage) -> Result<Option<Address>, Error> {
         match self {
             Self::Root { at: Some(addr), .. } => Ok(Some(*addr)),
             Self::Root { at: None, .. } => Ok(Some(package.published_at.clone()?.into())),
@@ -124,7 +124,7 @@ impl ValidationMode {
 
     /// All the on-chain addresses that we need to fetch to build on-chain
     /// addresses.
-    fn on_chain_addresses(&self, package: &CompiledPackage) -> Result<Vec<IotaAddress>, Error> {
+    fn on_chain_addresses(&self, package: &CompiledPackage) -> Result<Vec<Address>, Error> {
         let mut addrs = vec![];
 
         if let Some(addr) = self.root_address(package)? {
@@ -197,7 +197,7 @@ impl ValidationMode {
                     Ok((name, module)) => {
                         on_chain
                             .modules
-                            .insert((IotaAddress::new(runtime_id.into_bytes()), name), module);
+                            .insert((Address::new(runtime_id.into_bytes()), name), module);
                     }
 
                     Err(e) => {
@@ -257,11 +257,11 @@ impl ValidationMode {
             for (package, local_unit) in deps_compiled_units {
                 let m = &local_unit.unit;
                 let module = m.name;
-                let address = IotaAddress::new(m.address.into_bytes());
+                let address = Address::new(m.address.into_bytes());
 
                 // Skip modules with on 0x0 because they are treated as part of the root
                 // package, even if they are a source dependency.
-                if address == IotaAddress::ZERO {
+                if address == Address::ZERO {
                     continue;
                 }
 
@@ -270,8 +270,8 @@ impl ValidationMode {
 
             // Include bytecode dependencies.
             for (package, module) in iota_package.bytecode_deps.iter() {
-                let address = IotaAddress::new(module.address().into_bytes());
-                if address == IotaAddress::ZERO {
+                let address = Address::new(module.address().into_bytes());
+                if address == Address::ZERO {
                     continue;
                 }
                 map.insert(
@@ -304,11 +304,11 @@ impl ValidationMode {
         for (_, local_unit) in root_compiled_units {
             let m = &local_unit.unit;
             let module = m.name;
-            let address = IotaAddress::new(m.address.into_bytes());
+            let address = Address::new(m.address.into_bytes());
 
             let (address, compiled_module) = if let Some(root_address) = at {
                 (*root_address, substitute_root_address(m, *root_address)?)
-            } else if address == IotaAddress::ZERO {
+            } else if address == Address::ZERO {
                 return Err(Error::InvalidModuleFailure {
                     name: module.to_string(),
                     message: "Can't verify unpublished source".to_string(),
@@ -326,9 +326,9 @@ impl ValidationMode {
             for (package, local_unit) in &package.deps_compiled_units {
                 let m = &local_unit.unit;
                 let module = m.name;
-                let address = IotaAddress::new(m.address.into_bytes());
+                let address = Address::new(m.address.into_bytes());
 
-                if address != IotaAddress::ZERO {
+                if address != Address::ZERO {
                     continue;
                 }
 
@@ -359,7 +359,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         if matches!(
             mode,
             ValidationMode::Root {
-                at: Some(IotaAddress::ZERO),
+                at: Some(Address::ZERO),
                 ..
             }
         ) {
@@ -375,7 +375,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         // unpublished dependency.
         if let Some(on_chain_deps) = &mut chain.on_chain_dependencies {
             for dependency_id in dependency_addresses(package) {
-                if dependency_id != IotaAddress::ZERO && !on_chain_deps.remove(&dependency_id) {
+                if dependency_id != Address::ZERO && !on_chain_deps.remove(&dependency_id) {
                     errs.push(Error::MissingDependencyInLinkageTable(dependency_id));
                 }
             }
@@ -412,10 +412,10 @@ impl<'a> BytecodeSourceVerifier<'a> {
         Ok(())
     }
 
-    async fn pkg_for_address(&self, addr: IotaAddress) -> Result<IotaRawMovePackage, Error> {
+    async fn pkg_for_address(&self, addr: Address) -> Result<IotaRawMovePackage, Error> {
         // Move packages are specified with an AccountAddress, but are
         // fetched from a iota network via iota_getObject, which takes an object ID
-        let obj_id = ObjectID::new(addr.into_bytes());
+        let obj_id = ObjectId::new(addr.into_bytes());
 
         // fetch the IOTA object at the address specified for the package in the local
         // resolution table if future packages with a large set of dependency
@@ -448,7 +448,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
 
 fn substitute_root_address(
     named_module: &NamedCompiledModule,
-    root: IotaAddress,
+    root: Address,
 ) -> Result<CompiledModule, Error> {
     let mut module = named_module.module.clone();
     let address_idx = module.self_handle().address;
@@ -460,7 +460,7 @@ fn substitute_root_address(
         });
     };
 
-    if addr.as_ref() != IotaAddress::ZERO.as_bytes() {
+    if addr.as_ref() != Address::ZERO.as_bytes() {
         return Err(Error::InvalidModuleFailure {
             name: named_module.name.to_string(),
             message: "Self address already populated".to_string(),
@@ -472,7 +472,7 @@ fn substitute_root_address(
 }
 
 /// The on-chain addresses for a source package's dependencies
-fn dependency_addresses(package: &CompiledPackage) -> impl Iterator<Item = IotaAddress> + '_ {
+fn dependency_addresses(package: &CompiledPackage) -> impl Iterator<Item = Address> + '_ {
     package
         .dependency_ids
         .published

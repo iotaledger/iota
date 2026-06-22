@@ -41,6 +41,26 @@ diesel::table! {
 }
 
 diesel::table! {
+    checkpointed_objects (object_id) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        object_status -> Int2,
+        object_digest -> Nullable<Bytea>,
+        checkpoint_sequence_number -> Int8,
+        owner_type -> Nullable<Int2>,
+        owner_id -> Nullable<Bytea>,
+        object_type -> Nullable<Text>,
+        object_type_package -> Nullable<Bytea>,
+        object_type_module -> Nullable<Text>,
+        object_type_name -> Nullable<Text>,
+        serialized_object -> Nullable<Bytea>,
+        coin_type -> Nullable<Text>,
+        coin_balance -> Nullable<Int8>,
+        df_kind -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
     checkpoints (sequence_number) {
         sequence_number -> Int8,
         checkpoint_digest -> Bytea,
@@ -238,12 +258,12 @@ diesel::table! {
 }
 
 diesel::table! {
-    objects_history (checkpoint_sequence_number, object_id, object_version) {
+    objects_backward_history (superseded_at_checkpoint, object_id, object_version) {
         object_id -> Bytea,
         object_version -> Int8,
         object_status -> Int2,
         object_digest -> Nullable<Bytea>,
-        checkpoint_sequence_number -> Int8,
+        superseded_at_checkpoint -> Int8,
         owner_type -> Nullable<Int2>,
         owner_id -> Nullable<Bytea>,
         object_type -> Nullable<Text>,
@@ -464,6 +484,7 @@ macro_rules! for_all_tables {
             address_metrics,
             addresses,
             chain_identifier,
+            checkpointed_objects,
             checkpoints,
             display,
             epoch_peak_tps,
@@ -480,7 +501,7 @@ macro_rules! for_all_tables {
             move_call_metrics,
             move_calls,
             objects,
-            objects_history,
+            objects_backward_history,
             objects_snapshot,
             objects_version,
             optimistic_transactions,

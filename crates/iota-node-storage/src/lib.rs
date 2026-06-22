@@ -13,8 +13,9 @@
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
 
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
@@ -85,7 +86,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// The `cursor` bound is **inclusive**.
     fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>;
@@ -96,8 +97,8 @@ pub trait GrpcIndexes: Send + Sync {
     /// returned; field metadata is loaded on demand from the object store.
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
     /// Get unified coin info.
@@ -106,7 +107,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// Iterate over all versions of a package by its original package ID.
     fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
 }

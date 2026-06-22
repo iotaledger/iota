@@ -25,7 +25,8 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_types::{base_types::IotaAddress, crypto::SignatureScheme};
+use iota_sdk_types::Address;
+use iota_types::crypto::SignatureScheme;
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
 use serde_json::json;
@@ -244,7 +245,7 @@ impl IotaCommand {
                                 &rerooted_path,
                                 build_config.install_dir.clone(),
                                 chain_id,
-                                IotaAddress::ZERO,
+                                Address::ZERO,
                             )?
                         } else {
                             None

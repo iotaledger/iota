@@ -4,8 +4,8 @@
 
 use std::collections::VecDeque;
 
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
     dynamic_field::derive_dynamic_field_id,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
@@ -149,7 +149,7 @@ pub fn hash_type_and_key(
     let Some(k_bytes) = k.simple_serialize(&k_layout) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
-    let Ok(id) = derive_dynamic_field_id(IotaAddress::new(parent.into_bytes()), &k_tag, &k_bytes)
+    let Ok(id) = derive_dynamic_field_id(Address::new(parent.into_bytes()), &k_tag, &k_bytes)
     else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
@@ -208,7 +208,7 @@ pub fn add_child_object(
     );
 
     let child = args.pop_back().unwrap();
-    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
 
     let child_value_size = u64::from(child.legacy_size());
@@ -221,7 +221,7 @@ pub fn add_child_object(
     );
 
     // TODO remove this copy_value, which will require VM changes
-    let child_id = ObjectID::new(
+    let child_id = ObjectId::new(
         get_object_id(child.copy_value().unwrap())
             .unwrap()
             .value_as::<AccountAddress>()
@@ -306,11 +306,11 @@ pub fn borrow_child_object(
         dynamic_field_borrow_child_object_cost_params.dynamic_field_borrow_child_object_cost_base
     );
 
-    let child_id = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
 
     let parent_uid = pop_arg!(args, StructRef).read_ref().unwrap();
     // UID { id: ID { bytes: address } }
-    let parent = ObjectID::new(
+    let parent = ObjectId::new(
         get_nested_struct_field(parent_uid, &[0, 0])
             .unwrap()
             .value_as::<AccountAddress>()
@@ -391,8 +391,8 @@ pub fn remove_child_object(
         dynamic_field_remove_child_object_cost_params.dynamic_field_remove_child_object_cost_base
     );
 
-    let child_id = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
-    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let global_value_result = get_or_fetch_object!(
         context,
@@ -456,8 +456,8 @@ pub fn has_child_object(
         dynamic_field_has_child_object_cost_params.dynamic_field_has_child_object_cost_base
     );
 
-    let child_id = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
-    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let has_child = object_runtime.child_object_exists(parent, child_id)?;
     Ok(NativeResult::ok(
@@ -506,8 +506,8 @@ pub fn has_child_object_with_ty(
             .dynamic_field_has_child_object_with_ty_cost_base
     );
 
-    let child_id = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
-    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let ty = ty_args.pop().unwrap();
 

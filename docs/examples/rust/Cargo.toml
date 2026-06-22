@@ -11,12 +11,16 @@ publish = false
 anyhow = "1.0"
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
 hex = "0.4.3"
+reqwest = { version = "0.13.1", features = ["json"] }
+serde = "1.0.228"
+serde_json = "1.0"
+tokio = "1.46.1"
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c11e89af6c9b46495b2742e7b43fef9a3a2c8d7" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56" }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
@@ -75,3 +79,20 @@ path = "exchange/derive-address.rs"
 [[example]]
 name = "get-balance"
 path = "exchange/get-balance.rs"
+
+[[example]]
+name = "authenticator-inputs-cryptographic-protection"
+path = "abstract_account/authenticator-inputs-cryptographic-protection.rs"
+
+[[example]]
+name = "authenticator-shared-object-swap"
+path = "abstract_account/authenticator-shared-object-swap.rs"
+
+[[example]]
+name = "authenticator-tx-data-cryptographic-protection"
+path = "abstract_account/authenticator-tx-data-cryptographic-protection.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "move-binary-format", # `serialize` method is gated by its `fuzzing` feature
+]

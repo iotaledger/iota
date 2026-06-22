@@ -11,9 +11,6 @@
 /crates/iota-analytics-indexer-derive/ @iotaledger/infrastructure
 /crates/iota-archival/ @iotaledger/node
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
-/crates/iota-aws-orchestrator/ @iotaledger/consensus
-/crates/iota-benchmark/ @iotaledger/node
-/crates/iota-build-cache-server/ @iotaledger/node
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
@@ -62,13 +59,13 @@
 /crates/iota-package-management/ @iotaledger/vm-language
 /crates/iota-package-resolver/ @iotaledger/vm-language
 /crates/iota-proc-macros/ @iotaledger/dev-tools
-/crates/iota-proto-build/ @iotaledger/node
 /crates/iota-protocol-config/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-proxy/ @iotaledger/node
 /crates/iota-replay/ @iotaledger/node
 /crates/iota-rest-kv/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
+/crates/iota-rust-sdk/ @iotaledger/dev-tools
 /crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-simulator/ @iotaledger/core-protocol
 /crates/iota-single-node-benchmark/ @iotaledger/node
@@ -77,7 +74,6 @@
 /crates/iota-source-validation-service/ @iotaledger/vm-language
 /crates/iota-stardust-types/ @iotaledger/dev-tools
 /crates/iota-storage/ @iotaledger/node
-/crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
 /crates/iota-synthetic-ingestion/ @iotaledger/infrastructure

@@ -17,10 +17,10 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
     IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse,
+    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
+    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -28,18 +28,18 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     collection_types::VecMap,
-    crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{IotaError, IotaObjectResponseError},
-    iota_serde::BigInt,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
+    error::IotaError,
+    iota_serde::BigInt,
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
@@ -157,37 +157,32 @@ impl ReadApi {
         let verified_checkpoints = transaction_kv_store
             .multi_get_checkpoints_summaries(&checkpoint_numbers)
             .await?;
-
-        let checkpoint_summaries_and_signatures: Vec<(
-            CheckpointSummary,
-            AggregateAuthoritySignature,
-        )> = verified_checkpoints
-            .into_iter()
-            .flatten()
-            .map(|check| {
-                (
-                    check.clone().into_summary_and_sequence().1,
-                    check.get_validator_signature(),
-                )
-            })
-            .collect();
-
         let checkpoint_contents = transaction_kv_store
             .multi_get_checkpoints_contents(&checkpoint_numbers)
             .await?;
-        let contents: Vec<CheckpointContents> = checkpoint_contents.into_iter().flatten().collect();
 
-        let mut checkpoints: Vec<Checkpoint> = vec![];
-
-        for (summary_and_sig, content) in checkpoint_summaries_and_signatures
-            .into_iter()
-            .zip(contents)
+        // Summaries and contents are resolved from separate tables, and
+        // checkpoint pruning can delete a checkpoint's contents while leaving
+        // its sequence-addressable summary in place. Pair each summary with
+        // the contents for the *same* sequence number by zipping the two
+        // `Option` vectors index-by-index. Independently dropping the `None`s
+        // and zipping the dense remainders would shift later contents onto
+        // earlier summaries, yielding response rows whose summary and
+        // transaction list describe different checkpoints.
+        debug_assert_eq!(verified_checkpoints.len(), checkpoint_contents.len());
+        let mut checkpoints = Vec::with_capacity(checkpoint_numbers.len());
+        for (maybe_summary, maybe_contents) in
+            verified_checkpoints.into_iter().zip(checkpoint_contents)
         {
-            checkpoints.push(Checkpoint::from((
-                summary_and_sig.0,
-                content,
-                summary_and_sig.1,
-            )));
+            // Skip any sequence number whose summary or contents are
+            // unavailable (e.g. pruned) rather than pairing it with another
+            // checkpoint's data.
+            let (Some(summary), Some(contents)) = (maybe_summary, maybe_contents) else {
+                continue;
+            };
+            let signature = summary.auth_sig().signature.clone();
+            let summary = summary.into_summary_and_sequence().1;
+            checkpoints.push(Checkpoint::from((summary, contents, signature)));
         }
 
         Ok(checkpoints)
@@ -354,10 +349,10 @@ impl ReadApi {
                         }
                         None | Some(None) => {
                             error!(
-                                "failed to fetch events with event digest {events_digest:?} for txn {transaction_digest}"
+                                "failed to fetch events with event digest {events_digest} for txn {transaction_digest}"
                             );
                             cache_entry.errors.push(format!(
-                                "failed to fetch events with event digest {events_digest:?}",
+                                "failed to fetch events with event digest {events_digest}",
                             ))
                         }
                     }
@@ -483,10 +478,10 @@ impl ReadApi {
 
 #[async_trait]
 impl ReadApiServer for ReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         async move {
@@ -535,7 +530,7 @@ impl ReadApiServer for ReadApi {
                 ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::Deleted {
                         object_id: object_ref.object_id,
-                        version: object_ref.version,
+                        version: object_ref.version.into(),
                         digest: object_ref.digest,
                     },
                 )),
@@ -545,10 +540,10 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_ids), fields(object_ids = object_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         async move {
@@ -594,19 +589,20 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
+            let version: SequenceNumber = version.into();
             let state = self.state.clone();
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
             .map_err(|e| {
-                error!("failed to call try_get_past_object for object: {object_id:?} version: {version:?} with error: {e:?}");
+                error!("failed to call try_get_past_object for object: {object_id} version: {version:?} with error: {e:?}");
                 Error::from(e)
             })}).await.map_err(Error::from)??;
             let options = options.unwrap_or_default();
@@ -637,7 +633,7 @@ impl ReadApiServer for ReadApi {
                     Ok(IotaPastObjectResponse::ObjectDeleted(oref))
                 }
                 PastObjectRead::VersionNotFound(id, seq_num) => {
-                    Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num))
+                    Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num.into()))
                 }
                 PastObjectRead::VersionTooHigh {
                     object_id,
@@ -645,8 +641,8 @@ impl ReadApiServer for ReadApi {
                     latest_version,
                 } => Ok(IotaPastObjectResponse::VersionTooHigh {
                     object_id,
-                    asked_version,
-                    latest_version,
+                    asked_version: asked_version.into(),
+                    latest_version: latest_version.into(),
                 }),
             }
         }
@@ -654,10 +650,10 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
@@ -669,7 +665,7 @@ impl ReadApiServer for ReadApi {
             .unwrap_or_default();
         self.try_get_past_object(
             object_id,
-            version,
+            version.into(),
             Some(IotaObjectDataOptions::bcs_lossless()),
         )
         .await
@@ -687,7 +683,7 @@ impl ReadApiServer for ReadApi {
                 for past_object in past_objects {
                     futures.push(self.try_get_past_object(
                         past_object.object_id,
-                        past_object.version,
+                        past_object.version.into(),
                         options.clone(),
                     ));
                 }
@@ -732,7 +728,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
         let transaction = async move {
             let transaction_kv_store = self.transaction_kv_store.clone();
@@ -757,7 +753,7 @@ impl ReadApiServer for ReadApi {
         Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,
@@ -820,7 +816,7 @@ impl ReadApiServer for ReadApi {
                 .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
-                    error!("failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
+                    error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
                     Error::from(e)
                 })?;
 
@@ -848,7 +844,7 @@ impl ReadApiServer for ReadApi {
                         .multi_get_events_by_tx_digests(&[digest])
                         .await
                         .map_err(|e| {
-                            error!("failed to call get transaction events for transaction: {digest:?} with error {e:?}");
+                            error!("failed to call get transaction events for transaction: {digest} with error {e:?}");
                             Error::from(e)
                         })
                     })
@@ -920,7 +916,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_transaction_blocks(
         &self,
         digests: Vec<TransactionDigest>,
@@ -936,7 +932,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, transaction_digest), fields(transaction_digest = %transaction_digest))]
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         async move {
             let state = self.state.clone();
@@ -948,15 +944,14 @@ impl ReadApiServer for ReadApi {
                     .await
                     .map_err(
                         |e| {
-                            error!("failed to get transaction events for transaction {transaction_digest:?} with error: {e:?}");
+                            error!("failed to get transaction events for transaction {transaction_digest} with error: {e:?}");
                             Error::StateRead(e.into())
                         })?
                     .pop()
                     .flatten();
                 Ok(match events {
-                    Some(events) => events
-                        .data
-                        .into_iter()
+                    Some(mut events) => events
+                        .drain(..)
                         .enumerate()
                         .map(|(seq, e)| {
                             let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
@@ -1272,10 +1267,8 @@ fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
                 output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
-            _ if !escaped => {
-                if in_braces {
-                    var_name.push(ch);
-                }
+            _ if !escaped && in_braces => {
+                var_name.push(ch);
             }
             _ => {}
         }
@@ -1457,9 +1450,9 @@ fn calculate_checkpoint_numbers(
 
 #[async_trait]
 impl PackageStore for ReadApi {
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
+        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {
@@ -1472,7 +1465,34 @@ impl PackageStore for ReadApi {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::gas::GasCostSummary;
+    use iota_storage::{
+        key_value_store::{
+            KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+        },
+        key_value_store_metrics::KeyValueStoreMetrics,
+    };
+    use iota_types::{
+        base_types::ExecutionDigests,
+        crypto::AuthorityStrongQuorumSignInfo,
+        digests::TransactionEffectsDigest,
+        effects::TransactionEvents,
+        error::IotaResult,
+        message_envelope::Envelope,
+        messages_checkpoint::{
+            CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
+        },
+        object::Object,
+        storage::ObjectKey,
+    };
+    use mockall::mock;
+    use roaring::RoaringBitmap;
+
     use super::*;
+    use crate::authority_state::MockStateRead;
 
     #[test]
     fn test_calculate_checkpoint_numbers() {
@@ -1550,5 +1570,169 @@ mod tests {
             calculate_checkpoint_numbers(cursor, limit, descending_order, max_checkpoint);
 
         assert_eq!(checkpoint_numbers, (0..=15).rev().collect::<Vec<_>>());
+    }
+
+    mock! {
+        CheckpointKvStore {}
+        #[async_trait]
+        impl TransactionKeyValueStoreTrait for CheckpointKvStore {
+            async fn multi_get(
+                &self,
+                transactions: &[TransactionDigest],
+                effects: &[TransactionDigest],
+            ) -> IotaResult<KVStoreTransactionData>;
+
+            async fn multi_get_checkpoints(
+                &self,
+                checkpoint_summaries: &[CheckpointSequenceNumber],
+                checkpoint_contents: &[CheckpointSequenceNumber],
+                checkpoint_summaries_by_digest: &[CheckpointDigest],
+            ) -> IotaResult<KVStoreCheckpointData>;
+
+            async fn get_transaction_perpetual_checkpoint(
+                &self,
+                digest: TransactionDigest,
+            ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+
+            async fn get_object(
+                &self,
+                object_id: ObjectId,
+                version: SequenceNumber,
+            ) -> IotaResult<Option<Object>>;
+
+            async fn multi_get_objects(
+                &self,
+                object_keys: &[ObjectKey],
+            ) -> IotaResult<Vec<Option<Object>>>;
+
+            async fn multi_get_transactions_perpetual_checkpoints(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest],
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+        }
+    }
+
+    // Builds `CheckpointContents` whose single transaction digest uniquely
+    // encodes `seq`, so a returned `Checkpoint` can be traced back to the
+    // sequence number whose contents it actually carries.
+    fn test_checkpoint_contents(seq: CheckpointSequenceNumber) -> CheckpointContents {
+        let mut tx = [0u8; 32];
+        tx[0] = 0xA;
+        tx[1..9].copy_from_slice(&seq.to_le_bytes());
+        let mut fx = [0u8; 32];
+        fx[0] = 0xE;
+        fx[1..9].copy_from_slice(&seq.to_le_bytes());
+        CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::new(
+            TransactionDigest::new(tx),
+            TransactionEffectsDigest::new(fx),
+        )])
+    }
+
+    // Builds a certified summary for `seq`. The aggregate signature is a
+    // placeholder; `get_checkpoints_internal` never verifies it.
+    fn test_certified_summary(
+        seq: CheckpointSequenceNumber,
+        contents: &CheckpointContents,
+    ) -> CertifiedCheckpointSummary {
+        let summary = CheckpointSummary::new(
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+            0,
+            seq,
+            seq,
+            contents,
+            None,
+            GasCostSummary::default(),
+            None,
+            0,
+            Vec::new(),
+        );
+        let auth_sig = AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: RoaringBitmap::new(),
+        };
+        Envelope::new_from_data_and_sig(summary, auth_sig)
+    }
+
+    // Regression test for a pruning-induced misalignment: when a checkpoint's
+    // contents are pruned but its sequence-addressable summary survives,
+    // `get_checkpoints_internal` must not pair that summary (or any later one)
+    // with a different checkpoint's contents.
+    #[tokio::test]
+    async fn test_get_checkpoints_internal_preserves_alignment_across_pruned_contents() {
+        let max_checkpoint: CheckpointSequenceNumber = 13;
+        // Contents for this sequence are pruned while its summary remains. It
+        // sits in the interior of the requested range to show that alignment is
+        // preserved regardless of where the hole falls.
+        let pruned_seq: CheckpointSequenceNumber = 11;
+
+        let mut all_contents: HashMap<CheckpointSequenceNumber, CheckpointContents> =
+            HashMap::new();
+        for seq in 0..=max_checkpoint {
+            all_contents.insert(seq, test_checkpoint_contents(seq));
+        }
+
+        let mut mock_state = MockStateRead::new();
+        mock_state
+            .expect_get_latest_checkpoint_sequence_number()
+            .returning(move || Ok(max_checkpoint));
+
+        let store_contents = all_contents.clone();
+        let mut mock_kv = MockCheckpointKvStore::new();
+        mock_kv.expect_multi_get_checkpoints().times(2).returning(
+            move |summaries, contents, _by_digest| {
+                // Summaries survive pruning for every requested sequence.
+                let summaries = summaries
+                    .iter()
+                    .map(|seq| Some(test_certified_summary(*seq, &store_contents[seq])))
+                    .collect();
+                // Contents are missing for the pruned sequence only.
+                let contents = contents
+                    .iter()
+                    .map(|seq| (*seq != pruned_seq).then(|| store_contents[seq].clone()))
+                    .collect();
+                Ok((summaries, contents, vec![]))
+            },
+        );
+
+        let state: Arc<dyn StateRead> = Arc::new(mock_state);
+        let kv_store = Arc::new(TransactionKeyValueStore::new(
+            "test",
+            KeyValueStoreMetrics::new_for_tests(),
+            Arc::new(mock_kv),
+        ));
+
+        // cursor = 9, ascending, limit 4 => requested sequences [10, 11, 12, 13].
+        let checkpoints = ReadApi::get_checkpoints_internal(state, kv_store, Some(9), 4, false)
+            .await
+            .unwrap();
+
+        // The pruned sequence is omitted; every other sequence is returned once.
+        assert_eq!(
+            checkpoints
+                .iter()
+                .map(|c| c.sequence_number)
+                .collect::<Vec<_>>(),
+            vec![10, 12, 13],
+        );
+
+        // Crucially, each returned checkpoint still carries the transactions of
+        // its own sequence number rather than a neighbor's.
+        for checkpoint in &checkpoints {
+            let expected: Vec<TransactionDigest> = all_contents[&checkpoint.sequence_number]
+                .iter()
+                .map(|digests| digests.transaction)
+                .collect();
+            assert_eq!(
+                checkpoint.transactions, expected,
+                "checkpoint {} was paired with another checkpoint's contents",
+                checkpoint.sequence_number,
+            );
+        }
     }
 }

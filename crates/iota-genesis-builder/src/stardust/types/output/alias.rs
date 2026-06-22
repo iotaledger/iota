@@ -5,13 +5,14 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, SequenceNumber, TxContext},
+    base_types::{SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::alias::{Alias, AliasOutput},
@@ -23,7 +24,7 @@ use super::super::address::stardust_to_iota_address;
 /// Extension trait for creating `Alias` from Stardust types.
 pub trait AliasExt {
     /// Creates the Move-based Alias model from a Stardust-based Alias Output.
-    fn try_from_stardust(alias_id: ObjectID, alias: &StardustAlias)
+    fn try_from_stardust(alias_id: ObjectId, alias: &StardustAlias)
     -> Result<Alias, anyhow::Error>;
 
     /// Creates a genesis object from this alias.
@@ -38,7 +39,7 @@ pub trait AliasExt {
 
 impl AliasExt for Alias {
     fn try_from_stardust(
-        alias_id: ObjectID,
+        alias_id: ObjectId,
         alias: &StardustAlias,
     ) -> Result<Alias, anyhow::Error> {
         if alias_id.as_ref() == [0; 32] {
@@ -50,7 +51,7 @@ impl AliasExt for Alias {
         } else {
             Some(alias.state_metadata().to_vec())
         };
-        let sender: Option<iota_types::base_types::IotaAddress> = alias
+        let sender: Option<Address> = alias
             .features()
             .sender()
             .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
@@ -59,7 +60,7 @@ impl AliasExt for Alias {
             .features()
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
-        let immutable_issuer: Option<iota_types::base_types::IotaAddress> = alias
+        let immutable_issuer: Option<Address> = alias
             .immutable_features()
             .issuer()
             .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))
@@ -99,7 +100,7 @@ impl AliasExt for Alias {
         };
 
         let move_alias_object = Object::new_from_genesis(
-            Data::Struct(move_alias_object),
+            ObjectData::Struct(move_alias_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the alias output object.
             owner,
@@ -115,7 +116,7 @@ pub trait AliasOutputExt {
     /// Creates the Move-based Alias Output model from a Stardust-based Alias
     /// Output.
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<AliasOutput, anyhow::Error>;
@@ -133,7 +134,7 @@ pub trait AliasOutputExt {
 
 impl AliasOutputExt for AliasOutput {
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<AliasOutput, anyhow::Error> {
@@ -163,7 +164,7 @@ impl AliasOutputExt for AliasOutput {
         };
 
         let move_alias_output_object = Object::new_from_genesis(
-            Data::Struct(move_alias_output_object),
+            ObjectData::Struct(move_alias_output_object),
             owner,
             tx_context.digest(),
         );

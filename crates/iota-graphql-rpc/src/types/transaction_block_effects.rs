@@ -11,10 +11,9 @@ use iota_indexer::{
     optimistic_indexing::IngestionPath,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
+use iota_sdk_types::{Event as NativeEvent, ExecutionStatus as NativeExecutionStatus};
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
-    event::Event as NativeEvent,
-    execution_status::ExecutionStatus as NativeExecutionStatus,
     transaction::TransactionData as NativeTransactionData,
 };
 
@@ -110,7 +109,9 @@ impl TransactionBlockEffects {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
             NativeExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         })
     }
 
@@ -238,7 +239,7 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix].clone(), c.c);
+            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c);
             match result {
                 Ok(unchanged_shared_object) => {
                     connection
@@ -286,7 +287,7 @@ impl TransactionBlockEffects {
 
         for c in consistent_page.cursors {
             let object_change = ObjectChange {
-                native: object_changes[c.ix].clone(),
+                native: object_changes[c.ix],
                 checkpoint_viewed_at: c.c,
                 source: source.clone(),
             };
@@ -422,13 +423,9 @@ impl TransactionBlockEffects {
     /// The epoch this transaction was executed in.
     #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native().executed_epoch()),
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native().epoch()), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// The checkpoint this transaction was finalized in, if it is within the

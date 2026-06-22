@@ -8,6 +8,7 @@
 mod tests;
 
 pub mod reader;
+pub mod restore;
 pub mod uploader;
 mod writer;
 
@@ -32,11 +33,11 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     global_state_hasher::WrappedObject,
 };
+use iota_sdk_types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
-    base_types::ObjectID,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -112,7 +113,7 @@ use tokio::time::Instant;
 /// │ │         ObjectRef N      │ │
 /// │ └──────────────────────────┘ │
 /// └──────────────────────────────┘
-/// ObjectRef (ObjectID, SequenceNumber, ObjectDigest)
+/// ObjectRef (ObjectId, SequenceNumber, ObjectDigest)
 /// ┌───────────────┬───────────────────┬──────────────┐
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘
@@ -135,7 +136,7 @@ const PADDING_BYTES: usize = 3;
 const MANIFEST_FILE_HEADER_BYTES: usize =
     MAGIC_BYTES + SNAPSHOT_VERSION_BYTES + ADDRESS_LENGTH_BYTES + PADDING_BYTES;
 const FILE_MAX_BYTES: usize = 128 * 1024 * 1024;
-const OBJECT_ID_BYTES: usize = ObjectID::LENGTH;
+const OBJECT_ID_BYTES: usize = ObjectId::LENGTH;
 const SEQUENCE_NUM_BYTES: usize = 8;
 const OBJECT_DIGEST_BYTES: usize = 32;
 const OBJECT_REF_BYTES: usize = OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES;
@@ -330,7 +331,7 @@ pub async fn accumulate_live_object_iter(
     for live_object in iter {
         match live_object {
             LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().digest);
+                acc.insert(object.object_ref().digest);
             }
             LiveObject::Wrapped(key) => {
                 acc.insert(

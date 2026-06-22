@@ -4,11 +4,9 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
+use iota_sdk_types::{ExecutionStatus, Identifier, Owner};
 use iota_types::{
-    base_types::Identifier,
     crypto::{AccountKeyPair, get_key_pair},
-    execution_status::ExecutionStatus,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
@@ -25,7 +23,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
-    let all_ids = (0..TOTAL).map(|_| ObjectID::random()).collect::<Vec<_>>();
+    let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
     let (authority_state, package) = init_state_with_ids_and_object_basics(
         [sender; TOTAL].into_iter().zip(all_ids.clone().into_iter()),
     )
@@ -40,7 +38,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                     .get_object(obj_id)
                     .await
                     .unwrap()
-                    .compute_object_reference(),
+                    .object_ref(),
             )
             .unwrap()
     }
@@ -67,7 +65,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                 .get_object(&all_ids[N])
                 .await
                 .unwrap()
-                .compute_object_reference(),
+                .object_ref(),
         ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * (N as u64),
@@ -110,7 +108,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
-    let all_ids = (0..TOTAL).map(|_| ObjectID::random()).collect::<Vec<_>>();
+    let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
     let (authority_state, package) = init_state_with_ids_and_object_basics(
         [sender; TOTAL].into_iter().zip(all_ids.clone().into_iter()),
     )
@@ -125,7 +123,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
                     .get_object(obj_id)
                     .await
                     .unwrap()
-                    .compute_object_reference(),
+                    .object_ref(),
             )
             .unwrap()
     }
@@ -145,7 +143,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
                 .get_object(&all_ids[N])
                 .await
                 .unwrap()
-                .compute_object_reference(),
+                .object_ref(),
         ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -172,7 +170,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (authority_state, package) = init_state_with_ids_and_object_basics([]).await;
     let rgp = authority_state.reference_gas_price_for_testing()?;
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(
         gas_object_id,
         sender,
@@ -202,7 +200,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     }
     let data = TransactionData::new_programmable(
         sender,
-        vec![gas_object.compute_object_reference()],
+        vec![gas_object.object_ref()],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,

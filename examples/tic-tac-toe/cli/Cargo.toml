@@ -12,11 +12,19 @@ clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 dirs = "6.0"
 fastcrypto = "0.1"
 serde = { version = "1.0", features = ["derive"] }
+# Pinned: time 0.3.48 introduces a coherence conflict with rcgen 0.13.2 that
+# fails to compile. Declared directly (it is otherwise a transitive dep via
+# rcgen) so the constraint holds without a checked-in Cargo.lock.
+time = "=0.3.47"
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c11e89af6c9b46495b2742e7b43fef9a3a2c8d7" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56" }
 iota-types = { path = "../../../crates/iota-types" }
-move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }
+
+[package.metadata.cargo-machete]
+ignored = [
+  "time", # declared only to pin the version of a transitive dep (see above)
+]

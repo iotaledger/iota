@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_types::{base_types::TypeTag, display::DisplayVersionUpdatedEvent, event::Event};
+use iota_sdk_types::{Event, TypeTag};
+use iota_types::display::DisplayVersionUpdatedEvent;
 
 use crate::schema::display;
 

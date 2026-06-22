@@ -11,8 +11,8 @@ workspace = true
 
 [target.'cfg(msim)'.dependencies]
 # external dependencies
-anyhow.workspace = true
 arc-swap.workspace = true
+eyre.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true

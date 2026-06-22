@@ -14,21 +14,22 @@ use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQueryV2, ObjectChange, TransactionFilterV2,
+    IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
+    TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{Identifier, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
-    error::IotaObjectResponseError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -161,7 +162,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         let indexer_objects = client
             .multi_get_objects(object_ids, Some(options))
@@ -276,7 +277,8 @@ async fn wait_for_objects_history(
     pg_store: &PgIndexerStore,
     indexer_client: &HttpClient,
 ) {
-    // we need tx to be checkpointed so that changes to objects_history are written
+    // we need tx to be checkpointed so that changes to objects_backward_history are
+    // written
     indexer_wait_for_transaction(tx_digest, pg_store, indexer_client).await
 }
 
@@ -650,7 +652,7 @@ fn get_object_not_found() {
 
         let indexer_obj = client
             .get_object(
-                ObjectID::from_str(
+                ObjectId::from_str(
                     "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                 )
                 .unwrap(),
@@ -763,11 +765,11 @@ fn multi_get_objects_not_found() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_ids = vec![
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -823,14 +825,14 @@ fn multi_get_objects_found_and_not_found() {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         object_ids.extend_from_slice(&[
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -1484,11 +1486,11 @@ fn try_get_past_object_object_not_exists() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_id = ObjectID::random();
+        let object_id = ObjectId::random();
         let version = SequenceNumber::default();
 
         let result = client
-            .try_get_past_object(object_id, version, None)
+            .try_get_past_object(object_id, version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1525,7 +1527,7 @@ fn try_get_past_object_version_found() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, gas_ref.version, None)
+            .try_get_past_object(gas_ref.object_id, gas_ref.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1569,13 +1571,13 @@ fn try_get_past_object_version_not_found() {
         let missing_version = gas_ref.version.previous().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, missing_version, None)
+            .try_get_past_object(gas_ref.object_id, missing_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version),
+            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version.into()),
             "mismatch in VersionNotFound response"
         );
     });
@@ -1609,7 +1611,7 @@ fn try_get_past_object_version_too_high() {
         let asked_version = latest_version.next().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, asked_version, None)
+            .try_get_past_object(gas_ref.object_id, asked_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1617,8 +1619,8 @@ fn try_get_past_object_version_too_high() {
             result,
             IotaPastObjectResponse::VersionTooHigh {
                 object_id: gas_ref.object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             },
             "mismatch in VersionTooHigh response"
         );
@@ -1669,7 +1671,7 @@ fn try_get_past_object_object_deleted() {
 
         // Retrieve the deleted object at that version
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version, None)
+            .try_get_past_object(nft_object_id, deleted_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1685,7 +1687,11 @@ fn try_get_past_object_object_deleted() {
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
+            .try_get_past_object(
+                nft_object_id,
+                deleted_version.previous().unwrap().into(),
+                None,
+            )
             .await
             .expect("rpc call should succeed");
 
@@ -1714,9 +1720,9 @@ fn try_multi_get_past_objects() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
+        let object_3 = ObjectId::random();
         let version_1 = SequenceNumber::default();
         let version_2 = SequenceNumber::default();
         let version_3 = SequenceNumber::default();
@@ -1796,12 +1802,12 @@ fn try_multi_get_past_objects() {
             .expect("rpc call should succeed");
 
         let past_object_response_1 = client
-            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version, None)
+            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         let past_object_response_2 = client
-            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version, None)
+            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1945,15 +1951,15 @@ async fn failed_stored_tx_into_transaction_block() {
     let failed_tx: StoredTransaction = serde_json::from_value(failed_tx).unwrap();
 
     let package_resolver = Arc::new(Resolver::new(IndexerStorePackageResolver::new(pool)));
-    assert!(
-        failed_tx
-            .try_into_iota_transaction_block_response(
-                IotaTransactionBlockResponseOptions::full_content(),
-                &package_resolver
-            )
-            .await
-            .is_ok()
-    );
+
+    failed_tx
+        .try_into_iota_transaction_block_response(
+            IotaTransactionBlockResponseOptions::full_content(),
+            &package_resolver,
+        )
+        .await
+        .unwrap();
+
     // We have to drop the package resolver before dropping the test db because it
     // holds a reference to the db pool and the active connection will prevent the
     // db from being dropped.

@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
+use iota_sdk_types::Event;
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    event::{Event, EventID},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
+    event::EventID,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
     object::Object,
     transaction::Transaction,
@@ -192,12 +195,12 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
             // The sequence number must be a valid index
             // Note: safe to unwrap as we have checked that its not None above
-            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().data.len() {
+            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().len() {
                 bail!("Event sequence number out of bounds");
             }
 
             // Now check that the contents of the event are the same
-            if &contents_proof.events.as_ref().unwrap().data[event_id.event_seq as usize] != event {
+            if &contents_proof.events.as_ref().unwrap()[event_id.event_seq as usize] != event {
                 bail!("Event contents do not match");
             }
         }
@@ -209,7 +212,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
         for (object_ref, object) in &proof.targets.objects {
             // Is the given reference correct?
-            if object_ref != &object.compute_object_reference() {
+            if object_ref != &object.object_ref() {
                 bail!("Object reference does not match the object");
             }
 

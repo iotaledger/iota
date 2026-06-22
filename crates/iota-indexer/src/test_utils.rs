@@ -13,14 +13,15 @@ use url::Url;
 
 use crate::{
     IndexerMetrics,
-    config::{
-        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
-    },
+    config::{IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig},
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
+
+/// Shorter pruning delay used by the test indexer.
+const TEST_PRUNING_DELAY_MS: u64 = 1000; // 1 second
 
 /// Type to create hooks to alter initial indexer DB state in tests.
 /// Those hooks are meant to be called after DB reset (if it occurs) and before
@@ -65,8 +66,9 @@ pub enum IndexerTypeConfig {
         reader_mode_rpc_url: String,
     },
     Writer {
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
     },
     AnalyticalWorker,
 }
@@ -78,17 +80,14 @@ impl IndexerTypeConfig {
         }
     }
 
-    pub fn writer_mode(
-        snapshot_config: Option<SnapshotLagConfig>,
-        pruning_options: Option<PruningOptions>,
-    ) -> Self {
+    pub fn writer_mode(pruning_options: Option<PruningOptions>) -> Self {
+        let opts = pruning_options.unwrap_or_default();
         Self::Writer {
-            snapshot_config: snapshot_config.unwrap_or_default(),
-            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
-                pruning_options
-                    .epochs_to_keep
-                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
-            }),
+            retention_config: opts
+                .load_from_file()
+                .expect("failed to load the indexer retention configuration"),
+            pruning_delay_ms: TEST_PRUNING_DELAY_MS,
+            pruning_batch_size: opts.pruning_batch_size,
         }
     }
 }
@@ -174,8 +173,9 @@ pub async fn start_test_indexer_impl(
             })
         }
         IndexerTypeConfig::Writer {
-            snapshot_config,
             retention_config,
+            pruning_delay_ms,
+            pruning_batch_size,
         } => {
             let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
             let store_clone = store.clone();
@@ -189,8 +189,9 @@ pub async fn start_test_indexer_impl(
                     &ingestion_config,
                     store_clone,
                     indexer_metrics,
-                    snapshot_config,
                     retention_config,
+                    pruning_delay_ms,
+                    pruning_batch_size,
                     cancel,
                 )
                 .await

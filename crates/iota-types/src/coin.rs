@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -11,11 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::{Balance, Supply},
-    base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    object::{Data, Object},
+    object::Object,
 };
 
 pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
@@ -31,7 +30,7 @@ pub struct Coin {
 }
 
 impl Coin {
-    pub fn new(id: ObjectID, value: u64) -> Self {
+    pub fn new(id: ObjectId, value: u64) -> Self {
         Self {
             id: UID::new(id),
             balance: Balance::new(value),
@@ -48,7 +47,7 @@ impl Coin {
     /// The cost is 2 comparisons if not a coin, and deserialization if its a
     /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
-        let Data::Struct(obj) = &object.data else {
+        let ObjectData::Struct(obj) = &object.data else {
             return Ok(None);
         };
         let Some(_) = obj.struct_tag().coin_type_opt() else {
@@ -59,7 +58,7 @@ impl Coin {
         Ok(Some(coin.value()))
     }
 
-    pub fn id(&self) -> &ObjectID {
+    pub fn id(&self) -> &ObjectId {
         self.id.object_id()
     }
 
@@ -103,7 +102,7 @@ impl Coin {
     // Related coin objects need to be updated in temporary_store to persist the
     // changes, including creating the coin object related to the newly created
     // coin.
-    pub fn split(&mut self, amount: u64, new_coin_id: ObjectID) -> Result<Coin, ExecutionError> {
+    pub fn split(&mut self, amount: u64, new_coin_id: ObjectId) -> Result<Coin, ExecutionError> {
         self.balance.withdraw(amount)?;
         Ok(Coin::new(new_coin_id, amount))
     }
@@ -142,12 +141,12 @@ impl TryFrom<Object> for TreasuryCap {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_treasury_cap() {
                     return TreasuryCap::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -205,12 +204,12 @@ impl TryFrom<&Object> for CoinMetadata {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_coin_metadata() {
                     return CoinMetadata::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

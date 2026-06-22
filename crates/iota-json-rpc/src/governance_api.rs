@@ -18,9 +18,9 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, ObjectID},
     committee::EpochId,
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
@@ -47,7 +47,7 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
+type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -60,7 +60,7 @@ impl GovernanceReadApi {
         Self { state, metrics }
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> Result<Vec<StakedIota>, Error> {
+    async fn get_staked_iota(&self, owner: Address) -> Result<Vec<StakedIota>, Error> {
         let state = self.state.clone();
         let result =
             spawn_monitored_task!(async move { state.get_staked_iota(owner).await }).await??;
@@ -76,7 +76,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<TimelockedStakedIota>, Error> {
         let state = self.state.clone();
         let result =
@@ -94,7 +94,7 @@ impl GovernanceReadApi {
 
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, Error> {
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
@@ -119,7 +119,7 @@ impl GovernanceReadApi {
         self.get_delegated_stakes(stakes).await
     }
 
-    async fn get_stakes(&self, owner: IotaAddress) -> Result<Vec<DelegatedStake>, Error> {
+    async fn get_stakes(&self, owner: Address) -> Result<Vec<DelegatedStake>, Error> {
         let timer = self.metrics.get_stake_iota_latency.start_timer();
         let stakes = self.get_staked_iota(owner).await?;
         if stakes.is_empty() {
@@ -138,7 +138,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
@@ -165,7 +165,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
         let timer = self.metrics.get_stake_iota_latency.start_timer();
         let stakes = self.get_timelocked_staked_iota(owner).await?;
@@ -368,33 +368,33 @@ impl GovernanceReadApi {
 
 #[async_trait]
 impl GovernanceReadApiServer for GovernanceReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, staked_iota_ids), fields(staked_iota_ids = staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes_by_ids(staked_iota_ids).trace().await
     }
 
-    #[instrument(skip(self))]
-    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
+    #[instrument(skip(self, owner), fields(owner = %owner))]
+    async fn get_stakes(&self, owner: Address) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes(owner).trace().await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, timelocked_staked_iota_ids), fields(timelocked_staked_iota_ids = timelocked_staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
             .trace()
             .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         self.get_timelocked_stakes(owner).trace().await
     }
@@ -524,12 +524,20 @@ pub fn mean_apy_from_exchange_rates<'er>(
     }
 }
 
-/// Calculate the APY by the exchange rate of two consecutive epochs
-/// (`er`, `er_next`).
+/// APY magnitudes below this threshold are treated as exactly zero.
+const APY_DUST_THRESHOLD: f64 = 1e-9;
+
+/// Calculate the APY from the exchange rate of two consecutive epochs
+/// (`er` is the older epoch, `er_next` the newer one).
 ///
-/// The formula used is `APY_e = (er.rate - er_next.rate) / er.rate * 365`
+/// The formula used is `APY_e = (er.rate - er_next.rate) / er_next.rate * 365`.
 fn calculate_apy(er: &PoolTokenExchangeRate, er_next: &PoolTokenExchangeRate) -> f64 {
-    ((er.rate() - er_next.rate()) / er_next.rate()) * 365.0
+    let apy = ((er.rate() - er_next.rate()) / er_next.rate()) * 365.0;
+    if apy.abs() < APY_DUST_THRESHOLD {
+        0.0
+    } else {
+        apy
+    }
 }
 
 fn stake_status(
@@ -730,12 +738,12 @@ fn candidate_validators_exchange_rate(
     )?;
 
     // From validator_candidates_id table get validator info using as key its
-    // IotaAddress
+    // Address
     let tables = validator_summary_from_system_state(
         state,
         system_state_summary.validator_candidates_id,
         system_state_summary.validator_candidates_size,
-        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+        |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
         Some(system_state_summary.protocol_version),
     )?;
 
@@ -751,7 +759,7 @@ fn candidate_validators_exchange_rate(
 /// Move tables.
 ///
 /// To retrieve validator status information, this function utilizes the
-/// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify the
+/// corresponding `table_id` (an `ObjectId` value) and a `limit` to specify the
 /// number of records to fetch. Both the `table_id` and `limit` can be obtained
 /// from `IotaSystemStateSummary` in the caller. Additionally, keys are
 /// extracted from the table `DynamicFieldInfo` values according to the `key`
@@ -784,13 +792,13 @@ fn candidate_validators_exchange_rate(
 ///     system_state_summary.validator_candidates_id,
 ///     // Number of preactive validators
 ///     system_state_summary.validator_candidates_size,
-///     // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
-///     |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+///     // Extract the `Address` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
+///     |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
 /// ).unwrap();
 /// ```
 fn validator_summary_from_system_state<K, F>(
     state: &Arc<dyn StateRead>,
-    table_id: ObjectID,
+    table_id: ObjectId,
     limit: u64,
     key: F,
     protocol_version: Option<u64>,
@@ -821,8 +829,8 @@ where
 
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
-    pub address: IotaAddress,
-    pub pool_id: ObjectID,
+    pub address: Address,
+    pub pool_id: ObjectId,
     pub active: bool,
     pub rates: Vec<(EpochId, PoolTokenExchangeRate)>,
 }
@@ -901,11 +909,11 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random();
+                let address = Address::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
-                    pool_id: ObjectID::random(),
+                    pool_id: ObjectId::random(),
                     active: true,
                     rates: backfill_rates(rates_vec),
                 }
@@ -933,11 +941,11 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random();
+                let address = Address::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
-                    pool_id: ObjectID::random(),
+                    pool_id: ObjectId::random(),
                     active: true,
                     rates: backfill_rates(rates_vec),
                 }
@@ -949,6 +957,35 @@ mod tests {
         for apy in &apys {
             println!("{}: {}", address_map[&apy.address], apy.apy);
             assert!(apy.apy < 0.15)
+        }
+    }
+
+    #[test]
+    fn calculate_apy_is_not_negative_for_zero_reward_epoch() {
+        // Real mainnet exchange rates for two validators transitioning from
+        // epoch 381 to 382, an epoch in which they earned no rewards. The rate is
+        // therefore unchanged up to integer-truncation dust, so `calculate_apy`
+        // must report an effectively-zero APY (within
+        // `[0, APY_DUST_THRESHOLD)`).
+        let cases = [
+            (
+                (48_913_429_030_426_080u64, 43_331_127_650_932_384u64),
+                (48_641_042_011_532_656u64, 43_089_827_114_043_304u64),
+            ),
+            (
+                (33_370_417_056_337_732u64, 29_578_114_234_284_444u64),
+                (33_370_374_157_145_896u64, 29_578_076_210_270_704u64),
+            ),
+        ];
+
+        for ((i_old, t_old), (i_new, t_new)) in cases {
+            let er = PoolTokenExchangeRate::new_for_testing(i_old, t_old);
+            let er_next = PoolTokenExchangeRate::new_for_testing(i_new, t_new);
+            let apy = calculate_apy(&er, &er_next);
+            assert!(
+                (0.0..APY_DUST_THRESHOLD).contains(&apy),
+                "expected an effectively-zero, non-negative APY, got {apy}"
+            );
         }
     }
 

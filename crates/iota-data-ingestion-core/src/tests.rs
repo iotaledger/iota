@@ -13,22 +13,22 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, ObjectId, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
-    effects::TransactionEffects,
+    effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
     },
-    transaction::{
-        RandomnessStateUpdate, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
 };
 use prometheus::Registry;
@@ -444,15 +444,17 @@ async fn basic_flow_with_custom_callback() {
             random_bytes: vec![],
             randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),
-        IotaAddress::random(),
-        ObjectRef::new(ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        Address::random(),
+        ObjectRef::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
         0,
         0,
     );
 
+    let transaction = Transaction::from_data(tx_data, vec![]);
+    let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
-        transaction: Transaction::from_data(tx_data, vec![]),
-        effects: TransactionEffects::default(),
+        transaction,
+        effects,
         events: None,
         input_objects: vec![],
         output_objects: vec![],

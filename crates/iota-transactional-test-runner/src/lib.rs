@@ -14,19 +14,19 @@ pub mod test_adapter;
 use std::{path::Path, sync::Arc};
 
 use iota_core::authority::{
-    AuthorityState, authority_per_epoch_store::CertLockGuard,
+    AuthorityState, authority_per_epoch_store::TxLockGuard,
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
+use iota_sdk_types::{Address, Event, ObjectId, TransactionKind};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
-    event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -35,7 +35,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, Transaction, TransactionData, TransactionKind},
+    transaction::{InputObjects, Transaction, TransactionData},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -88,7 +88,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn request_gas(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects>;
 
@@ -100,7 +100,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults>;
@@ -111,7 +111,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         limit: usize,
     ) -> IotaResult<Vec<Event>>;
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>>;
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>>;
 }
 
 #[async_trait::async_trait]
@@ -142,7 +142,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
         self.validator
-            .read_objects_for_execution(&CertLockGuard::guard_for_tests(), &tx, &epoch_store)
+            .read_objects_for_execution(&TxLockGuard::guard_for_tests(), &tx, &epoch_store)
             .map(|(tx_input_objects, _)| tx_input_objects)
     }
 
@@ -161,7 +161,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
         let (_, effects, error) =
             self.validator
-                .prepare_certificate_for_benchmark(&tx, input_objects, &epoch_store)?;
+                .prepare_transaction_for_benchmark(&tx, input_objects, &epoch_store)?;
         Ok((effects, error))
     }
 
@@ -177,7 +177,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults> {
@@ -235,13 +235,13 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn request_gas(
         &mut self,
-        _address: IotaAddress,
+        _address: Address,
         _amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         unimplemented!("request_gas not supported")
     }
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>> {
         let system_state_summary = self
             .fullnode
             .get_system_state()
@@ -254,7 +254,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let active_validators = match system_state_summary {
             IotaSystemStateSummary::V1(inner) => inner.active_validators,
             IotaSystemStateSummary::V2(inner) => inner.active_validators,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         Ok(active_validators
@@ -395,14 +397,14 @@ impl ReadStore for ValidatorWithFullnode {
 impl ObjectStore for ValidatorWithFullnode {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator.get_object_store().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator
@@ -434,7 +436,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn dev_inspect_transaction_block(
         &self,
-        _sender: IotaAddress,
+        _sender: Address,
         _transaction_kind: TransactionKind,
         _gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults> {
@@ -455,7 +457,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
         match self.try_get_events(tx_digest)? {
-            Some(events) => Ok(events.data),
+            Some(events) => Ok(events.0),
             None => Ok(Vec::new()),
         }
     }
@@ -478,13 +480,13 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn request_gas(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
         Simulacrum::request_gas(self, address, amount)
     }
 
-    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
+    async fn get_active_validator_addresses(&self) -> IotaResult<Vec<Address>> {
         // TODO: this is a hack to get the validator addresses. Currently using start
         // state       but we should have a better way to get this information
         // after reconfig

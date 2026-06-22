@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::encoding::Base64;
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactionOrchestrator,
@@ -25,21 +25,21 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::Chain;
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    Address, ObjectId, TransactionKind,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     signature::GenericSignature,
     storage::PostExecutionPackageResolver,
-    transaction::{
-        InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};
@@ -94,7 +94,7 @@ impl TransactionExecutionApi {
         (
             ExecuteTransactionRequestV1,
             IotaTransactionBlockResponseOptions,
-            IotaAddress,
+            Address,
             Vec<InputObjectKind>,
             Transaction,
             Option<IotaTransactionBlock>,
@@ -202,7 +202,7 @@ impl TransactionExecutionApi {
         input_objs: Vec<InputObjectKind>,
         transaction: Option<IotaTransactionBlock>,
         raw_transaction: Vec<u8>,
-        sender: IotaAddress,
+        sender: Address,
     ) -> Result<IotaTransactionBlockResponse, Error> {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
@@ -426,7 +426,7 @@ impl WriteApiServer for TransactionExecutionApi {
             module,
             function,
         } = function_name.as_str().parse().map_err(Error::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -449,10 +449,10 @@ impl WriteApiServer for TransactionExecutionApi {
         )
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -506,9 +506,9 @@ impl IotaRpcModule for TransactionExecutionApi {
 
 #[async_trait]
 impl PackageStore for TransactionExecutionApi {
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
+        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

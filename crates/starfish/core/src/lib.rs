@@ -4,9 +4,11 @@
 
 mod authority_node;
 mod authority_service;
+mod authority_set;
 mod base_committer;
 mod block_header;
 mod block_manager;
+mod block_rate_limiter;
 mod block_verifier;
 mod commit;
 mod commit_consumer;
@@ -23,6 +25,7 @@ mod leader_scoring;
 mod leader_timeout;
 mod linearizer;
 mod metrics;
+mod misbehavior_store;
 #[cfg(not(msim))]
 mod network;
 #[cfg(msim)]
@@ -39,6 +42,9 @@ mod transaction;
 pub mod transaction;
 pub(crate) mod transaction_ref;
 mod transactions_synchronizer;
+
+#[cfg(feature = "dag-visualizer")]
+pub mod dag_visualizer;
 
 mod universal_committer;
 
@@ -68,6 +74,7 @@ pub use block_header::{
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
+pub use misbehavior_store::{MisbehaviorCounts, MisbehaviorCountsV1};
 pub use network::tonic_network::to_socket_addr;
 #[cfg(msim)]
 pub use storage::delete_all_transactions_from_store;

@@ -18,20 +18,18 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
-    balance::Supply,
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    parse_iota_struct_tag,
-    quorum_driver_types::ExecuteTransactionRequestType,
+    balance::Supply, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    parse_iota_struct_tag, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn create_and_mint_coins(
     http_client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     wallet: &WalletContext,
     amount: u64,
 ) -> Result<String, anyhow::Error> {
@@ -116,7 +114,7 @@ async fn create_and_mint_coins(
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
             address,
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name.clone()].unwrap(),
@@ -351,7 +349,9 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     // Delegate some IOTA
@@ -449,7 +449,7 @@ async fn get_all_coins() {
         .fullnode_handle
         .iota_node
         .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
             node.state()
                 .get_owned_coins(address, coin_cursor, 100, false)
         })
@@ -498,7 +498,7 @@ async fn get_all_coins_with_multiple_coin_types() {
         .fullnode_handle
         .iota_node
         .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
             node.state()
                 .get_owned_coins(address, coin_cursor, 100, false)
         })
@@ -532,12 +532,12 @@ async fn get_all_coins_with_limit() {
         .data
         .iter()
         .map(|c| &c.coin_object_id)
-        .collect::<Vec<&ObjectID>>();
+        .collect::<Vec<&ObjectId>>();
     let second_page_ids: Vec<_> = next_page
         .data
         .iter()
         .map(|c| &c.coin_object_id)
-        .collect::<Vec<&ObjectID>>();
+        .collect::<Vec<&ObjectId>>();
 
     assert!(
         first_page_ids
@@ -619,7 +619,7 @@ async fn get_all_coins_invalid_cursor() {
     let address = cluster.get_address_0();
 
     let invalid_cursor_result = http_client
-        .get_all_coins(address, Some(ObjectID::ZERO), None)
+        .get_all_coins(address, Some(ObjectId::ZERO), None)
         .await;
 
     assert!(
@@ -752,8 +752,8 @@ async fn get_all_balances_after_zeroing_coins_count() {
 async fn transfer_all_coins(
     cluster: &TestCluster,
     http_client: &HttpClient,
-    from_address: IotaAddress,
-    to_address: IotaAddress,
+    from_address: Address,
+    to_address: Address,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let coins = http_client
         .get_coins(from_address, None, None, None)

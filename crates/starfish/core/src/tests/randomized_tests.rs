@@ -61,7 +61,7 @@ async fn test_randomized_dag_all_direct_commit() {
         for (i, leader_block) in sequence.iter().enumerate() {
             // First sequenced leader should be in round 1.
             let leader_round = i as u32 + 1;
-            if let DecidedLeader::Commit(ref block) = leader_block {
+            if let DecidedLeader::Commit(ref block, _, _) = leader_block {
                 assert_eq!(block.round(), leader_round);
                 assert_eq!(
                     block.author(),
@@ -215,7 +215,7 @@ fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTest
     ));
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
 
     // Create committer with pipelining and only 1 leader per leader round

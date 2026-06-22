@@ -9,6 +9,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+dag-visualizer = ["iota-node/dag-visualizer"]
+
 [dependencies]
 # external dependencies
 anyhow.workspace = true

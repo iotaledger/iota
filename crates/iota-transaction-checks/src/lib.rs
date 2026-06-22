@@ -15,20 +15,20 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Address, ObjectId, Owner, TransactionKind};
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
         gas::IotaGasStatus,
         metrics::BytecodeVerifierMetrics,
-        object::{Object, Owner},
+        object::Object,
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
-            TransactionKindExt,
+            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKindExt,
         },
     };
     use tracing::{error, instrument};
@@ -115,7 +115,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let gas_object_ref = gas_object.compute_object_reference();
+        let gas_object_ref = gas_object.object_ref();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
         let gas_status = check_transaction_input_inner(
@@ -185,7 +185,7 @@ mod checked {
             ))
             .into());
         }
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for input_object in input_objects.iter() {
             let Some(object) = input_object.as_object() else {
                 // object was deleted
@@ -212,7 +212,7 @@ mod checked {
     /// checked authenticator input objects, among which we also find the
     /// account object.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_move_authenticator_input_for_signing(
+    pub fn check_move_authenticator_input_for_validation(
         authenticator_input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;
@@ -393,8 +393,7 @@ mod checked {
                     Owner::Address(_) => {
                         debug_assert!(
                             false,
-                            "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            object_ref, object
+                            "Receiving object {object_ref:?} is invalid but we expect it should be valid. {object:?}"
                         );
                         error!(
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
@@ -515,7 +514,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
             if object.is_mutable() {
                 fp_ensure!(
@@ -531,7 +530,7 @@ mod checked {
             return Err(UserInputError::ObjectInputArityViolation);
         }
 
-        let gas_coins: HashSet<ObjectID> =
+        let gas_coins: HashSet<ObjectId> =
             HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.object_id));
         for object in objects.iter() {
             let input_object_kind = object.input_object_kind;
@@ -567,7 +566,7 @@ mod checked {
 
     /// Check one object against a reference
     fn check_one_object(
-        owner: &IotaAddress,
+        owner: &Address,
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,
@@ -646,7 +645,7 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::CLOCK,
+                id: ObjectId::CLOCK,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
@@ -656,24 +655,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectID::CLOCK,
+                        object_id: ObjectId::CLOCK,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::AUTHENTICATOR_STATE,
+                id: ObjectId::AUTHENTICATOR_STATE,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectID::AUTHENTICATOR_STATE,
+                        object_id: ObjectId::AUTHENTICATOR_STATE,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::RANDOMNESS_STATE,
+                id: ObjectId::RANDOMNESS_STATE,
                 mutable: true,
                 ..
             } => {
@@ -683,7 +682,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectID::RANDOMNESS_STATE,
+                        object_id: ObjectId::RANDOMNESS_STATE,
                     });
                 }
             }

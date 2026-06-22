@@ -7,10 +7,10 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, ObjectId, gas::GasCostSummary};
 use iota_types::{
-    base_types::{ExecutionDigests, Identifier, ObjectID},
+    base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
         CheckpointSummary, SignedCheckpointSummary,
@@ -41,7 +41,7 @@ pub fn test_gas_objects() -> Vec<Object> {
     thread_local! {
         static GAS_OBJECTS: Vec<Object> = (0..4)
             .map(|_| {
-                let gas_object_id = ObjectID::random();
+                let gas_object_id = ObjectId::random();
                 let (owner, _) = deterministic_random_account_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
@@ -61,11 +61,11 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object.id(),
-        initial_shared_version: shared_object.version(),
-        mutable: true,
-    });
+    let shared_object_arg = CallArg::Shared(SharedObjectRef::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
         let gas_object = authority.get_object(&gas_object.id()).await.unwrap();
@@ -75,12 +75,12 @@ pub async fn test_certificates(
 
         let data = TransactionData::new_move_call(
             sender,
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static(module),
             Identifier::from_static(function),
             // type_args
             vec![],
-            gas_object.compute_object_reference(),
+            gas_object.object_ref(),
             // args
             vec![
                 shared_object_arg.clone(),
@@ -166,6 +166,7 @@ pub fn make_consensus_adapter_for_test(
                                     self.state.get_transaction_cache_reader().as_ref(),
                                     &self.state.metrics,
                                     true,
+                                    self.state.as_ref(),
                                 )
                                 .await?,
                         );
@@ -180,6 +181,7 @@ pub fn make_consensus_adapter_for_test(
                                 self.state.get_transaction_cache_reader().as_ref(),
                                 &self.state.metrics,
                                 true,
+                                self.state.as_ref(),
                             )
                             .await?,
                     );

@@ -1,0 +1,305 @@
+---
+title: Clinical Trial Data Integrity - Audit Trails
+sidebar_label: Clinical Trial
+description: Real-world example demonstrating how to use IOTA Audit Trails to ensure data integrity in a Phase III clinical trial with time-constrained access, deletion protection, and regulatory verification.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Clinical Trial Data Integrity - Audit Trails
+
+This real-world example models a Phase III clinical trial where an immutable audit trail guarantees data integrity, role-scoped access, time-constrained oversight, and regulatory verification. The trail supports mid-study protocol amendments (adding new tags) and uses multiple locking dimensions to protect the dataset.
+
+:::warning Clinical-trial and health data carry strong legal obligations
+
+This page is a **technical example only**. Clinical-trial data and health records are subject to strict confidentiality requirements and data-protection regulations (e.g., ICH-GCP, 21 CFR Part 11, HIPAA, GDPR), which may govern how such data is processed, stored, transferred across jurisdictions, retained, and erased.
+
+These obligations can apply **even when only hash values of documents are stored on-chain** — a hash committed to an immutable, publicly readable ledger cannot be deleted or modified, which may conflict with confidentiality, data-minimization, or right-to-erasure requirements. Never place personal data, identifiers, or any content that could reveal sensitive information directly on-chain.
+
+Before applying this pattern to real data, carefully review the legal and regulatory requirements for your use case and jurisdiction, and consult qualified legal and compliance advisors.
+
+:::
+
+## Business Context
+
+Clinical trials are governed by strict regulatory requirements (ICH-GCP, 21 CFR Part 11) that mandate tamper-proof audit trails for all trial data. A blockchain-based audit trail provides:
+
+- **Data Integrity**: Immutable, chronological records of all trial events
+- **Role Separation**: Each study function (enrollment, safety monitoring, efficacy review) writes only its designated data
+- **Time-Constrained Access**: Monitor capabilities expire at the end of the study period
+- **Regulatory Inspection**: Regulators can verify the complete trail using read-only access
+- **Dataset Protection**: Locking prevents unauthorized modifications after study completion
+
+## Field Usage Strategy
+
+- **`immutable_metadata`**: Protocol identity — protocol ID and study description
+- **`updatable_metadata`**: Current study phase (e.g., `"Phase: Enrollment"` → `"Phase: Data Review"`)
+- **`record.data`**: Clinical event payload (enrollment data, adverse events, efficacy observations)
+- **`record.metadata`**: Structured event context (e.g., `"event:adverse_event"`)
+- **`record.tag`**: Data category — `enrollment`, `safety`, `efficacy`, `pk` (added mid-study)
+
+### Role Design
+
+| Role | Permissions | RoleTags | Constraint | Holder |
+|------|------------|----------|------------|--------|
+| `Admin` | Full administrative control | — | — | Study sponsor |
+| `Enroller` | AddRecord, DeleteRecord, CorrectRecord | `"enrollment"` | — | Clinical site |
+| `SafetyOfficer` | AddRecord, DeleteRecord, CorrectRecord | `"safety"` | — | Safety monitoring team |
+| `EfficacyReviewer` | AddRecord, DeleteRecord, CorrectRecord | `"efficacy"` | — | Efficacy review board |
+| `PkAnalyst` | AddRecord, DeleteRecord, CorrectRecord | `"pk"` | — | PK analysis team (added mid-study) |
+| `Monitor` | UpdateMetadata, DeleteMetadata | — | 90-day time window | Study monitor |
+| `DataSafetyBoard` | UpdateLockingConfig variants | — | — | Data Safety Monitoring Board |
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trails client packages installed
+- Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx), [locking configuration](../explanations/locking-configuration.mdx), and [tagged records](../how-tos/use-tagged-records.mdx)
+
+## Implementation Overview
+
+### 1. Set Up Multiple Wallets
+
+Create one wallet per actor — an admin, an enroller, a safety officer, an efficacy reviewer, a PK analyst, a monitor, a data-safety board, and a regulator — so each role is held by a distinct address.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L46-L53
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L50-L57
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the Trial Trail
+
+Create a trail with initial tags for the three primary data categories, a count-based deletion window to protect recent records, and the protocol identity as immutable metadata.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L58-L84
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L61-L84
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Define Study Roles with Tag Restrictions
+
+Create tag-scoped roles for each study function. The Monitor receives a time-windowed capability (90 days), and the Data Safety Board manages locking.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Issue Tagged Record Role](../how-tos/utility-functions.mdx#issue-tagged-record-role)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L89-L166
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L88-L130
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Collect Study Data
+
+Each role adds records tagged with their designated category: enrollment data, safety events, and efficacy observations.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L171-L218
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L134-L175
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Mid-Study Amendment: Add a New Tag and Role
+
+Add a `"pk"` (pharmacokinetics) tag to the registry mid-study, then create a `PkAnalyst` role scoped to the new tag.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L223-L254
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L179-L192
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Verify Deletion Window Protection
+
+The count-based deletion window protects the newest records from deletion, ensuring recently entered data cannot be tampered with.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L259-L275
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L196-L217
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 7. Lock the Dataset After Review
+
+The Data Safety Board applies a time-based write lock (1 year) and a permanent delete-trail lock to ensure long-term data retention.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L297-L329
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L234-L260
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 8. Regulator Read-Only Verification
+
+Regulators inspect the trail using read-only methods. They can verify the protocol identity, study phase, all roles and tags, locking configuration, and the full record history — without needing any write permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs#L334-L352
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L264-L280
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Medical Device Clinical Investigation
+- **Scenario**: Post-market clinical follow-up (PMCF) for Class III medical devices under EU MDR
+- **Tags**: `"implantation"`, `"follow_up"`, `"adverse_event"`, `"device_failure"`
+
+### Vaccine Trial with Multi-Site Enrollment
+- **Scenario**: Global vaccine Phase IV surveillance with data from multiple clinical sites
+- **Tags**: `"enrollment"`, `"vaccination"`, `"monitoring"`, `"adverse_event"`, `"efficacy"`
+
+### Food Safety Monitoring
+- **Scenario**: Long-term monitoring of food additive safety with periodic review cycles
+- **Tags**: `"sample_collection"`, `"lab_analysis"`, `"review"`, `"regulatory_action"`
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+    * [Issue Tagged Record Role](../how-tos/utility-functions.mdx#issue-tagged-record-role)
+</details>
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/02_clinical_trial.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts
+```
+
+</TabItem>
+</Tabs>

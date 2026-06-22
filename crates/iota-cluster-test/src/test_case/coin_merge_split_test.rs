@@ -4,11 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    iota_serde::BigInt,
-    object::Owner,
-};
+use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::rpc_params;
 use tracing::{debug, info};
 
@@ -117,10 +114,10 @@ impl TestCaseImpl for CoinMergeSplitTest {
 impl CoinMergeSplitTest {
     async fn merge_coin(
         ctx: &TestContext,
-        signer: IotaAddress,
-        primary_coin: ObjectID,
-        coin_to_merge: ObjectID,
-        gas_obj_id: ObjectID,
+        signer: Address,
+        primary_coin: ObjectId,
+        coin_to_merge: ObjectId,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,
@@ -140,10 +137,10 @@ impl CoinMergeSplitTest {
 
     async fn split_coin(
         ctx: &TestContext,
-        signer: IotaAddress,
-        primary_coin: ObjectID,
+        signer: Address,
+        primary_coin: ObjectId,
         amounts: Vec<BigInt<u64>>,
-        gas_obj_id: ObjectID,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,

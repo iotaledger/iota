@@ -3,14 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
+use iota_sdk_types::Command;
 use iota_types::{
     base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{
-        Command, InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt,
-    },
+    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt},
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -28,7 +27,7 @@ macro_rules! deny_if_true {
 /// Check that the provided transaction is allowed to be signed according to the
 /// deny config.
 #[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
-pub fn check_transaction_for_signing(
+pub fn check_transaction_for_validation(
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
     input_object_kinds: &[InputObjectKind],
@@ -146,7 +145,7 @@ fn check_input_objects(
         let id = input_object_kind.object_id();
         deny_if_true!(
             deny_map.contains(&id),
-            format!("Access to input object {:?} is temporarily disabled", id)
+            format!("Access to input object {id} is temporarily disabled")
         );
         deny_if_true!(
             shared_object_disabled && input_object_kind.is_shared_object(),
@@ -214,7 +213,7 @@ fn check_package_dependencies(
     for dep in dependencies {
         deny_if_true!(
             deny_map.contains(&dep),
-            format!("Access to package {:?} is temporarily disabled", dep)
+            format!("Access to package {dep} is temporarily disabled")
         );
     }
     Ok(())

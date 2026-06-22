@@ -66,6 +66,7 @@ typed-store.workspace = true
 # external dependencies
 expect-test.workspace = true
 mockall.workspace = true
+roaring.workspace = true
 
 # internal dependencies
 telemetry-subscribers.workspace = true

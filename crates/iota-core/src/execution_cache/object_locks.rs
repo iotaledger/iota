@@ -4,8 +4,9 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
@@ -175,7 +176,7 @@ impl ObjectLocks {
 
     fn multi_get_objects_must_exist(
         cache: &WritebackCache,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Object>> {
         let objects = cache.try_multi_get_objects(object_ids)?;
         let mut result = Vec::with_capacity(objects.len());
@@ -192,6 +193,23 @@ impl ObjectLocks {
             }
         }
         Ok(result)
+    }
+
+    /// Validates that all owned input objects exist and their versions/digests
+    /// match the live objects. Does not acquire any locks.
+    pub(crate) fn validate_owned_object_versions(
+        cache: &WritebackCache,
+        owned_input_objects: &[ObjectRef],
+    ) -> IotaResult {
+        if owned_input_objects.is_empty() {
+            return Ok(());
+        }
+        let object_ids: Vec<_> = owned_input_objects.iter().map(|o| o.object_id).collect();
+        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+        for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
+            Self::verify_live_object(obj_ref, live_object)?;
+        }
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -403,7 +421,7 @@ mod tests {
 
             let objects: Vec<_> = vec![s.object(1), s.object(2)]
                 .into_iter()
-                .map(|o| o.compute_object_reference())
+                .map(|o| o.object_ref())
                 .collect();
 
             s.with_mutated(&[1, 2]);

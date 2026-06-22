@@ -5,29 +5,31 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
+    TransactionKind, TypeTag,
+};
 use tap::Pipe;
 
 use crate::{
-    base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, dbg_addr,
-        random_object_ref,
-    },
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
-    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEvents},
-    event::{Event, SystemEpochInfoEventV2},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
+        TransactionEffectsExtForTesting, TransactionEvents,
+    },
+    event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object, Owner},
+    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 
@@ -46,13 +48,13 @@ use crate::{
 /// Simulacrum instead.
 pub struct TestCheckpointDataBuilder {
     /// Map of all live objects in the state.
-    live_objects: HashMap<ObjectID, Object>,
+    live_objects: HashMap<ObjectId, Object>,
     /// Map of all wrapped objects in the state.
-    wrapped_objects: HashMap<ObjectID, Object>,
+    wrapped_objects: HashMap<ObjectId, Object>,
     /// A map from sender addresses to gas objects they own.
     /// These are created automatically when a transaction is started.
     /// Users of this builder should not need to worry about them.
-    gas_map: HashMap<IotaAddress, ObjectID>,
+    gas_map: HashMap<Address, ObjectId>,
 
     /// The current checkpoint builder.
     /// It is initialized when the builder is created, and is reset when
@@ -76,14 +78,14 @@ struct CheckpointBuilder {
 struct TransactionBuilder {
     sender_idx: u8,
     gas: ObjectRef,
-    move_calls: Vec<(ObjectID, &'static str, &'static str)>,
-    created_objects: BTreeMap<ObjectID, Object>,
-    mutated_objects: BTreeMap<ObjectID, Object>,
-    unwrapped_objects: BTreeSet<ObjectID>,
-    wrapped_objects: BTreeSet<ObjectID>,
-    deleted_objects: BTreeSet<ObjectID>,
+    move_calls: Vec<(ObjectId, &'static str, &'static str)>,
+    created_objects: BTreeMap<ObjectId, Object>,
+    mutated_objects: BTreeMap<ObjectId, Object>,
+    unwrapped_objects: BTreeSet<ObjectId>,
+    wrapped_objects: BTreeSet<ObjectId>,
+    deleted_objects: BTreeSet<ObjectId>,
     frozen_objects: BTreeSet<ObjectRef>,
-    shared_inputs: BTreeMap<ObjectID, Shared>,
+    shared_inputs: BTreeMap<ObjectId, Shared>,
     events: Option<Vec<Event>>,
 }
 
@@ -134,7 +136,7 @@ impl TestCheckpointDataBuilder {
 
     /// Start creating a new transaction.
     /// `sender_idx` is a convenient representation of the sender's address.
-    /// A proper IotaAddress will be derived from it.
+    /// A proper Address will be derived from it.
     /// It will also create a gas object for the sender if it doesn't already
     /// exist in the live object map. You do not need to create the gas
     /// object yourself.
@@ -147,12 +149,7 @@ impl TestCheckpointDataBuilder {
             self.live_objects.insert(id, gas);
             id
         });
-        let gas_ref = self
-            .live_objects
-            .get(gas_id)
-            .cloned()
-            .unwrap()
-            .compute_object_reference();
+        let gas_ref = self.live_objects.get(gas_id).cloned().unwrap().object_ref();
         self.checkpoint_builder.next_transaction =
             Some(TransactionBuilder::new(sender_idx, gas_ref));
         self
@@ -355,9 +352,7 @@ impl TestCheckpointDataBuilder {
             .expect("Frozen object not found");
 
         assert!(obj.owner().is_immutable());
-        tx_builder
-            .frozen_objects
-            .insert(obj.compute_object_reference());
+        tx_builder.frozen_objects.insert(obj.object_ref());
         self
     }
 
@@ -383,7 +378,7 @@ impl TestCheckpointDataBuilder {
     /// `function` is the name of the function to be called.
     pub fn add_move_call(
         mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: &'static str,
         function: &'static str,
     ) -> Self {
@@ -411,7 +406,7 @@ impl TestCheckpointDataBuilder {
         } = self.checkpoint_builder.next_transaction.take().unwrap();
 
         let sender = Self::derive_address(sender_idx);
-        let events = events.map(|events| TransactionEvents { data: events });
+        let events = events.map(TransactionEvents);
         let events_digest = events.as_ref().map(|events| events.digest());
 
         let mut pt_builder = ProgrammableTransactionBuilder::new();
@@ -569,7 +564,7 @@ impl TestCheckpointDataBuilder {
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             1,
             1,
@@ -584,7 +579,7 @@ impl TestCheckpointDataBuilder {
                 ..Default::default()
             };
             Some(vec![Event {
-                package_id: ObjectID::SYSTEM,
+                package_id: ObjectId::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
                 type_: StructTag::new_system_epoch_info_event(),
@@ -594,14 +589,16 @@ impl TestCheckpointDataBuilder {
             None
         };
 
-        let transaction_events = events.map(|events| TransactionEvents { data: events });
+        let transaction_events = events.map(TransactionEvents);
+
+        let effects = TransactionEffects::new_empty_v1_for_testing(*end_of_epoch_tx.digest());
 
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder
             .transactions
             .push(CheckpointTransaction {
                 transaction: end_of_epoch_tx,
-                effects: Default::default(),
+                effects,
                 events: transaction_events,
                 input_objects: vec![],
                 output_objects: vec![],
@@ -668,16 +665,16 @@ impl TestCheckpointDataBuilder {
     /// Derive an object ID from an index. This is used to conveniently
     /// represent an object's ID. We ensure that the bytes of object IDs
     /// have a stable order that is the same as object_idx.
-    pub fn derive_object_id(object_idx: u64) -> ObjectID {
+    pub fn derive_object_id(object_idx: u64) -> ObjectId {
         // We achieve this by setting the first 8 bytes of the object ID to the
         // object_idx.
-        let mut bytes = [0; ObjectID::LENGTH];
+        let mut bytes = [0; ObjectId::LENGTH];
         bytes[0..8].copy_from_slice(&object_idx.to_le_bytes());
-        ObjectID::from_bytes(bytes).unwrap()
+        ObjectId::from_bytes(bytes).unwrap()
     }
 
     /// Derive an address from an index.
-    pub fn derive_address(address_idx: u8) -> IotaAddress {
+    pub fn derive_address(address_idx: u8) -> Address {
         dbg_addr(address_idx)
     }
 
@@ -702,10 +699,12 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_types::Command;
+
     use super::*;
     use crate::{
-        ObjectID,
-        transaction::{Command, TransactionDataAPI, TransactionKindExt},
+        ObjectId,
+        transaction::{TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -1024,7 +1023,7 @@ mod tests {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
             .with_events(vec![Event {
-                package_id: ObjectID::ZERO,
+                package_id: ObjectId::ZERO,
                 module: Identifier::from_static("test"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
                 type_: StructTag::new_gas(),
@@ -1038,14 +1037,14 @@ mod tests {
         assert!(tx.effects.events_digest().is_some());
 
         // Verify the transaction has a single event
-        assert_eq!(tx.events.as_ref().unwrap().data.len(), 1);
+        assert_eq!(tx.events.as_ref().unwrap().len(), 1);
     }
 
     #[test]
     fn test_move_call() {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
-            .add_move_call(ObjectID::ZERO, "test", "test")
+            .add_move_call(ObjectId::ZERO, "test", "test")
             .finish_transaction()
             .build_checkpoint();
         let tx = &checkpoint.transactions[0];
@@ -1058,7 +1057,7 @@ mod tests {
                 .iter_commands()
                 .any(|cmd| {
                     cmd == &Command::new_move_call(
-                        ObjectID::ZERO,
+                        ObjectId::ZERO,
                         Identifier::new_unchecked("test"),
                         Identifier::new_unchecked("test"),
                         vec![],

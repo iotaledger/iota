@@ -75,7 +75,6 @@ use iota_core::{
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     storage::{GrpcReadStore, RocksDbStore},
-    traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
@@ -96,11 +95,17 @@ use iota_metrics::{
 };
 use iota_names::config::IotaNamesConfig;
 use iota_network::{
-    api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
+    api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
+    discovery,
+    discovery::TrustedPeerChangeEvent,
+    randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    RandomnessRound,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -111,7 +116,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -168,8 +173,6 @@ pub struct ValidatorComponents {
 #[cfg(msim)]
 mod simulator {
     use std::sync::atomic::AtomicBool;
-
-    use super::*;
 
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
@@ -410,7 +413,6 @@ impl IotaNode {
 
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
-            &epoch_start_configuration,
             &prometheus_registry,
             &store,
             backpressure_manager.clone(),
@@ -621,6 +623,8 @@ impl IotaNode {
             chain_identifier,
             pruner_db,
             Some(checkpoint_progress_tracker.clone()),
+            config.policy_config.clone(),
+            config.firewall_config.clone(),
         )
         .await;
 
@@ -679,6 +683,7 @@ impl IotaNode {
                 end_of_epoch_receiver,
                 &config.db_path(),
                 &prometheus_registry,
+                Some(&config),
             )))
         } else {
             None
@@ -1304,9 +1309,10 @@ impl IotaNode {
                 ),
             )
             .await;
+        let consensus_replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let checkpoint_service_tasks = checkpoint_service.spawn().await;
+        let checkpoint_service_tasks = checkpoint_service.spawn(consensus_replay_waiter).await;
 
         Ok(ValidatorComponents {
             validator_server_handle,
@@ -1411,9 +1417,7 @@ impl IotaNode {
             state,
             consensus_adapter,
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
-            TrafficControllerMetrics::new(prometheus_registry),
-            config.policy_config.clone(),
-            config.firewall_config.clone(),
+            config.policy_config.clone().map(|p| p.client_id_source),
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();
@@ -1421,7 +1425,9 @@ impl IotaNode {
         server_conf.load_shed = config.grpc_load_shed;
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service));
+                .add_service(ValidatorServer::new(validator_service.clone()))
+                .add_service(ValidatorV2Server::new(validator_service.clone()))
+                .add_service(ValidatorPeerServer::new(validator_service));
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -1471,8 +1477,15 @@ impl IotaNode {
 
         for tx in epoch_store.get_all_pending_consensus_transactions() {
             match tx.kind {
-                // Shared object txns cannot be re-executed at this point, because we must wait for
-                // consensus replay to assign shared object versions.
+                // TODO: what to do with UserTransactionV1 here? It seems like this only applies to
+                //  optimistically executed owned-object transactions that possibly didn't go
+                //  through  consensus before the node restarted. UserTransactionsV1
+                //  always needs to go  through consensus, so it will be replayed
+                //  there, just like shared object  transactions.
+                //
+                // Shared object txns
+                // cannot be re-executed at this  point, because we must wait for
+                // consensus replay to assign shared  object versions.
                 ConsensusTransactionKind::CertifiedTransaction(tx)
                     if !tx.contains_shared_object() =>
                 {
@@ -2297,6 +2310,10 @@ async fn build_grpc_server(
 
     // Create gRPC server metrics
     let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+    let client_id_source = config
+        .policy_config
+        .as_ref()
+        .map(|p| p.client_id_source.clone());
 
     let handle = start_grpc_server(
         grpc_reader,
@@ -2305,6 +2322,8 @@ async fn build_grpc_server(
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
+        state.traffic_controller.clone(),
+        client_id_source,
     )
     .await?;
 
@@ -2339,11 +2358,12 @@ pub async fn build_http_server(
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
+        let traffic_controller = state.traffic_controller.clone();
         let mut server = JsonRpcServerBuilder::new(
             env!("CARGO_PKG_VERSION"),
             prometheus_registry,
+            traffic_controller,
             config.policy_config.clone(),
-            config.firewall_config.clone(),
         );
 
         let kv_store = build_kv_store(&state, config, prometheus_registry)?;

@@ -16,17 +16,17 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{
-    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
-    MakeMoveVector, MergeCoins, MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish,
-    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage,
-    Transaction as TransactionData, TransactionExpiration, TransactionKind,
-    TransactionV1 as TransactionDataV1, TransferObjects, Upgrade,
-};
 use iota_sdk_types::{
-    Identifier, Input, ObjectId, TypeTag,
+    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
+    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
+};
+pub use iota_sdk_types::{
+    GasPayment as GasData, SharedObjectReference as SharedObjectRef, SystemPackage,
+    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -41,18 +41,14 @@ use crate::{
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, Signature, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
-    event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{
-        CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    },
     move_authenticator::MoveAuthenticator,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,
@@ -74,7 +70,7 @@ pub const GAS_PRICE_FOR_SYSTEM_TX: u64 = 1;
 
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 
-const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
+const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
@@ -157,7 +153,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
             | Self::ChangeEpochV3(_)
             | Self::ChangeEpochV4(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::SYSTEM_STATE,
+                    id: ObjectId::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -261,8 +257,13 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
     }
 }
 
+mod call_arg_ext {
+    pub trait Sealed {}
+    impl Sealed for super::CallArg {}
+}
+
 /// Extension trait for [`CallArg`] providing helper methods.
-pub trait CallArgExt {
+pub trait CallArgExt: Sized + call_arg_ext::Sealed {
     /// Returns the input object kind for this argument, excluding receiving
     /// objects.
     fn input_object_kind(&self) -> Option<InputObjectKind>;
@@ -287,7 +288,7 @@ impl CallArgExt for CallArg {
                 mutable: *mutable,
             }),
             CallArg::Pure(_) | CallArg::Receiving(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
@@ -305,14 +306,14 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
         Ok(())
     }
 }
 
-// Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
+// Add package IDs, `ObjectId`, for types defined in modules.
+fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
@@ -327,20 +328,25 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
             | TypeTag::Signer => (),
             TypeTag::Vector(inner) => stack.push(inner),
             TypeTag::Struct(struct_tag) => {
-                packages.insert(ObjectID::new(struct_tag.address().into_bytes()));
+                packages.insert(ObjectId::new(struct_tag.address().into_bytes()));
                 stack.extend(struct_tag.type_params().iter())
             }
         }
     }
 }
 
-pub trait MoveCallExt {
+mod move_call_ext {
+    pub trait Sealed {}
+    impl Sealed for super::MoveCall {}
+}
+
+pub trait MoveCallExt: Sized + move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
-impl MoveCallExt for ProgrammableMoveCall {
+impl MoveCallExt for MoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         let mut packages = BTreeSet::from([self.package]);
         for type_argument in &self.type_arguments {
@@ -394,7 +400,12 @@ impl MoveCallExt for ProgrammableMoveCall {
     }
 }
 
-pub trait CommandExt {
+mod command_ext {
+    pub trait Sealed {}
+    impl Sealed for super::Command {}
+}
+
+pub trait CommandExt: Sized + command_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>>;
@@ -551,12 +562,17 @@ impl CommandExt for Command {
     }
 }
 
-pub trait ProgrammableTransactionExt {
+mod programmable_transaction_ext {
+    pub trait Sealed {}
+    impl Sealed for super::ProgrammableTransaction {}
+}
+
+pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
 
@@ -632,7 +648,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectID::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -655,11 +671,11 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
             CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         self.commands
             .iter()
             .filter_map(|command| match command {
@@ -699,7 +715,12 @@ fn left_union_shared_input_objects(
     Ok(())
 }
 
-pub trait TransactionKindExt {
+mod transaction_kind_ext {
+    pub trait Sealed {}
+    impl Sealed for super::TransactionKind {}
+}
+
+pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     /// If this is an advance epoch transaction, returns (total gas charged,
     /// total gas rebated). TODO: We should use `GasCostSummary` directly in
     /// `ChangeEpoch` struct, and return that directly.
@@ -711,7 +732,7 @@ pub trait TransactionKindExt {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     /// Returns the objects received by this transaction.
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     /// Return the metadata of each of the input objects for the transaction.
@@ -760,13 +781,9 @@ impl TransactionKindExt for TransactionKind {
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
-            Self::ConsensusCommitPrologueV1(_) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef {
-                    object_id: ObjectID::CLOCK,
-                    initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                })))
-            }
+            Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
+                SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+            ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
@@ -775,11 +792,11 @@ impl TransactionKindExt for TransactionKind {
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef {
-                    object_id: ObjectID::RANDOMNESS_STATE,
-                    initial_shared_version: update.randomness_obj_initial_shared_version,
-                    mutable: true,
-                })))
+                Either::Left(Either::Left(iter::once(SharedObjectRef::new(
+                    ObjectId::RANDOMNESS_STATE,
+                    update.randomness_obj_initial_shared_version,
+                    true,
+                ))))
             }
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
@@ -789,7 +806,7 @@ impl TransactionKindExt for TransactionKind {
         }
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         match &self {
             Self::Programmable(pt) => pt.move_calls(),
             _ => vec![],
@@ -818,7 +835,7 @@ impl TransactionKindExt for TransactionKind {
             }
             Self::ConsensusCommitPrologueV1(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::CLOCK,
+                    id: ObjectId::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -832,7 +849,7 @@ impl TransactionKindExt for TransactionKind {
             }
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::RANDOMNESS_STATE,
+                    id: ObjectId::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 }]
@@ -938,7 +955,7 @@ impl TransactionKindExt for TransactionKind {
 /// [`Transaction`] type with additional client-facing methods.
 pub trait TransactionDataAPI {
     /// Returns the address of the transaction sender.
-    fn sender(&self) -> IotaAddress;
+    fn sender(&self) -> Address;
 
     /// Returns a reference to the transaction kind.
     fn kind(&self) -> &TransactionKind;
@@ -951,14 +968,14 @@ pub trait TransactionDataAPI {
 
     /// Returns the transaction signer(s). Includes both the sender and the gas
     /// owner if they differ (i.e. for sponsored transactions).
-    fn signers(&self) -> NonEmpty<IotaAddress>;
+    fn signers(&self) -> NonEmpty<Address>;
 
     /// Returns a reference to the gas data (owner, payment objects, price,
     /// budget).
     fn gas_data(&self) -> &GasData;
 
     /// Returns the address that owns the gas payment objects.
-    fn gas_owner(&self) -> IotaAddress;
+    fn gas_owner(&self) -> Address;
 
     /// Returns the gas payment object references.
     fn gas(&self) -> &[ObjectRef];
@@ -981,7 +998,7 @@ pub trait TransactionDataAPI {
 
     /// Returns a list of Move calls as `(package_id, module_name,
     /// function_name)` tuples.
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
 
     /// Returns all input objects required by this transaction.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
@@ -1014,7 +1031,7 @@ pub trait TransactionDataAPI {
     fn is_sponsored_tx(&self) -> bool;
 
     /// Returns a mutable reference to the sender address. **Testing only.**
-    fn sender_mut_for_testing(&mut self) -> &mut IotaAddress;
+    fn sender_mut_for_testing(&mut self) -> &mut Address;
 
     /// Returns a mutable reference to the gas data.
     fn gas_data_mut(&mut self) -> &mut GasData;
@@ -1031,7 +1048,7 @@ pub trait TransactionDataAPI {
     #[allow(clippy::new_ret_no_self)]
     fn new(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1041,7 +1058,7 @@ pub trait TransactionDataAPI {
     /// is also the gas owner.
     fn new_with_gas_coins(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         gas_budget: u64,
         gas_price: u64,
@@ -1052,25 +1069,25 @@ pub trait TransactionDataAPI {
     /// the gas owner differs from the sender.
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         gas_budget: u64,
         gas_price: u64,
-        gas_sponsor: IotaAddress,
+        gas_sponsor: Address,
     ) -> TransactionData;
 
     /// Creates a new transaction from a pre-built [`GasData`] struct.
     fn new_with_gas_data(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_data: GasData,
     ) -> TransactionData;
 
     /// Creates a transaction that calls a single Move function with a single
     /// gas payment coin.
     fn new_move_call(
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1083,8 +1100,8 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that calls a single Move function with multiple
     /// gas payment coins.
     fn new_move_call_with_gas_coins(
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1096,9 +1113,9 @@ pub trait TransactionDataAPI {
 
     /// Creates a transaction that transfers an object to a recipient.
     fn new_transfer(
-        recipient: IotaAddress,
+        recipient: Address,
         object_ref: ObjectRef,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1108,8 +1125,8 @@ pub trait TransactionDataAPI {
     /// If `amount` is `None`, the entire gas coin balance (minus gas fees)
     /// is transferred.
     fn new_transfer_iota(
-        recipient: IotaAddress,
-        sender: IotaAddress,
+        recipient: Address,
+        sender: Address,
         amount: Option<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1120,22 +1137,22 @@ pub trait TransactionDataAPI {
     /// recipient. If `amount` is `None`, the entire gas coin balance
     /// (minus gas fees) is transferred.
     fn new_transfer_iota_allow_sponsor(
-        recipient: IotaAddress,
-        sender: IotaAddress,
+        recipient: Address,
+        sender: Address,
         amount: Option<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
-        gas_sponsor: IotaAddress,
+        gas_sponsor: Address,
     ) -> TransactionData;
 
     /// Creates a transaction that pays multiple recipients from a set of
     /// input coins. The coins are merged and then split to satisfy the
     /// specified amounts.
     fn new_pay(
-        sender: IotaAddress,
+        sender: Address,
         coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1146,9 +1163,9 @@ pub trait TransactionDataAPI {
     /// Similar to [`Self::new_pay`] but the gas coin is also used as an
     /// input coin.
     fn new_pay_iota(
-        sender: IotaAddress,
+        sender: Address,
         coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1158,9 +1175,9 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that sends all IOTA from the given coins to a
     /// single recipient. The gas coin is included as an input coin.
     fn new_pay_all_iota(
-        sender: IotaAddress,
+        sender: Address,
         coins: Vec<ObjectRef>,
-        recipient: IotaAddress,
+        recipient: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1169,7 +1186,7 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that splits a coin into multiple coins with the
     /// specified amounts.
     fn new_split_coin(
-        sender: IotaAddress,
+        sender: Address,
         coin: ObjectRef,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
@@ -1179,10 +1196,10 @@ pub trait TransactionDataAPI {
 
     /// Creates a transaction that publishes new Move modules.
     fn new_module(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1190,11 +1207,11 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that upgrades an existing Move package.
     /// Requires the upgrade capability object and the upgrade policy.
     fn new_upgrade(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         upgrade_capability_and_owner: (ObjectRef, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
@@ -1205,7 +1222,7 @@ pub trait TransactionDataAPI {
     /// Creates a programmable transaction with multiple gas payment coins.
     /// The sender is also the gas owner.
     fn new_programmable(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
@@ -1215,12 +1232,12 @@ pub trait TransactionDataAPI {
     /// Creates a programmable transaction with multiple gas payment coins
     /// and a separate gas sponsor.
     fn new_programmable_allow_sponsor(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
-        sponsor: IotaAddress,
+        sponsor: Address,
     ) -> TransactionData;
 
     /// Returns the internal message version number.
@@ -1228,39 +1245,39 @@ pub trait TransactionDataAPI {
 
     /// Consumes self and returns the transaction kind, sender address, and
     /// gas payment object references as a tuple.
-    fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData);
+    fn execution_parts(&self) -> (TransactionKind, Address, GasData);
 }
 
 impl TransactionDataAPI for TransactionData {
-    fn sender(&self) -> IotaAddress {
+    fn sender(&self) -> Address {
         match self {
             Self::V1(v1) => v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn kind(&self) -> &TransactionKind {
         match self {
             Self::V1(v1) => &v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn kind_mut(&mut self) -> &mut TransactionKind {
         match self {
             Self::V1(v1) => &mut v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn into_kind(self) -> TransactionKind {
         match self {
             Self::V1(v1) => v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
-    fn signers(&self) -> NonEmpty<IotaAddress> {
+    fn signers(&self) -> NonEmpty<Address> {
         let mut signers = nonempty![self.sender()];
         if self.gas_owner() != self.sender() {
             signers.push(self.gas_owner());
@@ -1271,11 +1288,11 @@ impl TransactionDataAPI for TransactionData {
     fn gas_data(&self) -> &GasData {
         match self {
             Self::V1(v1) => &v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
-    fn gas_owner(&self) -> IotaAddress {
+    fn gas_owner(&self) -> Address {
         self.gas_data().owner
     }
 
@@ -1294,7 +1311,7 @@ impl TransactionDataAPI for TransactionData {
     fn expiration(&self) -> &TransactionExpiration {
         match self {
             Self::V1(v1) => &v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -1302,7 +1319,7 @@ impl TransactionDataAPI for TransactionData {
         self.kind().shared_input_objects().collect()
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         self.kind().move_calls()
     }
 
@@ -1367,30 +1384,30 @@ impl TransactionDataAPI for TransactionData {
         matches!(self.kind(), TransactionKind::Genesis(_))
     }
 
-    fn sender_mut_for_testing(&mut self) -> &mut IotaAddress {
+    fn sender_mut_for_testing(&mut self) -> &mut Address {
         match self {
             Self::V1(v1) => &mut v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn gas_data_mut(&mut self) -> &mut GasData {
         match self {
             Self::V1(v1) => &mut v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration {
         match self {
             Self::V1(v1) => &mut v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn new_system_transaction(kind: TransactionKind) -> TransactionData {
         assert!(kind.is_system());
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
@@ -1398,7 +1415,7 @@ impl TransactionDataAPI for TransactionData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
                 objects: vec![ObjectRef::new(
-                    ObjectID::ZERO,
+                    ObjectId::ZERO,
                     SequenceNumber::default(),
                     ObjectDigest::MIN,
                 )],
@@ -1410,7 +1427,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1430,7 +1447,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_with_gas_coins(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         gas_budget: u64,
         gas_price: u64,
@@ -1447,11 +1464,11 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         gas_budget: u64,
         gas_price: u64,
-        gas_sponsor: IotaAddress,
+        gas_sponsor: Address,
     ) -> TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
@@ -1468,7 +1485,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_with_gas_data(
         kind: TransactionKind,
-        sender: IotaAddress,
+        sender: Address,
         gas_data: GasData,
     ) -> TransactionData {
         TransactionData::V1(TransactionDataV1 {
@@ -1480,8 +1497,8 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_move_call(
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1504,8 +1521,8 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_move_call_with_gas_coins(
-        sender: IotaAddress,
-        package: ObjectID,
+        sender: Address,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1529,9 +1546,9 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_transfer(
-        recipient: IotaAddress,
+        recipient: Address,
         object_ref: ObjectRef,
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1545,8 +1562,8 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_transfer_iota(
-        recipient: IotaAddress,
-        sender: IotaAddress,
+        recipient: Address,
+        sender: Address,
         amount: Option<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1564,13 +1581,13 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_transfer_iota_allow_sponsor(
-        recipient: IotaAddress,
-        sender: IotaAddress,
+        recipient: Address,
+        sender: Address,
         amount: Option<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
-        gas_sponsor: IotaAddress,
+        gas_sponsor: Address,
     ) -> TransactionData {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1588,9 +1605,9 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_pay(
-        sender: IotaAddress,
+        sender: Address,
         coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1611,9 +1628,9 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_pay_iota(
-        sender: IotaAddress,
+        sender: Address,
         mut coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
         gas_budget: u64,
@@ -1631,9 +1648,9 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_pay_all_iota(
-        sender: IotaAddress,
+        sender: Address,
         mut coins: Vec<ObjectRef>,
-        recipient: IotaAddress,
+        recipient: Address,
         gas_payment: ObjectRef,
         gas_budget: u64,
         gas_price: u64,
@@ -1648,7 +1665,7 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_split_coin(
-        sender: IotaAddress,
+        sender: Address,
         coin: ObjectRef,
         amounts: Vec<u64>,
         gas_payment: ObjectRef,
@@ -1664,10 +1681,10 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_module(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1681,11 +1698,11 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_upgrade(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: ObjectRef,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         (upgrade_capability, capability_owner): (ObjectRef, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
@@ -1696,11 +1713,11 @@ impl TransactionDataAPI for TransactionData {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                    object_id: upgrade_capability.object_id,
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                    upgrade_capability.object_id,
                     initial_shared_version,
-                    mutable: true,
-                }),
+                    true,
+                )),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
@@ -1713,7 +1730,7 @@ impl TransactionDataAPI for TransactionData {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("authorize_upgrade"),
                 vec![],
@@ -1722,7 +1739,7 @@ impl TransactionDataAPI for TransactionData {
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("commit_upgrade"),
                 vec![],
@@ -1741,7 +1758,7 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_programmable(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
@@ -1758,12 +1775,12 @@ impl TransactionDataAPI for TransactionData {
     }
 
     fn new_programmable_allow_sponsor(
-        sender: IotaAddress,
+        sender: Address,
         gas_payment: Vec<ObjectRef>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
-        sponsor: IotaAddress,
+        sponsor: Address,
     ) -> TransactionData {
         let kind = TransactionKind::Programmable(pt);
         TransactionData::new_with_gas_coins_allow_sponsor(
@@ -1779,13 +1796,11 @@ impl TransactionDataAPI for TransactionData {
     fn message_version(&self) -> u64 {
         match self {
             TransactionData::V1(_) => 1,
-            _ => unimplemented!(
-                "a new TransactionData enum variant was added and needs to be handled"
-            ),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
-    fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData) {
+    fn execution_parts(&self) -> (TransactionKind, Address, GasData) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
 }
@@ -1857,7 +1872,7 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
 impl SenderSignedTransaction {
     pub(crate) fn get_signer_sig_mapping(
         &self,
-    ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
+    ) -> IotaResult<BTreeMap<Address, &GenericSignature>> {
         let mut mapping = BTreeMap::new();
         for sig in &self.tx_signatures {
             let address = sig.try_into()?;
@@ -1906,7 +1921,7 @@ impl SenderSignedData {
 
     pub(crate) fn get_signer_sig_mapping(
         &self,
-    ) -> IotaResult<BTreeMap<IotaAddress, &GenericSignature>> {
+    ) -> IotaResult<BTreeMap<Address, &GenericSignature>> {
         self.inner().get_signer_sig_mapping()
     }
 
@@ -2014,7 +2029,7 @@ impl SenderSignedData {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
             _ => unimplemented!(
-                "a new TransactionExpiration variant was added and needs to be handled"
+                "a new TransactionExpiration enum variant was added and needs to be handled"
             ),
         } {
             return Err(IotaError::TransactionExpired);
@@ -2057,6 +2072,7 @@ impl SenderSignedData {
             .collect()
     }
 
+    /// Returns the senders's [`MoveAuthenticator`], if the sender uses one.
     pub fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
         let sender = self.intent_message().value.sender();
 
@@ -2066,6 +2082,50 @@ impl SenderSignedData {
                 Ok(addr) => addr == sender,
                 Err(_) => false,
             })
+    }
+
+    /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
+    /// sponsored and the sponsor uses one.
+    pub fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
+        let tx_data = self.transaction_data();
+
+        if tx_data.is_sponsored_tx() {
+            let gas_owner = tx_data.gas_owner();
+
+            self.move_authenticators()
+                .into_iter()
+                .find(|a| match a.address() {
+                    Ok(addr) => addr == gas_owner,
+                    Err(_) => false,
+                })
+        } else {
+            None
+        }
+    }
+
+    /// Computes the auth digest for the sender and, if sponsored, for the
+    /// sponsor. See [`auth_digest_for_sig`] for the per-signature logic.
+    pub fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
+        let tx_data = self.transaction_data();
+
+        let digest_for_address = |address: Address| {
+            self.tx_signatures()
+                .iter()
+                .find(|sig| Address::try_from(*sig).ok() == Some(address))
+                .ok_or_else(|| IotaError::InvalidSignature {
+                    error: format!("no signature found for address {address}"),
+                })
+                .and_then(auth_digest_for_sig)
+        };
+
+        let sender_auth_digest = digest_for_address(tx_data.sender())?;
+        let sponsor_auth_digest = if tx_data.is_sponsored_tx() {
+            Some(digest_for_address(tx_data.gas_owner())?)
+        } else {
+            None
+        };
+
+        Ok((sender_auth_digest, sponsor_auth_digest))
     }
 
     /// Returns all unique input objects including those from
@@ -2343,7 +2403,7 @@ impl Message for SenderSignedData {
 }
 
 impl<S> Envelope<SenderSignedData, S> {
-    pub fn sender_address(&self) -> IotaAddress {
+    pub fn sender_address(&self) -> Address {
         self.data().intent_message().value.sender()
     }
 
@@ -2426,7 +2486,7 @@ impl Transaction {
                 .inner()
                 .tx_signatures
                 .iter()
-                .map(|s| Base64::from_bytes(s.as_ref()))
+                .map(|s| Base64::from_bytes(&s.to_bytes()))
                 .collect(),
         )
     }
@@ -2537,6 +2597,10 @@ impl Transaction {
         self.verify_signature_for_testing(verify_params)?;
         Ok(VerifiedTransaction::new_from_verified(self))
     }
+
+    pub fn gas_price(&self) -> u64 {
+        self.data().transaction_data().gas_price()
+    }
 }
 
 impl SignedTransaction {
@@ -2618,19 +2682,19 @@ pub type TrustedCertificate = TrustedEnvelope<SenderSignedData, AuthorityStrongQ
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum InputObjectKind {
     // A Move package, must be immutable.
-    MovePackage(ObjectID),
+    MovePackage(ObjectId),
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(ObjectRef),
     // A Move object that's shared and mutable.
     SharedMoveObject {
-        id: ObjectID,
+        id: ObjectId,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
 }
 
 impl InputObjectKind {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             Self::MovePackage(id) => *id,
             Self::ImmOrOwnedMoveObject(object_ref) => object_ref.object_id,
@@ -2788,10 +2852,10 @@ impl std::fmt::Debug for ObjectReadResultKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectReadResultKind::Object(obj) => {
-                write!(f, "Object({:?})", obj.compute_object_reference())
+                write!(f, "Object({:?})", obj.object_ref())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
-                write!(f, "DeletedSharedObject({seq}, {digest:?})")
+                write!(f, "DeletedSharedObject({seq}, {digest})")
             }
             ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
                 write!(f, "CancelledTransactionSharedObject({seq})")
@@ -2830,7 +2894,7 @@ impl ObjectReadResult {
         }
     }
 
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.input_object_kind.object_id()
     }
 
@@ -2843,7 +2907,7 @@ impl ObjectReadResult {
     }
 
     pub fn new_from_gas_object(gas: &Object) -> Self {
-        let objref = gas.compute_object_reference();
+        let objref = gas.object_ref();
         Self {
             input_object_kind: InputObjectKind::ImmOrOwnedMoveObject(objref),
             object: ObjectReadResultKind::Object(gas.clone()),
@@ -2919,9 +2983,7 @@ impl ObjectReadResult {
             InputObjectKind::MovePackage(_) => None,
             InputObjectKind::ImmOrOwnedMoveObject(_) => None,
             InputObjectKind::SharedMoveObject { id, mutable, .. } => Some(match &self.object {
-                ObjectReadResultKind::Object(obj) => {
-                    SharedInput::Existing(obj.compute_object_reference())
-                }
+                ObjectReadResultKind::Object(obj) => SharedInput::Existing(obj.object_ref()),
                 ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                     SharedInput::Deleted((id, *seq, mutable, *digest))
                 }
@@ -3013,7 +3075,7 @@ impl InputObjects {
 
     // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectID>, SequenceNumber)> {
+    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, SequenceNumber)> {
         let mut contains_cancelled = false;
         let mut cancel_reason = None;
         let mut cancelled_objects = Vec::new();
@@ -3074,7 +3136,7 @@ impl InputObjects {
             .collect()
     }
 
-    pub fn mutable_inputs(&self) -> BTreeMap<ObjectID, (VersionDigest, Owner)> {
+    pub fn mutable_inputs(&self) -> BTreeMap<ObjectId, (VersionDigest, Owner)> {
         self.objects
             .iter()
             .filter_map(
@@ -3111,7 +3173,7 @@ impl InputObjects {
                         ObjectReadResultKind::Object(object),
                     ) => {
                         if *mutable {
-                            let oref = object.compute_object_reference();
+                            let oref = object.object_ref();
                             Some((oref.object_id, ((oref.version, oref.digest), object.owner)))
                         } else {
                             None
@@ -3163,7 +3225,7 @@ impl InputObjects {
         )
     }
 
-    pub fn into_object_map(self) -> BTreeMap<ObjectID, Object> {
+    pub fn into_object_map(self) -> BTreeMap<ObjectId, Object> {
         self.objects
             .into_iter()
             .filter_map(|o| o.as_object().map(|object| (o.id(), object.clone())))
@@ -3175,7 +3237,7 @@ impl InputObjects {
     }
 
     // If it contains then it returns the ObjectReadResult
-    pub fn find_object_id_mut(&mut self, object_id: ObjectID) -> Option<&mut ObjectReadResult> {
+    pub fn find_object_id_mut(&mut self, object_id: ObjectId) -> Option<&mut ObjectReadResult> {
         self.objects.iter_mut().find(|o| o.id() == object_id)
     }
 
@@ -3280,6 +3342,30 @@ impl TransactionKey {
         match self {
             TransactionKey::Digest(d) => d,
             _ => panic!("called expect_digest on a non-Digest TransactionKey: {self:?}"),
+        }
+    }
+}
+
+/// Computes the auth digest for a single [`GenericSignature`].
+///
+/// For [`MoveAuthenticator`] signatures this equals
+/// [`MoveAuthenticator::digest()`]. For all other supported signature types it
+/// is the Blake2b256 of the serialized (flag-prefixed) signature bytes.
+/// Returns an error for [`GenericSignature::ZkLoginAuthenticatorDeprecated`]
+/// since zkLogin was never enabled on IOTA.
+#[allow(deprecated)]
+pub fn auth_digest_for_sig(sig: &GenericSignature) -> IotaResult<Digest> {
+    match sig {
+        GenericSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
+        GenericSignature::ZkLoginAuthenticatorDeprecated(_) => Err(IotaError::UnsupportedFeature {
+            error: "zkLogin is not supported".to_string(),
+        }),
+        GenericSignature::MultiSig(_)
+        | GenericSignature::Signature(_)
+        | GenericSignature::PasskeyAuthenticator(_) => {
+            let mut hasher = DefaultHash::default();
+            hasher.update(sig.to_bytes());
+            Ok(Digest::new(hasher.finalize().into()))
         }
     }
 }

@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     base_types::{address_from_iota_pub_key, dbg_addr},
     crypto::KeypairTraits,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, test_runner::TestCaseError};

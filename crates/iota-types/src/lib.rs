@@ -9,9 +9,14 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
+use base_types::SequenceNumber;
+#[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
+#[cfg(target_arch = "wasm32")]
+#[path = "wasm_multiaddr.rs"]
+pub mod multiaddr;
 pub use iota_sdk_types as sdk_types;
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -51,7 +56,6 @@ pub mod event;
 pub mod executable_transaction;
 pub mod execution;
 pub mod execution_config_utils;
-pub mod execution_status;
 pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;
@@ -67,7 +71,11 @@ pub mod iota_system_state;
 pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
+// Consensus message types (and the gRPC API types that carry them) are
+// node-only and pull in fastcrypto-tbls / tonic, which don't build on wasm32.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_consensus;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
@@ -81,7 +89,6 @@ pub mod programmable_transaction_builder;
 pub mod proto_value;
 pub mod quorum_driver_types;
 pub mod randomness_state;
-pub mod scoring_metrics;
 pub mod signature;
 pub mod signature_verification;
 pub mod stardust;
@@ -92,6 +99,7 @@ pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
 pub mod transaction;
+pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
 pub mod versioned;
@@ -103,7 +111,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
+            pub const $id: ObjectId = ObjectId::new($addr.into_bytes());
         )*
     }
 }
@@ -131,12 +139,12 @@ built_in_ids! {
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
 }
 
-pub const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
-    IotaAddress::STD,
-    IotaAddress::FRAMEWORK,
-    IotaAddress::SYSTEM,
-    IotaAddress::GENESIS_BRIDGE,
-    IotaAddress::STARDUST,
+pub const SYSTEM_PACKAGE_ADDRESSES: [Address; 5] = [
+    Address::STD,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    Address::GENESIS_BRIDGE,
+    Address::STARDUST,
 ];
 
 pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
@@ -151,7 +159,7 @@ const fn builtin_address(suffix: u16) -> AccountAddress {
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IotaAddress::FRAMEWORK.to_short_hex())
+    format!("{}{suffix}", Address::FRAMEWORK.to_short_hex())
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -164,9 +172,9 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
 /// authority codebases.
-pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
+pub fn parse_iota_address(s: &str) -> anyhow::Result<Address> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(IotaAddress::new(
+    Ok(Address::new(
         ParsedAddress::parse(s)?
             .into_account_address(&resolve_address)?
             .into_bytes(),
@@ -218,10 +226,10 @@ pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "std" => Some(IotaAddress::STD),
-        "iota" => Some(IotaAddress::FRAMEWORK),
-        "iota_system" => Some(IotaAddress::SYSTEM),
-        "stardust" => Some(IotaAddress::STARDUST),
+        "std" => Some(Address::STD),
+        "iota" => Some(Address::FRAMEWORK),
+        "iota_system" => Some(Address::SYSTEM),
+        "stardust" => Some(Address::STARDUST),
         _ => None,
     }
     .map(|addr| AccountAddress::new(addr.into_bytes()))
@@ -243,13 +251,13 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
-impl MoveTypeTagTrait for ObjectID {
+impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }
 }
 
-impl MoveTypeTagTrait for IotaAddress {
+impl MoveTypeTagTrait for Address {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }

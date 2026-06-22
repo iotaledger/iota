@@ -114,14 +114,23 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
 
     /// Determines if the current batch should be closed and committed.
     ///
-    /// This method is called for each new message to determine if the current
-    /// batch should be committed before adding the new message.
+    /// This method is called by the framework in two situations:
+    ///
+    /// - **`next_item = Some(msg)`**: a new message is about to be added to the
+    ///   batch. Returning `true` triggers a commit of the existing batch first.
+    ///   The `msg` is added to a new batch. Returning `false` appends `msg` to
+    ///   the current batch without committing.
+    ///
+    /// - **`next_item = None`**: the current chunk from the upstream stream has
+    ///   been fully consumed and there are no more messages to add in this
+    ///   iteration (the stream itself may still produce more chunks later).
+    ///   Returning `true` flushes the partial batch. Returning `false` leaves
+    ///   the batch in memory until the next chunk arrives.
     ///
     /// # Default Implementation
     ///
-    /// By default, returns `true` only when there are no more messages
-    /// (`next_item` is `None`), effectively creating a single batch for all
-    /// messages.
+    /// Returns `true` only when `next_item` is `None`, so each chunk's
+    /// remaining batch is flushed at the chunk boundary.
     fn should_close_batch(
         &self,
         _batch: &[Mapper::Message],
@@ -154,7 +163,7 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
 pub(crate) async fn reduce<W: Worker>(
     task_name: String,
     mut current_checkpoint_number: CheckpointSequenceNumber,
-    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, Option<W::Message>)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     reducer: Box<dyn Reducer<W>>,
     backoff: Arc<ExponentialBackoff>,
@@ -180,7 +189,15 @@ pub(crate) async fn reduce<W: Worker>(
         unprocessed.extend(update_batch);
         // Process messages sequentially based on checkpoint sequence number.
         // This ensures in-order processing and maintains progress integrity.
-        while let Some(message) = unprocessed.remove(&current_checkpoint_number) {
+        while let Some(maybe_worker_message) = unprocessed.remove(&current_checkpoint_number) {
+            let Some(message) = maybe_worker_message else {
+                current_checkpoint_number += 1;
+                if batch.is_empty() {
+                    progress_update = Some(current_checkpoint_number);
+                }
+                continue;
+            };
+
             // reducer is configured, collect messages in batch based on
             // `reducer.should_close_batch` policy, once a batch is collected it gets
             // committed and a new batch is created with the current message.

@@ -1,15 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ObjectData, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::ObjectID,
-    committee::EpochId,
-    error::IotaError,
-    governance::StakedIota,
-    id::UID,
-    object::{Data, Object},
+    committee::EpochId, error::IotaError, governance::StakedIota, id::UID, object::Object,
 };
 
 /// Rust version of the Move
@@ -27,12 +23,12 @@ pub struct TimelockedStakedIota {
 
 impl TimelockedStakedIota {
     /// Get the TimelockedStakedIota's `id`.
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
     /// Get the wrapped StakedIota's `pool_id`.
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.staked_iota.pool_id()
     }
 
@@ -67,7 +63,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_timelocked_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(
@@ -76,7 +72,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
                     });
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

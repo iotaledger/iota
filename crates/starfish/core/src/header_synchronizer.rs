@@ -49,6 +49,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
@@ -351,6 +352,7 @@ pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: Core
     /// reinitialization. `None` on deployments where fast sync is disabled
     /// — the gate becomes an unconditional pass-through.
     fast_sync_active: Option<Arc<AtomicBool>>,
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
@@ -366,6 +368,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
         fast_sync_active: Option<Arc<AtomicBool>>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
@@ -397,6 +400,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 dag_state.clone(),
                 receiver,
                 commands_sender.clone(),
+                misbehavior_store.clone(),
             );
             tasks.spawn(monitored_future!(fetch_blocks_from_authority_async));
             fetch_block_senders.insert(index, sender);
@@ -429,6 +433,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 commands_sender: commands_sender_clone,
                 dag_state,
                 fast_sync_active,
+                misbehavior_store,
             };
             s.run().await;
         }));
@@ -477,7 +482,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             // task will take care syncing whatever is leftover.
                             let missing_block_refs = missing_block_refs
                                 .into_iter()
-                                .take(self.context.parameters.max_headers_per_regular_sync_fetch)
+                                .take(self.context.parameters.max_headers_per_header_sync_fetch)
                                 .collect();
 
                             let blocks_guard = self.inflight_block_headers_map.lock_headers(missing_block_refs, peer_index, SyncMethod::Live);
@@ -593,6 +598,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         mut receiver: Receiver<BlocksGuard>,
         commands_sender: Sender<Command>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         const MAX_RETRIES: u32 = 3;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -641,13 +647,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 peer_index,
                                 blocks_guard,
                                 core_dispatcher.clone(),
+                                dag_state.clone(),
                                 block_verifier.clone(),
                                 verified_cache.clone(),
                                 commit_vote_monitor.clone(),
                                 transactions_synchronizer.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
-                                "live"
+                                "live",
+                                misbehavior_store.clone(),
                             ).await {
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
@@ -681,6 +689,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
+        dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<V>,
         verified_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
@@ -688,6 +697,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: Arc<Context>,
         commands_sender: Sender<Command>,
         sync_method: &str,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<()> {
         if serialized_headers.is_empty() {
             return Ok(());
@@ -698,12 +708,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             .scope_processing_time
             .with_label_values(&["Synchronizer::process_fetched_blocks"])
             .start_timer();
-        if serialized_headers.len() > context.parameters.max_headers_per_regular_sync_fetch {
+        if serialized_headers.len() > context.parameters.max_headers_per_header_sync_fetch {
             debug!(
                 "Truncating fetched headers from peer {} to max allowed {} blocks",
-                peer_index, context.parameters.max_headers_per_regular_sync_fetch
+                peer_index, context.parameters.max_headers_per_header_sync_fetch
             );
-            serialized_headers.truncate(context.parameters.max_headers_per_regular_sync_fetch);
+            serialized_headers.truncate(context.parameters.max_headers_per_header_sync_fetch);
         }
 
         // Verify all the fetched block headers
@@ -713,6 +723,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let verified_cache = verified_cache.clone();
                 let context = context.clone();
                 let sync_method = sync_method.to_string();
+                let misbehavior_store = misbehavior_store.clone();
                 move || {
                     Self::verify_block_headers(
                         serialized_headers,
@@ -721,6 +732,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         &context,
                         peer_index,
                         &sync_method,
+                        &misbehavior_store,
                     )
                 }
             })
@@ -754,6 +766,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .iter()
                 .map(|b| b.reference().to_string())
                 .join(", "),
+        );
+
+        // A peer may volunteer validly-signed headers we never requested, so
+        // bound the response here; the block manager applies the same bound
+        // downstream when these headers are accepted.
+        let block_headers = crate::block_manager::drop_far_future(
+            &context,
+            &dag_state,
+            block_headers,
+            DataSource::HeaderSynchronizer,
+            |header| header.round(),
         );
 
         // Now send them to core for processing. Ignore the returned missing blocks as
@@ -823,6 +846,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: &Context,
         peer_index: AuthorityIndex,
         sync_method: &str,
+        misbehavior_store: &MisbehaviorStore,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut verified_block_headers = Vec::new();
         let mut skipped_count = 0u64;
@@ -836,7 +860,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
 
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    misbehavior_store.record_faulty_block_header(peer_index, peer_index, e);
+                })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
                 // TODO: we might want to use a different metric to track the invalid "served"
@@ -849,6 +877,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
+                misbehavior_store.record_faulty_block_header(
+                    peer_index,
+                    signed_block_header.author(),
+                    &e,
+                );
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -952,6 +985,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
         let core_dispatcher = self.core_dispatcher.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         self.fetch_own_last_header_task
             .spawn(monitored_future!(async move {
@@ -970,7 +1004,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let process_block_headers = |block_headers: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
                                     let mut result = Vec::new();
                                     for serialized_block_header in block_headers {
-                                        let signed_block_header = bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+                                        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                                            .map_err(ConsensusError::MalformedHeader)
+                                            .inspect_err(|e| {
+                                                // Author unknown when deserialization fails — blame the peer.
+                                                misbehavior_store.record_faulty_block_header(
+                                                    authority_index,
+                                                    authority_index,
+                                                    e,
+                                                );
+                                            })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
                                             let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
@@ -979,6 +1022,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
+                                            misbehavior_store.record_faulty_block_header(
+                                                authority_index,
+                                                signed_block_header.author(),
+                                                err,
+                                            );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
 
@@ -1107,6 +1155,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
         let transactions_synchronizer = self.transactions_synchronizer.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         trace!(
@@ -1161,7 +1210,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     inflight_block_headers_map.clone(),
                     network_client,
                     missing_blocks_refs,
-                    dag_state,
+                    dag_state.clone(),
                 )
                 .await;
                 context
@@ -1184,6 +1233,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         peer,
                         blocks_guard,
                         core_dispatcher.clone(),
+                        dag_state.clone(),
                         block_verifier.clone(),
                         verified_cache.clone(),
                         commit_vote_monitor.clone(),
@@ -1191,6 +1241,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         context.clone(),
                         commands_sender.clone(),
                         "periodic",
+                        misbehavior_store.clone(),
                     )
                     .await
                     {
@@ -1293,7 +1344,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let limited_block_refs = block_refs
                     .iter()
                     .copied()
-                    .take(context.parameters.max_headers_per_regular_sync_fetch)
+                    .take(context.parameters.max_headers_per_header_sync_fetch)
                     .collect();
                 (peer, limited_block_refs, "periodic_known")
             })
@@ -1312,7 +1363,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         let limited_block_refs = block_refs
                             .iter()
                             .copied()
-                            .take(context.parameters.max_headers_per_regular_sync_fetch)
+                            .take(context.parameters.max_headers_per_header_sync_fetch)
                             .collect();
                         (peer, limited_block_refs, "periodic_known")
                     })
@@ -1358,7 +1409,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         all_missing_block_headers_refs.shuffle(&mut rng);
 
         let mut block_headers_chunks = all_missing_block_headers_refs
-            .chunks(context.parameters.max_headers_per_regular_sync_fetch);
+            .chunks(context.parameters.max_headers_per_header_sync_fetch);
 
         for peer in random_peers {
             if let Some(chunk) = block_headers_chunks.next() {
@@ -1581,6 +1632,7 @@ mod tests {
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
             InflightBlockHeadersMap, SyncMethod,
         },
+        misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
@@ -2114,7 +2166,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2124,6 +2176,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2134,6 +2187,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2183,7 +2237,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2193,6 +2247,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2203,6 +2258,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2267,7 +2323,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -2330,6 +2386,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2340,6 +2397,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2378,7 +2436,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2419,14 +2477,14 @@ mod tests {
         let stub_block_author_1 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(1))
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
         let stub_block_author_2 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(2))
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
@@ -2434,7 +2492,7 @@ mod tests {
         // blocks
         let stub_block_author_3 = stub_block_headers
             .iter()
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
@@ -2485,6 +2543,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2515,7 +2574,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2529,7 +2588,7 @@ mod tests {
         let sync_missing_block_round_threshold = context.parameters.commit_sync_batch_size;
         let stub_headers = (sync_missing_block_round_threshold * 2
             ..sync_missing_block_round_threshold * 2
-                + context.parameters.max_headers_per_regular_sync_fetch as u32)
+                + context.parameters.max_headers_per_header_sync_fetch as u32)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks_refs = stub_headers
@@ -2545,7 +2604,7 @@ mod tests {
         // authority = 0, so we are skipped anyway.
         let mut expected_headers = stub_headers
             .iter()
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .cloned()
             .collect::<Vec<_>>();
         network_client
@@ -2595,6 +2654,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2667,7 +2727,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let our_index = AuthorityIndex::new_for_test(0);
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2750,6 +2810,7 @@ mod tests {
             dag_state,
             true,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Wait at least for the timeout time
@@ -2912,7 +2973,7 @@ mod tests {
             // 1) Setup 10‐node context and in‐mem DAG
             let (ctx, _) = Context::new_for_test(10);
             let context = Arc::new(ctx);
-            let store = Arc::new(MemStore::new(context.clone()));
+            let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let inflight = InflightBlockHeadersMap::new();
 
@@ -3003,7 +3064,7 @@ mod tests {
         // 1) Setup a 10-node context, in-memory DAG, and inflight map
         let (ctx, _) = Context::new_for_test(10);
         let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let inflight = InflightBlockHeadersMap::new();
         let network_client = Arc::new(MockNetworkClient::default());
@@ -3056,7 +3117,7 @@ mod tests {
                             .unwrap()
                             .contains(&peer)
                     })
-                    .take(context.parameters.max_headers_per_regular_sync_fetch)
+                    .take(context.parameters.max_headers_per_header_sync_fetch)
                     .cloned()
                     .collect::<Vec<_>>();
                 (peer, verified_block_headers)
@@ -3090,8 +3151,7 @@ mod tests {
         // 4) Stub responses for fetches from additional random peers (1 and 4 in tests)
         network_client
             .stub_fetch_headers_response(
-                all_verified_block_headers
-                    [0..context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[0..context.parameters.max_headers_per_header_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(1),
                 None,
@@ -3100,8 +3160,8 @@ mod tests {
 
         network_client
             .stub_fetch_headers_response(
-                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
-                    ..2 * context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
+                    ..2 * context.parameters.max_headers_per_header_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
@@ -3140,7 +3200,7 @@ mod tests {
         let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
         let expected1 = all_verified_block_headers
-            [0..context.parameters.max_headers_per_regular_sync_fetch]
+            [0..context.parameters.max_headers_per_header_sync_fetch]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
@@ -3150,8 +3210,8 @@ mod tests {
         let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
-            all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
-                ..2 * context.parameters.max_headers_per_regular_sync_fetch]
+            all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
+                ..2 * context.parameters.max_headers_per_header_sync_fetch]
                 .iter()
                 .map(|vb| vb.serialized().clone())
                 .collect::<Vec<_>>();
@@ -3175,7 +3235,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let (commands_sender, _commands_receiver) =
             monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
@@ -3229,6 +3289,7 @@ mod tests {
         )));
 
         // Create a Synchronizer
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let result = HeaderSynchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
@@ -3238,6 +3299,7 @@ mod tests {
             peer_index,
             blocks_guard, // The guard is consumed here
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier.clone(),
             verified_cache.clone(),
             commit_vote_monitor.clone(),
@@ -3245,6 +3307,7 @@ mod tests {
             context.clone(),
             commands_sender.clone(),
             "live",
+            misbehavior_store.clone(),
         )
         .await;
 
@@ -3279,6 +3342,7 @@ mod tests {
             peer_index,
             blocks_guard_second,
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier,
             verified_cache.clone(),
             commit_vote_monitor,
@@ -3286,6 +3350,7 @@ mod tests {
             context.clone(),
             commands_sender,
             "live",
+            misbehavior_store,
         )
         .await;
 
@@ -3308,6 +3373,88 @@ mod tests {
             "Expected {} entries in the LruCache, but got {}",
             expected_block_refs.len(),
             cache_size
+        );
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_drops_far_future() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        // Frontier is genesis round 0; a header one past the ceiling can never
+        // connect and must be dropped, while an in-window header is forwarded.
+        let ceiling = context.parameters.far_future_round_ceiling(0);
+        let in_window = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(60, 0).build());
+        let far_future =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(ceiling + 1, 1).build());
+        let serialized = vec![
+            in_window.serialized().clone(),
+            far_future.serialized().clone(),
+        ];
+        let refs = [in_window.reference(), far_future.reference()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(refs, peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            serialized,
+            peer_index,
+            blocks_guard,
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        // Only the in-window header reaches core; the far-future one is dropped.
+        let added = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(
+            added.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+            vec![in_window.reference()],
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::HeaderSynchronizer.as_str()])
+                .get(),
+            1
         );
     }
 }

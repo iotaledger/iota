@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Identifier, ObjectId};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{Identifier, ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     error::{IotaError, IotaResult},
     storage::ObjectStore,
 };
@@ -26,7 +27,7 @@ pub fn get_randomness_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
 ) -> IotaResult<SequenceNumber> {
     object_store
-        .try_get_object(&ObjectID::RANDOMNESS_STATE)?
+        .try_get_object(&ObjectId::RANDOMNESS_STATE)?
         .map(|obj| {
             obj.owner
                 .into_opt_shared()

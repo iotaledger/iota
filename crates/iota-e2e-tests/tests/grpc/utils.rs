@@ -3,13 +3,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
+use iota_sdk_types::{Address, Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    effects::TransactionEffectsAPI,
-};
+use iota_types::effects::TransactionEffectsAPI;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // --- Shared example package names used by filter tests ---
@@ -63,8 +61,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::connect(test_cluster.grpc_url())
-        .await
+    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -77,27 +74,27 @@ where
 /// Helper to create a proto `ObjectId` from a hex literal (e.g. "0x5").
 pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
     ProtoObjectId::default().with_object_id(
-        ObjectID::from_prefixed_short_hex(hex)
+        ObjectId::from_prefixed_short_hex(hex)
             .unwrap()
             .into_bytes()
             .to_vec(),
     )
 }
 
-/// Helper to create a proto `Address` from an `IotaAddress`.
-pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
+/// Helper to create a proto `Address` from an [`Address`].
+pub fn address_proto(addr: Address) -> ProtoAddress {
     ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
 /// Publish an example Move package from the `iota-test-transaction-builder`
-/// examples directory and return the published package's `ObjectID`.
+/// examples directory and return the published package's `ObjectId`.
 ///
 /// The `sender` signs and executes the publish transaction on `cluster`.
 pub async fn publish_example_package(
     cluster: &TestCluster,
-    sender: IotaAddress,
+    sender: Address,
     package_name: &'static str,
-) -> ObjectID {
+) -> ObjectId {
     let tx = cluster
         .test_transaction_builder_with_sender(sender)
         .await
@@ -117,7 +114,7 @@ pub async fn publish_example_package(
 }
 
 /// Get the first wallet address from a test cluster.
-pub fn first_sender(cluster: &TestCluster) -> IotaAddress {
+pub fn first_sender(cluster: &TestCluster) -> Address {
     cluster.wallet.get_addresses().first().copied().unwrap()
 }
 
@@ -128,7 +125,7 @@ pub fn is_success(status: &ExecutionStatus) -> bool {
 
 /// Create a signed transaction for testing (IOTA transfer to random recipient).
 pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
-    let recipient = IotaAddress::random();
+    let recipient = Address::random();
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
     tx.try_into().expect("SDK type conversion failed")
 }
@@ -179,7 +176,11 @@ pub async fn wait_for_executed_transactions_checkpointed(
     client: &iota_grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
+        .get_checkpoint_latest(
+            Some(ReadMask::from(CheckpointResponseField::ALL)),
+            None,
+            None,
+        )
         .await
         .expect("get latest checkpoint")
         .body()
@@ -537,8 +538,7 @@ pub(crate) fn assert_field_presence(
     for expected_top_level_field in &expected_top_level_fields {
         assert!(
             actual_top_level_fields.contains(expected_top_level_field),
-            "Invalid field '{}' in '{scenario}': field does not exist on this type",
-            expected_top_level_field
+            "Invalid field '{expected_top_level_field}' in '{scenario}': field does not exist on this type"
         );
     }
 
@@ -568,7 +568,7 @@ pub(crate) fn assert_field_presence(
                 "Contradictory field paths in '{scenario}': '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
                 expected_nested_field_paths[non_nested_field]
                     .iter()
-                    .map(|s| format!("{}.{}", non_nested_field, s))
+                    .map(|s| format!("{non_nested_field}.{s}"))
                     .collect::<Vec<_>>()
                     .join(", ")
             );

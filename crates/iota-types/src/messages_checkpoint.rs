@@ -11,13 +11,21 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::{
+    RandomnessRound,
+    crypto::{Intent, IntentScope},
+    gas::GasCostSummary,
+};
 use once_cell::sync::OnceCell;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+#[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;
-use tracing::{instrument, warn};
+use tracing::instrument;
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::warn;
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
@@ -27,12 +35,11 @@ use crate::{
     committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthorityStrongQuorumSignInfo, RandomnessRound, default_hash, get_key_pair,
+        AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
     },
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    gas::GasCostSummary,
     global_state_hash::GlobalStateHash,
     iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -253,6 +260,7 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn report_checkpoint_age(&self, metrics: &Histogram) {
         SystemTime::now()
             .duration_since(self.timestamp())

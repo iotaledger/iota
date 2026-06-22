@@ -12,7 +12,8 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{AggregateAuthenticator, KeyPair},
 };
-use iota_sdk_types::StructTag;
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::{Address, ExecutionStatus, Owner, StructTag, gas::GasCostSummary};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -27,10 +28,13 @@ use crate::{
         get_key_pair,
     },
     digests::TransactionEventsDigest,
-    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI},
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
-    object::Owner,
+    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
+    signature::ZkLoginAuthenticatorDeprecated,
+    utils::{
+        blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
+        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_upgraded_multisig_tx,
+    },
 };
 
 #[test]
@@ -845,7 +849,7 @@ fn test_sponsored_transaction_validity_check() {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                ObjectID::random(),
+                ObjectId::random(),
                 Identifier::from_static("random_module"),
                 Identifier::from_static("random_function"),
                 vec![],
@@ -875,7 +879,7 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![IotaAddress::random()],
+                vec![Address::random()],
                 vec![100000],
             )
             .unwrap();
@@ -889,7 +893,7 @@ fn test_sponsored_transaction_validity_check() {
     // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(IotaAddress::random(), Some(50000));
+        builder.transfer_iota(Address::random(), Some(50000));
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
@@ -911,7 +915,7 @@ fn test_sponsored_transaction_validity_check() {
     // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_iota(IotaAddress::random());
+        builder.pay_all_iota(Address::random());
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
@@ -1074,11 +1078,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedObjectRef {
-            object_id: ObjectID::CLOCK,
-            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
+        SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1094,19 +1094,19 @@ fn test_consensus_commit_prologue_v1_transaction() {
 
 #[test]
 fn test_move_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
     let gas_object_ref = random_object_ref();
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             package,
             Identifier::from_static("foo"),
@@ -1128,11 +1128,11 @@ fn test_move_input_objects() {
             ])
             .unwrap(),
         builder
-            .input(CallArg::Shared(SharedObjectRef {
-                object_id: shared.object_id,
-                initial_shared_version: shared.version,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectRef::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
     builder.command(Command::new_move_call(
@@ -1143,7 +1143,7 @@ fn test_move_input_objects() {
         args,
     ));
     let data = TransactionData::new_programmable(
-        IotaAddress::random(),
+        Address::random(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
@@ -1182,18 +1182,18 @@ fn test_move_input_objects() {
 
 #[test]
 fn test_unique_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             package,
             Identifier::from_static("foo"),
@@ -1217,11 +1217,11 @@ fn test_unique_input_objects() {
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Shared(SharedObjectRef {
-                object_id: shared.object_id,
-                initial_shared_version: shared.version,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectRef::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
 
@@ -1381,4 +1381,97 @@ fn check_approx_effects_components_size() {
         size_of::<ExecutionStatus>() < APPROX_SIZE_OF_EXECUTION_STATUS,
         "Update APPROX_SIZE_OF_EXECUTION_STATUS constant"
     );
+}
+
+#[test]
+fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
+    let (sender, _): (_, AccountKeyPair) = get_key_pair();
+    let (sig, authenticator) = make_move_authenticator_sig(sender);
+    assert_eq!(auth_digest_for_sig(&sig).unwrap(), authenticator.digest());
+}
+
+#[test]
+fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
+    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let tx = make_transaction(sender, &kp);
+    let sig = tx.tx_signatures().first().unwrap();
+    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+}
+
+#[test]
+fn auth_digest_for_multisig_is_hash_of_sig_bytes() {
+    let tx = make_upgraded_multisig_tx();
+    let sig = tx.tx_signatures().first().unwrap();
+    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+}
+
+#[test]
+fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
+    let sig = make_passkey_authenticator_sig();
+    assert_eq!(auth_digest_for_sig(&sig).unwrap(), blake2b256_of_sig(&sig));
+}
+
+#[test]
+#[allow(deprecated)]
+fn auth_digest_for_zk_login_returns_unsupported_error() {
+    let sig = GenericSignature::ZkLoginAuthenticatorDeprecated(ZkLoginAuthenticatorDeprecated);
+    let err = auth_digest_for_sig(&sig).unwrap_err();
+    assert!(
+        matches!(err, IotaError::UnsupportedFeature { .. }),
+        "expected UnsupportedFeature, got {err:?}",
+    );
+}
+
+#[test]
+fn compute_auth_digests_non_sponsored_move_authenticator() {
+    let sender = Address::random();
+    let (_, authenticator) = make_move_authenticator_sig(sender);
+    let tx = make_move_authenticator_tx(sender);
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, authenticator.digest());
+    assert!(sponsor_digest.is_none());
+}
+
+#[test]
+fn compute_auth_digests_non_sponsored_regular_signature() {
+    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let tx = make_transaction(sender, &kp);
+    let sig = tx.tx_signatures().first().unwrap();
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, blake2b256_of_sig(sig));
+    assert!(sponsor_digest.is_none());
+}
+
+#[test]
+fn compute_auth_digests_sponsored_both_move_authenticators() {
+    let (tx, sender_auth, sponsor_auth) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, sender_auth.digest());
+    assert_eq!(sponsor_digest.unwrap(), sponsor_auth.digest());
+    assert_ne!(sender_digest, sponsor_digest.unwrap());
+}
+
+#[test]
+fn compute_auth_digests_sponsored_regular_signatures() {
+    let (tx, sender, sponsor) = make_sponsored_regular_sig_tx();
+
+    let sender_sig = tx
+        .tx_signatures()
+        .iter()
+        .find(|s| Address::try_from(*s).ok() == Some(sender))
+        .unwrap();
+    let sponsor_sig = tx
+        .tx_signatures()
+        .iter()
+        .find(|s| Address::try_from(*s).ok() == Some(sponsor))
+        .unwrap();
+
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, blake2b256_of_sig(sender_sig));
+    assert_eq!(sponsor_digest.unwrap(), blake2b256_of_sig(sponsor_sig));
 }

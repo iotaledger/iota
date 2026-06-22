@@ -18,26 +18,28 @@ use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    Address, TransactionExpiration,
+    crypto::{Intent, IntentMessage, IntentScope},
+    gas::GasCostSummary,
+};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{AuthorityName, EpochId},
     crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
     execution_config_utils::to_binary_config,
-    gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
-    message_envelope::Message,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
+    transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 use rand::{
     SeedableRng,
@@ -527,13 +529,13 @@ async fn test_validator_resign_effects() {
         .into_effects_for_testing();
     // Ensure that we are able to form a new effects cert in the new epoch.
     assert_eq!(effects1.epoch(), 1);
-    assert_eq!(effects1.executed_epoch(), 0);
+    assert_eq!(effects1.data().epoch(), 0);
 }
 
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: IotaAddress = (&new_validator.account_key_pair.public()).into();
+    let address: Address = (&new_validator.account_key_pair.public()).into();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -550,7 +552,9 @@ async fn test_validator_candidate_pool_read() {
             match &system_state_summary {
                 IotaSystemStateSummary::V1(v1) => v1.validator_candidates_id,
                 IotaSystemStateSummary::V2(v2) => v2.validator_candidates_id,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             },
             &address,
             Some(system_state.protocol_version()),
@@ -908,7 +912,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
     let addresses = candidates
         .iter()
         .map(|c| (&c.account_key_pair.public()).into())
-        .collect::<Vec<IotaAddress>>();
+        .collect::<Vec<Address>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         .with_validator_candidates(addresses)
@@ -1048,8 +1052,7 @@ async fn test_epoch_flag_upgrade() {
     assert_eq!(
         all_flags.len(),
         2,
-        "expected 2 different sets of flags: {:?}",
-        all_flags
+        "expected 2 different sets of flags: {all_flags:?}"
     );
 
     // When the epoch changes, flags on some nodes should be re-initialized to be
@@ -1103,7 +1106,9 @@ async fn safe_mode_reconfig_test() {
     {
         IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
         IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     // On startup, we should be at V1.
@@ -1307,7 +1312,9 @@ async fn add_validator_candidate(
         {
             IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
             IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
     });
     let address = (&new_validator.account_key_pair.public()).into();
@@ -1336,7 +1343,9 @@ async fn add_validator_candidate(
         let validator_candidates_size = match system_state_summary {
             IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
             IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
@@ -1352,7 +1361,9 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
         {
             IotaSystemStateSummary::V1(v1) => v1.pending_removals,
             IotaSystemStateSummary::V2(v2) => v2.pending_removals,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
         .len()
     });
@@ -1382,7 +1393,9 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
         let pending_removals = match system_state.into_iota_system_state_summary() {
             IotaSystemStateSummary::V1(v1) => v1.pending_removals,
             IotaSystemStateSummary::V2(v2) => v2.pending_removals,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
         assert_eq!(pending_removals.len(), cur_pending_removals + 1);
     });

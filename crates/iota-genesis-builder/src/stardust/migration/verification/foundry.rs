@@ -4,13 +4,9 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Result, anyhow, ensure};
+use iota_sdk_types::{Address, Identifier, Owner};
 use iota_stardust_types::block::output::{FoundryOutput, OutputId, TokenId};
-use iota_types::{
-    base_types::{Identifier, IotaAddress},
-    coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage,
-    object::Owner,
-};
+use iota_types::{coin_manager::CoinManager, in_memory_storage::InMemoryStorage};
 
 use crate::stardust::{
     migration::{
@@ -70,7 +66,7 @@ pub(super) fn verify_foundry_output(
         .ok_or_else(|| anyhow!("expected a native token coin"))?;
 
     // The minted native token coin should be owned by `0x0`
-    let expected_owner = Owner::Address(IotaAddress::ZERO);
+    let expected_owner = Owner::Address(Address::ZERO);
     ensure!(
         native_token_coin_obj.owner == expected_owner,
         "native token coin owner mismatch: found {}, expected {}",
@@ -162,7 +158,7 @@ pub(super) fn verify_foundry_output(
             .and_then(|obj| {
                 verify_shared_object(obj, "coin manager").map(|_| {
                     obj.to_rust::<CoinManager>()
-                        .ok_or(anyhow!("expected a coin manager"))
+                        .map_err(|e| anyhow!("expected a coin manager: {e}"))
                 })?
             })
     })?;

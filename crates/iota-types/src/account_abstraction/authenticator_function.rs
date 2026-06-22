@@ -1,15 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Address, Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TransactionDigest, TypeTag,
-    },
+    base_types::{ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Data, Object, Owner},
+    object::Object,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -24,9 +23,17 @@ pub enum AuthenticatorFunctionRef {
     V1(AuthenticatorFunctionRefV1),
 }
 
+impl From<AuthenticatorFunctionRef> for Option<AuthenticatorFunctionRefV1> {
+    fn from(authenticator_function_ref: AuthenticatorFunctionRef) -> Self {
+        match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(v1) => Some(v1),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1 {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
 }
@@ -34,7 +41,7 @@ pub struct AuthenticatorFunctionRefV1 {
 impl AuthenticatorFunctionRefV1 {
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag::new(
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             AUTHENTICATOR_FUNCTION_MODULE_NAME,
             AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME,
             vec![TypeTag::Struct(Box::new(type_param))],
@@ -48,7 +55,7 @@ impl AuthenticatorFunctionRefV1 {
     }
 
     pub fn is_authenticator_function_ref_v1(tag: &StructTag) -> bool {
-        tag.address() == IotaAddress::FRAMEWORK
+        tag.address() == Address::FRAMEWORK
             && tag.module() == &AUTHENTICATOR_FUNCTION_MODULE_NAME
             && tag.name() == &AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
     }
@@ -58,12 +65,12 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
                     return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -78,7 +85,7 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
-    pub loaded_object_id: ObjectID,
+    pub loaded_object_id: ObjectId,
     pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
 }
 
@@ -103,3 +110,27 @@ impl AuthenticatorFunctionRefForExecution {
         }
     }
 }
+
+/// Extracts the sender's and sponsor's [`AuthenticatorFunctionRef`] by calling
+/// `find_ref` for `sender` and, when the gas owner differs, for `gas_owner`.
+pub fn extract_auth_fun_refs(
+    sender: Address,
+    gas_owner: Address,
+    find_ref: impl Fn(Address) -> Option<AuthenticatorFunctionRef>,
+) -> (
+    Option<AuthenticatorFunctionRef>,
+    Option<AuthenticatorFunctionRef>,
+) {
+    (
+        find_ref(sender),
+        if gas_owner != sender {
+            find_ref(gas_owner)
+        } else {
+            None
+        },
+    )
+}
+
+#[cfg(test)]
+#[path = "../unit_tests/authenticator_function_tests.rs"]
+mod authenticator_function_tests;

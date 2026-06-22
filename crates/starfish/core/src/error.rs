@@ -45,6 +45,9 @@ pub(crate) enum ConsensusError {
     #[error("Block contains too many transaction bytes: {size} > {limit}")]
     TooManyTransactionBytes { size: usize, limit: usize },
 
+    #[error("Serialized block transactions are too large: {size} > {limit}")]
+    SerializedTransactionsTooLarge { size: usize, limit: usize },
+
     #[error("Unexpected block authority {0} from peer {1}")]
     UnexpectedAuthority(AuthorityIndex, AuthorityIndex),
 
@@ -142,6 +145,35 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
+    #[error("Too many commit votes in the block: {count} > {max}")]
+    TooManyCommitVotes { count: usize, max: usize },
+
+    #[error(
+        "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
+    )]
+    InvalidAcknowledgmentRound { acknowledgment: Round, block: Round },
+
+    #[error(
+        "Acknowledgment is older than gc_depth: block {block}, acknowledgment {acknowledgment}, gc_depth {gc_depth}"
+    )]
+    AcknowledgmentRoundTooOld {
+        acknowledgment: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error(
+        "Ancestor is older than gc_depth: block {block}, ancestor {ancestor}, gc_depth {gc_depth}"
+    )]
+    AncestorRoundTooOld {
+        ancestor: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
@@ -208,6 +240,20 @@ pub(crate) enum ConsensusError {
         stake: Stake,
         peer: AuthorityIndex,
         commit: Box<Commit>,
+    },
+
+    #[error("Received too many commit vote headers from peer {peer}: {count} > {limit}")]
+    TooManyCommitVoteHeaders {
+        peer: AuthorityIndex,
+        count: usize,
+        limit: usize,
+    },
+
+    #[error("Invalid commit range from peer {peer}: start {start} > end {end}")]
+    InvalidCommitRange {
+        peer: AuthorityIndex,
+        start: CommitIndex,
+        end: CommitIndex,
     },
 
     #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
@@ -317,6 +363,44 @@ pub(crate) enum ConsensusError {
     // rollout phase.
     #[error("Fast commit sync is not enabled in the current protocol version")]
     FastCommitSyncNotEnabled,
+
+    #[error(
+        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongShardVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
+
+    #[error(
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongCommitVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+        starfish_speed: bool,
+    },
+
+    #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
+    InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
+
+    #[error(
+        "Block at round {block_round} carries strong_vote pinned to leader \
+         authority {leader_authority} but does not reference that leader at round {leader_round}"
+    )]
+    StrongVoteLeaderNotInAncestors {
+        block_round: Round,
+        leader_round: Round,
+        leader_authority: AuthorityIndex,
+    },
+
+    #[error(
+        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongBlockHeaderVersionForFlag {
+        actual: &'static str,
+        starfish_speed: bool,
+    },
 }
 
 impl ConsensusError {

@@ -16,8 +16,9 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, StructTag, TypeTag, VersionNumber},
+    base_types::VersionNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -476,7 +477,7 @@ impl GrpcReader {
                             if should_collect_events {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
-                                    for raw_event in &tx_events.data {
+                                    for raw_event in &tx_events.0 {
                                         // Apply event filter if present
                                         if let Some(ref evt_filter) = event_filter {
                                             if !evt_filter.matches_event(raw_event) {
@@ -617,7 +618,7 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
-    pub fn get_object(&self, object_id: &ObjectID) -> anyhow::Result<Option<Object>> {
+    pub fn get_object(&self, object_id: &ObjectId) -> anyhow::Result<Option<Object>> {
         self.state_reader
             .try_get_object(object_id)
             .map_err(Into::into)
@@ -625,7 +626,7 @@ impl GrpcReader {
 
     pub fn get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> anyhow::Result<Option<Object>> {
         self.state_reader
@@ -685,7 +686,7 @@ impl GrpcReader {
     /// The cursor is exclusive: items *after* the cursor position are returned.
     pub fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
@@ -705,8 +706,8 @@ impl GrpcReader {
     /// so callers get items *after* the cursor (exclusive lower bound).
     pub fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
         let skip = usize::from(cursor.is_some());
         let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
@@ -730,7 +731,7 @@ impl GrpcReader {
     /// Iterate over all versions of a package by its original package ID.
     pub fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
@@ -899,7 +900,7 @@ impl GrpcReader {
 
             if let Some(ref evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
-                    for event in &tx_events.data {
+                    for event in &tx_events.0 {
                         if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
@@ -1182,8 +1183,7 @@ impl GrpcReader {
                                 crate::error::RpcError::new(
                                     tonic::Code::Internal,
                                     format!(
-                                        "Checkpoint summary {} not found for transaction {}",
-                                        checkpoint_seq, digest
+                                        "Checkpoint summary {checkpoint_seq} not found for transaction {digest}"
                                     ),
                                 )
                             })?;
@@ -1363,7 +1363,7 @@ impl Merge<CheckpointTransactionWithContext>
             // events vec — to distinguish between "no events" and "events
             // not requested in the mask".
             self.events = Some(grpc_transaction::TransactionEvents::merge_from(
-                source.transaction.events.unwrap_or_default(),
+                &source.transaction.events.unwrap_or_default(),
                 &submask,
             )?);
         }

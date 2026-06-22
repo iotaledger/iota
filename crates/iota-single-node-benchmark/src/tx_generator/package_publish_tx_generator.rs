@@ -5,11 +5,9 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use iota_types::{
-    base_types::ObjectID,
-    transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
-};
+use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
@@ -44,7 +42,7 @@ impl PackagePublishTxGenerator {
             let module_bytes = if is_source_code {
                 let compiled_package = BuildConfig::new_for_testing_replace_addresses(vec![(
                     name.clone(),
-                    ObjectID::ZERO,
+                    ObjectId::ZERO,
                 )])
                 .build(&target_path)
                 .unwrap();
@@ -91,7 +89,7 @@ impl PackagePublishTxGenerator {
         let target_path = dir.join(path);
         let published_deps = dep_map.clone();
 
-        dep_map.insert(Symbol::from(name), ObjectID::ZERO);
+        dep_map.insert(Symbol::from(name), ObjectId::ZERO);
         let mut compiled_package = BuildConfig::new_for_testing_replace_addresses(
             dep_map.into_iter().map(|(k, v)| (k.to_string(), v)),
         )

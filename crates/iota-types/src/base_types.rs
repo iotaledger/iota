@@ -12,7 +12,8 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{Identifier, MoveObjectType, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, MoveObjectType, ObjectId, Owner, StructTag, TypeTag};
+pub use iota_sdk_types::{ObjectReference as ObjectRef, Version as SequenceNumber};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -25,19 +26,15 @@ use serde::{
 
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{
-        AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
-        SignatureScheme,
-    },
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
-    multisig::MultiSigPublicKey,
-    object::{Object, Owner},
+    object::Object,
     parse_iota_struct_tag,
     signature::GenericSignature,
     transaction::{Transaction, VerifiedTransaction},
@@ -50,10 +47,6 @@ pub use crate::{
 #[cfg(test)]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
-
-pub use iota_sdk_types::{
-    ObjectId as ObjectID, ObjectReference as ObjectRef, Version as SequenceNumber,
-};
 
 pub type TxSequenceNumber = u64;
 
@@ -76,7 +69,7 @@ pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
 pub fn random_object_ref() -> ObjectRef {
     ObjectRef::new(
-        ObjectID::random(),
+        ObjectId::random(),
         SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
     )
@@ -176,7 +169,7 @@ impl FromStr for ObjectType {
 
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct ObjectInfo {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: ObjectDigest,
     pub type_: ObjectType,
@@ -220,50 +213,29 @@ impl From<&ObjectInfo> for ObjectRef {
     }
 }
 
-pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
+pub const IOTA_ADDRESS_LENGTH: usize = ObjectId::LENGTH;
 
-pub use iota_sdk_types::Address as IotaAddress;
-
-pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> IotaAddress {
+pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
     let mut hasher = DefaultHash::default();
     T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
     hasher.update(pk);
     let g_arr = hasher.finalize();
-    IotaAddress::new(g_arr.digest)
+    Address::new(g_arr.digest)
 }
 
-impl From<&PublicKey> for IotaAddress {
+impl From<&PublicKey> for Address {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         pk.scheme().update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
-        IotaAddress::new(g_arr.digest)
+        Address::new(g_arr.digest)
     }
 }
 
-impl From<&MultiSigPublicKey> for IotaAddress {
-    /// Derive a IotaAddress from [struct MultiSigPublicKey]. A MultiSig address
-    /// is defined as the 32-byte Blake2b hash of serializing the flag, the
-    /// threshold, concatenation of all n flag, public keys and
-    /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
-    /// || ... || flag_n || pk_n || weight_n`.
-    fn from(multisig_pk: &MultiSigPublicKey) -> Self {
-        let mut hasher = DefaultHash::default();
-        hasher.update([SignatureScheme::MultiSig.flag()]);
-        hasher.update(multisig_pk.threshold().to_le_bytes());
-        multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
-            pk.scheme().update_hasher_with_flag(&mut hasher);
-            hasher.update(pk.as_ref());
-            hasher.update(w.to_le_bytes());
-        });
-        IotaAddress::new(hasher.finalize().digest)
-    }
-}
-
-impl TryFrom<&GenericSignature> for IotaAddress {
+impl TryFrom<&GenericSignature> for Address {
     type Error = IotaError;
-    /// Derive a IotaAddress from a serialized signature in IOTA
+    /// Derive an Address from a serialized signature in IOTA
     /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
@@ -275,25 +247,25 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                         error: "Cannot parse pubkey".to_string(),
                     }
                 })?;
-                Ok(IotaAddress::from(&pub_key))
+                Ok(Address::from(&pub_key))
             }
-            GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
+            GenericSignature::MultiSig(ms) => Ok(ms.committee().into()),
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                 Err(IotaError::UnsupportedFeature {
                     error: "zkLogin is not supported".to_string(),
                 })
             }
-            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
+            GenericSignature::PasskeyAuthenticator(s) => Ok(Address::from(s.public_key())),
             GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
         }
     }
 }
 
-/// Generate a fake IotaAddress with repeated one byte.
-pub fn dbg_addr(name: u8) -> IotaAddress {
+/// Generate a fake Address with repeated one byte.
+pub fn dbg_addr(name: u8) -> Address {
     let addr = [name; IOTA_ADDRESS_LENGTH];
-    IotaAddress::new(addr)
+    Address::new(addr)
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
@@ -439,7 +411,7 @@ pub struct MoveLegacyTxContext {
     epoch: EpochId,
     // Timestamp that the epoch started at
     epoch_timestamp_ms: CheckpointTimestamp,
-    // Number of `ObjectID`'s generated during execution of the current transaction
+    // Number of `ObjectId`'s generated during execution of the current transaction
     ids_created: u64,
 }
 
@@ -467,7 +439,7 @@ pub struct TxContext {
     epoch: EpochId,
     /// Timestamp that the epoch started at
     epoch_timestamp_ms: CheckpointTimestamp,
-    /// Number of `ObjectID`'s generated during execution of the current
+    /// Number of `ObjectId`'s generated during execution of the current
     /// transaction
     ids_created: u64,
     // Reference gas price
@@ -495,13 +467,13 @@ pub enum TxContextKind {
 
 impl TxContext {
     pub fn new(
-        sender: &IotaAddress,
+        sender: &Address,
         digest: &TransactionDigest,
         epoch_data: &EpochData,
         rgp: u64,
         gas_price: u64,
         gas_budget: u64,
-        sponsor: Option<IotaAddress>,
+        sponsor: Option<Address>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self::new_from_components(
@@ -518,14 +490,14 @@ impl TxContext {
     }
 
     pub fn new_from_components(
-        sender: &IotaAddress,
+        sender: &Address,
         digest: &TransactionDigest,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         rgp: u64,
         gas_price: u64,
         gas_budget: u64,
-        sponsor: Option<IotaAddress>,
+        sponsor: Option<Address>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
@@ -558,7 +530,7 @@ impl TxContext {
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
         let is_tx_context_type = module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
-            && module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
 
         if is_tx_context_type {
@@ -581,8 +553,8 @@ impl TxContext {
         TransactionDigest::new(self.digest.clone().try_into().unwrap())
     }
 
-    pub fn sponsor(&self) -> Option<IotaAddress> {
-        self.sponsor.map(|a| IotaAddress::from(a.into_bytes()))
+    pub fn sponsor(&self) -> Option<Address> {
+        self.sponsor.map(|a| Address::from(a.into_bytes()))
     }
 
     pub fn rgp(&self) -> u64 {
@@ -603,14 +575,14 @@ impl TxContext {
 
     /// Derive a globally unique object ID by hashing self.digest |
     /// self.ids_created
-    pub fn fresh_id(&mut self) -> ObjectID {
-        let id = ObjectID::derive_id(self.digest(), self.ids_created);
+    pub fn fresh_id(&mut self) -> ObjectId {
+        let id = ObjectId::derive_id(self.digest(), self.ids_created);
         self.ids_created += 1;
         id
     }
 
-    pub fn sender(&self) -> IotaAddress {
-        IotaAddress::new(self.sender.into_bytes())
+    pub fn sender(&self) -> Address {
+        Address::new(self.sender.into_bytes())
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -686,9 +658,10 @@ impl TxContext {
     }
 
     // Generate a random TxContext for testing.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn random_for_testing_only() -> Self {
         Self::new(
-            &IotaAddress::random(),
+            &Address::random(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
             0,
@@ -700,14 +673,14 @@ impl TxContext {
     }
 }
 
-/// Generate a fake ObjectID with repeated one byte.
-pub fn dbg_object_id(name: u8) -> ObjectID {
-    ObjectID::new([name; ObjectID::LENGTH])
+/// Generate a fake ObjectId with repeated one byte.
+pub fn dbg_object_id(name: u8) -> ObjectId {
+    ObjectId::new([name; ObjectId::LENGTH])
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, thiserror::Error)]
-pub enum ObjectIDParseError {
-    #[error("ObjectID hex literal must start with 0x")]
+pub enum ObjectIdParseError {
+    #[error("ObjectId hex literal must start with 0x")]
     HexLiteralPrefixMissing,
 
     #[error("Could not convert from bytes slice")]

@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Address, Identifier};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, TxContext, TxContextKind},
+    base_types::{TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
@@ -162,7 +163,7 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             Identifier::TX_CONTEXT_MODULE,
             Identifier::TX_CONTEXT,
             format_signature_token(module, &parameters[0]),

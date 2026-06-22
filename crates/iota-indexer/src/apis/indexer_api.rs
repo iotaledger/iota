@@ -9,7 +9,7 @@ use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
 };
@@ -18,11 +18,10 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::{Address, ObjectId, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
 };
@@ -49,9 +48,9 @@ impl IndexerApi {
 
     async fn get_owned_objects_internal(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
@@ -105,7 +104,7 @@ impl IndexerApi {
 
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -193,7 +192,7 @@ async fn construct_object_response(
         ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
             IotaObjectResponseError::Deleted {
                 object_id: object_ref.object_id,
-                version: object_ref.version,
+                version: object_ref.version.into(),
                 digest: object_ref.digest,
             },
         )),
@@ -204,9 +203,9 @@ async fn construct_object_response(
 impl IndexerApiServer for IndexerApi {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         let limit = cap_page_limit(limit);
@@ -316,8 +315,8 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_fields(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
         let limit = cap_page_limit(limit);
@@ -341,7 +340,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(
@@ -354,7 +353,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_field_object_v2(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -406,7 +405,7 @@ impl IndexerApiServer for IndexerApi {
             .try_fold(HashMap::new(), |mut map, res| {
                 let obj = res?;
                 map.insert(obj.id(), obj.try_into()?);
-                Ok::<HashMap<ObjectID, NameRecord>, IndexerError>(map)
+                Ok::<HashMap<ObjectId, NameRecord>, IndexerError>(map)
             })?;
 
         // Extract the name record for the provided name
@@ -447,7 +446,7 @@ impl IndexerApiServer for IndexerApi {
         }
     }
 
-    async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
+    async fn iota_names_reverse_lookup(&self, address: Address) -> RpcResult<Option<String>> {
         let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
 
         let Some(field_reverse_record_object) = self
@@ -459,10 +458,10 @@ impl IndexerApiServer for IndexerApi {
         };
 
         let name = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Name>>()
-            .ok_or_else(|| {
+            .to_rust::<Field<Address, Name>>()
+            .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Malformed Object {reverse_record_id}"
+                    "Malformed Object {reverse_record_id}: {e}"
                 ))
             })?
             .value;
@@ -483,8 +482,8 @@ impl IndexerApiServer for IndexerApi {
 
     async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
+        address: Address,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

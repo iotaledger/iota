@@ -18,8 +18,7 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    hash::HashFunction,
-    traits::{EncodeDecodeBase64, ToFromBytes},
+    traits::EncodeDecodeBase64,
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
@@ -51,31 +50,35 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, Owner, TransactionKind, TypeTag,
+    crypto::{Intent, IntentMessage},
+    gas::GasCostSummary,
+    move_package::MovePackage,
+};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
-    crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
+    base_types::{ObjectRef, SequenceNumber},
+    crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
-    gas::{GasCostSummary, get_gas_balance},
+    gas::get_gas_balance,
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
-    move_package::{MovePackage, UpgradeCap},
-    object::Owner,
+    move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TransactionKindExt,
+        TransactionDataAPI, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;
@@ -126,7 +129,7 @@ pub enum IotaClientCommands {
     /// Add an existing account address to the keystore
     AddAccount {
         /// The object ID of the account
-        address: IotaAddress,
+        address: Address,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_)
         #[arg(long)]
@@ -155,7 +158,7 @@ pub enum IotaClientCommands {
     Call {
         /// Object ID of the package, which contains the module
         #[arg(long)]
-        package: ObjectID,
+        package: ObjectId,
         /// The name of the module in the package
         #[arg(long)]
         module: String,
@@ -188,10 +191,10 @@ pub enum IotaClientCommands {
     DynamicFieldQuery {
         /// The ID of the parent object
         #[arg(name = "object_id")]
-        id: ObjectID,
+        id: ObjectId,
         /// Optional paging cursor
         #[arg(long)]
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// Maximum item returned per page
         #[arg(long, default_value = "50")]
         limit: usize,
@@ -260,10 +263,10 @@ pub enum IotaClientCommands {
     MergeCoin {
         /// The address of the coin to merge into.
         #[arg(long)]
-        primary_coin: ObjectID,
+        primary_coin: ObjectId,
         /// The address of the coin to be merged.
         #[arg(long)]
-        coin_to_merge: ObjectID,
+        coin_to_merge: ObjectId,
         #[command(flatten)]
         payment: PaymentArgs,
         #[command(flatten)]
@@ -313,7 +316,7 @@ pub enum IotaClientCommands {
     Object {
         /// Object ID of the object to fetch
         #[arg(name = "object_id")]
-        id: ObjectID,
+        id: ObjectId,
         /// Return the bcs serialized version of the object
         #[arg(long)]
         bcs: bool,
@@ -332,7 +335,7 @@ pub enum IotaClientCommands {
         /// The input coins to be used for pay recipients, following the
         /// specified amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Vec<ObjectId>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -354,7 +357,7 @@ pub enum IotaClientCommands {
         /// The input coins to be used for pay recipients, including the gas
         /// coin.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Vec<ObjectId>,
         /// The recipient address (or its alias if it's an address in the
         /// keystore).
         #[arg(long)]
@@ -373,7 +376,7 @@ pub enum IotaClientCommands {
         /// coin. If not provided, coins will be selected automatically which
         /// fulfill the requested amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Option<Vec<ObjectID>>,
+        input_coins: Option<Vec<ObjectId>>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -441,7 +444,7 @@ pub enum IotaClientCommands {
     SplitCoin {
         /// ID of the coin object to split
         #[arg(long)]
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         /// Specific amounts to split out from the coin, separated by space,
         /// e.g. `--amounts 1 2 1000000000` (1 NANO, 2 NANOS, 1 IOTA)
         #[arg(long, num_args(1..))]
@@ -482,7 +485,7 @@ pub enum IotaClientCommands {
         to: KeyIdentity,
         /// ID of the object to transfer
         #[arg(long)]
-        object_id: ObjectID,
+        object_id: ObjectId,
         #[command(flatten)]
         payment: PaymentArgs,
         #[command(flatten)]
@@ -497,7 +500,7 @@ pub enum IotaClientCommands {
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
         #[arg(long, short = 'c')]
-        upgrade_capability: ObjectID,
+        upgrade_capability: ObjectId,
         /// Package build options
         #[command(flatten)]
         build_config: MoveBuildConfig,
@@ -563,7 +566,7 @@ pub enum IotaClientCommands {
         /// with this address. Only works for unpublished modules (whose
         /// addresses are currently 0x0).
         #[arg(long)]
-        address_override: Option<ObjectID>,
+        address_override: Option<ObjectId>,
     },
     /// Remove an existing address by its alias or hexadecimal string.
     /// Warning: removes the private key from the keystore with no way to
@@ -577,7 +580,7 @@ pub struct PaymentArgs {
     /// IDs of gas objects to be used for gas payment. If none are provided,
     /// coins are selected automatically to cover the gas budget.
     #[arg(long, num_args(1..))]
-    pub gas: Vec<ObjectID>,
+    pub gas: Vec<ObjectId>,
 }
 
 impl PaymentArgs {
@@ -618,7 +621,7 @@ pub struct GasDataArgs {
     /// not be able to sign and execute transactions that have a sponsor
     /// set.
     #[arg(long)]
-    pub gas_sponsor: Option<IotaAddress>,
+    pub gas_sponsor: Option<Address>,
 }
 
 impl GasDataArgs {
@@ -672,7 +675,7 @@ pub struct TxProcessingArgs {
     /// will fail when using this with `--serialize-signed-transaction` flag if
     /// the private key corresponding to this address is not in keystore.
     #[arg(long, required = false, value_parser)]
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
     /// The fields are: input, effects, events, object_changes,
@@ -680,12 +683,21 @@ pub struct TxProcessingArgs {
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
     /// Auth input objects or primitive values for the Move authenticate
-    /// function
+    /// function of the sender.
     #[arg(long, num_args = 1..)]
     pub auth_call_args: Option<Vec<String>>,
-    /// Auth type arguments for the Move authenticate function
+    /// Auth type arguments for the Move authenticate function of the sender.
     #[arg(long, num_args = 1..)]
     pub auth_type_args: Option<Vec<String>>,
+    /// Auth input objects or primitive values for the Move authenticate
+    /// function of the gas sponsor. Use this when the sponsor is an abstract
+    /// account that must be authenticated via a `MoveAuthenticator`.
+    #[arg(long, num_args = 1..)]
+    pub sponsor_auth_call_args: Option<Vec<String>>,
+    /// Auth type arguments for the Move authenticate function of the gas
+    /// sponsor.
+    #[arg(long, num_args = 1..)]
+    pub sponsor_auth_type_args: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -816,7 +828,7 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
 
                 let objects =
-                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectID>| match coin_type {
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectId>| match coin_type {
                         Some(ref coin_type) => {
                             client
                                 .coin_read_api()
@@ -918,7 +930,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )?
                 } else {
                     None
@@ -1090,7 +1102,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )?
                 } else {
                     None
@@ -1382,14 +1394,14 @@ impl IotaClientCommands {
                 ensure!(
                     recipients.len() == amounts.len(),
                     format!(
-                        "Found {:?} recipient addresses, but {:?} recipient amounts",
+                        "Found {} recipient addresses, but {} recipient amounts",
                         recipients.len(),
                         amounts.len()
                     ),
                 );
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
-                    .try_collect::<Vec<IotaAddress>>()
+                    .try_collect::<Vec<Address>>()
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
@@ -1436,7 +1448,7 @@ impl IotaClientCommands {
                 ensure!(
                     recipients.len() == amounts.len(),
                     format!(
-                        "Found {:?} recipient addresses, but {:?} recipient amounts",
+                        "Found {} recipient addresses, but {} recipient amounts",
                         recipients.len(),
                         amounts.len()
                     ),
@@ -1444,7 +1456,7 @@ impl IotaClientCommands {
 
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
-                    .try_collect::<Vec<IotaAddress>>()
+                    .try_collect::<Vec<Address>>()
                     .await?;
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
@@ -1529,7 +1541,7 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
-                let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
+                let objects = PagedFn::collect(async |cursor: Option<ObjectId>| {
                     client
                         .read_api()
                         .get_owned_objects(
@@ -1870,15 +1882,13 @@ impl IotaClientCommands {
                     context.config_mut().keystore_mut(),
                 )?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
-                    })?)?;
+                let msg: TransactionData = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as TransactionData {e}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
-                let mut hasher = DefaultHash::default();
-                hasher.update(bcs::to_bytes(&intent_msg)?);
-                let digest = hasher.finalize().digest;
+                let digest = intent_msg.signing_digest();
 
                 let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
                     let client = context.get_client().await?;
@@ -2061,7 +2071,7 @@ pub(crate) async fn upgrade_package(
     read_api: &ReadApi,
     build_config: MoveBuildConfig,
     package_path: &Path,
-    upgrade_capability: ObjectID,
+    upgrade_capability: ObjectId,
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
     env_alias: Option<String>,
@@ -2806,22 +2816,22 @@ impl PrintableResult for IotaClientCommandResult {}
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddressesOutput {
-    pub active_address: IotaAddress,
-    pub addresses: Vec<(String, IotaAddress, String)>,
+    pub active_address: Address,
+    pub addresses: Vec<(String, Address, String)>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldOutput {
     pub has_next_page: bool,
-    pub next_cursor: Option<ObjectID>,
+    pub next_cursor: Option<ObjectId>,
     pub data: Vec<DynamicFieldInfo>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddAccountOutput {
-    pub address: IotaAddress,
+    pub address: Address,
     pub alias: String,
 }
 
@@ -2829,7 +2839,7 @@ pub struct AddAccountOutput {
 #[serde(rename_all = "camelCase")]
 pub struct NewAddressOutput {
     pub alias: String,
-    pub address: IotaAddress,
+    pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
     pub key_scheme: SignatureScheme,
@@ -2839,7 +2849,7 @@ pub struct NewAddressOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: String,
     pub obj_type: String,
@@ -2875,7 +2885,7 @@ impl From<&IotaObjectData> for ObjectOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GasCoinOutput {
-    pub gas_coin_id: ObjectID,
+    pub gas_coin_id: ObjectId,
     pub nanos_balance: u64,
     pub iota_balance: String,
 }
@@ -2893,7 +2903,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: String,
     pub object_type: String,
@@ -2935,7 +2945,7 @@ impl ObjectsOutput {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum IotaClientCommandResult {
-    ActiveAddress(Option<IotaAddress>),
+    ActiveAddress(Option<Address>),
     ActiveEnv(Option<String>),
     AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
@@ -2953,7 +2963,7 @@ pub enum IotaClientCommandResult {
     Object(IotaObjectResponse),
     Objects(Vec<IotaObjectResponse>),
     RawObject(IotaObjectResponse),
-    RemoveAddress(IotaAddress),
+    RemoveAddress(Address),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
     Sign(SignData),
@@ -2993,7 +3003,7 @@ impl Display for SwitchResponse {
 
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
-    address: IotaAddress,
+    address: Address,
     url: String,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
@@ -3175,12 +3185,12 @@ fn format_balance(
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_payment: Vec<ObjectRef>,
-    sponsor: Option<IotaAddress>,
+    sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_budget = match gas_budget {
@@ -3251,11 +3261,11 @@ pub async fn execute_dry_run(
 /// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
 pub async fn estimate_gas_budget(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     kind: TransactionKind,
     gas_price: u64,
     gas_payment: Vec<ObjectRef>,
-    sponsor: Option<IotaAddress>,
+    sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
     let dry_run =
@@ -3304,7 +3314,7 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 /// dry run, executing, or serializing a transaction and puts it in a function
 /// to reduce code duplication.
 pub(crate) async fn dry_run_or_execute_or_serialize(
-    signer: IotaAddress,
+    signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
     gas_payment: Vec<ObjectRef>,
@@ -3327,6 +3337,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         display,
         auth_call_args,
         auth_type_args,
+        sponsor_auth_call_args,
+        sponsor_auth_type_args,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3341,6 +3353,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let client = context.get_client().await?;
 
     let signer = sender.unwrap_or(signer);
+
+    ensure!(
+        gas_sponsor.is_some_and(|s| s != signer)
+            || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
+        "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
+    );
 
     if dev_inspect {
         return execute_dev_inspect(
@@ -3430,33 +3448,30 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
-            let auth_info = fetch_auth_info(&client, signer).await?;
-            let (type_args, json_args) =
-                process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
-            let call_args = resolve_auth_call_args(
-                &client,
-                auth_info.value.package,
-                &auth_info.value.module,
-                &auth_info.value.function,
-                &type_args,
-                json_args,
-            )
-            .await?;
-            Some((call_args, type_args))
-        } else {
-            None
-        };
+        let sender_auth_args = build_auth_args_for_signing(
+            &client,
+            signer,
+            auth_call_args.as_ref(),
+            auth_type_args.as_ref(),
+        )
+        .await?;
 
         let signature =
-            sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
+            sign_transaction(context, &tx_data, &tx_data.sender(), sender_auth_args).await?;
 
         let mut signatures = vec![signature];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
+                let sponsor_auth_args = build_auth_args_for_signing(
+                    &client,
+                    gas_sponsor,
+                    sponsor_auth_call_args.as_ref(),
+                    sponsor_auth_type_args.as_ref(),
+                )
+                .await?;
                 let signature =
-                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
+                    sign_transaction(context, &tx_data, &gas_sponsor, sponsor_auth_args).await?;
 
                 signatures.push(signature);
             }
@@ -3497,12 +3512,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
 async fn execute_dev_inspect(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_objects: Vec<ObjectRef>,
-    gas_sponsor: Option<IotaAddress>,
+    gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3619,7 +3634,7 @@ fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
 /// Fetch move packages
 async fn fetch_move_packages(
     read_api: &ReadApi,
-    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
 ) -> Result<Vec<MovePackage>, anyhow::Error> {
     let package_ids: Vec<_> = immediate_dep_packages.values().cloned().collect(); // a map from id to pkg name for finding package names for error reporting.
     let pkg_id_to_name: BTreeMap<_, _> = immediate_dep_packages
@@ -3651,8 +3666,8 @@ async fn fetch_move_packages(
 // package dependencies
 async fn trans_deps_original_ids(
     read_api: &ReadApi,
-    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
-) -> Result<BTreeSet<ObjectID>, anyhow::Error> {
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
+) -> Result<BTreeSet<ObjectId>, anyhow::Error> {
     let pkgs = fetch_move_packages(read_api, immediate_dep_packages).await?;
     let linkage_table = pkgs
         .iter()
@@ -3685,7 +3700,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectId::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,
@@ -3704,9 +3719,9 @@ pub(crate) async fn pkg_tree_shake(
 
 async fn select_coins_for_amount(
     amount: u64,
-    sender: IotaAddress,
+    sender: Address,
     context: &mut WalletContext,
-) -> anyhow::Result<Vec<ObjectID>> {
+) -> anyhow::Result<Vec<ObjectId>> {
     let mut coins = Vec::new();
 
     let mut gas_coins = context
@@ -3734,11 +3749,41 @@ async fn select_coins_for_amount(
     Ok(coins)
 }
 
-/// Resolves authentication call arguments, removing the signer arg added by the
-/// VM.
+/// Builds a `MoveAuthenticator` auth-args tuple for the given signer address.
+///
+/// Returns `None` when no `--auth-call-args` / `--auth-type-args` are provided.
+/// Fetches the `AuthenticatorFunctionRefV1` bound to `address` so the correct
+/// package/module/function is resolved per signer — required for abstract
+/// accounts acting as either sender or gas sponsor.
+pub(crate) async fn build_auth_args_for_signing(
+    client: &IotaClient,
+    address: Address,
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+) -> Result<Option<(Vec<CallArg>, Vec<TypeTag>)>, anyhow::Error> {
+    if auth_call_args.is_none() && auth_type_args.is_none() {
+        return Ok(None);
+    }
+
+    let auth_info = fetch_auth_info(client, address).await?;
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
+    let call_args = resolve_auth_call_args(
+        client,
+        auth_info.value.package,
+        &auth_info.value.module,
+        &auth_info.value.function,
+        &type_args,
+        json_args,
+    )
+    .await?;
+    Ok(Some((call_args, type_args)))
+}
+
+/// Resolves authentication call arguments, removing the signer arg added by
+/// the VM.
 pub(crate) async fn resolve_auth_call_args(
     client: &IotaClient,
-    package: ObjectID,
+    package: ObjectId,
     module: &str,
     function: &str,
     type_args: &[TypeTag],
@@ -3761,7 +3806,7 @@ pub(crate) async fn resolve_auth_call_args(
 /// Fetches AuthenticatorFunctionRefV1 for a signer.
 pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
-    signer: IotaAddress,
+    signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
     let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
         signer,
@@ -3796,7 +3841,7 @@ pub(crate) async fn fetch_auth_info(
 pub(crate) fn process_auth_args(
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
-    signer: IotaAddress,
+    signer: Address,
 ) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
     let type_args = auth_type_args
         .as_ref()
@@ -3841,23 +3886,14 @@ pub(crate) fn process_auth_args(
 /// Creates a MoveAuthenticator signature for account addresses.
 async fn create_move_authenticator_signature(
     client: &IotaClient,
-    address: IotaAddress,
+    address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
-    let auth_info = fetch_auth_info(client, address).await?;
-
-    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
-
-    let call_args = resolve_auth_call_args(
-        client,
-        auth_info.value.package,
-        &auth_info.value.module,
-        &auth_info.value.function,
-        &type_args,
-        json_args,
-    )
-    .await?;
+    let (call_args, type_args) =
+        build_auth_args_for_signing(client, address, auth_call_args, auth_type_args)
+            .await?
+            .ok_or_else(|| anyhow!("auth args are required to create a MoveAuthenticator"))?;
 
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
@@ -3865,25 +3901,25 @@ async fn create_move_authenticator_signature(
         MoveAuthenticator::new_v1(
             call_args,
             type_args,
-            CallArg::Shared(SharedObjectRef {
-                object_id: ObjectID::from(address),
+            CallArg::Shared(SharedObjectRef::new(
+                ObjectId::from(address),
                 initial_shared_version,
-                mutable: false,
-            }),
+                false,
+            )),
         ),
     ))
 }
 
 #[cfg(test)]
 mod tests_process_auth_args {
-    use iota_types::base_types::IotaAddress;
+    use iota_sdk_types::Address;
     use serde_json::Value as JsonValue;
 
     use super::process_auth_args;
 
     #[test]
     fn test_no_args() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let (type_args, json_args) = process_auth_args(None, None, signer).unwrap();
         assert!(type_args.is_empty());
         // Should only contain the signer
@@ -3892,7 +3928,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_simple_hex_arg() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let args = vec!["0xAABBCC".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         // signer + 1 arg
@@ -3905,7 +3941,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_vector_arg() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let args = vec!["[0xAABBCC,0xDDEE]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         assert_eq!(json_args.len(), 2);
@@ -3919,7 +3955,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_triple_nested_vector() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         // Simulates: vector<vector<vector<u8>>> with nested brackets
         let args = vec!["[[0xAA,0xBB],[0xCC]]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
@@ -3943,7 +3979,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_multiple_args_with_nested_vector() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         // Simulates: merkle_root, merkle_proof (vector<vector<u8>>), signature
         let merkle_root = "0xABCD";
         let proof = "[0x1234,0x5678]";
@@ -3974,7 +4010,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_type_args() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let type_args = vec!["u64".to_string(), "bool".to_string()];
         let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
         assert_eq!(types.len(), 2);

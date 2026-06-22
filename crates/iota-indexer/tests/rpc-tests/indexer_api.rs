@@ -23,15 +23,15 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
+use iota_sdk_types::{Address, Command, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -64,7 +64,7 @@ fn query_events_no_events_descending() {
         let indexer_events = client
             .query_events(
                 EventFilter::Sender(
-                    IotaAddress::from_str(
+                    Address::from_str(
                         "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                     )
                     .unwrap(),
@@ -95,7 +95,7 @@ fn query_events_no_events_ascending() {
         let indexer_events = client
             .query_events(
                 EventFilter::Sender(
-                    IotaAddress::from_str(
+                    Address::from_str(
                         "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                     )
                     .unwrap(),
@@ -422,16 +422,16 @@ fn query_events_supported_events() {
             .digest;
 
         let supported_filters = vec![
-            EventFilter::Sender(IotaAddress::ZERO),
+            EventFilter::Sender(Address::ZERO),
             EventFilter::Transaction(real_tx_digest),
-            EventFilter::Package(ObjectID::ZERO),
+            EventFilter::Package(ObjectId::ZERO),
             EventFilter::MoveEventModule {
-                package: ObjectID::ZERO,
+                package: ObjectId::ZERO,
                 module: "x".parse().unwrap(),
             },
             EventFilter::MoveEventType("0xabcd::MyModule::Foo".parse().unwrap()),
             EventFilter::MoveModule {
-                package: ObjectID::ZERO,
+                package: ObjectId::ZERO,
                 module: "x".parse().unwrap(),
             },
         ];
@@ -804,7 +804,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         assert_eq!(objects.len(), 3);
 
         // make 2 move calls of same package & module, but different functions
-        let package_id = ObjectID::FRAMEWORK;
+        let package_id = ObjectId::FRAMEWORK;
         let signer = address;
 
         let tx_builder = iota_client.transaction_builder().clone();
@@ -903,8 +903,8 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random();
-        let recipient_2 = IotaAddress::random();
+        let recipient_1 = Address::random();
+        let recipient_2 = Address::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -966,7 +966,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1045,8 +1045,8 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random();
-        let recipient_2 = IotaAddress::random();
+        let recipient_1 = Address::random();
+        let recipient_2 = Address::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1258,7 +1258,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("new"),
                 vec![],
@@ -1269,7 +1269,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             let field_value_argument = builder.pure(0u64).expect("valid pure");
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("add"),
                 vec![TypeTag::U64, TypeTag::U64],
@@ -1379,7 +1379,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("new"),
                 vec![],
@@ -1392,7 +1392,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
                 .unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("add"),
                 vec![
@@ -1501,7 +1501,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
 
         let signer = address;
 
-        let package_id = ObjectID::STD;
+        let package_id = ObjectId::STD;
         let module = Identifier::from_static("address");
         let function = Identifier::from_static("length");
 
@@ -1595,7 +1595,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
             .as_ref()
             .unwrap()
             .data;
-        assert_eq!(tx_data_v1.sender, IotaAddress::ZERO);
+        assert_eq!(tx_data_v1.sender, Address::ZERO);
 
         // Test `ConsensusCommitPrologueV1` transaction kind filter
         let filter =

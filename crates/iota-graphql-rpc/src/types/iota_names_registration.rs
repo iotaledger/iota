@@ -10,11 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, StructTag},
-    dynamic_field::Field,
-    id::UID,
-};
+use iota_sdk_types::{Address, StructTag};
+use iota_types::{dynamic_field::Field, id::UID};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -30,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
+    object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -39,12 +36,12 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    types::object::ObjectOwner,
+    types::object::{ObjectOwner, StoredBackwardObject},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -216,8 +213,6 @@ impl NameRegistration {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -453,7 +448,7 @@ impl IotaNames {
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NativeName>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
-        let native_address = NativeIotaAddress::from(address);
+        let native_address = Address::from(address);
         let reverse_record_id = config.reverse_record_field_id(&native_address);
 
         let Some(object) = MoveObject::query(
@@ -466,10 +461,10 @@ impl IotaNames {
             return Ok(None);
         };
 
-        let field: Field<NativeIotaAddress, NativeName> = object
+        let field: Field<Address, NativeName> = object
             .native
             .to_rust()
-            .ok_or_else(|| Error::Internal("Malformed IOTA-Names Name".to_string()))?;
+            .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
 
         let name = Name(field.value);
 
@@ -492,6 +487,7 @@ impl IotaNames {
     ) -> Result<Option<NameExpiration>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let db: &Db = ctx.data_unchecked();
+        let max_available_range = db.max_available_range;
         // Construct the list of `object_id`s to look up. The first element is the
         // name's `NameRecord`. If the name is a subname, there will be a
         // second element for the parent's `NameRecord`.
@@ -524,22 +520,26 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_objects_query(
-                    View::Consistent,
-                    range,
-                    &page,
-                    move |query| filter.apply(query),
-                    move |newer| newer,
-                );
+                let sql = consistent::query(checkpoint_viewed_at, &page, move |query| {
+                    filter.apply(query)
+                });
 
-                let objects: Vec<StoredHistoryObject> =
+                let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
+                let objects: Vec<StoredHistoryObject> = backward_objects
+                    .into_iter()
+                    .map(|o| o.into_stored_history(checkpoint_viewed_at))
+                    .collect();
 
                 Ok(Some((timestamp_ms, objects)))
             })
@@ -560,8 +560,8 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+            let active_object = ActiveObject::try_from(result)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

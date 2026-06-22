@@ -9,16 +9,16 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, Identifier, ObjectId};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
+    base_types::{ObjectRef, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_grpc::HandleTransactionResponse,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
@@ -76,7 +76,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (IotaAddress, Ed25519KeyPair, Vec<ObjectRef>);
+type Account = (Address, Ed25519KeyPair, Vec<ObjectRef>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -86,7 +86,7 @@ fn get_accounts_and_coins(
         .account_keys
         .iter()
         .map(|account| {
-            let address: IotaAddress = address_from_iota_pub_key(account.public());
+            let address: Address = address_from_iota_pub_key(account.public());
             let objects: Vec<_> = state
                 .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
                 .unwrap()
@@ -131,7 +131,7 @@ async fn transfer_with_account(
 
 async fn handle_move_call_transaction(
     state: &Arc<AuthorityState>,
-    package: ObjectID,
+    package: ObjectId,
     module_name: &'static str,
     function_name: &'static str,
     args: Vec<CallArg>,
@@ -233,7 +233,7 @@ async fn test_shared_object_transaction_disabled() {
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
-        .call_staking(account.2[1], IotaAddress::ZERO)
+        .call_staking(account.2[1], Address::ZERO)
         .build_and_sign(&account.1);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -276,7 +276,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[0],
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -287,7 +287,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[1],
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         vec![package_c],
         &state,
     )
@@ -311,7 +311,7 @@ async fn test_package_denied() {
         accounts[0].2[3],
         package_c,
         cap_c,
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -324,7 +324,7 @@ async fn test_package_denied() {
         accounts[0].2[4],
         package_b,
         cap_b,
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         [("C", package_c_prime)],
         &state,
     )
@@ -464,7 +464,7 @@ async fn test_certificate_deny() {
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CertificateDenied,
+            error: ExecutionError::CertificateDenied,
             ..
         }
     ));

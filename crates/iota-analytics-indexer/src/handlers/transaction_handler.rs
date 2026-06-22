@@ -7,10 +7,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
+use iota_sdk_types::{Command, TransactionKind};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{Command, TransactionDataAPI, TransactionKind, TransactionKindExt},
+    transaction::{TransactionDataAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -206,7 +207,8 @@ mod tests {
 
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
-    use iota_types::{base_types::IotaAddress, storage::ReadStore};
+    use iota_sdk_types::Address;
+    use iota_types::storage::ReadStore;
     use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;
@@ -216,7 +218,7 @@ mod tests {
         let sim = Simulacrum::new();
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

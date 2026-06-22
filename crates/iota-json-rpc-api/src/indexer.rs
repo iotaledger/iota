@@ -9,16 +9,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
     iota_primitives::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
-    dynamic_field::DynamicFieldName,
-    event::EventID,
-};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::{digests::TransactionDigest, dynamic_field::DynamicFieldName, event::EventID};
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,
@@ -36,17 +32,17 @@ pub trait IndexerApi {
     /// Please use iotax_queryObjects if this is a concern.
     #[rustfmt::skip]
     #[method(name = "getOwnedObjects")]
-    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
+    #[schemars(with = "Page<IotaObjectResponse, ObjectIdSchema>")]
     async fn get_owned_objects(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")] 
-        address: IotaAddress,
+        #[schemars(with = "AddressSchema")] 
+        address: Address,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        #[schemars(with = "Option<ObjectIDSchema>")] 
-        cursor: Option<ObjectID>,
+        #[schemars(with = "Option<ObjectIdSchema>")] 
+        cursor: Option<ObjectId>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage>;
@@ -117,15 +113,15 @@ pub trait IndexerApi {
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
     #[method(name = "getDynamicFields")]
-    #[schemars(with = "Page<IotaDynamicFieldInfo, ObjectIDSchema>")]
+    #[schemars(with = "Page<IotaDynamicFieldInfo, ObjectIdSchema>")]
     async fn get_dynamic_fields(
         &self,
         /// The ID of the parent object
-        #[schemars(with = "ObjectIDSchema")]
-        parent_object_id: ObjectID,
+        #[schemars(with = "ObjectIdSchema")]
+        parent_object_id: ObjectId,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        #[schemars(with = "Option<ObjectIDSchema>")]
-        cursor: Option<ObjectID>,
+        #[schemars(with = "Option<ObjectIdSchema>")]
+        cursor: Option<ObjectId>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage>;
@@ -136,8 +132,8 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object(
         &self,
         /// The ID of the queried parent object
-        #[schemars(with = "ObjectIDSchema")]
-        parent_object_id: ObjectID,
+        #[schemars(with = "ObjectIdSchema")]
+        parent_object_id: ObjectId,
         /// The Name of the dynamic field
         #[schemars(with = "DynamicFieldNameSchema")]
         name: DynamicFieldName,
@@ -150,8 +146,8 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object_v2(
         &self,
         /// The ID of the queried parent object
-        #[schemars(with = "ObjectIDSchema")]
-        parent_object_id: ObjectID,
+        #[schemars(with = "ObjectIdSchema")]
+        parent_object_id: ObjectId,
         /// The Name of the dynamic field
         #[schemars(with = "DynamicFieldNameSchema")]
         name: DynamicFieldName,
@@ -172,17 +168,17 @@ pub trait IndexerApi {
     async fn iota_names_reverse_lookup(
         &self,
         /// The address to resolve.
-        #[schemars(with = "IotaAddressSchema")]
-        address: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        address: Address,
     ) -> RpcResult<Option<String>>;
 
     /// Find all registration NFTs for the given address.
     #[method(name = "iotaNamesFindAllRegistrationNFTs")]
-    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
+    #[schemars(with = "Page<IotaObjectResponse, ObjectIdSchema>")]
     async fn iota_names_find_all_registration_nfts(
         &self,
-        #[schemars(with = "IotaAddressSchema")] address: IotaAddress,
-        #[schemars(with = "Option<ObjectIDSchema>")] cursor: Option<ObjectID>,
+        #[schemars(with = "AddressSchema")] address: Address,
+        #[schemars(with = "Option<ObjectIdSchema>")] cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage>;

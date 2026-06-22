@@ -15,17 +15,17 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 37:
 //# run P0::m::t_a
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 0, instruction: 1, function_name: Some(Identifier("t_a")) }, code: 13906834268832661503 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834268832661503), message: Some("P0::m::t_a at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503; caused by: VMError with status ABORTED with sub status 13906834268832661503 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_a at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 3, line 39:
 //# run P0::m::t_calls_a
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 1, instruction: 1, function_name: Some(Identifier("t_calls_a")) }, code: 13906834281717563391 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834281717563391), message: Some("P0::m::t_calls_a at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391; caused by: VMError with status ABORTED with sub status 13906834281717563391 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_calls_a at offset 1 at code offset 1 in function definition 1; at command index: 0
 
 task 4, line 41:
 //# run P0::m::t_const_assert
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 2, instruction: 1, function_name: Some(Identifier("t_const_assert")) }, code: 13906834217293053953 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834217293053953), message: Some("P0::m::t_const_assert at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(2), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953; caused by: VMError with status ABORTED with sub status 13906834217293053953 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_const_assert at offset 1 at code offset 1 in function definition 2; at command index: 0
 
 task 5, line 43:
 //# create-checkpoint

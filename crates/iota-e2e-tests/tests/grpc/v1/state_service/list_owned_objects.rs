@@ -13,11 +13,10 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
+use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{IotaAddress, StructTag, TypeTag},
-    effects::TransactionEffectsAPI,
-    object::Owner,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     parse_iota_struct_tag,
     transaction::CallArg,
 };
@@ -149,7 +148,7 @@ async fn list_owned_objects_nonexistent_owner() {
     let mut state_client = client.state_service_client();
 
     // Random address that owns nothing
-    let random_addr = IotaAddress::random();
+    let random_addr = Address::random();
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(random_addr));
 
     let response = list_and_validate(
@@ -458,7 +457,7 @@ async fn list_owned_objects_cursor_pagination_e2e() {
 /// fullnode and owner-index updates that happen during checkpoint commit.
 async fn wait_for_owned_count(
     state_client: &mut StateServiceClient<iota_grpc_client::InterceptedChannel>,
-    owner: IotaAddress,
+    owner: Address,
     expected_count: usize,
     scenario: &str,
 ) -> ListOwnedObjectsResponse {
@@ -546,7 +545,7 @@ async fn list_owned_objects_tto_indexing() {
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");
-    let parent_addr = IotaAddress::from(parent_ref.object_id);
+    let parent_addr = Address::from(parent_ref.object_id);
 
     // The coin is now owned by `parent_addr` via TTO; grab its post-start ref.
     let coin_after_start = start_effects
@@ -559,13 +558,7 @@ async fn list_owned_objects_tto_indexing() {
     wait_for_owned_count(&mut state_client, parent_addr, 1, "parent after start").await;
 
     // 0x0 starts with 0 coins.
-    wait_for_owned_count(
-        &mut state_client,
-        IotaAddress::ZERO,
-        0,
-        "0x0 before receive",
-    )
-    .await;
+    wait_for_owned_count(&mut state_client, Address::ZERO, 0, "0x0 before receive").await;
 
     // Run `receive(parent, coin)` — receives the coin from `A` and transfers
     // it to `0x0`.
@@ -596,7 +589,7 @@ async fn list_owned_objects_tto_indexing() {
     wait_for_owned_count(&mut state_client, parent_addr, 0, "parent after receive").await;
 
     // 0x0 ends with 1 coin.
-    wait_for_owned_count(&mut state_client, IotaAddress::ZERO, 1, "0x0 after receive").await;
+    wait_for_owned_count(&mut state_client, Address::ZERO, 1, "0x0 after receive").await;
 }
 
 /// Collect the set of object IDs from a `ListOwnedObjectsResponse`.

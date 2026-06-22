@@ -22,13 +22,14 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
-use tokio_stream::{Iter, iter};
+use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -83,15 +84,11 @@ impl TonicClient {
             .channel_pool
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
-        let mut client = ConsensusServiceClient::new(channel)
+        let client = ConsensusServiceClient::new(channel)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(config.message_size_limit);
-
-        if self.context.protocol_config.consensus_zstd_compression() {
-            client = client
-                .send_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Zstd);
-        }
+            .max_decoding_message_size(config.message_size_limit)
+            .send_compressed(CompressionEncoding::Zstd)
+            .accept_compressed(CompressionEncoding::Zstd);
         Ok(client)
     }
 }
@@ -259,16 +256,27 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut blocks = vec![];
+        let mut headers = vec![];
         let mut total_fetched_bytes = 0;
+        let max_headers = authorities.len();
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
                     let vec_serialized_block_headers = response.vec_serialized_block_header;
+                    let received_headers = headers
+                        .len()
+                        .saturating_add(vec_serialized_block_headers.len());
+                    if received_headers > max_headers {
+                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
+                            authority: peer,
+                            requested: max_headers,
+                            received_headers,
+                        });
+                    }
                     for b in &vec_serialized_block_headers {
                         total_fetched_bytes += b.len();
                     }
-                    blocks.extend(vec_serialized_block_headers);
+                    headers.extend(vec_serialized_block_headers);
                     if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
                         info!(
                             "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -281,7 +289,7 @@ impl NetworkClient for TonicClient {
                     break;
                 }
                 Err(e) => {
-                    if blocks.is_empty() {
+                    if headers.is_empty() {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
                                 "fetch_blocks failed mid-stream: {e:?}"
@@ -297,7 +305,7 @@ impl NetworkClient for TonicClient {
                 }
             }
         }
-        Ok(blocks)
+        Ok(headers)
     }
 
     async fn fetch_transactions(
@@ -581,11 +589,52 @@ impl ChannelPool {
 struct TonicServiceProxy<S: NetworkService> {
     context: Arc<Context>,
     service: Arc<S>,
+    admission: PerPeerAdmission,
 }
 
 impl<S: NetworkService> TonicServiceProxy<S> {
     fn new(context: Arc<Context>, service: Arc<S>) -> Self {
-        Self { context, service }
+        let admission = PerPeerAdmission::new(&context);
+        Self {
+            context,
+            service,
+            admission,
+        }
+    }
+
+    /// Admits one request from `peer` in `group`, returning a permit to hold
+    /// for the request's (or stream's) lifetime, or `None` when the group's
+    /// limit is disabled. A rejected request increments the admission
+    /// metric and returns `ResourceExhausted` so the peer backs off.
+    fn admit(
+        &self,
+        group: RpcGroup,
+        peer: AuthorityIndex,
+    ) -> Result<Option<AdmissionGuard>, tonic::Status> {
+        match self.admission.try_acquire(group, peer) {
+            Admission::Unlimited => Ok(None),
+            Admission::Permit(permit) => {
+                let in_use = self
+                    .context
+                    .metrics
+                    .network_metrics
+                    .admission_in_use
+                    .with_label_values(&[group.as_str()]);
+                Ok(Some(AdmissionGuard::new(permit, in_use)))
+            }
+            Admission::Rejected => {
+                self.context
+                    .metrics
+                    .network_metrics
+                    .admission_rejected
+                    .with_label_values(&[group.as_str()])
+                    .inc();
+                Err(tonic::Status::resource_exhausted(format!(
+                    "per-peer {} limit reached",
+                    group.as_str()
+                )))
+            }
+        }
     }
 }
 
@@ -605,6 +654,9 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        // Acquire before reading the request stream so a peer cannot stack
+        // half-open subscriptions; the permit is held for the stream's lifetime.
+        let permit = self.admit(RpcGroup::Subscribe, peer_index)?;
         let mut request_stream = request.into_inner();
         let first_request = match request_stream.next().await {
             Some(Ok(r)) => r,
@@ -632,11 +684,13 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let rate_limited_stream =
             tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
-        Ok(Response::new(rate_limited_stream))
+        Ok(Response::new(
+            PermitGuardedStream::new(rate_limited_stream, permit).boxed(),
+        ))
     }
 
     type FetchBlockHeadersStream =
-        Iter<std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>>>;
+        Pin<Box<dyn Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Send>>;
 
     async fn fetch_block_headers(
         &self,
@@ -649,10 +703,25 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let permit = self.admit(RpcGroup::HeaderFetch, peer_index)?;
         let inner = request.into_inner();
+        let highest_accepted_rounds = inner.highest_accepted_rounds;
+        let max_fetch_size = self
+            .context
+            .parameters
+            .max_headers_per_fetch(highest_accepted_rounds.is_empty());
+        if inner.block_refs.len() > max_fetch_size {
+            warn!(
+                "Truncated fetch headers request from {} to {} blocks for peer {}",
+                inner.block_refs.len(),
+                max_fetch_size,
+                peer_index
+            );
+        }
         let block_refs = inner
             .block_refs
             .into_iter()
+            .take(max_fetch_size)
             .filter_map(|serialized| match bcs::from_bytes(&serialized) {
                 Ok(r) => Some(r),
                 Err(e) => {
@@ -661,7 +730,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 }
             })
             .collect();
-        let highest_accepted_rounds = inner.highest_accepted_rounds;
         let blocks = self
             .service
             .handle_fetch_headers(peer_index, block_refs, highest_accepted_rounds)
@@ -677,7 +745,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = iter(responses);
+        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
         Ok(Response::new(stream))
     }
 
@@ -692,6 +760,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let _permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
         let (commits, certifier_block_headers) = self
             .service
@@ -716,8 +785,9 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         }))
     }
 
-    type FetchCommitsAndTransactionsStream =
-        Iter<std::vec::IntoIter<Result<FetchCommitsAndTransactionsResponse, tonic::Status>>>;
+    type FetchCommitsAndTransactionsStream = Pin<
+        Box<dyn Stream<Item = Result<FetchCommitsAndTransactionsResponse, tonic::Status>> + Send>,
+    >;
 
     async fn fetch_commits_and_transactions(
         &self,
@@ -730,6 +800,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
         let (serialized_commits, serialized_headers, serialized_transactions) = self
             .service
@@ -772,12 +843,12 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = iter(responses);
+        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
         Ok(Response::new(stream))
     }
 
     type FetchLatestBlockHeadersStream =
-        Iter<std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>>>;
+        Pin<Box<dyn Stream<Item = Result<FetchLatestBlockHeadersResponse, tonic::Status>> + Send>>;
 
     async fn fetch_latest_block_headers(
         &self,
@@ -790,6 +861,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let permit = self.admit(RpcGroup::HeaderFetch, peer_index)?;
         let inner = request.into_inner();
 
         // Convert the authority indexes and validate them
@@ -822,7 +894,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = iter(responses);
+        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
         Ok(Response::new(stream))
     }
 
@@ -839,7 +911,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 
     type FetchTransactionsStream =
-        Iter<std::vec::IntoIter<Result<FetchTransactionsResponse, tonic::Status>>>;
+        Pin<Box<dyn Stream<Item = Result<FetchTransactionsResponse, tonic::Status>> + Send>>;
 
     async fn fetch_transactions(
         &self,
@@ -852,6 +924,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
+        let permit = self.admit(RpcGroup::TransactionFetch, peer_index)?;
 
         let request = request.into_inner();
         let committed_transactions_refs: Vec<GenericTransactionRef> = request
@@ -900,7 +973,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = iter(responses);
+        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
         Ok(Response::new(stream))
     }
 }
@@ -923,6 +996,11 @@ where
     server: Option<ServerHandle>,
     _marker: std::marker::PhantomData<S>,
 }
+
+/// Long-lived server-streaming RPCs exempt from the server-side fallback
+/// request timeout: they carry no client `grpc-timeout`, so a deadline would
+/// abort an otherwise healthy subscription. Bounded RPCs are not listed.
+const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
@@ -985,17 +1063,32 @@ impl<S: NetworkService> TonicManager<S> {
                     .make_span_with(DefaultMakeSpan::new().level(tracing::Level::TRACE))
                     .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
             )
-            .layer_fn(|service| iota_network_stack::grpc_timeout::GrpcTimeout::new(service, None));
+            .layer_fn({
+                // A zero `request_timeout` disables the server-side fallback deadline.
+                let server_timeout =
+                    (!config.request_timeout.is_zero()).then_some(config.request_timeout);
+                move |service| {
+                    iota_network_stack::grpc_timeout::GrpcTimeout::new_with_exempt_paths(
+                        service,
+                        server_timeout,
+                        TIMEOUT_EXEMPT_PATHS,
+                    )
+                }
+            });
 
-        let mut consensus_service_server = ConsensusServiceServer::new(service)
+        // Inbound (decoded) requests are small; bound them tighter than the
+        // (large) response encoding limit when configured. `0` falls back to
+        // `message_size_limit`.
+        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
+            config.message_size_limit
+        } else {
+            config.max_inbound_message_size
+        };
+        let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(config.message_size_limit);
-
-        if self.context.protocol_config.consensus_zstd_compression() {
-            consensus_service_server = consensus_service_server
-                .send_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Zstd);
-        }
+            .max_decoding_message_size(max_decoding_message_size)
+            .send_compressed(CompressionEncoding::Zstd)
+            .accept_compressed(CompressionEncoding::Zstd);
 
         let consensus_service = tonic::service::Routes::new(consensus_service_server)
             .into_axum_router()
@@ -1054,6 +1147,9 @@ impl<S: NetworkService> TonicManager<S> {
             .tcp_nodelay(true)
             .initial_connection_window_size(64 << 20)
             .initial_stream_window_size(32 << 20)
+            .max_concurrent_streams(
+                (config.max_concurrent_streams > 0).then_some(config.max_concurrent_streams),
+            )
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false);

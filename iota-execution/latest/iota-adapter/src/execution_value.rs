@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    execution_status::CommandArgumentError,
-    object::Owner,
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
@@ -53,11 +52,11 @@ where
 #[derive(Clone, Debug)]
 pub enum InputObjectMetadata {
     Receiving {
-        id: ObjectID,
+        id: ObjectId,
         version: SequenceNumber,
     },
     InputObject {
-        id: ObjectID,
+        id: ObjectId,
         is_mutable_input: bool,
         owner: Owner,
         version: SequenceNumber,
@@ -74,7 +73,7 @@ pub enum UsageKind {
 #[derive(Clone, Copy)]
 pub enum CommandKind<'a> {
     MoveCall {
-        package: ObjectID,
+        package: ObjectId,
         module: &'a IdentStr,
         function: &'a IdentStr,
     },
@@ -106,7 +105,7 @@ pub struct ResultValue {
 pub enum Value {
     Object(ObjectValue),
     Raw(RawValueType, Vec<u8>),
-    Receiving(ObjectID, SequenceNumber, Option<Type>),
+    Receiving(ObjectId, SequenceNumber, Option<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -137,7 +136,7 @@ pub enum RawValueType {
 }
 
 impl InputObjectMetadata {
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         match self {
             InputObjectMetadata::Receiving { id, .. } => *id,
             InputObjectMetadata::InputObject { id, .. } => *id,
@@ -167,7 +166,7 @@ impl InputValue {
         }
     }
 
-    pub fn new_receiving_object(id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn new_receiving_object(id: ObjectId, version: SequenceNumber) -> Self {
         InputValue {
             object_metadata: Some(InputObjectMetadata::Receiving { id, version }),
             inner: ResultValue::new(Value::Receiving(id, version, None)),
@@ -302,7 +301,7 @@ impl TryFromValue for ObjectValue {
     }
 }
 
-impl TryFromValue for IotaAddress {
+impl TryFromValue for Address {
     fn try_from_value(value: Value) -> Result<Self, CommandArgumentError> {
         try_from_value_prim(&value, Type::Address)
     }

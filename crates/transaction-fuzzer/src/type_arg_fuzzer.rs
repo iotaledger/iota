@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_core::test_utils::send_and_confirm_transaction;
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
+};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
@@ -51,7 +53,7 @@ pub fn gen_nested_type_tag() -> impl Strategy<Value = TypeTag> {
 
 pub fn gen_struct_tag() -> impl Strategy<Value = StructTag> {
     (
-        any::<IotaAddress>(),
+        any::<Address>(),
         any::<Identifier>(),
         any::<Identifier>(),
         any::<Vec<TypeTag>>(),
@@ -62,7 +64,7 @@ pub fn gen_struct_tag() -> impl Strategy<Value = StructTag> {
 }
 
 pub fn generate_valid_type_factory_tags(
-    type_factory_addr: ObjectID,
+    type_factory_addr: ObjectId,
 ) -> impl Strategy<Value = TypeTag> {
     let leaf = prop_oneof![
         base_type_factory_tag_gen(type_factory_addr),
@@ -75,7 +77,7 @@ pub fn generate_valid_type_factory_tags(
 }
 
 pub fn generate_valid_and_invalid_type_factory_tags(
-    type_factory_addr: ObjectID,
+    type_factory_addr: ObjectId,
 ) -> impl Strategy<Value = TypeTag> {
     let leaf = prop_oneof![
         any::<TypeTag>(),
@@ -88,7 +90,7 @@ pub fn generate_valid_and_invalid_type_factory_tags(
     })
 }
 
-pub fn base_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
+pub fn base_type_factory_tag_gen(addr: ObjectId) -> impl Strategy<Value = TypeTag> {
     "[A-Z]".prop_map(move |name| {
         TypeTag::Struct(Box::new(StructTag::new(
             addr,
@@ -99,7 +101,7 @@ pub fn base_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTa
     })
 }
 
-pub fn nested_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
+pub fn nested_type_factory_tag_gen(addr: ObjectId) -> impl Strategy<Value = TypeTag> {
     base_type_factory_tag_gen(addr).prop_recursive(20, 256, 10, move |inner| {
         (inner, "[A-Z]").prop_map(move |(instantiation, name)| {
             TypeTag::Struct(Box::new(StructTag::new(
@@ -113,7 +115,7 @@ pub fn nested_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = Type
 }
 
 pub fn type_factory_pt_for_tags(
-    package_id: ObjectID,
+    package_id: ObjectId,
     type_tags: Vec<TypeTag>,
     len: usize,
 ) -> ProgrammableTransaction {
@@ -134,7 +136,7 @@ pub fn pt_for_tags(type_tags: Vec<TypeTag>) -> ProgrammableTransaction {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static("random_type_tag_fuzzing"),
             Identifier::from_static("random_type_tag_fuzzing_fn"),
             type_tags,
@@ -156,7 +158,7 @@ pub fn run_pt_effects(
     pt: ProgrammableTransaction,
 ) -> Result<TransactionEffects, IotaError> {
     let gas_object = account.new_gas_object(exec);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     let kind = TransactionKind::Programmable(pt);
     let tx_data = TransactionData::new(
         kind,

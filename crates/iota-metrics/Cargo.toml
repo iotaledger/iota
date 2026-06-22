@@ -18,12 +18,13 @@ axum.workspace = true
 bytes.workspace = true
 dashmap.workspace = true
 futures.workspace = true
+http.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 scopeguard.workspace = true
 simple-server-timing-header = "0.1.1"
-sysinfo.workspace = true
+sysinfo = "^0.33"
 tap.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "net"] }

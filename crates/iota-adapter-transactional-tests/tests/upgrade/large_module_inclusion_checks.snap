@@ -15,12 +15,12 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, lines 58-109:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A --policy dep_only
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { kind: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: PackageUpgradeError: Invalid package upgrade. New package is incompatible with previous version; caused by: PartialVMError with status BACKWARD_INCOMPATIBLE_MODULE_UPDATE; at command index: 1
 
 task 3, lines 110-161:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A --policy additive
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { kind: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: PackageUpgradeError: Invalid package upgrade. New package is incompatible with previous version; caused by: PartialVMError with status BACKWARD_INCOMPATIBLE_MODULE_UPDATE; at command index: 1
 
 task 4, lines 162-212:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A --policy additive
@@ -31,7 +31,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 5, lines 213-265:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy dep_only
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { kind: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: PackageUpgradeError: Invalid package upgrade. New package is incompatible with previous version; caused by: PartialVMError with status BACKWARD_INCOMPATIBLE_MODULE_UPDATE; at command index: 1
 
 task 6, lines 266-318:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy additive

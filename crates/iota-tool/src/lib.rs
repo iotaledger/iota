@@ -38,7 +38,7 @@ use iota_config::{
 };
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
@@ -47,6 +47,7 @@ use iota_core::{
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::{ObjectId, Owner};
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
@@ -67,7 +68,7 @@ use iota_types::{
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::{MoveObjectExt, Owner},
+    object::MoveObjectExt,
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
@@ -126,7 +127,7 @@ async fn make_clients(
             None,
         );
         let channel = net_config
-            .connect_lazy(&net_addr, Some(tls_config))
+            .connect_lazy(&net_addr, tls_config)
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
@@ -139,7 +140,7 @@ async fn make_clients(
 
 type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
 pub struct ObjectData {
-    requested_id: ObjectID,
+    requested_id: ObjectId,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
 }
 
@@ -197,7 +198,7 @@ impl GroupedObjectOutput {
             let stake = committee.get(name).unwrap();
             let key = match resp {
                 Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().digest;
+                    let obj_digest = r.object.object_ref().digest;
                     let parent_tx_digest = r.object.previous_transaction;
                     let owner = r.object.owner;
                     let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
@@ -291,7 +292,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     "object-fetch-failed", "no-cert-available", "no-owner-available"
                 )?,
                 Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().digest;
+                    let obj_digest = resp.object.object_ref().digest;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
                     write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
@@ -321,11 +322,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             match resp {
                 Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
-                    writeln!(
-                        f,
-                        "  -- object digest: {}",
-                        resp.object.compute_object_reference().digest
-                    )?;
+                    writeln!(f, "  -- object digest: {}", resp.object.object_ref().digest)?;
                     if resp.object.is_package() {
                         writeln!(f, "  -- object: <Move Package>")?;
                     } else if let Some(layout) = &resp.layout {
@@ -354,7 +351,7 @@ impl std::fmt::Display for VerboseObjectOutput {
 }
 
 pub async fn get_object(
-    obj_id: ObjectID,
+    obj_id: ObjectId,
     version: Option<u64>,
     validator: Option<AuthorityName>,
     clients: Arc<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>>,
@@ -440,7 +437,7 @@ pub async fn get_transaction_block(
             Ok(Some((tx, effects, effects_digest))) => {
                 writeln!(
                     &mut s,
-                    "#{i:<2} tx_digest: {tx_digest:<68?} effects_digest: {effects_digest:?}",
+                    "#{i:<2} tx_digest: {tx_digest:<68} effects_digest: {effects_digest}",
                 )?;
                 writeln!(&mut s, "{effects:#?}")?;
                 if show_input_tx {
@@ -483,7 +480,7 @@ pub async fn get_transaction_block(
 
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
-    id: ObjectID,
+    id: ObjectId,
     version: Option<u64>,
 ) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
     let start = Instant::now();

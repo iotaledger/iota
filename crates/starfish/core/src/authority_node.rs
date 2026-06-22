@@ -31,6 +31,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
+    misbehavior_store::MisbehaviorStore,
     network::tonic_network::{TonicClient, TonicManager},
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -59,6 +60,11 @@ pub struct ConsensusAuthority {
     dag_state: Arc<RwLock<DagState>>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_handle: Option<(
+        tokio::task::JoinHandle<()>,
+        tokio::sync::oneshot::Sender<()>,
+    )>,
 }
 
 impl ConsensusAuthority {
@@ -87,8 +93,12 @@ impl ConsensusAuthority {
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {} {}, {:?}, boot counter {}, last processed commit index {}",
+            own_index,
+            own_hostname,
+            protocol_config.version,
+            boot_counter,
+            commit_consumer.last_processed_commit_index
         );
         info!(
             "Consensus authorities: {}",
@@ -98,6 +108,11 @@ impl ConsensusAuthority {
                 .join(", ")
         );
         info!("Consensus parameters: {:?}", parameters);
+        info!(
+            "Protocol consensus flags: starfish_speed={} fast_commit_sync={}",
+            protocol_config.consensus_starfish_speed(),
+            protocol_config.consensus_fast_commit_sync(),
+        );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
@@ -123,8 +138,13 @@ impl ConsensusAuthority {
         let network_client = network_manager.client();
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-        let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let store = Arc::new(RocksDBStore::new(store_path));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let dag_state = Arc::new(RwLock::new(DagState::new_with_misbehavior_store(
+            context.clone(),
+            store.clone(),
+            misbehavior_store.clone(),
+        )));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -162,9 +182,12 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
+
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         let core = Core::new(
             context.clone(),
@@ -180,6 +203,7 @@ impl ConsensusAuthority {
             protocol_keypair,
             dag_state.clone(),
             sync_last_known_own_block,
+            commit_vote_monitor.clone(),
         );
 
         let (core_dispatcher, core_thread_handle) =
@@ -202,8 +226,6 @@ impl ConsensusAuthority {
 
         let shard_reconstructor =
             ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         // `fast_sync_active` is a shared flag used by the fast syncer to
         // signal when it has any work in flight. The regular commit syncer
@@ -237,6 +259,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             sync_last_known_own_block,
             fast_sync_active.clone(),
+            misbehavior_store.clone(),
         );
 
         // Both commit syncers run, but only one actively fetches based on the gap.
@@ -251,6 +274,7 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             header_synchronizer.clone(),
+            misbehavior_store.clone(),
             fast_sync_active.clone(),
         )
         .start();
@@ -269,6 +293,7 @@ impl ConsensusAuthority {
                 block_verifier.clone(),
                 dag_state.clone(),
                 header_synchronizer.clone(),
+                misbehavior_store.clone(),
                 flag.clone(),
             )
             .start()
@@ -284,6 +309,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store.clone(),
+            misbehavior_store.clone(),
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.clone(),
         ));
@@ -301,6 +327,27 @@ impl ConsensusAuthority {
         }
 
         network_manager.install_service(network_service).await;
+
+        // Optionally start the DAG visualizer server.
+        #[cfg(feature = "dag-visualizer")]
+        let dag_visualizer_handle = if let Some(port) = context.parameters.dag_visualizer_port {
+            let (event_tx, _) = tokio::sync::broadcast::channel::<
+                crate::dag_visualizer::grpc_streamer::DagVisualizerEvent,
+            >(
+                crate::dag_visualizer::grpc_streamer::DAG_VISUALIZER_BROADCAST_CAPACITY,
+            );
+            dag_state
+                .write()
+                .set_dag_visualizer_sender(event_tx.clone());
+            Some(crate::dag_visualizer::grpc_streamer::start_grpc_server(
+                port,
+                context.clone(),
+                dag_state.clone(),
+                event_tx,
+            ))
+        } else {
+            None
+        };
 
         info!(
             "Consensus authority started, took {:?}",
@@ -327,6 +374,8 @@ impl ConsensusAuthority {
             dag_state: dag_state.clone(),
             #[cfg(test)]
             sync_last_known_own_block,
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_handle,
         }
     }
 
@@ -335,6 +384,13 @@ impl ConsensusAuthority {
             "Stopping authority. Total run time: {:?}",
             self.start_time.elapsed()
         );
+
+        // Gracefully stop DAG visualizer server if running.
+        #[cfg(feature = "dag-visualizer")]
+        if let Some((handle, shutdown_tx)) = self.dag_visualizer_handle.take() {
+            let _ = shutdown_tx.send(());
+            let _ = handle.await;
+        }
 
         // First shutdown components calling into Core.
         if let Err(e) = self.header_synchronizer.stop().await {

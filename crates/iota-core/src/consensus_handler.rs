@@ -13,15 +13,13 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
+use iota_sdk_types::CancelledTransaction;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{
-        CancelledTransaction, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind,
-    },
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
@@ -90,6 +88,7 @@ impl ConsensusHandlerInitializer {
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
+            self.state.clone(),
             self.checkpoint_service.clone(),
             self.state.transaction_manager().clone(),
             self.state.get_object_cache_reader().clone(),
@@ -107,6 +106,8 @@ pub struct ConsensusHandler<C> {
     /// epoch, with the corresponding store. This store is also used to get
     /// the current epoch ID.
     epoch_store: Arc<AuthorityPerEpochStore>,
+    /// The authority state, used for post-consensus transaction validation.
+    state: Arc<AuthorityState>,
     /// Holds the indices, hash and stats after the last consensus commit
     /// It is used for avoiding replaying already processed transactions,
     /// checking chain consistency, and accumulating per-epoch consensus output
@@ -139,6 +140,7 @@ const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
 impl<C> ConsensusHandler<C> {
     pub fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
+        state: Arc<AuthorityState>,
         checkpoint_service: Arc<C>,
         transaction_manager: Arc<TransactionManager>,
         cache_reader: Arc<dyn ObjectCacheRead>,
@@ -158,8 +160,14 @@ impl<C> ConsensusHandler<C> {
         }
         let transaction_scheduler =
             AsyncTransactionScheduler::start(transaction_manager, epoch_store.clone());
+
+        // Seed the gauges so series exist from epoch start, not only after the
+        // first commit.
+        publish_scoring_gauges(&epoch_store, &committee, &metrics);
+
         Self {
             epoch_store,
+            state,
             last_consensus_stats,
             checkpoint_service,
             cache_reader,
@@ -253,6 +261,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // last_consensus_stats, so that it won't be re-executed in the future.
         self.last_consensus_stats.index = execution_index;
 
+        if self
+            .epoch_store
+            .protocol_config()
+            .calculate_validator_scores()
+        {
+            self.epoch_store
+                .misbehavior_monitor
+                .update_from_consensus_output(consensus_output.misbehavior_counts());
+        }
+
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),
             self.epoch_store.committee(),
@@ -299,6 +317,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     if matches!(
                         &transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
+                            | ConsensusTransactionKind::UserTransactionV1(_)
                     ) {
                         self.last_consensus_stats
                             .stats
@@ -385,9 +404,12 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                 self.tx_reader.as_ref(),
                 &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
+                &self.state,
             )
             .await
             .expect("Unrecoverable error in consensus handler");
+
+        publish_scoring_gauges(&self.epoch_store, &self.committee, &self.metrics);
 
         fail_point_if!("correlated-crash-after-consensus-commit-boundary", || {
             let key = [commit_sub_dag_index, self.epoch_store.epoch()];
@@ -401,6 +423,32 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         self.transaction_scheduler
             .schedule(transactions_to_schedule)
             .await;
+    }
+}
+
+/// Publishes the per-authority validator-scoring gauges sourced from
+/// `Scoreboard` and `ReportAggregator`. No-op when validator scores are
+/// disabled by protocol config.
+fn publish_scoring_gauges(
+    epoch_store: &AuthorityPerEpochStore,
+    committee: &ConsensusCommittee,
+    metrics: &AuthorityMetrics,
+) {
+    if !epoch_store.protocol_config().calculate_validator_scores() {
+        return;
+    }
+    let scores = epoch_store.scoreboard.current_scores();
+    let invalid_reports = epoch_store.report_aggregator.invalid_reports_counts();
+    for (i, authority) in committee.authorities() {
+        let labels = &[authority.hostname.as_str()];
+        metrics
+            .validator_scoreboard_scores
+            .with_label_values(labels)
+            .set(scores[i.value()] as i64);
+        metrics
+            .invalid_misbehavior_reports_by_authority
+            .with_label_values(labels)
+            .set(invalid_reports[i.value()] as i64);
     }
 }
 
@@ -494,10 +542,17 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
                 "owned_certificate"
             }
         }
+        ConsensusTransactionKind::UserTransactionV1(transaction) => {
+            if transaction.contains_shared_object() {
+                "shared_user_transaction"
+            } else {
+                "owned_user_transaction"
+            }
+        }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
-        ConsensusTransactionKind::MisbehaviorReport(_, _, _) => "misbehavior_report",
+        ConsensusTransactionKind::MisbehaviorReport(_) => "misbehavior_report",
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }
@@ -601,20 +656,20 @@ impl SequencedConsensusTransactionKind {
 
     pub fn is_executable_transaction(&self) -> bool {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => ext.is_user_certificate(),
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.is_user_certificate() || ext.kind.is_user_transaction()
+            }
             SequencedConsensusTransactionKind::System(_) => true,
         }
     }
 
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => {
-                if let ConsensusTransactionKind::CertifiedTransaction(txn) = &ext.kind {
-                    Some(*txn.digest())
-                } else {
-                    None
-                }
-            }
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                _ => None,
+            },
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
         }
     }
@@ -654,14 +709,17 @@ impl SequencedConsensusTransaction {
     }
 
     pub fn is_user_tx_with_randomness(&self) -> bool {
-        let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-            kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-            ..
-        }) = &self.transaction
-        else {
-            return false;
-        };
-        certificate.uses_randomness()
+        match &self.transaction {
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
+                ..
+            }) => certificate.uses_randomness(),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) => transaction.uses_randomness(),
+            _ => false,
+        }
     }
 
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
@@ -670,11 +728,25 @@ impl SequencedConsensusTransaction {
                 kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
                 ..
             }) if certificate.contains_shared_object() => Some(certificate.data()),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) if transaction.contains_shared_object() => Some(transaction.data()),
             SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
                 Some(txn.data())
             }
             _ => None,
         }
+    }
+
+    pub fn is_user_transaction(&self) -> bool {
+        matches!(
+            &self.transaction,
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(_),
+                ..
+            })
+        )
     }
 }
 
@@ -766,10 +838,12 @@ mod tests {
 
     use arc_swap::ArcSwap;
     use futures::pin_mut;
-    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
+    use iota_sdk_types::{Address, ObjectId};
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, random_object_ref},
+        base_types::{AuthorityName, random_object_ref},
         committee::Committee,
+        crypto::{AccountKeyPair, get_key_pair},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -778,8 +852,10 @@ mod tests {
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
         transaction::{
-            CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
+            CertifiedTransaction, SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            TransactionData, TransactionDataAPI,
         },
+        utils::to_sender_signed_transaction,
     };
     use prometheus::Registry;
     use starfish_core::{
@@ -825,6 +901,7 @@ mod tests {
 
         let mut consensus_handler = ConsensusHandler::new(
             epoch_store,
+            state.clone(),
             Arc::new(CheckpointServiceNoop {}),
             state.transaction_manager().clone(),
             state.get_object_cache_reader().clone(),
@@ -872,6 +949,7 @@ mod tests {
             subdag_transactions,
             leader_header.timestamp_ms(),
             CommitRef::new(10, CommitDigest::MIN),
+            vec![],
             vec![],
         );
 
@@ -927,6 +1005,149 @@ mod tests {
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_user_transaction_v1() {
+        // GIVEN
+        // Enable the P-COOL flow so UserTransactionV1 transactions are accepted
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let num_txns: usize = 3;
+
+        // Create owned objects and gas objects for the UserTransactionV1 transactions
+        let owned_objects: Vec<Object> = (0..num_txns)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+        let gas_objects: Vec<Object> = (0..num_txns)
+            .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), sender))
+            .collect();
+
+        let mut objects = owned_objects.clone();
+        objects.extend(gas_objects.clone());
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(objects.clone())
+                .build();
+
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let new_epoch_start_state = epoch_store.epoch_start_state();
+        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let rgp = epoch_store.reference_gas_price();
+
+        let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let backpressure_manager = BackpressureManager::new_for_tests();
+
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.transaction_manager().clone(),
+            state.get_object_cache_reader().clone(),
+            state.get_transaction_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee.clone(),
+            metrics,
+            backpressure_manager.subscribe(),
+        );
+
+        // AND build one block per UserTransactionV1 transaction
+        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let mut headers = Vec::new();
+        let mut subdag_transactions = Vec::new();
+
+        for (i, (owned_obj, gas_obj)) in owned_objects.iter().zip(gas_objects.iter()).enumerate() {
+            let owned_ref = state
+                .get_object(&owned_obj.id())
+                .await
+                .unwrap()
+                .object_ref();
+            let gas_ref = state.get_object(&gas_obj.id()).await.unwrap().object_ref();
+
+            let tx_data = TransactionData::new_transfer(
+                recipient,
+                owned_ref,
+                sender,
+                gas_ref,
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            );
+            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+
+            let consensus_tx = ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+                tracking_id: Default::default(),
+            };
+
+            let transaction_bytes = bcs::to_bytes(&consensus_tx).unwrap();
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
+                    .build(),
+            );
+            let tx_batch = VerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(transaction_bytes)],
+            );
+            headers.push(header);
+            subdag_transactions.push(tx_batch);
+        }
+
+        // AND create the consensus output
+        let leader_header = headers[0].clone();
+        let committed_header_refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
+        let committed_sub_dag = CommittedSubDag::new(
+            leader_header.reference(),
+            headers.clone(),
+            committed_header_refs,
+            subdag_transactions,
+            leader_header.timestamp_ms(),
+            CommitRef::new(10, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+
+        // WHEN processing the consensus output
+        consensus_handler
+            .handle_consensus_output(committed_sub_dag.clone())
+            .await;
+
+        // THEN the stats reflect the UserTransactionV1 transactions
+        let num_blocks = headers.len();
+        let last_consensus_stats = consensus_handler.last_consensus_stats.clone();
+        assert_eq!(
+            last_consensus_stats.index.transaction_index,
+            num_txns as u64
+        );
+        assert_eq!(last_consensus_stats.index.sub_dag_index, 10_u64);
+        assert_eq!(last_consensus_stats.index.last_committed_round, 100_u64);
+        assert_eq!(
+            last_consensus_stats.stats.get_num_messages(0),
+            num_blocks as u64
+        );
+        assert_eq!(
+            last_consensus_stats.stats.get_num_user_transactions(0),
+            num_txns as u64
+        );
+
+        // AND processing the same output multiple times does not update the stats
+        for _ in 0..2 {
+            consensus_handler
+                .handle_consensus_output(committed_sub_dag.clone())
+                .await;
+            let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
+            assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
     }
 
@@ -1044,9 +1265,9 @@ mod tests {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let data = SenderSignedData::new(
             TransactionData::new_transfer(
-                IotaAddress::ZERO,
+                Address::ZERO,
                 random_object_ref(),
-                IotaAddress::ZERO,
+                Address::ZERO,
                 random_object_ref(),
                 1000 * gas_price,
                 gas_price,

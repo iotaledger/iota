@@ -8,10 +8,13 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::TransactionDigest,
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -58,7 +61,7 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -83,7 +86,7 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -177,7 +180,7 @@ pub async fn get_verified_effects_and_events(
 /// which is signed by the previous committee.
 pub async fn get_verified_checkpoint(
     config: &Config,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
@@ -207,7 +210,7 @@ pub async fn get_verified_checkpoint(
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -281,21 +284,18 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_types::{
-        base_types::{Identifier, IotaAddress, StructTag},
-        event::Event,
-        messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
-    };
+    use iota_sdk_types::{Address, Event, Identifier, StructTag};
+    use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents};
 
     use super::*;
 
     fn random_event() -> Event {
         Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
-            sender: IotaAddress::random(),
+            sender: Address::random(),
             type_: StructTag::new(
-                IotaAddress::random(),
+                Address::random(),
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),
                 vec![],
@@ -429,12 +429,10 @@ mod tests {
         let tx_digest_0 = *tx0.transaction.digest();
 
         if let Some(events) = tx0.events.as_mut() {
-            events.data.push(random_event());
+            events.push(random_event());
         } else {
             // if there are no events yet, add them
-            tx0.events = Some(TransactionEvents {
-                data: vec![random_event()],
-            });
+            tx0.events = Some(TransactionEvents(vec![random_event()]));
         }
 
         assert!(

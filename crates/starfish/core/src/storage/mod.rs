@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -17,9 +17,10 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
-    commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
+    commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -30,7 +31,11 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+    fn read_blocks(
+        &self,
+        refs: &[BlockRef],
+        context: Arc<Context>,
+    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Read and get verified block headers for the given refs.
     fn read_verified_block_headers(
@@ -72,6 +77,7 @@ pub(crate) trait Store: Send + Sync {
         &self,
         authority: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
@@ -84,6 +90,7 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     fn scan_block_references_by_author(
@@ -137,14 +144,27 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage
+    fn scan_misbehavior_counts(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
     /// Reads all commits from start (inclusive) until end (inclusive).
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>>;
 
-    /// Reads all blocks voting on a particular commit.
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
+    /// Reads all blocks voting on a particular commit, identified by both
+    /// index and digest. Votes for other digests at the same index (possible
+    /// with Byzantine voters, since vote digests are not validated against
+    /// stored commits) are excluded.
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>>;
 
     /// Finds the highest commit index that has at least one vote, up to (and
     /// including) the given index. Returns None if no votes exist for any
@@ -186,27 +206,10 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
+    pub(crate) misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl WriteBatch {
-    pub(crate) fn new(
-        transactions: Vec<VerifiedTransactions>,
-        block_headers: Vec<VerifiedBlockHeader>,
-        commits: Vec<TrustedCommit>,
-        commit_info: Vec<(CommitRef, CommitInfo)>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: Option<bool>,
-    ) -> Self {
-        WriteBatch {
-            transactions,
-            block_headers,
-            commits,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-        }
-    }
-
     // Test setters.
 
     #[cfg(test)]
@@ -241,22 +244,21 @@ impl WriteBatch {
         self.voting_block_headers = voting_block_headers;
         self
     }
+
+    #[cfg(test)]
+    pub(crate) fn misbehavior_counts(
+        mut self,
+        misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
+    ) -> Self {
+        self.misbehavior_counts = misbehavior_counts;
+        self
+    }
 }
 
 /// Simulation-test-only helper that deletes all transactions from the consensus
 /// RocksDB store while preserving other data.
 #[cfg(msim)]
-pub fn delete_all_transactions_from_store(
-    db_path: &std::path::Path,
-    authority_index: starfish_config::AuthorityIndex,
-    committee: starfish_config::Committee,
-    protocol_config: iota_protocol_config::ProtocolConfig,
-) -> Result<(), String> {
-    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(
-        db_path,
-        authority_index,
-        committee,
-        protocol_config,
-    )
-    .map_err(|e| format!("failed to delete transactions: {}", e))
+pub fn delete_all_transactions_from_store(db_path: &std::path::Path) -> Result<(), String> {
+    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(db_path)
+        .map_err(|e| format!("failed to delete transactions: {e}"))
 }

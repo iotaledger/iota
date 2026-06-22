@@ -8,7 +8,6 @@ publish = false
 
 [dependencies]
 # external dependencies
-once_cell.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }

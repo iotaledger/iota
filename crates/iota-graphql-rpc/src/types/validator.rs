@@ -13,8 +13,8 @@ use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::Address as NativeAddress;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -60,17 +60,15 @@ pub(crate) struct Validator {
 /// It automatically filters the exchange rate table to only include data for
 /// the epochs that are less than or equal to the requested epoch.
 impl Loader<u64> for Db {
-    type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
+    type Value = BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
 
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[u64],
-    ) -> Result<
-        HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
-        Error,
-    > {
+    ) -> Result<HashMap<u64, BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>, Error>
+    {
         let latest_iota_system_state = self
             .inner
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
@@ -105,42 +103,20 @@ impl Loader<u64> for Db {
 
         let mut results = BTreeMap::new();
 
-        // The requested epoch is the epoch for which we want to compute the APY. For
-        // the current ongoing epoch we cannot compute an APY, so we compute it
-        // for epoch - 1. First need to check if that requested epoch is not the
-        // current running one. If it is, then subtract one as the APY cannot be
-        // computed for a running epoch. If no epoch is passed in the key, then
-        // we default to the latest epoch - 1 for the same reasons as above.
-        let epoch_to_filter_out = if let Some(epoch) = keys.first() {
-            if epoch == &latest_iota_system_state.epoch() {
-                *epoch - 1
-            } else {
-                *epoch
-            }
-        } else {
-            latest_iota_system_state.epoch() - 1
-        };
+        let requested_epoch = keys
+            .first()
+            .copied()
+            .unwrap_or_else(|| latest_iota_system_state.epoch());
 
-        // filter the exchange rates to only include data for the epochs that are less
-        // than or equal to the requested epoch. This enables us to get
-        // historical exchange rates accurately and pass this to the APY
-        // calculation function TODO we might even filter here by the epoch at
-        // which the stake subsidy started to avoid passing that to the
-        // `calculate_apy` function and doing another filter there
         for er in exchange_rates {
             results.insert(
                 er.address,
                 er.rates
                     .into_iter()
-                    .filter(|(epoch, _)| epoch <= &epoch_to_filter_out)
+                    .filter(|(epoch, _)| epoch <= &requested_epoch)
                     .collect(),
             );
         }
-
-        let requested_epoch = match keys.first() {
-            Some(x) => *x,
-            None => latest_iota_system_state.epoch(),
-        };
 
         let mut r = HashMap::new();
         r.insert(requested_epoch, results);

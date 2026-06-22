@@ -11,15 +11,17 @@ use fastcrypto::{
     traits::{ToFromBytes, VerifyingKey},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::{
+    Address, ObjectId,
+    crypto::{Intent, IntentScope, PublicKey, UserSignature},
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
-    signature::GenericSignature,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -109,7 +111,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Secp256k1 keypair
     let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let addr_secp: IotaAddress = (&kp_secp.public()).into();
+    let addr_secp: Address = (&kp_secp.public()).into();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -133,7 +135,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Ed25519 keypair
     let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
-    let addr_ed: IotaAddress = (&kp_ed.public()).into();
+    let addr_ed: Address = (&kp_ed.public()).into();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -154,49 +156,6 @@ async fn test_read_write_keystore_with_flag() {
     // read from file as AuthorityKeyPair success
     let kp_ed_read = read_authority_keypair_from_file(fp_ed_2);
     assert!(kp_ed_read.is_err());
-}
-
-#[test]
-async fn test_iota_operations_config() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("iota.keystore");
-    let path1 = path.clone();
-    // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota.keystore
-    // If this test fails, address hardcoded in iota-operations is likely needed be
-    // updated.
-    let kp = IotaKeyPair::decode(
-        "iotaprivkey1qr2x8cgu0y2egh5x4s4h9kytsxgvltv0776gul4cjtp8tfw0pglgyye70lu",
-    )
-    .unwrap();
-    let contents = vec![kp.encode().unwrap()];
-    let res = std::fs::write(path, serde_json::to_string_pretty(&contents).unwrap());
-    assert!(res.is_ok());
-    let read = FileBasedKeystore::new(&path1);
-    assert!(read.is_ok());
-    assert_eq!(
-        IotaAddress::from_str("bc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
-            .unwrap(),
-        read.unwrap().addresses()[0]
-    );
-
-    // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota-benchmark.keystore
-    // If this test fails, address hardcoded in iota-operations is likely needed be
-    // updated.
-    let path2 = temp_dir.path().join("iota-benchmark.keystore");
-    let path3 = path2.clone();
-    let kp = IotaKeyPair::decode(
-        "iotaprivkey1qrcfd38ngfhqrvfes20rrul28ej7dswn2hy6h0wtsgkvs9expd0qqy38y3q",
-    )
-    .unwrap();
-    let contents = vec![kp.encode().unwrap()];
-    let res = std::fs::write(path2, serde_json::to_string_pretty(&contents).unwrap());
-    assert!(res.is_ok());
-    let read = FileBasedKeystore::new(&path3);
-    assert_eq!(
-        IotaAddress::from_str("e988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
-            .unwrap(),
-        read.unwrap().addresses()[0]
-    );
 }
 
 #[test]
@@ -259,8 +218,8 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
         assert_eq!(kp, kp_from_base64);
 
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -339,8 +298,8 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -380,8 +339,8 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -422,8 +381,8 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .await?;
 
         let kp = IotaKeyPair::decode(sk).unwrap();
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
@@ -584,7 +543,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
 
     // Create a dummy TransactionData
     let gas = ObjectRef::new(
-        ObjectID::random(),
+        ObjectId::random(),
         SequenceNumber::default(),
         ObjectDigest::random(),
     );
@@ -592,7 +551,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random()],
+        vec![Address::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -643,7 +602,7 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
     let raw_data = Hex::encode_with_format("IOTA");
 
     let verify_sign_raw_output =
-        |output: CommandOutput, expected_address: &IotaAddress, expected_data: &str| {
+        |output: CommandOutput, expected_address: &Address, expected_data: &str| {
             let CommandOutput::SignRaw(sign_raw_data) = output else {
                 panic!("Expected SignRaw output");
             };
@@ -731,16 +690,22 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
     // Public keys (Base64)
-    let pk1 = PublicKey::decode_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
-    let pk2 = PublicKey::decode_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
-    let pk3 = PublicKey::decode_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
+    let pk1 = PublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
+    let pk2 = PublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
+    let pk3 = PublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
     let pks = vec![pk1, pk2, pk3];
     let weights = vec![1, 1, 1];
     let threshold = 2;
 
     // Signatures (Base64)
-    let sig1 = GenericSignature::decode_base64("AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==").unwrap();
-    let sig2 = GenericSignature::decode_base64("AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==").unwrap();
+    let sig1 = UserSignature::from_base64(
+        "AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==",
+    )
+    .unwrap();
+    let sig2 = UserSignature::from_base64(
+        "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==",
+    )
+    .unwrap();
     let sigs = vec![sig1, sig2];
 
     let output = KeyToolCommand::MultiSigCombinePartialSig {
@@ -763,16 +728,16 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     // Check parsed structure
     let parsed_json = serde_json::to_value(&data.multisig_parsed).unwrap();
     let expected_json = serde_json::json!({
-        "sigs": [
-            {"Ed25519": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
-            {"Ed25519": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
+        "signatures": [
+            {"scheme": "ed25519", "signature": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
+            {"scheme": "ed25519", "signature": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
         ],
         "bitmap": 3,
-        "multisig_pk": {
-            "pk_map": [
-                [{"Ed25519": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, 1],
-                [{"Ed25519": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, 1],
-                [{"Ed25519": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, 1]
+        "committee": {
+            "members": [
+                {"public_key": {"scheme": "ed25519", "public_key": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, "weight": 1}
             ],
             "threshold": 2
         }
@@ -902,13 +867,13 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
             assert_eq!(
                 call_arguments,
                 vec![
-                    "{\"pure\":{\"value\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}}"
+                    "{\"Pure\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}"
                 ]
             );
             assert_eq!(type_arguments, serde_json::json!([]));
             assert_eq!(
                 object_to_authenticate,
-                serde_json::json!({"shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
+                serde_json::json!({"Shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
             );
         }
         _ => panic!("Expected MoveAuthenticator variant"),

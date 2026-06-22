@@ -4,7 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
-use iota_types::{base_types::StructTag, governance::StakedIota as NativeStakedIota};
+use iota_sdk_types::StructTag;
+use iota_types::governance::StakedIota as NativeStakedIota;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -178,8 +179,6 @@ impl StakedIota {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }

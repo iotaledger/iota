@@ -29,8 +29,9 @@ use iota_config::{
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
+use iota_sdk_types::{Address, Identifier, ObjectId};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef},
+    base_types::ObjectRef,
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
@@ -81,7 +82,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     })?;
 
     let iota_client = IotaClientBuilder::default().build(fullnode_rpc_url).await?;
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
     let starting_epoch = current_epoch(&iota_client).await?;
     info!(
         "Running Metadata Rotation fire drill for validator address {iota_address} in epoch {starting_epoch}."
@@ -109,7 +110,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
 
 // TODO move this to a shared lib
 pub async fn get_gas_obj_ref(
-    iota_address: IotaAddress,
+    iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
 ) -> anyhow::Result<ObjectRef> {
@@ -138,7 +139,7 @@ async fn update_next_epoch_metadata(
     let backup_config = config.clone();
     backup_config.persisted(&backup_config_path).save()?;
 
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
 
     let mut new_config = config.clone();
 
@@ -287,7 +288,7 @@ async fn update_metadata_on_chain(
     call_args: Vec<CallArg>,
     iota_client: &IotaClient,
 ) -> anyhow::Result<()> {
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
     let gas_obj_ref = get_gas_obj_ref(iota_address, iota_client, 10000 * 100).await?;
     let rgp = iota_client
         .governance_api()
@@ -297,7 +298,7 @@ async fn update_metadata_on_chain(
     args.extend(call_args);
     let tx_data = TransactionData::new_move_call(
         iota_address,
-        ObjectID::SYSTEM,
+        ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static(function),
         vec![],

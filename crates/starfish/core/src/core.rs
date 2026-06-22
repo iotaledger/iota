@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -33,15 +33,18 @@ use crate::storage::rocksdb_store::RocksDBStore;
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
+    authority_set::AuthoritySet,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedOwnShard, VerifiedTransactions,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
+        GENESIS_ROUND, Round, SignedBlockHeader, Slot, StrongVote, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
+    block_rate_limiter::BlockRateLimiter,
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
+    commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -54,10 +57,6 @@ use crate::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
-
-// Maximum number of commit votes to include in a block.
-// TODO: Move to protocol config, and verify in BlockVerifier.
-const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -112,6 +111,20 @@ pub(crate) struct Core {
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
     encoder: Box<dyn ShardEncoder + Send + Sync>,
+    commit_vote_monitor: Arc<CommitVoteMonitor>,
+    /// Clock round for which the wait for a strong-vote quorum has timed out.
+    /// Any subsequent block-creation attempt at that same round skips the
+    /// strong-vote quorum check, regardless of the reason that triggered it.
+    strong_vote_timed_out_round: Option<Round>,
+    /// First moment in the current clock round at which the ordinary (base
+    /// Starfish) propose condition was satisfied. Used to measure the extra
+    /// wait imposed by StarfishSpeed's strong-vote condition.
+    ordinary_propose_ready_at: Option<(Round, Instant)>,
+    /// Rate limiter for own proposals: sustained rate of one block per
+    /// `min_block_delay`, with burst budget accrued while waiting on the
+    /// network, so a validator that fell behind catches up on rounds instead
+    /// of skipping them.
+    proposal_rate_limiter: BlockRateLimiter,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -119,6 +132,7 @@ pub(crate) enum ReasonToCreateBlock {
     MinBlockDelayTimeout,
     AddBlock,
     AddBlockHeader,
+    SoftTimeout,
     MaxLeaderTimeout,
     Recover,
     QuorumSubscribersExist,
@@ -134,6 +148,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => "AddBlock",
             ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
             ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
+            ReasonToCreateBlock::SoftTimeout => "SoftTimeout",
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
@@ -149,10 +164,42 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => false,
             ReasonToCreateBlock::MaxLeaderTimeout => true,
             ReasonToCreateBlock::AddBlockHeader => false,
+            ReasonToCreateBlock::SoftTimeout => false,
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
             ReasonToCreateBlock::FastSyncComplete => true,
+        }
+    }
+}
+
+/// Reason a proposal attempt was skipped, either in `Core::should_propose` or
+/// by the rate limiter in `Core::try_new_block`. Used as the `reason` label on
+/// the `core_skipped_proposals` metric. Keeping the variants in one enum makes
+/// the label space disjoint and centrally visible. Variant data is the
+/// per-reason context interpolated into the corresponding `debug!` line.
+///
+/// The "already proposed at this round" branch is intentionally not modeled
+/// here: it fires on every block accepted in a round we have already proposed
+/// in, which is a normal high-rate event. Counting and logging it would drown
+/// the genuinely interesting reasons below.
+#[derive(Clone, Copy)]
+pub(crate) enum SkipProposalReason {
+    NoQuorumSubscriber,
+    NoLastKnownProposedRound,
+    HigherLastKnownProposedRound { last_known: Round },
+    BehindQuorumCommitRound { approx_quorum: Round },
+    BlockRateLimited,
+}
+
+impl SkipProposalReason {
+    fn label(self) -> &'static str {
+        match self {
+            Self::NoQuorumSubscriber => "no_quorum_subscriber",
+            Self::NoLastKnownProposedRound => "no_last_known_proposed_round",
+            Self::HigherLastKnownProposedRound { .. } => "higher_last_known_proposed_round",
+            Self::BehindQuorumCommitRound { .. } => "behind_quorum_commit_round",
+            Self::BlockRateLimited => "block_rate_limited",
         }
     }
 }
@@ -169,6 +216,7 @@ impl Core {
         block_signer: ProtocolKeyPair,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
+        commit_vote_monitor: Arc<CommitVoteMonitor>,
     ) -> Self {
         let last_decided_leader = dag_state.read().last_commit_leader();
         let committer = UniversalCommitterBuilder::new(
@@ -208,6 +256,21 @@ impl Core {
 
         let encoder = create_encoder(&context);
 
+        // Seed the rate limiter from own recent blocks so a quick restart does
+        // not grant a fresh burst budget. Looking back `burst` rounds captures
+        // the recent own blocks that still affect the state; replaying blocks
+        // older than the window is harmless (the limiter absorbs them).
+        let burst = context.parameters.block_rate_burst();
+        let mut proposal_rate_limiter =
+            BlockRateLimiter::new(context.parameters.min_block_delay, burst);
+        let lookback_start = last_signaled_round.saturating_sub(burst as Round);
+        for header in dag_state
+            .read()
+            .get_cached_block_headers_since_round(context.own_index, lookback_start)
+        {
+            proposal_rate_limiter.record(header.timestamp_ms());
+        }
+
         Self {
             context,
             last_signaled_round,
@@ -224,6 +287,10 @@ impl Core {
             dag_state,
             last_known_proposed_round: min_propose_round,
             encoder,
+            commit_vote_monitor,
+            strong_vote_timed_out_round: None,
+            ordinary_propose_ready_at: None,
+            proposal_rate_limiter,
         }
         .recover()
     }
@@ -383,6 +450,15 @@ impl Core {
         let (accepted_block_headers, missing_block_refs) = self
             .block_manager
             .try_accept_block_headers(block_headers, source);
+
+        if !accepted_block_headers.is_empty()
+            && self.context.protocol_config.consensus_starfish_speed()
+        {
+            self.record_strong_vote_complaints(
+                &mut self.dag_state.write(),
+                &accepted_block_headers,
+            );
+        }
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
@@ -588,10 +664,18 @@ impl Core {
             dag_state.set_fast_sync_ongoing_flag(true);
         }
 
+        // After a positive commit advance, refresh the quorum commit index
+        // on `DagState` so the eviction inside `flush()` is bounded.
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+
         // Flush commits to storage so they're available for
         // get_block_refs_for_recent_commits when close-to-quorum mode
         // triggers header fetching.
-        self.dag_state.write().flush();
+        {
+            let mut dag_state = self.dag_state.write();
+            dag_state.set_last_known_quorum_commit_index(quorum_commit_index);
+            dag_state.flush();
+        }
 
         // Then process subdags as usual
         self.commit_observer.finalize_and_send_solid_subdags(
@@ -607,7 +691,7 @@ impl Core {
     /// over.
     ///
     /// Block headers should cover the cached_rounds window (~500 rounds).
-    pub(crate) fn reinitialize_components(
+    pub(crate) async fn reinitialize_components(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<()> {
@@ -658,7 +742,7 @@ impl Core {
         self.last_decided_leader = last_commit_leader;
 
         // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
-        self.commit_observer.reinitialize(last_commit_index);
+        self.commit_observer.reinitialize(last_commit_index).await;
 
         // 9. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
@@ -738,9 +822,9 @@ impl Core {
         Ok((None, BTreeMap::new()))
     }
 
-    /// Attempts to propose a new block for the next round. If a block has
-    /// already proposed for latest or earlier round, then no block is
-    /// created and None is returned.
+    /// Attempts to propose a new block at the current clock round. Eligibility
+    /// (round bounds, block restrictions) is enforced upstream in
+    /// `should_propose`.
     #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, reason: ReasonToCreateBlock) -> Option<VerifiedBlock> {
         let _s = self
@@ -751,36 +835,106 @@ impl Core {
             .with_label_values(&["Core::try_new_block"])
             .start_timer();
 
-        // Ensure the new block has a higher round than the last proposed block.
-        let clock_round = {
-            let dag_state = self.dag_state.read();
-            let clock_round = dag_state.threshold_clock_round();
-            if clock_round <= dag_state.get_last_proposed_block_header().round() {
-                return None;
-            }
-            clock_round
-        };
+        // Eligibility checks (round bounds, block restrictions) are enforced
+        // upstream in `should_propose`.
+        let clock_round = self.dag_state.read().threshold_clock_round();
+
+        // Record when the wait for a strong-vote quorum has timed out for
+        // this clock round. Every subsequent attempt at the same round then
+        // skips the strong-vote check regardless of reason. A stale value
+        // from an earlier round is inert because only an exact match with
+        // the current clock_round below triggers the skip.
+        if matches!(reason, ReasonToCreateBlock::SoftTimeout) {
+            self.strong_vote_timed_out_round = Some(clock_round);
+        }
+        let strong_vote_timed_out = self.strong_vote_timed_out_round == Some(clock_round);
 
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
 
+        // Fetch the leader block header at quorum_round once; reused for the
+        // leader-existence check, the strong-vote readiness check, and the
+        // block header's strong_vote field.
+        let leader_header = self.leader_header(quorum_round);
+
+        // If an ordinary-ready moment was recorded for an earlier clock round
+        // but we never proposed in it (the round advanced first), the
+        // strong-vote wait still counts toward the extra-wait metric.
+        if let Some((recorded_round, start)) = self.ordinary_propose_ready_at {
+            if recorded_round != clock_round {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .strong_vote_extra_wait_seconds
+                    .observe(start.elapsed().as_secs_f64());
+                self.ordinary_propose_ready_at = None;
+            }
+        }
+
+        // Record the first moment in this clock round at which the ordinary
+        // (base Starfish) propose condition was satisfied. Used to observe the
+        // extra wait imposed by the StarfishSpeed strong-vote condition.
+        if self.context.protocol_config.consensus_starfish_speed()
+            && !reason.is_forced()
+            && leader_header.is_some()
+            && self
+                .proposal_rate_limiter
+                .is_conforming(self.context.clock.timestamp_utc_ms())
+            && self
+                .ordinary_propose_ready_at
+                .is_none_or(|(r, _)| r != clock_round)
+        {
+            self.ordinary_propose_ready_at = Some((clock_round, Instant::now()));
+        }
+
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
-        // block (leader exists and min delay has passed).
+        // block (leader exists and the block rate budget allows it).
         if !reason.is_forced() {
-            if !self.leaders_exist(quorum_round) {
-                return None;
+            leader_header.as_ref()?;
+
+            // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
+            // soft-timeout): 2f+1 strong votes at quorum_round pinned to the
+            // leader at quorum_round - 1.
+            if !strong_vote_timed_out
+                && self.context.protocol_config.consensus_starfish_speed()
+                && quorum_round > GENESIS_ROUND
+            {
+                if let Some(prev_leader) = self.leader_header(quorum_round - 1) {
+                    if !self.has_strong_vote_quorum(quorum_round, prev_leader.author()) {
+                        return None;
+                    }
+                }
             }
 
-            if Duration::from_millis(
-                self.context
-                    .clock
-                    .timestamp_utc_ms()
-                    .saturating_sub(self.last_proposed_timestamp_ms()),
-            ) < self.context.parameters.min_block_delay
+            if !self
+                .proposal_rate_limiter
+                .is_conforming(self.context.clock.timestamp_utc_ms())
             {
+                self.skip_proposal(clock_round, SkipProposalReason::BlockRateLimited);
                 return None;
             }
+        }
+
+        // Compute the strong_vote once; reused for readiness check 2 and
+        // the block header below.
+        let strong_vote = if self.context.protocol_config.consensus_starfish_speed() {
+            leader_header
+                .as_ref()
+                .map(|h| Self::compute_strong_vote(&self.dag_state.read(), h))
+        } else {
+            None
+        };
+
+        // Strong-vote readiness check 2 (StarfishSpeed only, bypassed on
+        // soft-timeout): our block would itself be a strong vote for the
+        // leader at clock_round-1.
+        if !reason.is_forced()
+            && !strong_vote_timed_out
+            && self.context.protocol_config.consensus_starfish_speed()
+            && !strong_vote.as_ref().is_some_and(|sv| sv.is_strong_vote())
+        {
+            return None;
         }
 
         // Determine the ancestors to be included in proposal. A quorum of ancestor must
@@ -813,6 +967,43 @@ impl Core {
             .block_proposal_leader_wait_count
             .with_label_values(&[leader_authority])
             .inc();
+
+        // The strong-vote wait for this clock round ends with this proposal.
+        // Observe it for non-forced proposals; forced proposals (e.g. max
+        // leader timeout) are excluded. Clear it either way so the wait is not
+        // re-counted as an abandoned round on a later call.
+        if let Some((r, start)) = self.ordinary_propose_ready_at {
+            if r == clock_round {
+                if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .strong_vote_extra_wait_seconds
+                        .observe(start.elapsed().as_secs_f64());
+                }
+                self.ordinary_propose_ready_at = None;
+            }
+        }
+
+        // Strong-vote payload metrics: distribution of the `missing` set size,
+        // and per-leader counter when the payload is a blame (non-empty).
+        if let Some(sv) = strong_vote.as_ref() {
+            let node_metrics = &self.context.metrics.node_metrics;
+            node_metrics
+                .strong_vote_missing_authorities
+                .observe(sv.missing.len() as f64);
+            if !sv.missing.is_empty() {
+                let leader = &self
+                    .context
+                    .committee
+                    .authority(sv.leader_authority)
+                    .hostname;
+                node_metrics
+                    .strong_blames_emitted_for_leader
+                    .with_label_values(&[leader])
+                    .inc();
+            }
+        }
 
         self.context
             .metrics
@@ -850,13 +1041,36 @@ impl Core {
             .proposed_block_transactions
             .observe(transactions.len() as f64);
 
+        // Adaptive acknowledgment filtering: only applied to leader blocks,
+        // where included refs feed the optimistic-commit path.
+        let am_leader_at_clock_round = self
+            .leaders(clock_round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index);
+        let exclude = if am_leader_at_clock_round
+            && self.context.protocol_config.consensus_starfish_speed()
+            && self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            self.dag_state
+                .read()
+                .starfish_speed_excluded_ack_authorities()
+        } else {
+            AuthoritySet::new()
+        };
+
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self.dag_state.write().take_acknowledgments(
-            self.context
-                .protocol_config
-                .consensus_max_acknowledgments_per_block_or_default() as usize,
-        );
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(self.context.committee.size());
+        let acknowledgments = self
+            .dag_state
+            .write()
+            .take_acknowledgments(max_acknowledgments, exclude);
 
         self.context
             .metrics
@@ -878,10 +1092,11 @@ impl Core {
         }
 
         // Consume the commit votes to be included.
-        let commit_votes = self
-            .dag_state
-            .write()
-            .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
+        let max_commit_votes = self
+            .context
+            .protocol_config
+            .max_commit_votes_per_block(self.context.committee.size());
+        let commit_votes = self.dag_state.write().take_commit_votes(max_commit_votes);
 
         // Get current timestamp and record drift but don't enforce ancestor timestamp
         // checks.
@@ -900,16 +1115,31 @@ impl Core {
         });
 
         // Create the block and insert to storage.
-        let block_header = BlockHeader::V1(BlockHeaderV1::new(
-            self.context.committee.epoch(),
-            clock_round,
-            self.context.own_index,
-            now,
-            ancestors.iter().map(|b| b.reference()).collect(),
-            acknowledgments,
-            commit_votes,
-            transactions_commitment,
-        ));
+        let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
+        let block_header = if self.context.protocol_config.consensus_starfish_speed() {
+            BlockHeader::V2(BlockHeaderV2::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+                strong_vote,
+            ))
+        } else {
+            BlockHeader::V1(BlockHeaderV1::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+            ))
+        };
 
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
@@ -960,12 +1190,23 @@ impl Core {
             verified_block_header,
             verified_transactions,
         };
-        // Accept the block into BlockManager and DagState.
-        let (accepted_blocks, missing) = self
+        // Accept the block into BlockManager and DagState. The accepted set may also
+        // include blocks unsuspended by the GC sweep, so its size is not necessarily
+        // one; for an own block only the absence of missing ancestors is guaranteed.
+        let (_, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
-        assert_eq!(accepted_blocks.len(), 1);
-        assert!(missing.is_empty());
+        if !missing.is_empty() {
+            error!(
+                ?missing,
+                block_ref = ?verified_block.reference(),
+                "own block proposal returned unexpected missing ancestors"
+            );
+        }
+        debug_assert!(
+            missing.is_empty(),
+            "own block must have no missing ancestors"
+        );
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
         let mut dag_state_guard = self.dag_state.write();
         dag_state_guard.flush();
@@ -987,6 +1228,9 @@ impl Core {
             .proposed_blocks
             .with_label_values(&[&reason.label()])
             .inc();
+
+        // Every proposal spends rate budget, including forced ones.
+        self.proposal_rate_limiter.record(now);
 
         Some(verified_block)
     }
@@ -1057,6 +1301,14 @@ impl Core {
 
             self.last_decided_leader = last_decided.slot();
 
+            // Emit skip events for the DAG visualizer before filtering.
+            #[cfg(feature = "dag-visualizer")]
+            for leader in &decided_leaders {
+                if let crate::commit::DecidedLeader::Skip(slot) = leader {
+                    self.dag_state.read().emit_leader_skipped_event(*slot);
+                }
+            }
+
             let sequenced_leaders = decided_leaders
                 .into_iter()
                 .filter_map(|leader| leader.into_committed_block())
@@ -1085,7 +1337,10 @@ impl Core {
                 sequenced_leaders.len(),
                 sequenced_leaders
                     .iter()
-                    .map(|b| b.reference().to_string())
+                    .map(|(b, m, _)| match m {
+                        Some(state) => format!("{}({state})", b.reference()),
+                        None => b.reference().to_string(),
+                    })
                     .join(",")
             );
 
@@ -1103,10 +1358,16 @@ impl Core {
             );
             all_missing_committed_txns.extend(missing_transactions_refs);
 
+            // After a positive commit advance, refresh the quorum commit index
+            // on `DagState` so the eviction of `pending_commit_votes` is bounded.
             // Both pending and solid sub DAGs should be added to scoring subdags.
-            self.dag_state
-                .write()
-                .add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
+            {
+                let mut dag_state = self.dag_state.write();
+                dag_state.set_last_known_quorum_commit_index(
+                    self.commit_vote_monitor.quorum_commit_index(),
+                );
+                dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
+            }
 
             committed_sub_dags.extend(subdags);
 
@@ -1178,39 +1439,105 @@ impl Core {
         info!("Last known proposed round set to {round}");
     }
 
-    /// Whether the core should propose new blocks.
+    /// Returns true when Core should propose at the current clock round. As a
+    /// side effect, when proposal is greenlit under
+    /// `consensus_block_restrictions`, refreshes `DagState`'s last-known
+    /// quorum commit index to enable eviction for commit votes
     pub(crate) fn should_propose(&self) -> bool {
-        let clock_round = self.dag_state.read().threshold_clock_round();
-        let core_skipped_proposals = &self.context.metrics.node_metrics.core_skipped_proposals;
+        let (clock_round, last_proposed_round, local_commit_index, local_commit_round) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.threshold_clock_round(),
+                dag_state.get_last_proposed_block_header().round(),
+                dag_state.last_commit_index(),
+                dag_state.last_commit_round(),
+            )
+        };
 
         if !self.quorum_subscribers_exists {
-            debug!("Skip proposing for round {clock_round}, don't have a quorum of subscribers.");
-            core_skipped_proposals
-                .with_label_values(&["no_quorum_subscriber"])
-                .inc();
-            return false;
+            return self.skip_proposal(clock_round, SkipProposalReason::NoQuorumSubscriber);
         }
 
         let Some(last_known_proposed_round) = self.last_known_proposed_round else {
-            debug!(
-                "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
-            );
-            core_skipped_proposals
-                .with_label_values(&["no_last_known_proposed_round"])
-                .inc();
-            return false;
+            return self.skip_proposal(clock_round, SkipProposalReason::NoLastKnownProposedRound);
         };
         if clock_round <= last_known_proposed_round {
-            debug!(
-                "Skip proposing for round {clock_round} as last known proposed round is {last_known_proposed_round}"
+            return self.skip_proposal(
+                clock_round,
+                SkipProposalReason::HigherLastKnownProposedRound {
+                    last_known: last_known_proposed_round,
+                },
             );
-            core_skipped_proposals
-                .with_label_values(&["higher_last_known_proposed_round"])
-                .inc();
+        }
+
+        // Silently skip when we already proposed at or above `clock_round`.
+        // This branch fires on every accepted block within the same clock round
+        if clock_round <= last_proposed_round {
             return false;
         }
 
+        // Under `consensus_block_restrictions`, skip if the candidate round
+        // does not exceed an approximation of the quorum commit round. Blocks
+        // at or below it cannot improve the commit rule.
+        if self.context.protocol_config.consensus_block_restrictions() {
+            let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+            let approx_quorum_round =
+                local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
+            if clock_round <= approx_quorum_round {
+                return self.skip_proposal(
+                    clock_round,
+                    SkipProposalReason::BehindQuorumCommitRound {
+                        approx_quorum: approx_quorum_round,
+                    },
+                );
+            }
+
+            // We are about to propose: refresh DagState's known quorum commit
+            // index so the eviction of `pending_commit_votes` is bounded.
+            self.dag_state
+                .write()
+                .set_last_known_quorum_commit_index(quorum_commit_index);
+        }
+
         true
+    }
+
+    /// Records a skipped proposal: emits the per-reason `debug!` line and
+    /// increments `core_skipped_proposals` with the matching label. Always
+    /// returns `false` so call sites can `return self.skip_proposal(...)`.
+    fn skip_proposal(&self, clock_round: Round, reason: SkipProposalReason) -> bool {
+        match reason {
+            SkipProposalReason::NoQuorumSubscriber => {
+                debug!(
+                    "Skip proposing for round {clock_round}, don't have a quorum of subscribers."
+                );
+            }
+            SkipProposalReason::NoLastKnownProposedRound => {
+                debug!(
+                    "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
+                );
+            }
+            SkipProposalReason::HigherLastKnownProposedRound { last_known } => {
+                debug!(
+                    "Skip proposing for round {clock_round} as last known proposed round is {last_known}"
+                );
+            }
+            SkipProposalReason::BehindQuorumCommitRound { approx_quorum } => {
+                debug!(
+                    "Skip proposing for round {clock_round}, behind approximate quorum commit round {approx_quorum}"
+                );
+            }
+            SkipProposalReason::BlockRateLimited => {
+                debug!("Skip proposing for round {clock_round}, block rate budget exhausted");
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .core_skipped_proposals
+            .with_label_values(&[reason.label()])
+            .inc();
+        false
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
@@ -1280,20 +1607,98 @@ impl Core {
         included_ancestors
     }
 
-    /// Checks whether the leaders of the round exist.
-    fn leaders_exist(&self, round: Round) -> bool {
-        let dag_state = self.dag_state.read();
-        for leader in self.leaders(round) {
-            // Search for all the leaders. If at least one is not found, then return false.
-            // A linear search should be fine here as the set of elements is not expected to
-            // be small enough and more sophisticated data structures might not
-            // give us much here.
-            if !dag_state.contains_cached_block_header_at_slot(leader) {
-                return false;
+    /// Builds the `StrongVote` payload for a block voting on `leader_header`:
+    /// pins the leader's authority and records the set of authorities (the
+    /// leader itself and those it acknowledges) whose transactions are not
+    /// locally available. An empty `missing` set means a strong vote; a
+    /// non-empty set means strong blame.
+    pub(crate) fn compute_strong_vote(
+        dag_state: &DagState,
+        leader_header: &VerifiedBlockHeader,
+    ) -> StrongVote {
+        let mut missing = AuthoritySet::new();
+
+        let leader_ref = leader_header.reference();
+        if !dag_state.are_transactions_available(&leader_ref) {
+            missing.insert(leader_ref.author);
+        }
+
+        for ack_ref in leader_header.acknowledgments() {
+            if !dag_state.are_transactions_available(ack_ref) {
+                missing.insert(ack_ref.author);
             }
         }
 
-        true
+        StrongVote {
+            leader_authority: leader_header.author(),
+            missing,
+        }
+    }
+
+    /// Records strong-vote complaints from each freshly-accepted block into
+    /// DagState's per-leader-round hint tables. Caller passes a write-locked
+    /// DagState. Called only when Starfish-Speed flag is on.
+    fn record_strong_vote_complaints(
+        &self,
+        dag_state: &mut DagState,
+        blocks: &[VerifiedBlockHeader],
+    ) {
+        let own_index = self.context.own_index;
+        for block in blocks {
+            // Use the producer's pinned leader (in the strong-vote payload),
+            // not the local canonical leader. The local view can disagree
+            // across schedule rotations — same misattribution surface fixed
+            // for the commit path in StarfishSpeed.
+            if !block.is_strong_blame_for(own_index) {
+                continue;
+            }
+            let leader_round = block.round().saturating_sub(1);
+            if leader_round == GENESIS_ROUND {
+                continue;
+            }
+            let Some(strong_vote) = block.strong_vote() else {
+                continue;
+            };
+            let voter = &self.context.committee.authority(block.author()).hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[voter])
+                .inc();
+            dag_state.record_strong_vote_complaint(
+                block.author(),
+                leader_round,
+                strong_vote.missing,
+            );
+        }
+    }
+
+    /// Returns true when 2f+1 stake of blocks at `voting_round` carry a strong
+    /// vote pinned to `expected_leader`. A block at round R with
+    /// `is_strong_vote` certifies the leader at R-1, so a quorum at
+    /// `voting_round` certifies `expected_leader` at `voting_round - 1`.
+    /// Strong votes whose pinned leader doesn't match are ignored.
+    fn has_strong_vote_quorum(&self, voting_round: Round, expected_leader: AuthorityIndex) -> bool {
+        let dag_state = self.dag_state.read();
+        let blocks = dag_state.get_last_cached_block_header_per_authority(voting_round + 1);
+        let mut strong_votes = StakeAggregator::<QuorumThreshold>::new();
+        for (block, _equivocating) in &blocks {
+            if block.round() == voting_round && block.is_strong_vote_for(expected_leader) {
+                strong_votes.add(block.author(), &self.context.committee);
+            }
+        }
+        strong_votes.reached_threshold(&self.context.committee)
+    }
+
+    /// Returns the leader block header for `round` if it is present in the
+    /// DAG. Starfish has exactly one leader per round, so this is either
+    /// `Some(leader_block)` or `None`.
+    fn leader_header(&self, round: Round) -> Option<VerifiedBlockHeader> {
+        let leader = self.leaders(round).into_iter().next()?;
+        self.dag_state
+            .read()
+            .get_cached_block_header_at_slot(Slot::new(round, leader.authority))
     }
 
     /// Returns the leaders of the provided round.
@@ -1315,17 +1720,7 @@ impl Core {
         if !self.context.protocol_config.consensus_fast_commit_sync() {
             return GENESIS_ROUND;
         }
-        let gc_depth = self.context.protocol_config.gc_depth();
-        let depth = if self
-            .leaders(clock_round)
-            .iter()
-            .any(|slot| slot.authority == self.context.own_index)
-        {
-            gc_depth
-        } else {
-            gc_depth.saturating_sub(1)
-        };
-        clock_round.saturating_sub(depth)
+        self.context.min_ref_round(clock_round)
     }
 
     /// Returns the 1st leader of the round.
@@ -1356,12 +1751,15 @@ pub(crate) struct CoreSignals {
 
 impl CoreSignals {
     pub fn new(context: Arc<Context>) -> (Self, CoreSignalsReceivers) {
-        // Blocks buffered in broadcast channel should be roughly equal to thosed cached
+        // Blocks buffered in broadcast channel should be roughly equal to those cached
         // in dag state, since the underlying blocks are ref counted so a lower
-        // buffer here will not reduce memory usage significantly.
-        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlock>(
-            context.parameters.dag_state_cached_rounds as usize,
-        );
+        // buffer here will not reduce memory usage significantly. The floor holds
+        // one full burst of `burst` back-to-back blocks so a freshly drained burst
+        // is not dropped before subscribers consume it.
+        let capacity = (context.parameters.dag_state_cached_rounds as usize)
+            .max(context.parameters.block_rate_burst() as usize);
+        let (tx_block_broadcast, rx_block_broadcast) =
+            broadcast::channel::<VerifiedBlock>(capacity);
         let (new_round_sender, new_round_receiver) = watch::channel(0);
 
         let me = Self {
@@ -1432,7 +1830,10 @@ impl CoreSignalsReceivers {
 /// corresponding stakes. The method returns the cores and their respective
 /// signal receivers are returned in `AuthorityIndex` order asc.
 #[cfg(test)]
-pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<CoreTextFixture> {
+pub(crate) async fn create_cores(
+    context: Context,
+    authorities: Vec<Stake>,
+) -> Vec<CoreTextFixture> {
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
@@ -1443,7 +1844,8 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
             own_index,
             false,
             false,
-        );
+        )
+        .await;
         cores.push(core);
     }
     cores
@@ -1460,7 +1862,7 @@ pub(crate) struct CoreTextFixture {
 
 #[cfg(test)]
 impl CoreTextFixture {
-    fn new(
+    async fn new(
         context: Context,
         authorities: Vec<Stake>,
         own_index: AuthorityIndex,
@@ -1478,10 +1880,10 @@ impl CoreTextFixture {
 
         let context = Arc::new(context);
         let store: Arc<dyn Store> = if !with_rocksdb {
-            Arc::new(MemStore::new(context.clone()))
+            Arc::new(MemStore::new())
         } else {
             let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-            Arc::new(RocksDBStore::new(store_path, context.clone()))
+            Arc::new(RocksDBStore::new(store_path))
         };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
@@ -1503,10 +1905,12 @@ impl CoreTextFixture {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let block_signer = signers.remove(own_index.value()).1;
 
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core = Core::new(
             context,
             leader_schedule,
@@ -1518,6 +1922,7 @@ impl CoreTextFixture {
             block_signer,
             dag_state,
             sync_last_known_own_block,
+            commit_vote_monitor,
         );
 
         Self {
@@ -1574,7 +1979,7 @@ mod test {
             .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -1631,7 +2036,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state or store.
         let last_commit = store.read_last_commit().unwrap();
@@ -1653,6 +2059,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // New round should be num_round + 1
@@ -1702,7 +2109,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
@@ -1760,7 +2167,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state & store
         let last_commit = store.read_last_commit().unwrap();
@@ -1782,6 +2190,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // Clock round should have advanced to 5 during recovery because
@@ -1833,7 +2242,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1854,7 +2263,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
         let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
@@ -1879,11 +2289,11 @@ mod test {
             }
         }
 
-        // Second set dummy acknowledgments in DagState. First 200 acknowledgments are
-        // from eligible round; the rest are from the clock round, thereby they
-        // will not be taken when creating a block
+        // Second set dummy acknowledgments in DagState. First `num_acks`
+        // acknowledgments are from an eligible round; the rest are from the
+        // clock round, thereby they will not be taken when creating a block.
         let mut acknowledgments = vec![];
-        let num_acks = 200;
+        let num_acks = 2 * context.committee.size();
         let mut num_pending_acks = 0;
         let mut rng = &mut rand::thread_rng();
         loop {
@@ -1926,6 +2336,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // Manually check the transaction commitment that is expected to be computed in
@@ -1991,7 +2402,7 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2013,7 +2424,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2026,6 +2438,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let mut expected_ancestors = BTreeSet::new();
@@ -2079,12 +2492,8 @@ mod test {
     ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
     ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
     ///      genesis/quorum-round ancestors can never be accidentally dropped.
-    ///   2. Well above `gc_depth`, the returned value is either `clock_round -
-    ///      gc_depth` (leader at `clock_round`, uses its own commit's
-    ///      `gc_round`) or `clock_round - (gc_depth - 1)` (non- leader, uses
-    ///      the tighter `gc_round` of the leader at `clock_round + 1`). These
-    ///      are the only two valid outcomes; any other value would indicate a
-    ///      regression in the leader-awareness or the depth arithmetic.
+    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth`
+    ///      (matching `Context::min_ref_round` and the verifier's bound).
     ///   3. When the `consensus_fast_commit_sync` protocol flag is off the
     ///      helper returns `GENESIS_ROUND = 0` unconditionally — the filter
     ///      becomes a no-op, preserving backwards compatibility on networks
@@ -2105,7 +2514,8 @@ mod test {
             AuthorityIndex::new_for_test(0),
             false,
             false,
-        );
+        )
+        .await;
         let core = &fixture.core;
 
         // (1) saturating_sub clamps small clock_rounds to 0.
@@ -2117,38 +2527,14 @@ mod test {
             );
         }
 
-        // (2) Well above gc_depth, the value is either the leader bound
-        // (clock_round - gc_depth) or the non-leader bound
-        // (clock_round - (gc_depth - 1)). We sample multiple rounds to
-        // cover both leader and non-leader cases given an arbitrary schedule.
-        let leader_bound = |r: Round| r - gc_depth;
-        let non_leader_bound = |r: Round| r - (gc_depth - 1);
-        let mut saw_leader = false;
-        let mut saw_non_leader = false;
+        // (2) Well above gc_depth, the value is exactly clock_round - gc_depth.
         for clock_round in (gc_depth + 2)..(gc_depth + 20) {
-            let got = core.min_ancestor_round(clock_round);
-            let l = leader_bound(clock_round);
-            let nl = non_leader_bound(clock_round);
-            assert!(
-                got == l || got == nl,
-                "min_ancestor_round({clock_round}) = {got}; \
-                 expected leader={l} or non-leader={nl} (gc_depth={gc_depth})"
+            assert_eq!(
+                core.min_ancestor_round(clock_round),
+                clock_round - gc_depth,
+                "min_ancestor_round({clock_round}) should be clock_round - gc_depth (gc_depth={gc_depth})",
             );
-            if got == l {
-                saw_leader = true;
-            }
-            if got == nl {
-                saw_non_leader = true;
-            }
         }
-        // Over a window of ~gc_depth rounds we expect the leader schedule to
-        // put us in both the leader and non-leader position at least once.
-        assert!(
-            saw_leader && saw_non_leader,
-            "expected to observe both leader (gc_depth) and non-leader \
-             (gc_depth - 1) bounds over the sampled range; \
-             saw_leader={saw_leader}, saw_non_leader={saw_non_leader}",
-        );
 
         // (3) Flag off → no-op. Build a fresh fixture with the flag disabled
         // and confirm the helper returns GENESIS_ROUND for a round well
@@ -2163,7 +2549,8 @@ mod test {
             AuthorityIndex::new_for_test(0),
             false,
             false,
-        );
+        )
+        .await;
         assert_eq!(
             fixture_off.core.min_ancestor_round(1000),
             GENESIS_ROUND,
@@ -2180,7 +2567,7 @@ mod test {
             ..Default::default()
         }));
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2202,7 +2589,8 @@ mod test {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2215,6 +2603,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state,
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // No new block should have been produced
@@ -2297,7 +2686,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // Create the cores for all authorities
-        let mut all_cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut all_cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Create blocks for rounds 1..=3 from all Cores except last Core of authority
         // 3, so we miss the block from it. As it will be the leader of round 3
@@ -2396,7 +2785,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2418,7 +2807,8 @@ mod test {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2432,6 +2822,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state,
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // There is no proposal during recovery because there is no subscriber.
@@ -2466,7 +2857,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -2584,12 +2975,15 @@ mod test {
     }
 
     #[rstest]
+    #[case(true, true)]
+    #[case(true, false)]
+    #[case(false, false)]
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers(
-        #[values((true, true), (true, false), (false, false))] params: (bool, bool),
+        #[case] commit_only_for_traversed_headers: bool,
+        #[case] consensus_fast_commit_sync: bool,
     ) {
-        let (commit_only_for_traversed_headers, consensus_fast_commit_sync) = params;
         test_sequenced_transactions_no_headers_impl(
             commit_only_for_traversed_headers,
             consensus_fast_commit_sync,
@@ -2629,7 +3023,8 @@ mod test {
             own_index,
             true,
             false,
-        );
+        )
+        .await;
         // create a DAG of 2*gc_depth rounds
         let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
         let gc_depth = context.protocol_config.gc_depth();
@@ -2646,7 +3041,8 @@ mod test {
             catch_up_index,
             true,
             true,
-        );
+        )
+        .await;
         let active_authorities = (0..(committee_size - 1) as u8)
             .map(AuthorityIndex::new_for_test)
             .collect::<Vec<_>>();
@@ -2678,7 +3074,12 @@ mod test {
         // Record traversed headers and sequenced transactions
         while let Some(sub_dag) = commit_receiver_own.recv().await {
             let sub_dag_leader_round = sub_dag.leader.round;
-            let CommittedSubDag { base, transactions } = sub_dag;
+            let CommittedSubDag {
+                base,
+                transactions,
+                misbehavior_counts,
+            } = sub_dag;
+            assert_eq!(misbehavior_counts.len(), committee_size);
 
             for block_ref in &base.committed_header_refs {
                 existing_headers.insert(*block_ref);
@@ -2839,7 +3240,8 @@ mod test {
         });
 
         let authority_index = AuthorityIndex::new_for_test(0);
-        let core = CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false);
+        let core =
+            CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false).await;
         let store = core.store.clone();
         let mut core = core.core;
 
@@ -2935,7 +3337,7 @@ mod test {
         let (context, _) = Context::new_for_test(6);
 
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -3065,7 +3467,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -3158,7 +3560,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         let mut last_round_block_headers = Vec::new();
         let mut all_block_headers = Vec::new();
@@ -3263,7 +3665,7 @@ mod test {
 
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -3326,7 +3728,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state or store.
         let last_commit = store.read_last_commit().unwrap();
@@ -3348,6 +3751,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let last_commit = store
@@ -3383,9 +3787,8 @@ mod test {
                     }
                 }
                 _ = tokio::time::sleep(timeout_duration) => {
-                    panic!("Test timed out after {:?}. Received {}/{} notifications. \
-                           This suggests notifications are not being sent properly.",
-                           timeout_duration, received_notifications, expected_notifications);
+                    panic!("Test timed out after {timeout_duration:?}. Received {received_notifications}/{expected_notifications} notifications. \
+                           This suggests notifications are not being sent properly.");
                 }
             }
         }
@@ -3393,8 +3796,150 @@ mod test {
         // Verify we got all expected notifications
         assert_eq!(
             received_notifications, expected_notifications,
-            "Expected {} notifications but only received {}",
-            expected_notifications, received_notifications
+            "Expected {expected_notifications} notifications but only received {received_notifications}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_compute_strong_vote() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context, store)));
+
+        // Round-1 ack targets at authorities 2 and 3.
+        let r1_a2 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
+        let r1_a3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 3).build());
+
+        // Leader at round=2, author=1, acknowledging the two round-1 blocks.
+        let leader = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, 1)
+                .set_acknowledgments(vec![r1_a2.reference(), r1_a3.reference()])
+                .build(),
+        );
+
+        let add_data_for = |block: &VerifiedBlock| {
+            let mut s = dag_state.write();
+            s.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
+            s.add_transactions(block.verified_transactions.clone(), DataSource::Test);
+        };
+
+        let a1 = AuthorityIndex::new_for_test(1);
+        let a2 = AuthorityIndex::new_for_test(2);
+        let a3 = AuthorityIndex::new_for_test(3);
+
+        // Empty DagState: leader and both acks are missing.
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.contains(a1));
+            assert!(sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 3);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // Leader and ack at author 2 present; ack at author 3 still missing.
+        add_data_for(&leader);
+        add_data_for(&r1_a2);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(!sv.missing.contains(a1));
+            assert!(!sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 1);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // All data present: empty missing, strong vote.
+        add_data_for(&r1_a3);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.is_empty());
+            assert!(sv.is_strong_vote());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_has_strong_vote_quorum() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let fixture = CoreTextFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+        )
+        .await;
+
+        let leader = AuthorityIndex::new_for_test(1);
+        let strong_vote = StrongVote {
+            leader_authority: leader,
+            missing: AuthoritySet::new(),
+        };
+        let mut blame_missing = AuthoritySet::new();
+        blame_missing.insert(AuthorityIndex::new_for_test(3));
+        let strong_blame = StrongVote {
+            leader_authority: leader,
+            missing: blame_missing,
+        };
+
+        let add_block = |round: Round, author: u8, sv: StrongVote| {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author)
+                    .set_strong_vote(Some(sv))
+                    .build(),
+            );
+            fixture
+                .core
+                .dag_state
+                .write()
+                .accept_block_header(header, DataSource::Test);
+        };
+
+        // Empty DagState at round 5 -> no quorum.
+        assert!(!fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 3 strong votes for `leader` at round 5 -> quorum.
+        for author in [0u8, 1, 2] {
+            add_block(5, author, strong_vote);
+        }
+        assert!(fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 2 strong votes for `leader` at round 6 -> below quorum.
+        for author in [0u8, 1] {
+            add_block(6, author, strong_vote);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(6, leader));
+
+        // 2 strong votes + 1 strong blame for `leader` at round 7 -> below
+        // quorum (blame does not count as vote).
+        add_block(7, 0, strong_vote);
+        add_block(7, 1, strong_vote);
+        add_block(7, 2, strong_blame);
+        assert!(!fixture.core.has_strong_vote_quorum(7, leader));
+
+        // 3 strong votes at round 8 pinned to a different leader -> the
+        // pinning filter rejects them and the quorum check returns false.
+        let other = AuthorityIndex::new_for_test(2);
+        let strong_vote_other = StrongVote {
+            leader_authority: other,
+            missing: AuthoritySet::new(),
+        };
+        for author in [0u8, 1, 2] {
+            add_block(8, author, strong_vote_other);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(8, leader));
     }
 }

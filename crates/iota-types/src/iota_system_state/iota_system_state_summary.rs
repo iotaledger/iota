@@ -5,12 +5,13 @@
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
-    base_types::{AuthorityName, IotaAddress, ObjectID},
+    base_types::AuthorityName,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::NetworkPublicKey,
     dynamic_field::get_dynamic_field_from_store,
@@ -53,7 +54,7 @@ pub struct IotaSystemStateSummaryV1 {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
-    pub iota_treasury_cap_id: ObjectID,
+    pub iota_treasury_cap_id: ObjectId,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -135,7 +136,7 @@ pub struct IotaSystemStateSummaryV1 {
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
     /// at the end of the epoch.
-    pub pending_active_validators_id: ObjectID,
+    pub pending_active_validators_id: ObjectId,
     /// Number of new validators that will join at the end of the epoch.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub pending_active_validators_size: u64,
@@ -145,28 +146,28 @@ pub struct IotaSystemStateSummaryV1 {
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
-    pub staking_pool_mappings_id: ObjectID,
+    pub staking_pool_mappings_id: ObjectId,
     /// Number of staking pool mappings.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
-    pub inactive_pools_id: ObjectID,
+    pub inactive_pools_id: ObjectId,
     /// Number of inactive staking pools.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
-    pub validator_candidates_id: ObjectID,
+    pub validator_candidates_id: ObjectId,
     /// Number of preactive validators.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 /// This is a flattened summary of the
@@ -190,7 +191,7 @@ pub struct IotaSystemStateSummaryV2 {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
-    pub iota_treasury_cap_id: ObjectID,
+    pub iota_treasury_cap_id: ObjectId,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -279,7 +280,7 @@ pub struct IotaSystemStateSummaryV2 {
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
     /// at the end of the epoch.
-    pub pending_active_validators_id: ObjectID,
+    pub pending_active_validators_id: ObjectId,
     /// Number of new validators that will join at the end of the epoch.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub pending_active_validators_size: u64,
@@ -289,28 +290,28 @@ pub struct IotaSystemStateSummaryV2 {
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
-    pub staking_pool_mappings_id: ObjectID,
+    pub staking_pool_mappings_id: ObjectId,
     /// Number of staking pool mappings.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
-    pub inactive_pools_id: ObjectID,
+    pub inactive_pools_id: ObjectId,
     /// Number of inactive staking pools.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
-    pub validator_candidates_id: ObjectID,
+    pub validator_candidates_id: ObjectId,
     /// Number of preactive validators.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 /// Access common fields of the inner variants wrapped by
@@ -366,7 +367,7 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, iota_total_supply)
     }
 
-    pub fn iota_treasury_cap_id(&self) -> ObjectID {
+    pub fn iota_treasury_cap_id(&self) -> ObjectId {
         *state_summary_get!(self, iota_treasury_cap_id)
     }
 
@@ -452,7 +453,7 @@ impl IotaSystemStateSummary {
         state_summary_get!(self, active_validators)
     }
 
-    pub fn pending_active_validators_id(&self) -> ObjectID {
+    pub fn pending_active_validators_id(&self) -> ObjectId {
         *state_summary_get!(self, pending_active_validators_id)
     }
 
@@ -464,7 +465,7 @@ impl IotaSystemStateSummary {
         state_summary_get!(self, pending_removals)
     }
 
-    pub fn staking_pool_mappings_id(&self) -> ObjectID {
+    pub fn staking_pool_mappings_id(&self) -> ObjectId {
         *state_summary_get!(self, staking_pool_mappings_id)
     }
 
@@ -472,7 +473,7 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, staking_pool_mappings_size)
     }
 
-    pub fn inactive_pools_id(&self) -> ObjectID {
+    pub fn inactive_pools_id(&self) -> ObjectId {
         *state_summary_get!(self, inactive_pools_id)
     }
 
@@ -480,7 +481,7 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, inactive_pools_size)
     }
 
-    pub fn validator_candidates_id(&self) -> ObjectID {
+    pub fn validator_candidates_id(&self) -> ObjectId {
         *state_summary_get!(self, validator_candidates_id)
     }
 
@@ -488,11 +489,11 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, validator_candidates_size)
     }
 
-    pub fn at_risk_validators(&self) -> &[(IotaAddress, u64)] {
+    pub fn at_risk_validators(&self) -> &[(Address, u64)] {
         state_summary_get!(self, at_risk_validators)
     }
 
-    pub fn validator_report_records(&self) -> &[(IotaAddress, Vec<IotaAddress>)] {
+    pub fn validator_report_records(&self) -> &[(Address, Vec<Address>)] {
         state_summary_get!(self, validator_report_records)
     }
 
@@ -792,7 +793,7 @@ impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
 #[serde(rename_all = "camelCase")]
 pub struct IotaValidatorSummary {
     // Metadata
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     #[serde_as(as = "Base64")]
     pub authority_pubkey_bytes: Vec<u8>,
     #[serde_as(as = "Base64")]
@@ -822,7 +823,7 @@ pub struct IotaValidatorSummary {
 
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub voting_power: u64,
-    pub operation_cap_id: ObjectID,
+    pub operation_cap_id: ObjectId,
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub gas_price: u64,
     /// The fee set by the validator for providing staking services.
@@ -846,7 +847,7 @@ pub struct IotaValidatorSummary {
 
     // Staking pool information
     /// ID of the staking pool object.
-    pub staking_pool_id: ObjectID,
+    pub staking_pool_id: ObjectId,
     /// The epoch at which this pool became active.
     #[serde_as(as = "Option<Readable<BigInt<u64>, _>>")]
     pub staking_pool_activation_epoch: Option<u64>,
@@ -875,7 +876,7 @@ pub struct IotaValidatorSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub pending_pool_token_withdraw: u64,
     /// ID of the exchange rate table object.
-    pub exchange_rates_id: ObjectID,
+    pub exchange_rates_id: ObjectId,
     /// Number of exchange rates in the table.
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub exchange_rates_size: u64,
@@ -888,7 +889,7 @@ impl Default for IotaSystemStateSummaryV2 {
             protocol_version: 1,
             system_state_version: 1,
             iota_total_supply: 0,
-            iota_treasury_cap_id: ObjectID::ZERO,
+            iota_treasury_cap_id: ObjectId::ZERO,
             storage_fund_total_object_storage_rebates: 0,
             storage_fund_non_refundable_balance: 0,
             reference_gas_price: 1,
@@ -909,14 +910,14 @@ impl Default for IotaSystemStateSummaryV2 {
             total_stake: 0,
             committee_members: vec![],
             active_validators: vec![],
-            pending_active_validators_id: ObjectID::ZERO,
+            pending_active_validators_id: ObjectId::ZERO,
             pending_active_validators_size: 0,
             pending_removals: vec![],
-            staking_pool_mappings_id: ObjectID::ZERO,
+            staking_pool_mappings_id: ObjectId::ZERO,
             staking_pool_mappings_size: 0,
-            inactive_pools_id: ObjectID::ZERO,
+            inactive_pools_id: ObjectId::ZERO,
             inactive_pools_size: 0,
-            validator_candidates_id: ObjectID::ZERO,
+            validator_candidates_id: ObjectId::ZERO,
             validator_candidates_size: 0,
             at_risk_validators: vec![],
             validator_report_records: vec![],
@@ -933,7 +934,7 @@ impl Default for IotaSystemStateSummary {
 impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
-            iota_address: IotaAddress::ZERO,
+            iota_address: Address::ZERO,
             authority_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
             protocol_pubkey_bytes: vec![],
@@ -953,14 +954,14 @@ impl Default for IotaValidatorSummary {
             next_epoch_p2p_address: None,
             next_epoch_primary_address: None,
             voting_power: 0,
-            operation_cap_id: ObjectID::ZERO,
+            operation_cap_id: ObjectId::ZERO,
             gas_price: 0,
             commission_rate: 0,
             effective_commission_rate: None,
             next_epoch_stake: 0,
             next_epoch_gas_price: 0,
             next_epoch_commission_rate: 0,
-            staking_pool_id: ObjectID::ZERO,
+            staking_pool_id: ObjectId::ZERO,
             staking_pool_activation_epoch: None,
             staking_pool_deactivation_epoch: None,
             staking_pool_iota_balance: 0,
@@ -969,7 +970,7 @@ impl Default for IotaValidatorSummary {
             pending_stake: 0,
             pending_total_iota_withdraw: 0,
             pending_pool_token_withdraw: 0,
-            exchange_rates_id: ObjectID::ZERO,
+            exchange_rates_id: ObjectId::ZERO,
             exchange_rates_size: 0,
         }
     }
@@ -982,7 +983,7 @@ pub fn get_validator_by_pool_id<S>(
     object_store: &S,
     system_state: &IotaSystemState,
     system_state_summary: &IotaSystemStateSummary,
-    pool_id: ObjectID,
+    pool_id: ObjectId,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
     S: ObjectStore + ?Sized,
@@ -1001,7 +1002,7 @@ fn get_validator_by_pool_id_v1<S>(
     object_store: &S,
     system_state: &IotaSystemState,
     system_state_summary: &IotaSystemStateSummaryV1,
-    pool_id: ObjectID,
+    pool_id: ObjectId,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
     S: ObjectStore + ?Sized,
@@ -1033,7 +1034,7 @@ where
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
-    let candidate_address: IotaAddress = get_dynamic_field_from_store(
+    let candidate_address: Address = get_dynamic_field_from_store(
         &object_store,
         system_state_summary.staking_pool_mappings_id,
         &ID::new(pool_id),
@@ -1056,7 +1057,7 @@ fn get_validator_by_pool_id_v2<S>(
     object_store: &S,
     system_state: &IotaSystemState,
     system_state_summary: &IotaSystemStateSummaryV2,
-    pool_id: ObjectID,
+    pool_id: ObjectId,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
     S: ObjectStore + ?Sized,
@@ -1088,7 +1089,7 @@ where
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
-    let candidate_address: IotaAddress = get_dynamic_field_from_store(
+    let candidate_address: Address = get_dynamic_field_from_store(
         &object_store,
         system_state_summary.staking_pool_mappings_id,
         &ID::new(pool_id),

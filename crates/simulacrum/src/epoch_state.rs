@@ -10,8 +10,8 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::ObjectID,
     committee::{Committee, EpochId},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -24,7 +24,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -113,7 +113,7 @@ impl EpochState {
         let input_object_kinds = tx_data.input_objects()?;
         let receiving_object_refs = tx_data.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             tx_data,
             transaction.tx_signatures(),
             &input_object_kinds,
@@ -187,7 +187,7 @@ impl EpochState {
         let receiving_object_refs = transaction.receiving_objects();
 
         // Check if some transaction elements are denied
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -207,11 +207,11 @@ impl EpochState {
         const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
         let mock_gas_id = if transaction.gas().is_empty() {
             let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(1.into(), ObjectID::MAX, SIMULATION_GAS_COIN_VALUE),
+                MoveObject::new_gas_coin(1.into(), ObjectId::MAX, SIMULATION_GAS_COIN_VALUE),
                 Owner::Address(transaction.gas_data().owner),
                 TransactionDigest::GENESIS_MARKER,
             );
-            let mock_gas_object_ref = mock_gas_object.compute_object_reference();
+            let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
             Some(mock_gas_object.id())

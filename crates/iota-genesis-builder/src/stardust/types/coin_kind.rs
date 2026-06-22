@@ -50,11 +50,12 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Address, ObjectId, Owner};
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, ObjectID, TxContext},
+        base_types::TxContext,
         id::UID,
-        object::{Object, Owner},
+        object::Object,
         stardust::{
             coin_type::CoinType,
             output::{AliasOutput, BasicOutput, NftOutput},
@@ -69,7 +70,7 @@ mod tests {
     };
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = NftOutput {
             id,
@@ -80,7 +81,7 @@ mod tests {
             expiration: Default::default(),
         };
         output.to_genesis_object(
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -103,7 +104,7 @@ mod tests {
     }
 
     fn alias_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = AliasOutput {
             id,
@@ -111,7 +112,7 @@ mod tests {
             native_tokens: Default::default(),
         };
         output.to_genesis_object(
-            Owner::Address(IotaAddress::ZERO),
+            Owner::Address(Address::ZERO),
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -134,7 +135,7 @@ mod tests {
     }
 
     fn basic_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = BasicOutput {
             id,
@@ -148,7 +149,7 @@ mod tests {
             sender: Default::default(),
         };
         output.to_genesis_object(
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -171,7 +172,7 @@ mod tests {
     }
 
     fn timelock(balance: u64) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let expiration_timestamp_ms = 10;
         let label = None;
@@ -179,7 +180,7 @@ mod tests {
         let timelock = TimeLock::new(id, balance, expiration_timestamp_ms, label);
         Ok(to_genesis_object(
             timelock,
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),

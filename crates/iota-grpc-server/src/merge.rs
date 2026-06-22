@@ -318,7 +318,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id());
+                    ref_builder = ref_builder.with_object_id(source.id());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
@@ -333,7 +333,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id())
+                    .with_object_id(source.id())
                     .with_version(source.version().as_u64())
                     .with_digest(source.digest())
             };
@@ -580,27 +580,16 @@ impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
         source: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        // Convert iota_types to iota_sdk_types types for external compatibility
-        let sdk_effects: iota_sdk_types::TransactionEffects =
-            source.try_into().map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert effects")
-            })?;
-
-        Merge::merge(self, &sdk_effects, mask)
+        Merge::merge(self, &source, mask)
     }
 }
 
-impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
+impl Merge<&iota_types::effects::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEffects,
+        source: &iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Set digest if requested
@@ -634,18 +623,6 @@ impl Merge<&TransactionEffects> for TransactionEffects {
         }
 
         Ok(())
-    }
-}
-
-impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: iota_types::effects::TransactionEvents,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.data), mask)
     }
 }
 

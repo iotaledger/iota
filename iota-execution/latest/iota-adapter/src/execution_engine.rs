@@ -16,6 +16,11 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
+    use iota_sdk_types::{
+        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
+        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+    };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -23,19 +28,16 @@ mod checked {
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
-        auth_context::AuthContext,
+        auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{
-            Identifier, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
-        },
+        base_types::{SequenceNumber, TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        execution_status::ExecutionStatus,
-        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
+        gas::{IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
@@ -47,10 +49,8 @@ mod checked {
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-            CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
-            InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
-            SystemPackage, TransactionKind, TransactionKindExt,
+            CallArg, CheckedInputObjects, GasData, InputObjects, SharedObjectRef, SystemPackage,
+            TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -85,7 +85,7 @@ mod checked {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -175,13 +175,13 @@ mod checked {
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
         tx_ctx: Rc<RefCell<TxContext>>,
-        mutable_inputs: &HashSet<ObjectID>,
+        mutable_inputs: &HashSet<ObjectId>,
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -312,9 +312,9 @@ mod checked {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -437,7 +437,7 @@ mod checked {
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
-                            transaction_data_bytes.clone(),
+                            auth_context_data.clone(),
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -502,9 +502,9 @@ mod checked {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -557,7 +557,7 @@ mod checked {
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
-                            transaction_data_bytes.clone(),
+                            auth_context_data.clone(),
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -592,7 +592,7 @@ mod checked {
         // Transaction
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
-        tx_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         tx_ctx: Rc<RefCell<TxContext>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -627,7 +627,19 @@ mod checked {
             let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
+            AuthContext::new_from_components(
+                authenticator.digest(),
+                auth_context_data.sender_auth_digest,
+                auth_context_data.sponsor_auth_digest,
+                auth_context_data
+                    .sender_authenticator_function_ref
+                    .and_then(Into::into),
+                auth_context_data
+                    .sponsor_authenticator_function_ref
+                    .and_then(Into::into),
+                ptb,
+                auth_context_data.transaction_data_bytes,
+            )
         };
         let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 
@@ -692,7 +704,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -780,7 +792,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1034,7 +1046,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1359,7 +1371,7 @@ mod checked {
             .input(CallArg::pure(&params.storage_charge))
             .unwrap();
         let storage_charges = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1371,7 +1383,7 @@ mod checked {
             .input(CallArg::pure(&params.computation_charge))
             .unwrap();
         let computation_charges = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1417,7 +1429,7 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            ObjectID::SYSTEM,
+            ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
             ADVANCE_EPOCH_FUNCTION_NAME,
             vec![],
@@ -1426,7 +1438,7 @@ mod checked {
 
         // Step 3: Destroy the storage rebates.
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1834,10 +1846,7 @@ mod checked {
                     tx_ctx.borrow().digest(),
                 );
 
-                info!(
-                    "upgraded system package {:?}",
-                    new_package.compute_object_reference()
-                );
+                info!("upgraded system package {:?}", new_package.object_ref());
 
                 // Decrement the version before writing the package so that the store can record
                 // the version growing by one in the effects.
@@ -1872,7 +1881,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::CLOCK_MODULE,
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
@@ -1917,16 +1926,16 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::RANDOM_MODULE,
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        initial_shared_version: update.randomness_obj_initial_shared_version,
-                        mutable: true,
-                    }),
+                    CallArg::Shared(SharedObjectRef::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        update.randomness_obj_initial_shared_version,
+                        true,
+                    )),
                     CallArg::pure(&update.randomness_round),
                     CallArg::pure(&update.random_bytes),
                 ],
@@ -1984,10 +1993,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(
-        gas_data: &GasData,
-        transaction_signer: &IotaAddress,
-    ) -> Option<IotaAddress> {
+    fn resolve_sponsor(gas_data: &GasData, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None

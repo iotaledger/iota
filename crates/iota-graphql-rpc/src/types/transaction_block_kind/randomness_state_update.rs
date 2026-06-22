@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::transaction::RandomnessStateUpdate as NativeRandomnessStateUpdate;
+use iota_sdk_types::RandomnessStateUpdate as NativeRandomnessStateUpdate;
 
 use crate::types::{base64::Base64, epoch::Epoch, uint53::UInt53};
 

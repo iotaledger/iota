@@ -204,6 +204,10 @@ address:
   label: Address
   description: Identifier for a wallet.
 
+account-abstraction:
+  label: Account Abstraction
+  description: Account Abstraction.
+
 api:
   label: API
   description: Application Programming Interface.
@@ -321,6 +325,14 @@ node-operation:
   label: Node Operation
   description: Node Operation
 
+indexer-operation:
+  label: Indexer Operation
+  description: Indexer Operation
+
+extended-data-services:
+  label: Extended Data Services
+  description: Extended Data Services (Indexer, JSON-RPC, GraphQL) operated independently of a full node.
+
 infrastructure:
   label: Infrastructure
   description: Infrastructure
@@ -333,7 +345,15 @@ hierarchies:
 # Notarization
 notarization:
   label: Notarization
-  description: The IOTA Notarization API.
+  description: The IOTA Notarization Toolkit providing Single Notarization and Audit Trails.
+
+single-notarization:
+  label: Single Notarization
+  description: Locked or Dynamic Notarizations of arbitrary data, documents, hashes, or latest-state records.
+
+audit-trails:
+  label: Audit Trails
+  description: The solution for tamper-proof, chronological records on IOTA.
 
 dynamic-notarization:
   label: Dynamic Notarization

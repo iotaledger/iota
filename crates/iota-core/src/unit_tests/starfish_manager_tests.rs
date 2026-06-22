@@ -54,7 +54,7 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
         3,
         100_000,
     );
-    checkpoint_service.spawn().now_or_never().unwrap();
+    checkpoint_service.spawn(None).now_or_never().unwrap();
     checkpoint_service
 }
 
@@ -174,6 +174,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 
     let consensus_handler = ConsensusHandler::new(
         epoch_store.clone(),
+        state.clone(),
         checkpoint_service_for_testing(state.clone()),
         state.transaction_manager().clone(),
         state.get_object_cache_reader().clone(),
@@ -200,6 +201,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
                 vec![],
                 1000 + commit_idx * 1000,
                 StarfishCommitRef::new(commit_idx as u32, StarfishCommitDigest::MIN),
+                vec![],
                 vec![],
             )
         })
@@ -234,7 +236,6 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
     let highest_handled = commit_consumer_monitor.highest_handled_commit();
     assert_eq!(
         highest_handled, 10,
-        "Expected highest handled commit to be 10, got {}",
-        highest_handled
+        "Expected highest handled commit to be 10, got {highest_handled}"
     );
 }

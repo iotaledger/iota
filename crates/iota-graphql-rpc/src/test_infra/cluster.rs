@@ -5,11 +5,10 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
     config::PruningOptions,
     errors::IndexerError,
-    store::{PgIndexerStore, indexer_store::IndexerStore},
+    store::PgIndexerStore,
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_node_storage::GrpcStateReader;
@@ -38,7 +37,6 @@ pub struct ExecutorCluster {
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
     pub graphql_client: SimpleClient,
-    pub snapshot_config: SnapshotLagConfig,
     pub graphql_connection_config: ConnectionConfig,
     pub cancellation_token: CancellationToken,
 }
@@ -74,7 +72,7 @@ pub async fn start_cluster(
         true,
         None,
         grpc_url.clone(),
-        IndexerTypeConfig::writer_mode(None, None),
+        IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -118,7 +116,6 @@ pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
     _executor: Arc<dyn GrpcStateReader + Send + Sync>,
-    snapshot_config: Option<SnapshotLagConfig>,
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
 ) -> ExecutorCluster {
@@ -140,13 +137,10 @@ pub async fn serve_executor(
         true,
         None,
         format!("http://{executor_server_url}"),
-        IndexerTypeConfig::writer_mode(
-            snapshot_config.clone(),
-            Some(PruningOptions {
-                epochs_to_keep,
-                ..Default::default()
-            }),
-        ),
+        IndexerTypeConfig::writer_mode(Some(PruningOptions {
+            epochs_to_keep,
+            ..Default::default()
+        })),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -176,7 +170,6 @@ pub async fn serve_executor(
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
         graphql_client: client,
-        snapshot_config: snapshot_config.unwrap_or_default(),
         graphql_connection_config,
         cancellation_token,
     }
@@ -380,36 +373,6 @@ impl ExecutorCluster {
     /// Waits for the indexer to prune a given checkpoint.
     pub async fn wait_for_checkpoint_pruned(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
-    }
-
-    /// The ObjectsSnapshotProcessor is a long-running task that periodically
-    /// takes a snapshot of the objects table. This leads to flakiness in
-    /// tests, so we wait until the objects_snapshot has reached the
-    /// expected state.
-    pub async fn wait_for_objects_snapshot_catchup(&self, base_timeout: Duration) {
-        let mut latest_snapshot_cp = 0;
-
-        let latest_cp = self
-            .indexer_store
-            .get_latest_checkpoint_sequence_number()
-            .await
-            .unwrap()
-            .unwrap();
-
-        tokio::time::timeout(base_timeout, async {
-            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_min_lag as u64 {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                latest_snapshot_cp = self
-                    .indexer_store
-                    .get_latest_object_snapshot_watermark()
-                    .await
-                    .unwrap()
-                    .map(|watermark| watermark.max_committed_cp)
-                    .unwrap_or_default();
-            }
-        })
-        .await
-        .unwrap_or_else(|_| panic!("timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
     }
 
     /// Sends a cancellation signal to the graphql and indexer services, waits

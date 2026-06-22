@@ -59,7 +59,7 @@ fn new_rocksdb_teststore(consensus_fast_commit_sync: bool) -> TestStore {
     context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
-        RocksDBStore::new(temp_dir.path().to_str().unwrap(), Arc::new(context)),
+        RocksDBStore::new(temp_dir.path().to_str().unwrap()),
         temp_dir,
         consensus_fast_commit_sync,
     ))
@@ -71,10 +71,7 @@ fn new_mem_teststore(consensus_fast_commit_sync: bool) -> TestStore {
         .protocol_config
         .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
     context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-    TestStore::Mem(
-        MemStore::new(Arc::from(context.clone())),
-        consensus_fast_commit_sync,
-    )
+    TestStore::Mem(MemStore::new(), consensus_fast_commit_sync)
 }
 
 #[rstest]
@@ -281,7 +278,7 @@ async fn scan_block_headers(
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
                 ),
-            context,
+            context.clone(),
         )
         .unwrap();
     {
@@ -303,7 +300,7 @@ async fn scan_block_headers(
 
     {
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None, context.clone())
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
         assert_eq!(
@@ -312,7 +309,7 @@ async fn scan_block_headers(
         );
 
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None, context)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 0);
     }
@@ -757,4 +754,72 @@ async fn test_read_highest_commit_index_with_votes(
         Some(10),
         "Should find highest votes at index 10 even when searching up to 1000"
     );
+}
+
+#[rstest]
+#[tokio::test]
+async fn scan_misbehavior_counts(
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
+) {
+    use std::collections::BTreeMap;
+
+    use crate::misbehavior_store::MisbehaviorCounts;
+
+    let store = test_store.store();
+
+    // A fresh store should return an empty scan.
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
+    assert!(scanned.is_empty());
+
+    let metrics_updates = [
+        MisbehaviorCounts::new_v1_for_test(1, 2, 4, 3),
+        MisbehaviorCounts::new_v1_for_test(0, 0, 0, 0),
+    ];
+    let authorities = [
+        AuthorityIndex::new_for_test(0),
+        AuthorityIndex::new_for_test(1),
+    ];
+
+    // Write metrics for two authorities and verify scan returns them.
+    let metrics_to_write: BTreeMap<_, _> = [
+        (authorities[0], metrics_updates[0].clone()),
+        (authorities[1], metrics_updates[1].clone()),
+    ]
+    .into_iter()
+    .collect();
+    store
+        .write(
+            WriteBatch::default().misbehavior_counts(metrics_to_write.clone()),
+            test_store.context(),
+        )
+        .unwrap();
+
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
+    assert_eq!(scanned, metrics_to_write);
+
+    // Overwrite authority 0 with zeroed metrics; authority 1 stays unchanged.
+    let overwrite: BTreeMap<_, _> = [(authorities[0], metrics_updates[1].clone())]
+        .into_iter()
+        .collect();
+    store
+        .write(
+            WriteBatch::default().misbehavior_counts(overwrite),
+            test_store.context(),
+        )
+        .unwrap();
+
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
+    let expected: BTreeMap<_, _> = [
+        (authorities[0], metrics_updates[1].clone()),
+        (authorities[1], metrics_updates[1].clone()),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(scanned, expected);
 }

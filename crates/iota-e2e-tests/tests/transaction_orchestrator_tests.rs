@@ -8,6 +8,7 @@ use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
+use iota_sdk_types::TransactionExpiration;
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -17,13 +18,13 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     base_types::ObjectRef,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
     },
-    transaction::{Transaction, TransactionDataAPI, TransactionExpiration},
+    transaction::{Transaction, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;

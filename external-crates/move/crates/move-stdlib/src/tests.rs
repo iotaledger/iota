@@ -11,6 +11,16 @@ use walkdir::{DirEntry, WalkDir};
 
 #[test]
 fn check_that_docs_are_updated() {
+    // When UPDATE=1, regenerate the checked-in docs directly. Otherwise,
+    // regenerate into a temp dir and diff against the checked-in copy.
+    if std::env::var_os("UPDATE").is_some() {
+        let out = crate::move_stdlib_docs_full_path();
+        let _ = std::fs::remove_dir_all(&out);
+        std::fs::create_dir_all(&out).unwrap();
+        crate::build_stdlib_doc(out).unwrap();
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
 
     crate::build_stdlib_doc(temp_dir.path().to_string_lossy().to_string()).unwrap();

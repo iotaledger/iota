@@ -5,11 +5,13 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
-    base_types::{IotaAddress, TxContext},
+    auth_context::AuthContextData,
+    base_types::TxContext,
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -21,7 +23,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -45,7 +47,7 @@ pub trait Executor {
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -73,7 +75,7 @@ pub trait Executor {
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (
@@ -106,10 +108,10 @@ pub trait Executor {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -140,10 +142,10 @@ pub trait Executor {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

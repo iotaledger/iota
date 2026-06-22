@@ -4,6 +4,7 @@
 
 //! Types and logic to interact with the db.
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
@@ -18,7 +19,7 @@ use diesel::{
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
-    sql_types::{BigInt, Bool},
+    sql_types::{BigInt, Bool, Bytea},
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use futures::FutureExt;
@@ -30,10 +31,11 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
@@ -81,8 +83,8 @@ use crate::{
     pruning::watermark_task::WatermarkCache,
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
-        packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
+        objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
+        transactions, tx_digests, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -117,7 +119,7 @@ pub enum InputObjectsStatus {
 pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
-    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
+    obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectId>>>>,
     fallback: Option<HistoricalFallbackReader>,
     watermark_cache: WatermarkCache,
 }
@@ -134,6 +136,17 @@ pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePac
 
 // Impl for common initialization and utilities
 impl IndexerReader {
+    /// Tables consulted by the `FromOrToAddress` query path.
+    ///
+    /// The reader raises [`IndexerError::DataPruned`] when a requested
+    /// `tx_sequence_number` is below the `min_available_tx` across these
+    /// tables.
+    const TRANSACTIONS_BY_ADDRESS_TABLES: &[CommitterTables] = &[
+        CommitterTables::TxSenders,
+        CommitterTables::TxRecipients,
+        CommitterTables::Transactions,
+    ];
+
     pub fn new(pool: ConnectionPool, watermark_cache: WatermarkCache) -> Self {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
@@ -242,6 +255,17 @@ impl IndexerReader {
         Ok(())
     }
 
+    /// Returns the lowest transaction sequence number that is available across
+    /// the tables consulted by the affected-addresses query path.
+    ///
+    /// Returns `0` when no watermarks have been populated yet (treat as "no
+    /// pruning observed").
+    pub(crate) fn affected_addresses_tx_watermark(&self) -> i64 {
+        self.watermark_cache()
+            .get_lowest_available_tx_for_tables(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
+            .unwrap_or(0)
+    }
+
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
     where
         F: FnOnce(Self) -> Result<R, E> + Send + 'static,
@@ -268,7 +292,7 @@ impl IndexerReader {
 impl IndexerReader {
     fn get_object_from_db(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: Option<VersionNumber>,
     ) -> Result<Option<StoredObject>, IndexerError> {
         let object_id = object_id.as_bytes();
@@ -292,7 +316,7 @@ impl IndexerReader {
 
     fn get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: Option<VersionNumber>,
     ) -> Result<Option<Object>, IndexerError> {
         let Some(stored_package) = self.get_object_from_db(object_id, version)? else {
@@ -305,7 +329,7 @@ impl IndexerReader {
 
     pub async fn get_object_in_blocking_task(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<Object>, IndexerError> {
         self.spawn_blocking(move |this| this.get_object(&object_id, None))
             .await
@@ -313,7 +337,7 @@ impl IndexerReader {
 
     pub async fn get_object_read_in_blocking_task(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<ObjectRead, IndexerError> {
         let stored_object = self
             .spawn_blocking(move |this| this.get_object_raw(object_id))
@@ -326,7 +350,7 @@ impl IndexerReader {
         }
     }
 
-    fn get_object_raw(&self, object_id: ObjectID) -> Result<Option<StoredObject>, IndexerError> {
+    fn get_object_raw(&self, object_id: ObjectId) -> Result<Option<StoredObject>, IndexerError> {
         let id = object_id.as_bytes();
         let stored_object = run_query!(&self.pool, |conn| {
             objects::dsl::objects
@@ -342,22 +366,22 @@ impl IndexerReader {
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Searches the requested object version and checkpoint sequence number
-    /// in `objects_version` and fetches the requested object from
-    /// `objects_history`.
+    /// Searches the requested object version in `objects_version` and
+    /// fetches the requested object from `checkpointed_objects` (current
+    /// state) or `objects_backward_history` (superseded versions).
     ///
     /// Returns [`IndexerError::DataPruned`] if the object version exists but
     /// history was pruned
     pub(crate) async fn get_past_object_read(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
         let object_version_num = object_version.as_u64() as i64;
 
-        // Query objects_version to find the requested version and relevant
-        // checkpoint sequence number considering the `before_version` flag.
+        // Query objects_version to find the requested version considering the
+        // `before_version` flag.
         let object_version_info = self
             .db()
             .get_object_version(object_id, object_version, before_version)
@@ -379,10 +403,11 @@ impl IndexerReader {
             };
         };
 
-        // query objects_history for the object with the requested version.
+        // Fetch the row content for the resolved (id, version, checkpoint)
+        // from checkpointed_objects or objects_backward_history.
         let history_object = self
             .db()
-            .get_stored_history_object(
+            .get_object_at_version(
                 object_id,
                 object_version_info.object_version,
                 object_version_info.cp_sequence_number,
@@ -392,7 +417,7 @@ impl IndexerReader {
         match history_object {
             Some(obj) => obj.try_into_past_object_read(&self.package_resolver).await,
             None => Err(IndexerError::DataPruned(format!(
-                "Object version {} not found in objects_history for object {object_id}",
+                "Object version {} not found in checkpointed_objects or objects_backward_history for object {object_id}",
                 object_version_info.object_version
             ))),
         }
@@ -403,16 +428,17 @@ impl IndexerReader {
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Searches the requested object version and checkpoint sequence number
-    /// in `objects_version` and fetches the requested object from
-    /// `objects_history`.
+    /// Searches the requested object version in `objects_version` and
+    /// fetches the requested object from `checkpointed_objects` (current
+    /// state) or `objects_backward_history` (superseded versions).
     ///
     /// Retrieval order:
-    /// 1. Postgres database (`objects_version` + `objects_history`)
+    /// 1. Postgres database (`objects_version` + `checkpointed_objects` /
+    ///    `objects_backward_history`)
     /// 2. Historical fallback storage (if enabled)
     pub(crate) async fn get_past_object_read_with_fallback(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
@@ -455,7 +481,7 @@ impl IndexerReader {
         }
     }
 
-    pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
+    pub async fn get_package(&self, package_id: ObjectId) -> Result<Package, IndexerError> {
         let store = self.package_resolver.package_store();
         let pkg = store
             .fetch(package_id.into())
@@ -900,27 +926,6 @@ impl IndexerReader {
         Ok(tx_blocks)
     }
 
-    fn multi_get_transactions_with_sequence_numbers(
-        &self,
-        tx_sequence_numbers: Vec<i64>,
-        // Some(true) for desc, Some(false) for asc, None for undefined order
-        is_descending: Option<bool>,
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        let mut query = transactions::table
-            .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers))
-            .into_boxed();
-        match is_descending {
-            Some(true) => {
-                query = query.order(transactions::dsl::tx_sequence_number.desc());
-            }
-            Some(false) => {
-                query = query.order(transactions::dsl::tx_sequence_number.asc());
-            }
-            None => (),
-        }
-        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
-    }
-
     pub fn multi_get_transactions_by_sequence_numbers_range(
         &self,
         min_seq: i64,
@@ -937,9 +942,9 @@ impl IndexerReader {
 
     pub async fn get_owned_objects_in_blocking_task(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| this.get_owned_objects_impl(address, filter, cursor, limit))
@@ -948,9 +953,9 @@ impl IndexerReader {
 
     fn get_owned_objects_impl(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         run_query!(&self.pool, |conn| {
@@ -1047,7 +1052,7 @@ impl IndexerReader {
 
     pub async fn multi_get_objects_in_blocking_task(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| this.multi_get_objects_impl(object_ids))
             .await
@@ -1055,7 +1060,7 @@ impl IndexerReader {
 
     fn multi_get_objects_impl(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         let object_ids = object_ids.iter().map(|id| id.as_bytes()).collect_vec();
         run_query!(&self.pool, |conn| {
@@ -1069,7 +1074,7 @@ impl IndexerReader {
     /// are finalized.
     pub async fn check_input_objects_in_blocking_task(
         &self,
-        object_keys: Vec<(ObjectID, SequenceNumber)>,
+        object_keys: Vec<(ObjectId, SequenceNumber)>,
     ) -> Result<InputObjectsStatus, IndexerError> {
         self.spawn_blocking(move |this| this.check_input_objects(object_keys))
             .await
@@ -1077,7 +1082,7 @@ impl IndexerReader {
 
     fn check_input_objects(
         &self,
-        object_keys: Vec<(ObjectID, SequenceNumber)>,
+        object_keys: Vec<(ObjectId, SequenceNumber)>,
     ) -> Result<InputObjectsStatus, IndexerError> {
         if object_keys.is_empty() {
             return Ok(InputObjectsStatus::Ready);
@@ -1100,7 +1105,7 @@ impl IndexerReader {
         // NULL  — not ready yet (missing, older version, or not finalized)
         let query = format!(
             "WITH \
-               input_objects(id, version) AS (VALUES {}), \
+               input_objects(id, version) AS (VALUES {values_clause}), \
                max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints), \
                matches AS ( \
                  SELECT \
@@ -1117,8 +1122,7 @@ impl IndexerReader {
                WHEN COUNT(*) FILTER (WHERE finalized_in_cp IS NOT NULL \
                  AND finalized_in_cp > (SELECT max_sn FROM max_chk)) > 0 THEN NULL \
                ELSE TRUE \
-             END AS result FROM matches",
-            values_clause
+             END AS result FROM matches"
         );
 
         #[derive(QueryableByName)]
@@ -1200,6 +1204,89 @@ impl IndexerReader {
             .await
     }
 
+    /// Fetches a paginated list of transactions that affect a given address,
+    /// using the fallback storage if the database is pruned.
+    async fn query_transactions_by_affected_addresses_with_fallback(
+        &self,
+        address: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let watermark = self.affected_addresses_tx_watermark();
+
+        // fast path: cursor is known to KV (cached) and in pruned territory
+        // (below watermark). Serve directly from KV until pagination crosses
+        // into the unpruned DB range.
+        if let Some((cursor, kv_reader)) = cursor.zip(self.fallback_reader()).filter(|(c, kv)| {
+            kv.cursor_cache
+                .get(c)
+                .is_some_and(|s| (s as i64) < watermark)
+        }) {
+            let stored_txs = kv_reader
+                .transactions_by_address(address, Some(cursor), limit, !is_descending)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect();
+
+            return self
+                .stored_transaction_to_transaction_block(stored_txs, options)
+                .await;
+        };
+
+        let db_res = self
+            .db()
+            .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
+            .await;
+
+        let Some(kv_reader) = self.fallback_reader() else {
+            return self
+                .stored_transaction_to_transaction_block(db_res?, options)
+                .await;
+        };
+
+        let (mut rows, id_db_pruned) = match db_res {
+            Err(IndexerError::DataPruned(_)) => (vec![], true),
+            res => (res?, false),
+        };
+
+        // Fill from KV: either the whole page (`id_db_pruned`) or a top-up when
+        // a short DESC page during active pruning indicates we've crossed the
+        // watermark.
+        if id_db_pruned || (is_descending && rows.len() < limit && watermark > 0) {
+            // Continue pagination from the last DB row, or from the original
+            // cursor if the DB returned nothing. Avoids restarting KV from the
+            // top of history and re-fetching rows the user already saw.
+            let kv_cursor = if let Some(tx) = rows.last() {
+                let digest =
+                    TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to decode transaction digest: {:?} with err: {e:?}",
+                            tx.transaction_digest
+                        ))
+                    })?;
+                kv_reader
+                    .cursor_cache
+                    .insert(digest, tx.tx_sequence_number as u64);
+                Some(digest)
+            } else {
+                cursor
+            };
+
+            let kv_rows = kv_reader
+                .transactions_by_address(address, kv_cursor, limit - rows.len(), !is_descending)
+                .await?
+                .into_iter()
+                .flatten();
+            rows.extend(kv_rows);
+        }
+
+        self.stored_transaction_to_transaction_block(rows, options)
+            .await
+    }
+
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
@@ -1222,22 +1309,26 @@ impl IndexerReader {
                 .await;
         };
 
-        // All transaction-related tables that could be used by any filter
-        let tx_tables = [
-            CommitterTables::Transactions,
-            CommitterTables::TxCallsFun,
-            CommitterTables::TxCallsMod,
-            CommitterTables::TxCallsPkg,
-            CommitterTables::TxInputObjects,
-            CommitterTables::TxChangedObjects,
-            CommitterTables::TxWrappedOrDeletedObjects,
-            CommitterTables::TxSenders,
-            CommitterTables::TxRecipients,
-            CommitterTables::TxKinds,
-        ];
+        if let Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
+        | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) = filter
+        {
+            return self
+                .query_transactions_by_affected_addresses_with_fallback(
+                    addr,
+                    cursor,
+                    limit,
+                    is_descending,
+                    options,
+                )
+                .await;
+        };
+
+        // scope the watermark and the cursor pruning check to only the tables this
+        // filter reads.
+        let tx_tables = self.tx_tables_for_filter(filter.as_ref())?;
         let min_available_tx = self
             .watermark_cache
-            .get_lowest_available_tx_for_tables(&tx_tables)
+            .get_lowest_available_tx_for_tables(tx_tables)
             .unwrap_or(0);
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
@@ -1245,7 +1336,7 @@ impl IndexerReader {
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(cursor)
                 .await?;
-            self.ensure_data_not_pruned_for_tx(tx_seq, &tx_tables)?;
+            self.ensure_data_not_pruned_for_tx(tx_seq, tx_tables)?;
             Some(tx_seq)
         } else {
             None
@@ -1264,7 +1355,9 @@ impl IndexerReader {
         let (table_name, main_where_clause) = match filter {
             // Processed above
             Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(_)))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_))) => {
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)))
+            | Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. })) => {
                 unreachable!("handled in earlier match statement")
             }
             // FIXME: sanitize module & function
@@ -1371,28 +1464,6 @@ impl IndexerReader {
                 );
                 (inner_query, "1 = 1".into())
             }
-            Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
-                let address = Hex::encode(addr.as_bytes());
-                let inner_query = format!(
-                    "( \
-                        ( \
-                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
-                            WHERE sender = '\\x{address}'::BYTEA {cursor_clause} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
-                            LIMIT {limit} \
-                        ) \
-                        UNION \
-                        ( \
-                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
-                            WHERE recipient = '\\x{address}'::BYTEA {cursor_clause} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
-                            LIMIT {limit} \
-                        ) \
-                    ) AS combined",
-                );
-                (inner_query, "1 = 1".into())
-            }
             Some(TransactionFilterKind::V1(TransactionFilter::TransactionKind(kind)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(kind))) => {
                 // The `SystemTransaction` variant can be used to filter for all types of system
@@ -1484,12 +1555,94 @@ impl IndexerReader {
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
         .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+        self.multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
             tx_sequence_numbers,
             options,
             Some(is_descending),
         )
         .await
+    }
+
+    /// Returns the minimal set of tables read by [`TransactionFilterKind`],
+    /// used to scope both the `min_available_tx` watermark and the cursor
+    /// pruning check.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the filter is not supported.
+    fn tx_tables_for_filter(
+        &self,
+        filter: Option<&TransactionFilterKind>,
+    ) -> IndexerResult<&'static [CommitterTables]> {
+        use CommitterTables::*;
+
+        let Some(filter) = filter else {
+            return Ok(&[Transactions]);
+        };
+        let tables: &'static [CommitterTables] = match filter {
+            TransactionFilterKind::V1(TransactionFilter::MoveFunction {
+                module, function, ..
+            })
+            | TransactionFilterKind::V2(TransactionFilterV2::MoveFunction {
+                module,
+                function,
+                ..
+            }) => match (module, function) {
+                (Some(_), Some(_)) => &[TxCallsFun, TxDigests],
+                (Some(_), None) => &[TxCallsMod, TxDigests],
+                (None, Some(_)) => {
+                    return Err(IndexerError::InvalidArgument(
+                        "Function cannot be present without Module.".into(),
+                    ));
+                }
+                (None, None) => &[TxCallsPkg, TxDigests],
+            },
+            TransactionFilterKind::V1(TransactionFilter::InputObject(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::InputObject(_)) => {
+                &[TxInputObjects, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::ChangedObject(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_)) => {
+                &[TxChangedObjects, TxDigests]
+            }
+            TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_)) => {
+                &[TxWrappedOrDeletedObjects, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromAddress(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_)) => {
+                &[TxSenders, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::ToAddress(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_)) => {
+                &[TxRecipients, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. })
+            | TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. }) => {
+                &[TxSenders, TxRecipients, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::TransactionKind(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_))
+            | TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_)) => {
+                &[TxKinds, TxDigests]
+            }
+            // Served by dedicated fallback paths
+            TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => {
+                &[Transactions, PrunerCpWatermark, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. })
+            | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => {
+                &[TxSenders, TxRecipients, TxDigests]
+            }
+            // Unsupported V2-only filters error out in the query match.
+            TransactionFilterKind::V2(_) => {
+                return Err(IndexerError::InvalidArgument(
+                    "transaction filter is not supported".into(),
+                ));
+            }
+        };
+        Ok(tables)
     }
 
     async fn multi_get_transaction_block_response_in_blocking_task_impl(
@@ -1535,7 +1688,7 @@ impl IndexerReader {
         ))
     }
 
-    async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+    async fn multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
         &self,
         tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1543,14 +1696,49 @@ impl IndexerReader {
         is_descending: Option<bool>,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking(move |this| {
-                this.multi_get_transactions_with_sequence_numbers(
-                    tx_sequence_numbers,
-                    is_descending,
-                )
-            })
+            .db()
+            .get_transactions_by_sequence_numbers(tx_sequence_numbers.clone(), is_descending)
             .await?;
-        self.stored_transaction_to_transaction_block(stored_txes, options)
+
+        let fetched_transactions = match self
+            .fallback_reader()
+            .filter(|_| stored_txes.len() != tx_sequence_numbers.len())
+        {
+            Some(fallback_reader) => {
+                let found: HashSet<i64> =
+                    stored_txes.iter().map(|tx| tx.tx_sequence_number).collect();
+                let missing_seqs: Vec<i64> = tx_sequence_numbers
+                    .iter()
+                    .copied()
+                    .filter(|s| !found.contains(s))
+                    .collect();
+
+                let missing_digests = self
+                    .db()
+                    .resolve_tx_sequence_numbers_to_digests(missing_seqs)
+                    .await?;
+
+                let historical = fallback_reader
+                    .transactions(&missing_digests)
+                    .await?
+                    .into_iter()
+                    .flatten();
+
+                let mut merged: Vec<StoredTransaction> =
+                    stored_txes.into_iter().chain(historical).collect();
+
+                match is_descending {
+                    Some(true) => merged.sort_unstable_by_key(|tx| Reverse(tx.tx_sequence_number)),
+                    Some(false) => merged.sort_unstable_by_key(|tx| tx.tx_sequence_number),
+                    None => {}
+                }
+
+                merged
+            }
+            None => stored_txes,
+        };
+
+        self.stored_transaction_to_transaction_block(fetched_transactions, options)
             .await
     }
 
@@ -1683,7 +1871,7 @@ impl IndexerReader {
         timestamp_ms: Option<u64>,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
         let events = stored_events_to_events(serialized_events)?;
-        let tx_events = TransactionEvents { data: events };
+        let tx_events = TransactionEvents(events);
         tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
             .await
             .map(|iota_tx_event| iota_tx_event.data)
@@ -1898,8 +2086,8 @@ impl IndexerReader {
 
     pub async fn get_dynamic_fields_in_blocking_task(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
         let stored_objects = self
@@ -1934,8 +2122,8 @@ impl IndexerReader {
 
     pub async fn get_dynamic_fields_raw_in_blocking_task(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         self.spawn_blocking(move |this| {
@@ -1946,8 +2134,8 @@ impl IndexerReader {
 
     fn get_dynamic_fields_raw(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
@@ -2098,9 +2286,9 @@ impl IndexerReader {
 
     pub async fn get_owned_coins_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: ObjectId,
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         self.spawn_blocking(move |this| this.get_owned_coins(owner, coin_type, cursor, limit))
@@ -2109,10 +2297,10 @@ impl IndexerReader {
 
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: ObjectId,
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         let mut query = objects::dsl::objects
@@ -2139,7 +2327,7 @@ impl IndexerReader {
 
     pub async fn get_coin_balances_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2149,7 +2337,7 @@ impl IndexerReader {
 
     fn get_coin_balances(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2454,29 +2642,6 @@ impl IndexerReader {
         Ok(maybe_obj.map(T::try_from).transpose()?)
     }
 
-    pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
-        let latest_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            checkpoints::table
-                .select(checkpoints::sequence_number)
-                .order(checkpoints::sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
-        let latest_object_snapshot_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            objects_snapshot::table
-                .select(objects_snapshot::checkpoint_sequence_number)
-                .order(objects_snapshot::checkpoint_sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
-        Ok((
-            latest_object_snapshot_checkpoint_sequence,
-            latest_checkpoint_sequence,
-        ))
-    }
-
     pub fn package_resolver(&self) -> &PackageResolver {
         &self.package_resolver
     }
@@ -2507,7 +2672,7 @@ impl IndexerReader {
 impl iota_types::storage::ObjectStore for IndexerReader {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, None)
             .map_err(iota_types::storage::error::Error::custom)
@@ -2515,7 +2680,7 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
@@ -2527,9 +2692,9 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 impl DataReader for IndexerReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
@@ -2552,7 +2717,7 @@ impl DataReader for IndexerReader {
             next_cursor = Some(if let Some(last_object) = stored_objects.last() {
                 last_object.get_object_ref()?.object_id
             } else {
-                ObjectID::ZERO
+                ObjectId::ZERO
             });
         }
 
@@ -2574,7 +2739,7 @@ impl DataReader for IndexerReader {
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         let result = self.get_object_read_in_blocking_task(object_id).await?;
@@ -2872,7 +3037,7 @@ impl<'a> DBReader<'a> {
 
     async fn get_object_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<Option<StoredObjectVersion>> {
@@ -2901,7 +3066,7 @@ impl<'a> DBReader<'a> {
 
     async fn latest_existing_object_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IndexerResult<Option<i64>> {
         let pool = self.main_reader.get_pool();
 
@@ -2916,26 +3081,70 @@ impl<'a> DBReader<'a> {
         })
     }
 
-    pub async fn get_stored_history_object(
+    /// Looks up the row for `(object_id, object_version)` in
+    /// `checkpointed_objects` (current state) or
+    /// `objects_backward_history` (superseded versions).
+    ///
+    /// Sets `checkpoint_sequence_number` in the returned value from the
+    /// passed `cp_sequence_number`, because the cp column on
+    /// `objects_backward_history` records when the version was superseded,
+    /// not when it was introduced.
+    ///
+    /// Returns None if the given version was pruned or never existed.
+    pub async fn get_object_at_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: i64,
-        checkpoint_sequence_number: i64,
+        cp_sequence_number: i64,
     ) -> IndexerResult<Option<StoredHistoryObject>> {
         let pool = self.main_reader.get_pool();
+        let object_id_bytes = object_id.as_bytes().to_vec();
         run_query_async!(&pool, move |conn| {
-            // Match on the primary key.
-            let query = objects_history::dsl::objects_history
-                .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
-                .filter(objects_history::object_id.eq(object_id.as_bytes()))
-                .filter(objects_history::object_version.eq(object_version))
-                .into_boxed();
-
-            query
-                .order_by(objects_history::object_version.desc())
-                .limit(1)
-                .first::<StoredHistoryObject>(conn)
-                .optional()
+            sql_query(
+                "SELECT \
+                        object_id, \
+                        object_version, \
+                        object_status, \
+                        object_digest, \
+                        $3 AS checkpoint_sequence_number, \
+                        owner_type, \
+                        owner_id, \
+                        object_type, \
+                        object_type_package, \
+                        object_type_module, \
+                        object_type_name, \
+                        serialized_object, \
+                        coin_type, \
+                        coin_balance, \
+                        df_kind \
+                    FROM checkpointed_objects \
+                    WHERE object_id = $1 AND object_version = $2 \
+                    UNION ALL \
+                    SELECT \
+                        object_id, \
+                        object_version, \
+                        object_status, \
+                        object_digest, \
+                        $3 AS checkpoint_sequence_number, \
+                        owner_type, \
+                        owner_id, \
+                        object_type, \
+                        object_type_package, \
+                        object_type_module, \
+                        object_type_name, \
+                        serialized_object, \
+                        coin_type, \
+                        coin_balance, \
+                        df_kind \
+                    FROM objects_backward_history \
+                    WHERE object_id = $1 AND object_version = $2 \
+                    LIMIT 1",
+            )
+            .bind::<Bytea, _>(object_id_bytes.clone())
+            .bind::<BigInt, _>(object_version)
+            .bind::<BigInt, _>(cp_sequence_number)
+            .get_result::<StoredHistoryObject>(conn)
+            .optional()
         })
     }
 
@@ -3072,6 +3281,177 @@ impl<'a> DBReader<'a> {
                 .optional()
         })
         .map(Option::flatten)
+    }
+
+    /// Resolve transaction sequence numbers to their corresponding digests.
+    async fn resolve_tx_sequence_numbers_to_digests(
+        &self,
+        tx_sequence_numbers: Vec<i64>,
+    ) -> Result<Vec<TransactionDigest>, IndexerError> {
+        let pool = self.main_reader.get_pool();
+
+        let rows = run_query_async!(&pool, |conn| {
+            tx_digests::table
+                .filter(tx_digests::tx_sequence_number.eq_any(tx_sequence_numbers))
+                .select(tx_digests::tx_digest)
+                .load::<Vec<u8>>(conn)
+        })?;
+
+        rows.into_iter()
+            .map(|bytes| {
+                TransactionDigest::from_bytes(&bytes).map_err(|e| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "unable to convert {bytes:?} as tx_digest: {e}",
+                    ))
+                })
+            })
+            .collect()
+    }
+
+    /// Returns a list of [`StoredTransaction`]s by their corresponding sequence
+    /// numbers.
+    ///
+    /// `is_descending` controls the result order by `tx_sequence_number`:
+    /// - `true` or `Some(true)` for DESC.
+    /// - `false` or `Some(false)` for ASC.
+    /// - `None` for unspecified order (rows returned in whatever order the DB
+    ///   yields).
+    async fn get_transactions_by_sequence_numbers<I>(
+        &self,
+        tx_sequence_numbers: I,
+        is_descending: impl Into<Option<bool>>,
+    ) -> IndexerResult<Vec<StoredTransaction>>
+    where
+        I: IntoIterator<Item = i64> + Send,
+        I::IntoIter: Send,
+    {
+        let mut query = transactions::table
+            .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers.into_iter()))
+            .into_boxed();
+        match is_descending.into() {
+            Some(true) => {
+                query = query.order(transactions::dsl::tx_sequence_number.desc());
+            }
+            Some(false) => {
+                query = query.order(transactions::dsl::tx_sequence_number.asc());
+            }
+            None => (),
+        }
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, |conn| query.load::<StoredTransaction>(conn))
+    }
+
+    /// Returns a list of [`StoredTransaction`]s that have a given address as
+    /// sender or recipient.
+    ///
+    /// Enforces data retention policies by consulting the pruning watermark for
+    /// the underlying index tables
+    /// [`TRANSACTIONS_BY_ADDRESS_TABLES`](IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES)
+    ///
+    /// # Errors
+    ///
+    /// * [`IndexerError::DataPruned`] — signals the caller to fall back to the
+    ///   historical store. Two triggers:
+    ///   * `cursor` resolves to a sequence number below the pruning
+    ///     min_available_tx.
+    ///   * `cursor = None && is_descending = false && min_available_tx > 0`:
+    ///     the DB cannot tell whether the address has pre-watermark history.
+    /// * [`IndexerError::InvalidArgument`]: the cursor is invalid (digest
+    ///   absent from `tx_digests` AND the database is not pruned).
+    async fn query_transactions_by_affected_addresses(
+        &self,
+        addr: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        let min_available_tx = self.main_reader.affected_addresses_tx_watermark();
+
+        let cursor_tx_seq = if let Some(cursor) = cursor {
+            match self
+                .resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
+                .await?
+            {
+                Some(tx_seq) => {
+                    self.main_reader.ensure_data_not_pruned_for_tx(
+                        tx_seq,
+                        IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
+                    )?;
+                    Some(tx_seq)
+                }
+                None if min_available_tx > 0 => {
+                    return Err(IndexerError::DataPruned(format!(
+                        "unable to resolve cursor digest: {cursor} potentially pruned"
+                    )));
+                }
+                None => {
+                    return Err(IndexerError::InvalidArgument(format!(
+                        "cursor with digest {cursor} not found"
+                    )));
+                }
+            }
+        } else {
+            None
+        };
+
+        if !is_descending && cursor.is_none() && min_available_tx > 0 {
+            return Err(IndexerError::DataPruned(format!(
+                "DB may be missing earliest history for address {addr} due to pruning"
+            )));
+        }
+
+        let address_hex = Hex::encode(addr.as_bytes());
+        let order = if is_descending { "DESC" } else { "ASC" };
+        let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
+            if is_descending {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
+            } else {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
+            }
+        } else {
+            "".into()
+        };
+
+        let query = format!(
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM ( \
+                   ( \
+                       SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
+                       WHERE sender = '\\x{address_hex}'::BYTEA
+                       AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} \
+                       ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                       LIMIT {limit} \
+                   ) \
+                   UNION \
+                   ( \
+                       SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
+                       WHERE recipient = '\\x{address_hex}'::BYTEA \
+                       AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} \
+                       ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                       LIMIT {limit} \
+                   ) \
+                ) AS combined \
+                ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                LIMIT {limit}"
+        );
+
+        // using two-step query to allow partition pruning during execution for
+        // transactions table.
+        let pool = self.main_reader.get_pool();
+        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
+            diesel::sql_query(query).load::<TxSequenceNumber>(conn)
+        })?;
+
+        if tx_sequence_numbers.is_empty() {
+            return Ok(vec![]);
+        }
+
+        self.get_transactions_by_sequence_numbers(
+            tx_sequence_numbers
+                .into_iter()
+                .map(|tsn| tsn.tx_sequence_number),
+            is_descending,
+        )
+        .await
     }
 }
 

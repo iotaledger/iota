@@ -11,6 +11,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Address, StructTag, TypeTag};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -18,10 +19,7 @@ use serde::{
 };
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::{
-    base_types::{IotaAddress, StructTag, TypeTag},
-    parse_iota_struct_tag, parse_iota_type_tag,
-};
+use crate::{parse_iota_struct_tag, parse_iota_type_tag};
 
 #[inline]
 pub(crate) fn to_custom_deser_error<'de, D, E>(e: E) -> D::Error
@@ -107,14 +105,14 @@ impl SerializeAs<StructTag> for IotaStructTag {
     }
 }
 
-const IOTA_ADDRESSES: [IotaAddress; 7] = [
-    IotaAddress::ZERO,
-    IotaAddress::STD,
-    IotaAddress::FRAMEWORK,
-    IotaAddress::SYSTEM,
-    IotaAddress::STARDUST,
-    IotaAddress::SYSTEM_STATE,
-    IotaAddress::CLOCK,
+const IOTA_ADDRESSES: [Address; 7] = [
+    Address::ZERO,
+    Address::STD,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    Address::STARDUST,
+    Address::SYSTEM_STATE,
+    Address::CLOCK,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
@@ -139,7 +137,7 @@ pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error
     Ok(f)
 }
 
-fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
+pub fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
     match value {
         TypeTag::Vector(t) => Ok(format!("vector<{}>", to_iota_type_tag_string(t)?)),
         TypeTag::Struct(s) => to_iota_struct_tag_string(s),

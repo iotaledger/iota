@@ -31,14 +31,11 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    StructTag,
+    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{
-        ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest, TxContext,
-    },
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -46,31 +43,26 @@ use iota_types::{
     },
     deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     epoch_data::EpochData,
-    event::Event,
     gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
-    object::{MoveObjectExt, Object, Owner},
+    object::{MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelocked_staked_iota::TimelockedStakedIota,
     },
-    transaction::{
-        CallArg, CheckedInputObjects, Command, GenesisObject, InputObjectKind, ObjectReadResult,
-        Transaction,
-    },
+    transaction::{CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, Transaction},
 };
 use move_binary_format::CompiledModule;
 use serde::{Deserialize, Serialize};
@@ -104,7 +96,7 @@ const MAX_AMOUNT_OF_TX_PER_CHECKPOINT: u64 = 10_000;
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
     token_distribution_schedule: Option<TokenDistributionSchedule>,
-    objects: BTreeMap<ObjectID, Object>,
+    objects: BTreeMap<ObjectId, Object>,
     validators: BTreeMap<AuthorityPublicKeyBytes, GenesisValidatorInfo>,
     // Validator signatures over checkpoint
     signatures: BTreeMap<AuthorityPublicKeyBytes, AuthoritySignInfo>,
@@ -118,7 +110,7 @@ pub struct Builder {
 
 enum GenesisDelegation {
     /// Represents a single delegator address that applies to all validators.
-    OneToAll(IotaAddress),
+    OneToAll(Address),
     /// Represents a map of delegator addresses to validator addresses and
     /// a specified stake and gas allocation.
     ManyToMany(Delegations),
@@ -159,7 +151,7 @@ impl Builder {
 
     /// Set the genesis delegation to be a `OneToAll` kind and set the
     /// delegator address.
-    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
+    pub fn with_delegator(mut self, delegator: Address) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
@@ -655,17 +647,17 @@ impl Builder {
             token_distribution_schedule.pre_minted_supply + allocations_amount
         );
 
-        let mut gas_objects: BTreeMap<ObjectID, (&Object, GasCoin)> = unsigned_genesis
+        let mut gas_objects: BTreeMap<ObjectId, (&Object, GasCoin)> = unsigned_genesis
             .objects()
             .iter()
             .filter_map(|o| GasCoin::try_from(o).ok().map(|g| (o.id(), (o, g))))
             .collect();
-        let mut staked_iota_objects: BTreeMap<ObjectID, (&Object, StakedIota)> = unsigned_genesis
+        let mut staked_iota_objects: BTreeMap<ObjectId, (&Object, StakedIota)> = unsigned_genesis
             .objects()
             .iter()
             .filter_map(|o| StakedIota::try_from(o).ok().map(|s| (o.id(), (o, s))))
             .collect();
-        let mut timelock_staked_iota_objects: BTreeMap<ObjectID, (&Object, TimelockedStakedIota)> =
+        let mut timelock_staked_iota_objects: BTreeMap<ObjectId, (&Object, TimelockedStakedIota)> =
             unsigned_genesis
                 .objects()
                 .iter()
@@ -1029,7 +1021,7 @@ fn create_genesis_context(
     let genesis_transaction_digest = TransactionDigest::new(hash.into());
 
     let tx_context = TxContext::new(
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &genesis_transaction_digest,
         epoch_data,
         0,
@@ -1220,7 +1212,7 @@ fn update_system_packages_from_objects(
     objects: &[Object],
 ) {
     // Filter `objects` for system packages, and make `SystemPackage`s out of them.
-    let system_package_overrides: BTreeMap<ObjectID, Vec<Vec<u8>>> = objects
+    let system_package_overrides: BTreeMap<ObjectId, Vec<Vec<u8>>> = objects
         .iter()
         .filter_map(|obj| {
             let pkg = obj.data.as_opt_package()?;
@@ -1369,7 +1361,7 @@ fn create_genesis_objects(
         )
         .expect("Processing a package should not fail here");
 
-        events.extend(tx_events.data);
+        events.extend(tx_events.0);
     }
 
     for object in input_objects {
@@ -1395,7 +1387,7 @@ pub(crate) fn process_package(
     executor: &dyn Executor,
     ctx: Rc<RefCell<TxContext>>,
     modules: &[CompiledModule],
-    dependencies: Vec<ObjectID>,
+    dependencies: Vec<ObjectId>,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<TransactionEvents> {
@@ -1484,7 +1476,7 @@ pub fn generate_genesis_system_object(
         let mut builder = ProgrammableTransactionBuilder::new();
         // Step 1: Create the IotaSystemState UID
         let iota_system_state_uid = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::OBJECT_MODULE,
             Identifier::from_static("iota_system_state"),
             vec![],
@@ -1493,7 +1485,7 @@ pub fn generate_genesis_system_object(
 
         // Step 2: Create and share the Clock.
         builder.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::CLOCK_MODULE,
             Identifier::from_static("create"),
             vec![],
@@ -1502,7 +1494,7 @@ pub fn generate_genesis_system_object(
 
         // Create the randomness state_object
         builder.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::RANDOM_MODULE,
             RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
             vec![],
@@ -1511,7 +1503,7 @@ pub fn generate_genesis_system_object(
 
         // Create the deny list
         builder.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::DENY_LIST_MODULE,
             DENY_LIST_CREATE_FUNC,
             vec![],
@@ -1520,7 +1512,7 @@ pub fn generate_genesis_system_object(
 
         // Step 4: Create the IOTA Coin Treasury Cap.
         let iota_treasury_cap = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::IOTA_MODULE,
             Identifier::from_static("new"),
             vec![],
@@ -1531,7 +1523,7 @@ pub fn generate_genesis_system_object(
             .pure(token_distribution_schedule.pre_minted_supply)
             .expect("serialization of u64 should succeed");
         let pre_minted_supply = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::IOTA_MODULE,
             Identifier::from_static("mint_balance"),
             vec![],
@@ -1539,7 +1531,7 @@ pub fn generate_genesis_system_object(
         );
 
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             Identifier::from_static("destroy_genesis_supply"),
             vec![GAS::type_tag()],
@@ -1548,7 +1540,7 @@ pub fn generate_genesis_system_object(
 
         // Step 5: Create System Admin Cap.
         let system_admin_cap = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::SYSTEM_ADMIN_CAP_MODULE,
             Identifier::from_static("new_system_admin_cap"),
             vec![],
@@ -1571,7 +1563,7 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            ObjectID::SYSTEM,
+            ObjectId::SYSTEM,
             Identifier::from_static("genesis"),
             Identifier::from_static("create"),
             vec![],
@@ -1592,7 +1584,7 @@ pub fn generate_genesis_system_object(
 
     // update the value of the clock to match the chain start time
     {
-        let object = written.get_mut(&ObjectID::CLOCK).unwrap();
+        let object = written.get_mut(&ObjectId::CLOCK).unwrap();
         object
             .data
             .as_opt_mut_struct()
@@ -1672,7 +1664,7 @@ pub fn split_timelocks(
     executor: &dyn Executor,
     genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
-    timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
+    timelocks_to_split: &[(ObjectRef, u64, Address)],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
@@ -1701,7 +1693,7 @@ pub fn split_timelocks(
                 builder.pure(surplus_amount)?,
             ];
             let surplus_timelock = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("split"),
                 vec![GAS::type_tag()],
@@ -1709,7 +1701,7 @@ pub fn split_timelocks(
             );
             let arguments = vec![surplus_timelock, builder.pure(*recipient)?];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("transfer"),
                 vec![StructTag::new_balance(GAS::type_tag()).into()],
@@ -1823,8 +1815,9 @@ mod test {
         local_ip_utils,
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use iota_sdk_types::Address;
     use iota_types::{
-        base_types::{IotaAddress, address_from_iota_pub_key},
+        base_types::address_from_iota_pub_key,
         crypto::{
             AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
             get_key_pair_from_rng,
@@ -1836,8 +1829,8 @@ mod test {
     #[test]
     fn allocation_csv() {
         let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            IotaAddress::random(),
-            IotaAddress::random(),
+            Address::random(),
+            Address::random(),
         ]);
         let mut output = Vec::new();
 
@@ -1882,7 +1875,7 @@ mod test {
 
         let genesis = builder.get_or_build_unsigned_genesis();
         for object in genesis.objects() {
-            println!("ObjectID: {} Type: {:?}", object.id(), object.type_());
+            println!("ObjectId: {} Type: {:?}", object.id(), object.type_());
         }
         builder.save(dir.path()).unwrap();
         Builder::load(dir.path()).await.unwrap();

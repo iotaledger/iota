@@ -9,7 +9,9 @@ use std::{
 
 use iota_types::{
     base_types::ObjectRef,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionDataAPI, VerifiedTransaction},
@@ -110,7 +112,7 @@ impl TransactionOutputs {
             .values()
             .filter_map(|new_object| {
                 if new_object.is_address_owned() {
-                    Some(new_object.compute_object_reference())
+                    Some(new_object.object_ref())
                 } else {
                     None
                 }

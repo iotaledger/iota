@@ -8,7 +8,7 @@ use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::{reopen, traits::Map};
+use crate::traits::Map;
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -76,35 +76,6 @@ async fn test_reopen() {
         db.contains_key(&123456789)
             .expect("Failed to retrieve item in storage")
     );
-}
-
-#[tokio::test]
-async fn test_reopen_macro() {
-    const FIRST_CF: &str = "First_CF";
-    const SECOND_CF: &str = "Second_CF";
-
-    let tmp_dir = iota_common::tempdir();
-    let rocks = open_cf_opts(
-        tmp_dir.path(),
-        None,
-        MetricConf::default(),
-        &[
-            (FIRST_CF, rocksdb::Options::default()),
-            (SECOND_CF, rocksdb::Options::default()),
-        ],
-    )
-    .unwrap();
-
-    let (db_map_1, db_map_2) = reopen!(&rocks, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
-
-    let keys_vals_cf1 = (1..100).map(|i| (i, i.to_string()));
-    let keys_vals_cf2 = (1..100).map(|i| (i, i.to_string()));
-
-    assert_eq!(db_map_1.cf_name(), FIRST_CF);
-    assert_eq!(db_map_2.cf_name(), SECOND_CF);
-
-    assert!(db_map_1.multi_insert(keys_vals_cf1).is_ok());
-    assert!(db_map_2.multi_insert(keys_vals_cf2).is_ok());
 }
 
 #[tokio::test]
@@ -561,6 +532,74 @@ async fn test_range_iter() {
     assert_eq!(
         (1..49).map(|i| (i, i.to_string())).collect::<Vec<_>>(),
         db_iter.collect::<Vec<_>>()
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_inclusive_upper_bound_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> = get_range_iter(&db, 100u8..=u8::MAX).collect();
+    assert_eq!(
+        vec![(100u8, "100".to_string()), (u8::MAX, "max".to_string())],
+        results,
+        "Range ..=u8::MAX must include the entry at u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_reversed_safe_iter_inclusive_upper_bound_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> = get_reverse_iter(&db, None, Some(u8::MAX))
+        .map(|item| item.unwrap())
+        .collect();
+    assert_eq!(
+        vec![(u8::MAX, "max".to_string()), (100u8, "100".to_string())],
+        results,
+        "reversed_safe_iter_with_bounds upper=u8::MAX must include the entry at u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_exclusive_lower_bound_at_max() {
+    use std::ops::Bound;
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> =
+        get_range_iter(&db, (Bound::Excluded(u8::MAX), Bound::Unbounded)).collect();
+    assert_eq!(
+        Vec::<(u8, String)>::new(),
+        results,
+        "Range (Excluded(u8::MAX), Unbounded) must yield no entries -- there is no key strictly greater than u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper() {
+    use std::ops::Bound;
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> =
+        get_range_iter(&db, (Bound::Excluded(u8::MAX), Bound::Included(u8::MAX))).collect();
+    assert_eq!(
+        Vec::<(u8, String)>::new(),
+        results,
+        "Range (Excluded(u8::MAX), Included(u8::MAX)) must yield no entries -- the lower bound excludes the only candidate",
     );
 }
 

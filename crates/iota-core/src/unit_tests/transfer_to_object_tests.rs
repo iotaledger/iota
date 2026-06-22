@@ -4,19 +4,18 @@
 
 use std::{collections::HashSet, sync::Arc};
 
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
+};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -62,9 +61,9 @@ macro_rules! transfer_test_runner {
 }
 
 struct TestRunner {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub sender_key: AccountKeyPair,
-    pub gas_object_ids: Vec<ObjectID>,
+    pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectRef,
     pub upgrade_cap: ObjectRef,
@@ -85,7 +84,7 @@ impl TestRunner {
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();
         let mut gas_object_ids = vec![];
         for _ in 0..num {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
             authority_state.insert_genesis_object(gas_object).await;
             gas_object_ids.push(gas_object_id);
@@ -239,7 +238,7 @@ impl TestRunner {
         // `execute_certificate_with_execution_error` to make sure we go through TM
         let effects = self
             .authority_state
-            .execute_certificate(&ct, &epoch_store)
+            .wait_for_certificate_execution(&ct, &epoch_store)
             .await
             .unwrap();
 
@@ -266,7 +265,7 @@ fn get_parent_and_child(
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::Address(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,
@@ -321,7 +320,7 @@ async fn test_tto_transfer() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
             }
@@ -437,7 +436,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(ObjectID::ZERO, x.version, x.digest)),
+                Box::new(|x: ObjectRef| ObjectRef::new(ObjectId::ZERO, x.version, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
@@ -768,7 +767,7 @@ async fn test_tto_unwrap_transfer() {
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
             effects.unwrapped()[0].1,
-            Owner::Address(IotaAddress::ZERO)
+            Owner::Address(Address::ZERO)
         );
 
         // Receiving object ID is deleted
@@ -1003,7 +1002,7 @@ async fn verify_tto_not_locked(
     assert!(matches!(
         invalid_effects.status(),
         ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::MoveAbort { .. },
+            error: ExecutionError::MoveAbort { .. },
             ..
         }
     ));
@@ -1012,7 +1011,7 @@ async fn verify_tto_not_locked(
 
 fn assert_effects_equivalent(ef1: &TransactionEffects, ef2: &TransactionEffects) {
     assert_eq!(ef1.status(), ef2.status());
-    assert_eq!(ef1.executed_epoch(), ef2.executed_epoch());
+    assert_eq!(ef1.epoch(), ef2.epoch());
     assert_eq!(ef1.gas_cost_summary(), ef2.gas_cost_summary());
     assert_eq!(
         ef1.modified_at_versions().len(),
@@ -1089,7 +1088,7 @@ async fn test_tto_valid_dependencies() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1132,7 +1131,7 @@ async fn test_tto_valid_dependencies() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
                 // The child should be the max version
@@ -1188,7 +1187,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1283,7 +1282,7 @@ async fn test_tto_dependencies_dont_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1380,7 +1379,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1475,7 +1474,7 @@ async fn test_tto_dependencies_receive_and_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1569,7 +1568,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1607,7 +1606,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         // Type mismatch is an abort code of 2 from `receive_impl`
         let is_type_mismatch_error = matches!(
             effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
+            ExecutionError::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
         );
         assert!(is_type_mismatch_error);
         assert!(effects.created().is_empty());
@@ -1670,11 +1669,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef {
-                            object_id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef::new(
+                            shared.0.object_id,
                             initial_shared_version,
-                            mutable: true,
-                        }))
+                            true,
+                        )))
                         .unwrap();
                     let child = builder.obj(CallArg::Receiving(owned.0)).unwrap();
                     move_call! {
@@ -1692,11 +1691,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef {
-                            object_id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef::new(
+                            shared.0.object_id,
                             initial_shared_version,
-                            mutable: true,
-                        }))
+                            true,
+                        )))
                         .unwrap();
                     let child = builder.obj(CallArg::ImmutableOrOwned(owned.0)).unwrap();
                     move_call! {

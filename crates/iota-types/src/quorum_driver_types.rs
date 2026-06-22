@@ -183,6 +183,9 @@ pub enum ExecuteTransactionRequestType {
 pub enum EffectsFinalityInfo {
     Certified(AuthorityStrongQuorumSignInfo),
     Checkpointed(EpochId, CheckpointSequenceNumber),
+    /// A quorum of validators have acknowledged effects (used in
+    /// TransactionDriver flow).
+    QuorumExecuted(EpochId),
 }
 
 /// When requested to execute a transaction with WaitForLocalExecution,
@@ -256,6 +259,7 @@ impl FinalizedEffects {
         match &self.finality_info {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
             EffectsFinalityInfo::Checkpointed(epoch, _) => *epoch,
+            EffectsFinalityInfo::QuorumExecuted(epoch) => *epoch,
         }
     }
 }

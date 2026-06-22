@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Argument, TypeTag};
 use iota_types::{
-    base_types::TypeTag, error::ExecutionError, execution::ExecutionResult, transaction::Argument,
-    transfer::Receiving,
+    error::ExecutionError, execution::ExecutionResult, invariant_violation, transfer::Receiving,
 };
 
 use crate::{
@@ -346,10 +346,16 @@ fn value_to_bytes_and_tag(
             let tag = resolver.get_type_tag(ty)?;
             (tag, bytes.clone())
         }
-        Value::Receiving(id, seqno, _) => (
-            Receiving::type_tag(),
-            Receiving::new(*id, *seqno).to_bcs_bytes(),
-        ),
+        Value::Receiving(id, seqno, assigned_type) => {
+            let Some(ty) = assigned_type else {
+                invariant_violation!("Receiving value used before type assignment");
+            };
+            let value_type = resolver.get_type_tag(ty)?;
+            (
+                Receiving::type_tag(value_type),
+                Receiving::new(*id, *seqno).to_bcs_bytes(),
+            )
+        }
     };
     Ok((bytes, type_tag))
 }

@@ -4,12 +4,10 @@
 
 use std::collections::VecDeque;
 
+use iota_sdk_types::{Address, ObjectId, Owner};
 use iota_types::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
-    dynamic_field::derive_dynamic_field_id,
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    object::Owner,
+    account_abstraction::account::AuthenticatorFunctionRefV1Key, base_types::SequenceNumber,
+    dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -69,9 +67,9 @@ pub fn receive_object_internal(
     let child_ty = ty_args.pop().unwrap();
     let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
-    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
-    let child_id = ObjectID::new(
+    let child_id = ObjectId::new(
         get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
             .unwrap()
             .value_as::<AccountAddress>()
@@ -173,7 +171,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::Address(IotaAddress::new(recipient.into_bytes()));
+    let owner = Owner::Address(Address::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))

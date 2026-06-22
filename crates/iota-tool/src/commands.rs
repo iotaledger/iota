@@ -14,10 +14,14 @@ use iota_config::{
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
+use iota_core::{
+    authority_aggregator::AuthorityAggregatorBuilder,
+    authority_client::{validator::ValidatorAPI, validator_peer::ValidatorPeerAPI},
+};
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -51,11 +55,11 @@ pub enum ToolCommand {
         /// Either id or address must be provided
         /// The object to check
         #[arg(long, help = "The object ID to fetch")]
-        id: Option<ObjectID>,
+        id: Option<ObjectId>,
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
         #[arg(long)]
-        address: Option<IotaAddress>,
+        address: Option<Address>,
         /// RPC address to provide the up-to-date committee info
         #[arg(long)]
         fullnode_rpc_url: String,
@@ -68,7 +72,7 @@ pub enum ToolCommand {
     /// Fetch the same object from all validators
     FetchObject {
         #[arg(long, help = "The object ID to fetch")]
-        id: ObjectID,
+        id: ObjectId,
 
         #[arg(long, help = "Fetch object at a specific sequence")]
         version: Option<u64>,
@@ -402,12 +406,21 @@ pub enum ToolCommand {
         #[command(subcommand)]
         fire_drill: crate::fire_drill::FireDrill,
     },
+
+    /// Check the health of a running gRPC server.
+    /// Exits with code 0 if healthy, non-zero otherwise.
+    #[command(name = "grpc-health-check")]
+    GrpcHealthCheck {
+        /// The gRPC server address (e.g., "http://localhost:50051")
+        #[arg(long, default_value = "http://localhost:50051")]
+        address: String,
+    },
 }
 
 async fn check_locked_object(
     iota_client: &Arc<IotaClient>,
     committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
-    id: ObjectID,
+    id: ObjectId,
     rescue: bool,
 ) -> anyhow::Result<()> {
     let clients = Arc::new(make_clients(iota_client).await?);
@@ -429,7 +442,7 @@ async fn check_locked_object(
 
     let tx_digest = top_record.2;
     if !rescue {
-        println!("Object {id} is rescueable, top tx: {tx_digest:?}");
+        println!("Object {id} is rescueable, top tx: {tx_digest}");
         return Ok(());
     }
     println!("Object {id} is rescueable, trying tx {tx_digest}");
@@ -456,10 +469,10 @@ async fn check_locked_object(
         .await;
     match res {
         Ok(_) => {
-            println!("Transaction executed successfully ({tx_digest:?})");
+            println!("Transaction executed successfully ({tx_digest})");
         }
         Err(e) => {
-            println!("Failed to execute transaction ({tx_digest:?}): {e:?}");
+            println!("Failed to execute transaction ({tx_digest}): {e:?}");
         }
     }
     Ok(())
@@ -613,7 +626,7 @@ impl ToolCommand {
 
                 for (name, (_, client)) in clients {
                     let resp = client
-                        .handle_checkpoint(CheckpointRequest {
+                        .get_checkpoint_v2(CheckpointRequest {
                             sequence_number,
                             request_content: true,
                             certified: true,
@@ -1088,6 +1101,11 @@ impl ToolCommand {
             }
             ToolCommand::FireDrill { fire_drill } => {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
+            }
+            ToolCommand::GrpcHealthCheck { address } => {
+                let client = iota_grpc_client::Client::new(address)?;
+                client.get_health(None).await?;
+                println!("OK");
             }
         };
         Ok(())

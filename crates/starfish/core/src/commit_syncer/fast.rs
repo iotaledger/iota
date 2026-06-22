@@ -36,6 +36,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -146,6 +147,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -157,6 +159,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             block_verifier,
             dag_state,
             header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Fast,
             fast_sync_active: Some(fast_sync_active),
         });
@@ -659,6 +662,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
+        // Replayed commits share one snapshot of current store state; downstream
+        // consumers merge-max against their last-seen, so repeating absolute
+        // totals across the batch is a no-op after the first.
+        let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
         for commit in &commits {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
@@ -681,6 +688,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commit.timestamp_ms(),
                 commit.reference(),
                 reputation_scores,
+                misbehavior_counts.clone(),
             ));
         }
 
@@ -790,6 +798,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
+                                // TODO: verify_fetched_headers currently only returns
+                                // fetch-shape errors (wrong count/ref) which classify
+                                // as Untracked. When per-header faults become observable
+                                // here, record them as peer misbehavior via
+                                // `inner.misbehavior_store.record_faulty_block_header`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -932,7 +945,10 @@ mod tests {
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
-                dag_state_cached_rounds: 5,
+                // Retain enough recent rounds to serve voting-block headers to
+                // lagging peers during catch-up; stabilizes the A/B convergence
+                // asserted below.
+                dag_state_cached_rounds: COMMIT_GAP_THRESHOLD / 2,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
@@ -1175,25 +1191,18 @@ mod tests {
 
         assert!(
             a_final > last_processed_a,
-            "Validator A should have progressed: before_restart={}, final={}",
-            last_processed_a,
-            a_final
+            "Validator A should have progressed: before_restart={last_processed_a}, final={a_final}"
         );
         assert!(
             b_final > last_processed_b,
-            "Validator B should have progressed: before_restart={}, final={}",
-            last_processed_b,
-            b_final
+            "Validator B should have progressed: before_restart={last_processed_b}, final={b_final}"
         );
 
         // Both should be within reasonable range of each other
         let diff = (a_final as i64 - b_final as i64).unsigned_abs() as u32;
         assert!(
             diff < 30,
-            "Validators A and B should have similar commit indices: A={}, B={}, diff={}",
-            a_final,
-            b_final,
-            diff
+            "Validators A and B should have similar commit indices: A={a_final}, B={b_final}, diff={diff}"
         );
 
         // Collect voting block headers metrics to verify voting storage was used.
@@ -1229,8 +1238,7 @@ mod tests {
         // so we should get voting hits.
         assert!(
             total_hits > 0,
-            "Expected voting block headers hits > 0, got {}",
-            total_hits
+            "Expected voting block headers hits > 0, got {total_hits}"
         );
 
         let commit_sync_fetch_commits_handler_uncertified_skipped: u64 = authorities
@@ -1247,8 +1255,7 @@ mod tests {
 
         assert!(
             commit_sync_fetch_commits_handler_uncertified_skipped > 0,
-            "Expected uncertified commits skipped > 0 for fast sync, got {}",
-            commit_sync_fetch_commits_handler_uncertified_skipped
+            "Expected uncertified commits skipped > 0 for fast sync, got {commit_sync_fetch_commits_handler_uncertified_skipped}"
         );
 
         // Stop all authorities
@@ -1454,10 +1461,9 @@ mod tests {
         let has_gap = last_commit > last_solid.unwrap_or(0);
         assert!(
             has_gap,
-            "Expected pending subdags gap: last_commit={}, last_solid={:?}. \
-             DAG round={}, new_commits={}. \
-             Validator 1's new blocks should have missing transactions.",
-            last_commit, last_solid, dag_round, new_commits
+            "Expected pending subdags gap: last_commit={last_commit}, last_solid={last_solid:?}. \
+             DAG round={dag_round}, new_commits={new_commits}. \
+             Validator 1's new blocks should have missing transactions."
         );
 
         // Record where the validator is now (with pending subdags)
@@ -1497,9 +1503,7 @@ mod tests {
         let gap = max_other.saturating_sub(last_processed_with_pending);
         assert!(
             gap > COMMIT_GAP_THRESHOLD,
-            "Gap {} should be greater than threshold {}",
-            gap,
-            COMMIT_GAP_THRESHOLD
+            "Gap {gap} should be greater than threshold {COMMIT_GAP_THRESHOLD}"
         );
 
         // Phase 6: Restart test validator with full connectivity and fast commit
@@ -1562,8 +1566,7 @@ mod tests {
 
         assert!(
             caught_up,
-            "Validator {} should have caught up via fast sync",
-            test_validator_index
+            "Validator {test_validator_index} should have caught up via fast sync"
         );
 
         // Verify the validator progressed significantly after restart with pending
@@ -1571,9 +1574,7 @@ mod tests {
         let final_index = consumer_monitors[test_validator_index].highest_handled_commit();
         assert!(
             final_index > last_processed_with_pending,
-            "Validator should have progressed after restart: with_pending_subdags={}, final={}",
-            last_processed_with_pending,
-            final_index
+            "Validator should have progressed after restart: with_pending_subdags={last_processed_with_pending}, final={final_index}"
         );
 
         // Verify that fast sync was actually used by checking the fetched commits
@@ -1592,8 +1593,7 @@ mod tests {
 
         assert!(
             commit_sync_fetched_commits > 0,
-            "Expected commits fetched via fast sync > 0, got {}",
-            commit_sync_fetched_commits
+            "Expected commits fetched via fast sync > 0, got {commit_sync_fetched_commits}"
         );
 
         // Stop all authorities

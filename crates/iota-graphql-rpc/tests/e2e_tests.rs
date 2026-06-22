@@ -18,8 +18,8 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
+    use iota_sdk_types::{Address, ObjectId};
     use iota_types::{
-        base_types::{IotaAddress, ObjectID},
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
         transaction::{CallArg, Transaction, TransactionDataAPI},
@@ -93,7 +93,6 @@ mod tests {
             connection_config.clone(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )
@@ -169,7 +168,6 @@ mod tests {
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )
@@ -256,7 +254,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::FRAMEWORK.to_canonical_string(true)
+            Address::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -265,7 +263,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::STARDUST.to_canonical_string(true)
+            Address::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -841,7 +839,7 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 "coin",
                 "split",
                 vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
@@ -1117,6 +1115,12 @@ mod tests {
     #[serial]
     async fn test_payload_inline_fragment_dry_run_exceeded() {
         test_payload_inline_fragment_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_object_input_dry_run_exceeded() {
+        test_payload_object_input_dry_run_exceeded_impl().await;
     }
 
     #[tokio::test]

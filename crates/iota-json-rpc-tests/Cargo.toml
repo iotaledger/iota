@@ -21,6 +21,7 @@ jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tracing.workspace = true
 
@@ -39,6 +40,7 @@ iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-simulator.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true

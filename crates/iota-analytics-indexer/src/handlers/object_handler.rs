@@ -11,7 +11,7 @@ use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
-    effects::TransactionEffects,
+    effects::{TransactionEffects, TransactionEffectsExt},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };

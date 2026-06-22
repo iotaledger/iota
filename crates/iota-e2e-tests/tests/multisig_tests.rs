@@ -4,21 +4,24 @@
 
 use std::net::SocketAddr;
 
-use fastcrypto::traits::EncodeDecodeBase64;
-use iota_core::authority_client::AuthorityAPI;
+use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
+use iota_sdk_types::{
+    Address,
+    crypto::{
+        Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey,
+        Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
+    },
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{IotaKeyPair, PublicKey, Signature, SignatureScheme, ToFromBytes, get_key_pair},
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey},
-    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{keys, make_upgraded_multisig_tx},
+    utils::{make_upgraded_multisig_tx, multisig_keys},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -55,7 +58,7 @@ async fn do_upgraded_multisig_test() -> IotaResult {
 
 async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     test_cluster: &TestCluster,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
 ) -> Transaction {
@@ -110,21 +113,24 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let x = encoded_point.x();
     let y = encoded_point.y();
     let prefix = if y.unwrap()[31] % 2 == 0 { 0x02 } else { 0x03 };
-    let mut pk_bytes = vec![prefix];
-    pk_bytes.extend_from_slice(x.unwrap());
-    let passkey_pk =
-        PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &pk_bytes).unwrap();
+    let mut pk_bytes = [prefix; Secp256r1PublicKey::LENGTH];
+    pk_bytes[1..].copy_from_slice(x.unwrap());
+    let passkey_pk = PasskeyPublicKey::new(Secp256r1PublicKey::new(pk_bytes));
 
-    // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey)
-    // with threshold = 1.
-    let keys = keys();
-    let pk0 = keys[0].public(); // ed25519
-    let pk1 = keys[1].public(); // secp256k1
-    let pk2 = keys[2].public(); // secp256r1
+    // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey) with
+    // threshold = 1.
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk0 = kp1.public_key(); // ed25519
+    let pk1 = kp2.public_key(); // secp256k1
+    let pk2 = kp3.public_key(); // secp256r1
 
     let multisig_pk = MultiSigPublicKey::new(
-        vec![pk0.clone(), pk1.clone(), pk2.clone(), passkey_pk.clone()],
-        vec![1, 1, 1, 1],
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(passkey_pk, 1),
+        ],
         1,
     )
     .unwrap();
@@ -132,7 +138,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     // Compute iota address as sender, fund gas and make a test transaction.
     let sender = match sender {
         Some(s) => s,
-        None => IotaAddress::from(&multisig_pk),
+        None => Address::from(&multisig_pk),
     };
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -140,23 +146,21 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
         .await;
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
 
     // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey credential
-    // request. If change_intent, mangle the intent bytes. If change_tx, mangle
-    // the hashed tx bytes.
+    // request. If change_intent, mangle the intent bytes. If change_tx, mangle the
+    // hashed tx bytes.
     let passkey_challenge = if change_intent {
-        to_signing_message(&IntentMessage::new(
-            Intent::personal_message(),
-            intent_msg.value.clone(),
-        ))
-        .to_vec()
+        IntentMessage::new(Intent::personal_message(), intent_msg.value.clone())
+            .signing_digest()
+            .to_vec()
     } else if change_tx {
         random_vec(32)
     } else {
-        to_signing_message(&intent_msg).to_vec()
+        intent_msg.signing_digest().to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.
@@ -184,28 +188,28 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
 
-    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
-    user_sig_bytes.extend_from_slice(&sig_bytes);
-    user_sig_bytes.extend_from_slice(&pk_bytes);
-
     // Parse authenticator_data and client_data_json from response.
     let authenticator_data = authenticated_cred.response.authenticator_data.as_slice();
     let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
-            authenticator_data.to_vec(),
-            String::from_utf8(client_data_json.to_vec()).unwrap(),
-            Signature::from_bytes(&user_sig_bytes).unwrap(),
-        )
-        .unwrap(),
-    );
+    let sig = PasskeyAuthenticator::new(
+        authenticator_data.to_vec(),
+        String::from_utf8(client_data_json.to_vec()).unwrap(),
+        SimpleSignature::new_secp256r1(
+            Secp256r1Signature::new(sig_bytes.into()),
+            Secp256r1PublicKey::new(pk_bytes),
+        ),
+    )
+    .unwrap();
+
     let multisig =
-        GenericSignature::MultiSig(MultiSig::combine(vec![sig], multisig_pk.clone()).unwrap());
+        GenericSignature::MultiSig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
+
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
 
 struct MyUserValidationMethod {}
+
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
     type PasskeyItem = Passkey;
@@ -246,16 +250,22 @@ async fn test_multisig_e2e() {
     let context = &test_cluster.wallet;
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let keys = keys();
-    let pk0 = keys[0].public(); // ed25519
-    let pk1 = keys[1].public(); // secp256k1
-    let pk2 = keys[2].public(); // secp256r1
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk0 = kp1.public_key(); // ed25519
+    let pk1 = kp2.public_key(); // secp256k1
+    let pk2 = kp3.public_key(); // secp256r1
 
-    let multisig_pk = MultiSigPublicKey::insecure_new(
-        vec![(pk0.clone(), 1), (pk1.clone(), 1), (pk2.clone(), 1)],
+    let multisig_pk = MultiSigPublicKey::new_unchecked(
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+        ],
         2,
     );
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+
+    let keys: [SimpleKeypair; 3] = [kp1.into(), kp2.into(), kp3.into()];
+    let multisig_addr = Address::from(&multisig_pk);
 
     // fund wallet and get a gas object to use later.
     let gas = test_cluster
@@ -264,7 +274,7 @@ async fn test_multisig_e2e() {
 
     // 1. sign with key 0 and 1 executes successfully.
     let tx1 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
     let res = context.execute_transaction_must_succeed(tx1).await;
     assert!(res.status_ok().unwrap());
@@ -274,7 +284,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx2 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[1], &keys[2]], 0b110);
     let res = context.execute_transaction_must_succeed(tx2).await;
     assert!(res.status_ok().unwrap());
@@ -284,7 +294,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx3 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[2], &keys[1]], 0b110);
     let res = context.execute_transaction_may_fail(tx3).await;
     assert!(
@@ -295,7 +305,7 @@ async fn test_multisig_e2e() {
 
     // 4. sign with key 0 only is below threshold, fails to execute.
     let tx4 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0]], 0b001);
     let res = context.execute_transaction_may_fail(tx4).await;
     assert!(
@@ -304,20 +314,23 @@ async fn test_multisig_e2e() {
             .contains("Insufficient weight=1 threshold=2")
     );
 
-    // 5. multisig with no single sig fails to execute.
+    // 5. multisig with no single sig fails to execute. An empty multisig is
+    // rejected at signature deserialization time (the SDK's `validate()` returns
+    // `InvalidSignatureNumber`), which surfaces as a generic invalid-signature
+    // error rather than the detailed multisig message.
     let tx5 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[], 0b001);
     let res = context.execute_transaction_may_fail(tx5).await;
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid value was given to the function")
+            .contains("Invalid signature was given to the function")
     );
 
     // 6. multisig two dup sigs fails to execute.
     let tx6 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[0]], 0b011);
     let res = context.execute_transaction_may_fail(tx6).await;
     assert!(
@@ -334,26 +347,29 @@ async fn test_multisig_e2e() {
     );
 
     // 7. mismatch pks in sig with multisig address fails to execute.
-    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair().1);
-    let pk3 = kp3.public();
-    let wrong_multisig_pk = MultiSigPublicKey::new(
-        vec![pk0.clone(), pk1.clone(), pk3.clone()],
-        vec![1, 1, 1],
+    let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
+        .public_key()
+        .into();
+    let wrong_multisig_pk = MultiSigPublicKey::new_unchecked(
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk3.clone(), 1),
+        ],
         2,
-    )
-    .unwrap();
-    let wrong_sender = IotaAddress::from(&wrong_multisig_pk);
+    );
+    let wrong_sender = Address::from(&wrong_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), wrong_sender)
         .await;
     let tx7 = TestTransactionBuilder::new(wrong_sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(wrong_multisig_pk.clone(), &[&keys[0], &keys[2]], 0b101);
     let res = context.execute_transaction_may_fail(tx7).await;
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains(format!("Invalid sig for pk={}", pk3.encode_base64()).as_str())
+            .contains(format!("Invalid sig for pk={}", pk3.to_base64()).as_str())
     );
 }
 
@@ -399,7 +415,7 @@ async fn test_multisig_passkey_scenarios() {
     // wrong sender fails to verify
     let tx2 = create_credential_and_sign_test_tx_with_passkey_multisig(
         &test_cluster,
-        Some(IotaAddress::ZERO),
+        Some(Address::ZERO),
         false,
         false,
     )

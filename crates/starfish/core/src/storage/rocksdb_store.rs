@@ -2,17 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Bound::Included, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Bound::Included, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
 use starfish_config::AuthorityIndex;
 use tracing::debug;
 use typed_store::{
-    Map as _,
+    DBMapUtils, Map as _,
     metrics::SamplingInterval,
-    reopen,
-    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
+    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
 use super::{CommitInfo, Store, WriteBatch};
@@ -25,10 +24,12 @@ use crate::{
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Persistent storage with RocksDB.
+#[derive(DBMapUtils)]
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -37,6 +38,7 @@ pub(crate) struct RocksDBStore {
     /// Stores Transactions by transaction refs
     transactions_by_tx_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
     /// A secondary index that orders refs first by authors.
+    #[rename = "digests"]
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// A secondary index that orders transaction commitments first by authors.
     transaction_commitments_by_authorities:
@@ -55,9 +57,8 @@ pub(crate) struct RocksDBStore {
 
     fast_commit_sync_flag: DBMap<(), ()>,
 
-    /// Context to access protocol configuration
-    #[cfg_attr(not(test), allow(dead_code))]
-    context: Arc<Context>,
+    /// Stores scoring metrics for each authority.
+    misbehavior_counts: DBMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl RocksDBStore {
@@ -72,98 +73,67 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
+    const MISBEHAVIOR_COUNTS_CF: &'static str = "misbehavior_counts";
 
     /// Creates a new instance of RocksDB storage.
-    pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
+    pub(crate) fn new(path: &str) -> Self {
         // Consensus data has high write throughput (all transactions) and is rarely
         // read (only during recovery and when helping peers catch up).
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");
         metrics_conf.read_sample_interval = SamplingInterval::new(Duration::from_secs(60), 0);
-        let cf_options = default_db_options().optimize_for_write_throughput().options;
-        let column_family_options = vec![
+        let cf_options = default_db_options().optimize_for_write_throughput();
+        let column_family_options = DBMapTableConfigMap::new(BTreeMap::from([
             (
-                Self::TRANSACTIONS_CF,
+                Self::TRANSACTIONS_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
             (
-                Self::TRANSACTIONS_BY_TX_REF_CF,
+                Self::TRANSACTIONS_BY_TX_REF_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
             (
-                Self::BLOCK_HEADERS_CF,
+                Self::BLOCK_HEADERS_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // TODO:think about these constants, for now it is a copy from blocks
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
-            (Self::DIGESTS_BY_AUTHORITIES_CF, cf_options.clone()),
             (
-                Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF,
+                Self::DIGESTS_BY_AUTHORITIES_CF.to_string(),
                 cf_options.clone(),
             ),
-            (Self::COMMITS_CF, cf_options.clone()),
-            (Self::COMMIT_VOTES_CF, cf_options.clone()),
-            (Self::COMMIT_INFO_CF, cf_options.clone()),
+            (
+                Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (Self::COMMITS_CF.to_string(), cf_options.clone()),
+            (Self::COMMIT_VOTES_CF.to_string(), cf_options.clone()),
+            (Self::COMMIT_INFO_CF.to_string(), cf_options.clone()),
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
-            (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
-            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options),
-        ];
-        let rocksdb = open_cf_opts(
-            path,
-            Some(db_options.options),
+            (
+                Self::VOTING_BLOCK_HEADERS_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (
+                Self::FAST_COMMIT_SYNC_FLAG_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (Self::MISBEHAVIOR_COUNTS_CF.to_string(), cf_options),
+        ]));
+        Self::open_tables_read_write(
+            path.into(),
             metrics_conf,
-            &column_family_options,
+            Some(db_options.options),
+            Some(column_family_options),
         )
-        .expect("Cannot open database");
-
-        let (
-            block_headers,
-            transactions,
-            transactions_by_tx_refs,
-            digests_by_authorities,
-            transaction_commitments_by_authorities,
-            commits,
-            commit_votes,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-        ) = reopen!(&rocksdb,
-            Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::TRANSACTIONS_BY_TX_REF_CF;<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
-            Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
-            Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment), ()>,
-            Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
-            Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
-            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
-        );
-
-        Self {
-            block_headers,
-            transactions,
-            transactions_by_tx_refs,
-            digests_by_authorities,
-            transaction_commitments_by_authorities,
-            commits,
-            commit_votes,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-            context,
-        }
     }
 }
 
@@ -310,15 +280,23 @@ impl Store for RocksDBStore {
             }
         }
 
+        batch
+            .insert_batch(&self.misbehavior_counts, write_batch.misbehavior_counts)
+            .map_err(ConsensusError::RocksDBFailure)?;
+
         batch.write()?;
         fail_point!("consensus-store-after-write");
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(
+        &self,
+        refs: &[BlockRef],
+        context: Arc<Context>,
+    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
+        let tx_refs = if context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {
@@ -617,6 +595,7 @@ impl Store for RocksDBStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let mut refs = vec![];
         for kv in self.digests_by_authorities.safe_range_iter((
@@ -626,7 +605,7 @@ impl Store for RocksDBStore {
             let ((author, round, digest), _) = kv?;
             refs.push(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slice())?;
+        let results = self.read_blocks(refs.as_slice(), context)?;
         let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -645,6 +624,7 @@ impl Store for RocksDBStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = std::collections::VecDeque::new();
@@ -659,7 +639,11 @@ impl Store for RocksDBStore {
             let ((author, round, digest), _) = kv?;
             refs.push_front(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slices().0)?;
+        // Use make_contiguous() rather than as_slices().0 so all refs are read
+        // when the VecDeque ring buffer wraps; otherwise trailing entries would
+        // be silently dropped.
+        let refs_slice = refs.make_contiguous();
+        let results = self.read_blocks(refs_slice, context)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -667,6 +651,15 @@ impl Store for RocksDBStore {
             );
         }
         Ok(blocks)
+    }
+
+    fn scan_misbehavior_counts(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>> {
+        self.misbehavior_counts
+            .safe_iter()
+            .map(|kv| kv.map_err(ConsensusError::RocksDBFailure))
+            .collect()
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
@@ -703,11 +696,15 @@ impl Store for RocksDBStore {
         Ok(commits)
     }
 
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>> {
         let mut votes = Vec::new();
         for vote in self.commit_votes.safe_range_iter((
-            Included((commit_index, CommitDigest::MIN, BlockRef::MIN)),
-            Included((commit_index, CommitDigest::MAX, BlockRef::MAX)),
+            Included((commit_index, commit_digest, BlockRef::MIN)),
+            Included((commit_index, commit_digest, BlockRef::MAX)),
         )) {
             let ((_, _, block_ref), _) = vote?;
             votes.push(block_ref);
@@ -825,37 +822,11 @@ impl RocksDBStore {
     ///
     /// Deletes all transactions from the consensus RocksDB store while
     /// preserving commits, block headers, and other data.
-    pub fn delete_all_transactions_from_store(
-        db_path: &std::path::Path,
-        authority_index: AuthorityIndex,
-        committee: starfish_config::Committee,
-        protocol_config: iota_protocol_config::ProtocolConfig,
-    ) -> ConsensusResult<()> {
-        use prometheus::Registry;
-        use starfish_config::Parameters;
-
-        use crate::{Clock, context::Context, metrics::initialise_metrics};
-
-        let metrics = initialise_metrics(Registry::new());
-        let clock = Arc::new(Clock::default());
-        let context = Arc::new(Context::new(
-            0,
-            authority_index,
-            committee,
-            Parameters {
-                db_path: db_path.to_path_buf(),
-                ..Default::default()
-            },
-            protocol_config,
-            metrics,
-            clock,
-        ));
-
+    pub fn delete_all_transactions_from_store(db_path: &std::path::Path) -> ConsensusResult<()> {
         let store = RocksDBStore::new(
             db_path
                 .to_str()
                 .expect("consensus DB path should be valid UTF-8"),
-            context,
         );
         store.delete_all_transactions()
     }

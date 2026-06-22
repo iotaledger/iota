@@ -13,8 +13,9 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag},
+    base_types::SequenceNumber,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -109,7 +110,7 @@ pub struct MockGrpcStateReader {
     pub large_checkpoint_transactions: Vec<CheckpointTransaction>,
 
     // -- Objects --
-    pub objects: HashMap<ObjectID, Object>,
+    pub objects: HashMap<ObjectId, Object>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
     /// Pre-sorted in owner index key order. The iterator respects cursor-based
@@ -163,13 +164,13 @@ impl MockGrpcStateReader {
 
 // -- ObjectStore impl --
 impl iota_types::storage::ObjectStore for MockGrpcStateReader {
-    fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         _version: SequenceNumber,
     ) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
@@ -390,7 +391,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
+        owner: Address,
         cursor: Option<&iota_types::storage::OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
@@ -442,8 +443,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn dynamic_field_iter(
         &self,
-        _parent: ObjectID,
-        _cursor: Option<ObjectID>,
+        _parent: ObjectId,
+        _cursor: Option<ObjectId>,
     ) -> StorageResult<
         Box<
             dyn Iterator<
@@ -466,7 +467,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn package_versions_iter(
         &self,
-        _original_package_id: ObjectID,
+        _original_package_id: ObjectId,
         _cursor: Option<u64>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>>
     {
@@ -502,6 +503,8 @@ pub async fn start_test_server(
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
+        None,
+        None,
         None,
     )
     .await

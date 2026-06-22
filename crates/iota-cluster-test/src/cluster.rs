@@ -250,7 +250,7 @@ impl Cluster for LocalNewCluster {
                 true,
                 None,
                 test_cluster.grpc_url(),
-                IndexerTypeConfig::writer_mode(None, None),
+                IndexerTypeConfig::writer_mode(None),
                 Some(data_ingestion_path.clone()),
             )
             .await;
@@ -273,6 +273,7 @@ impl Cluster for LocalNewCluster {
                 Some(graphql_address.port()),
                 Some(graphql_address.ip().to_string()),
                 options.pg_address.clone(),
+                None,
                 None,
                 None,
                 None,

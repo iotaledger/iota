@@ -3,28 +3,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionKind,
-    ObjectChange,
+    BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionKind, ObjectChange,
 };
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag},
+    base_types::{ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
-    iota_serde::IotaStructTag,
+    iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
-    move_package::MovePackage,
-    object::{Object, Owner},
+    object::Object,
     transaction::SenderSignedData,
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{DisplayFromStr, serde_as};
 
 use crate::errors::IndexerError;
 
@@ -155,11 +155,11 @@ pub struct IndexedEvent {
     pub event_sequence_number: u64,
     pub checkpoint_sequence_number: u64,
     pub transaction_digest: TransactionDigest,
-    pub senders: Vec<IotaAddress>,
-    pub package: ObjectID,
+    pub senders: Vec<Address>,
+    pub package: ObjectId,
     pub module: String,
     pub event_type: String,
-    pub event_type_package: ObjectID,
+    pub event_type_package: ObjectId,
     pub event_type_module: String,
     /// Struct name of the event, without type parameters.
     pub event_type_name: String,
@@ -173,7 +173,7 @@ impl IndexedEvent {
         event_sequence_number: u64,
         checkpoint_sequence_number: u64,
         transaction_digest: TransactionDigest,
-        event: &iota_types::event::Event,
+        event: &iota_sdk_types::Event,
         timestamp_ms: u64,
     ) -> Self {
         Self {
@@ -198,10 +198,10 @@ impl IndexedEvent {
 pub struct EventIndex {
     pub tx_sequence_number: u64,
     pub event_sequence_number: u64,
-    pub sender: IotaAddress,
-    pub emit_package: ObjectID,
+    pub sender: Address,
+    pub emit_package: ObjectId,
     pub emit_module: String,
-    pub type_package: ObjectID,
+    pub type_package: ObjectId,
     pub type_module: String,
     /// Struct name of the event, without type parameters.
     pub type_name: String,
@@ -214,7 +214,7 @@ impl EventIndex {
     pub fn from_event(
         tx_sequence_number: u64,
         event_sequence_number: u64,
-        event: &iota_types::event::Event,
+        event: &iota_sdk_types::Event,
     ) -> Self {
         let type_instantiation = event
             .type_
@@ -246,10 +246,10 @@ impl EventIndex {
         EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
-            sender: IotaAddress::random(),
-            emit_package: ObjectID::random(),
+            sender: Address::random(),
+            emit_package: ObjectId::random(),
             emit_module: rng.gen::<u64>().to_string(),
-            type_package: ObjectID::random(),
+            type_package: ObjectId::random(),
             type_module: rng.gen::<u64>().to_string(),
             type_name: rng.gen::<u64>().to_string(),
             type_instantiation: rng.gen::<u64>().to_string(),
@@ -268,6 +268,10 @@ pub enum OwnerType {
 pub enum ObjectStatus {
     Active = 0,
     WrappedOrDeleted = 1,
+    /// Only `objects_backward_history` stores this status, to mark that the
+    /// object did not yet exist at the recorded version. Encountering it when
+    /// reading any other table is data corruption.
+    NotYetCreated = 2,
 }
 
 impl TryFrom<i16> for ObjectStatus {
@@ -277,6 +281,7 @@ impl TryFrom<i16> for ObjectStatus {
         Ok(match value {
             0 => ObjectStatus::Active,
             1 => ObjectStatus::WrappedOrDeleted,
+            2 => ObjectStatus::NotYetCreated,
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as ObjectStatus"
@@ -305,7 +310,7 @@ impl TryFrom<i16> for OwnerType {
 }
 
 // Returns owner_type, owner_address
-pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<IotaAddress>) {
+pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<Address>) {
     match owner {
         Owner::Address(address) => (OwnerType::Address, Some(*address)),
         Owner::Object(object_id) => (OwnerType::Object, Some(*object_id.as_address())),
@@ -348,7 +353,7 @@ impl IndexedObject {
 impl IndexedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
-        let random_address = IotaAddress::random();
+        let random_address = Address::random();
         IndexedObject {
             checkpoint_sequence_number: rng.gen(),
             object: Object::with_owner_for_testing(random_address),
@@ -366,7 +371,7 @@ impl IndexedObject {
 
 #[derive(Clone, Debug)]
 pub struct IndexedDeletedObject {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub object_version: u64,
     pub checkpoint_sequence_number: u64,
 }
@@ -376,7 +381,7 @@ impl IndexedDeletedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         IndexedDeletedObject {
-            object_id: ObjectID::random(),
+            object_id: ObjectId::random(),
             object_version: rng.gen(),
             checkpoint_sequence_number: rng.gen(),
         }
@@ -385,7 +390,7 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
 }
@@ -399,8 +404,8 @@ pub struct IndexedTransaction {
     pub checkpoint_sequence_number: u64,
     pub timestamp_ms: u64,
     pub object_changes: Vec<IndexedObjectChange>,
-    pub balance_change: Vec<iota_json_rpc_types::BalanceChange>,
-    pub events: Vec<iota_types::event::Event>,
+    pub balance_change: Vec<IndexedBalanceChange>,
+    pub events: Vec<iota_sdk_types::Event>,
     pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
 }
@@ -411,13 +416,13 @@ pub struct TxIndex {
     pub tx_kind: IotaTransactionKind,
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
-    pub input_objects: Vec<ObjectID>,
-    pub changed_objects: Vec<ObjectID>,
-    pub payers: Vec<IotaAddress>,
-    pub sender: IotaAddress,
-    pub recipients: Vec<IotaAddress>,
-    pub move_calls: Vec<(ObjectID, String, String)>,
-    pub wrapped_or_deleted_objects: Vec<ObjectID>,
+    pub input_objects: Vec<ObjectId>,
+    pub changed_objects: Vec<ObjectId>,
+    pub payers: Vec<Address>,
+    pub sender: Address,
+    pub recipients: Vec<Address>,
+    pub move_calls: Vec<(ObjectId, String, String)>,
+    pub wrapped_or_deleted_objects: Vec<ObjectId>,
 }
 
 #[cfg(any(test, feature = "pg_integration"))]
@@ -441,24 +446,24 @@ impl TxIndex {
             IotaTransactionKind::ProgrammableTransaction
         };
 
-        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let payers = repeat_with(IotaAddress::random)
+        let input_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
+        let changed_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
+        let payers = repeat_with(Address::random)
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
-        let recipients = repeat_with(IotaAddress::random)
+        let recipients = repeat_with(Address::random)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
             (
-                ObjectID::random(),
+                ObjectId::random(),
                 rand::random::<u64>().to_string(),
                 rand::random::<u64>().to_string(),
             )
         })
         .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
-        let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let wrapped_or_deleted_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
             tx_sequence_number: rng.gen(),
@@ -468,7 +473,7 @@ impl TxIndex {
             input_objects,
             changed_objects,
             payers,
-            sender: IotaAddress::random(),
+            sender: Address::random(),
             recipients,
             move_calls,
             wrapped_or_deleted_objects,
@@ -481,64 +486,64 @@ impl TxIndex {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum IndexedObjectChange {
     Published {
-        package_id: ObjectID,
+        package_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
         modules: Vec<String>,
     },
     Transferred {
-        sender: IotaAddress,
+        sender: Address,
         recipient: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },
     /// Object mutated.
     Mutated {
-        sender: IotaAddress,
+        sender: Address,
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         previous_version: SequenceNumber,
         digest: ObjectDigest,
     },
     /// Delete object
     Deleted {
-        sender: IotaAddress,
+        sender: Address,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     },
     /// Wrapped object
     Wrapped {
-        sender: IotaAddress,
+        sender: Address,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     },
     /// Unwrapped object
     Unwrapped {
-        sender: IotaAddress,
+        sender: Address,
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },
     /// New object creation
     Created {
-        sender: IotaAddress,
+        sender: Address,
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },
@@ -748,6 +753,37 @@ impl From<IndexedObjectChange> for ObjectChange {
     }
 }
 
+/// Storage representation of a balance change.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexedBalanceChange {
+    pub owner: Owner,
+    #[serde_as(as = "IotaTypeTag")]
+    pub coin_type: TypeTag,
+    #[serde_as(as = "DisplayFromStr")]
+    pub amount: i128,
+}
+
+impl From<BalanceChange> for IndexedBalanceChange {
+    fn from(bc: BalanceChange) -> Self {
+        Self {
+            owner: bc.owner,
+            coin_type: bc.coin_type,
+            amount: bc.amount,
+        }
+    }
+}
+
+impl From<IndexedBalanceChange> for BalanceChange {
+    fn from(bc: IndexedBalanceChange) -> Self {
+        Self {
+            owner: bc.owner,
+            coin_type: bc.coin_type,
+            amount: bc.amount,
+        }
+    }
+}
+
 // IotaTransactionBlockResponseWithOptions is only used on the reading path
 pub struct IotaTransactionBlockResponseWithOptions {
     pub response: IotaTransactionBlockResponse,
@@ -806,7 +842,7 @@ pub(crate) mod grpc_conversion {
         objects
             .objects
             .iter()
-            .map(|o| -> IndexerResult<_> { Ok(Object::try_from(o.object()?)?) })
+            .map(|o| -> IndexerResult<_> { Ok(Object::from(o.object()?)) })
             .collect()
     }
 

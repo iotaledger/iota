@@ -68,9 +68,6 @@ members = [
   "crates/iota-analytics-indexer-derive",
   "crates/iota-archival",
   "crates/iota-authority-aggregation",
-  "crates/iota-aws-orchestrator",
-  "crates/iota-benchmark",
-  "crates/iota-build-cache-server",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
@@ -91,9 +88,7 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
-  "crates/iota-grpc-client",
   "crates/iota-grpc-server",
-  "crates/iota-grpc-types",
   "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
@@ -129,13 +124,13 @@ members = [
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
-  "crates/iota-proto-build",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
   "crates/iota-replay",
   "crates/iota-rest-kv",
   "crates/iota-rpc-loadgen",
+  "crates/iota-rust-sdk",
   "crates/iota-sdk",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
@@ -144,7 +139,6 @@ members = [
   "crates/iota-source-validation-service",
   "crates/iota-stardust-types",
   "crates/iota-storage",
-  "crates/iota-surfer",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
   "crates/iota-synthetic-ingestion",
@@ -162,6 +156,7 @@ members = [
   "crates/simulacrum-server",
   "crates/starfish/config",
   "crates/starfish/core",
+  "crates/starfish/dag-visualizer-proto",
   "crates/starfish/simtests",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
@@ -178,7 +173,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.24.0-alpha"
+version = "1.27.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -226,14 +221,15 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'
 
 [workspace.lints.clippy]
 redundant_clone = "warn"
+uninlined_format_args = "warn"
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
 # external dependencies
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
@@ -253,7 +249,6 @@ bcs = "0.1.4"
 better_any = "0.1.1"
 bincode = "1.3.3"
 bip32 = "0.5"
-bitflags = { version = "2.10.0", default-features = false }
 byteorder = "1.4.3"
 bytes = { version = "1.5.0", features = ["serde"] }
 cached = "0.43.0"
@@ -262,11 +257,9 @@ chrono = { version = "0.4.41", features = ["clock", "serde"] }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 codespan-reporting = "0.11.1"
 colored = "2.0.0"
-comfy-table = "6.1.3"
 const-str = "0.5.3"
 coset = "0.3"
 criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_reports"] }
-crossterm = "0.25.0"
 csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
@@ -274,7 +267,6 @@ derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
 dirs = "5.0"
 downcast = "0.11.0"
-duration-str = "0.5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"
@@ -289,7 +281,6 @@ fs_extra = "1.3.0"
 futures = "0.3.28"
 getset = "0.1"
 git-version = "0.3.5"
-hdrhistogram = "7.5.1"
 hex = "0.4.3"
 http = "1"
 http-body = "1.0"
@@ -312,7 +303,6 @@ more-asserts = "0.3.1"
 msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.52.2", package = "msim" }
 multiaddr = "0.18.2"
 nonempty = "0.9.0"
-num-bigint = "0.4.4"
 num_cpus = "1.15.0"
 num_enum = "0.7"
 object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
@@ -323,7 +313,6 @@ parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
-petgraph = { version = ">=0.6, <=0.7", default-features = false }
 pin-project-lite = "0.2.15"
 prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
@@ -331,8 +320,8 @@ primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
 proptest = "1.6.0"
-proptest-derive = "0.5.1"
 prost = "0.14"
+prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -359,7 +348,6 @@ static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
-sysinfo = "^0.33"
 tabled = { version = "0.12" }
 tap = "1.0.1"
 tempfile = "3.20.0"
@@ -385,14 +373,13 @@ uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
 bin-version = { path = "crates/bin-version" }
+dag-visualizer-proto = { path = "crates/starfish/dag-visualizer-proto" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
 iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" }
 iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
-iota-benchmark = { path = "crates/iota-benchmark" }
-iota-build-cache-server = { path = "crates/iota-build-cache-server" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
 iota-common = { path = "crates/iota-common", default-features = false }
 iota-config = { path = "crates/iota-config" }
@@ -413,9 +400,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { path = "crates/iota-grpc-client" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { path = "crates/iota-grpc-types" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -448,21 +435,20 @@ iota-package-dump = { path = "crates/iota-package-dump" }
 iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
-iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c11e89af6c9b46495b2742e7b43fef9a3a2c8d7", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d96edaba1a36aff0c874239ddfecd0c4bae81d56", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
 iota-source-validation-service = { path = "crates/iota-source-validation-service" }
 iota-stardust-types = { path = "crates/iota-stardust-types" }
 iota-storage = { path = "crates/iota-storage" }
-iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
 iota-synthetic-ingestion = { path = "crates/iota-synthetic-ingestion" }
@@ -487,6 +473,7 @@ move-command-line-common = { path = "external-crates/move/crates/move-command-li
 move-compiler = { path = "external-crates/move/crates/move-compiler" }
 move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
+move-docgen = { path = "external-crates/move/crates/move-docgen" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-package-alt = { path = "external-crates/move/crates/move-package-alt" }

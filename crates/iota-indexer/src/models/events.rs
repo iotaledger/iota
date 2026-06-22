@@ -7,11 +7,9 @@ use std::{str::FromStr, sync::Arc};
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_types::{Address, Identifier, ObjectId};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID},
-    digests::TransactionDigest,
-    event::EventID,
-    object::bounded_visitor::BoundedVisitor,
+    digests::TransactionDigest, event::EventID, object::bounded_visitor::BoundedVisitor,
     parse_iota_struct_tag,
 };
 
@@ -75,7 +73,7 @@ impl StoredEvent {
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<IotaEvent, IndexerError> {
-        let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
+        let package_id = ObjectId::from_bytes(self.package.clone()).map_err(|_e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package
@@ -92,7 +90,7 @@ impl StoredEvent {
             }
         };
         let sender = match sender {
-            Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
+            Some(ref s) => Address::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to parse event sender address: {sender:?}"
                 ))
@@ -141,7 +139,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::{base_types::StructTag, event::Event};
+    use iota_sdk_types::{Event, Identifier, StructTag};
 
     use super::*;
 
@@ -149,11 +147,11 @@ mod tests {
     fn test_canonical_string_of_event_type() {
         let tx_digest = TransactionDigest::default();
         let event = Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
-            sender: IotaAddress::random(),
+            sender: Address::random(),
             type_: StructTag::new(
-                IotaAddress::FRAMEWORK,
+                Address::FRAMEWORK,
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),
                 vec![],

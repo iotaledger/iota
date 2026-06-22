@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_metrics::monitored_scope;
-use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
-    event::Event,
-};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
 const MAX_FILTER_DEPTH: usize = 10;
@@ -21,7 +18,7 @@ pub enum EventFilter {
     Not(Box<EventFilter>),
 
     /// Filter by sender address.
-    Sender(IotaAddress),
+    Sender(Address),
 
     /// Return events emitted in a specified Move package + module (optional).
     /// If the event is defined in PackageA::ModuleA but emitted in a tx with
@@ -30,7 +27,7 @@ pub enum EventFilter {
     /// PackageA::ModuleA returns the event too.
     MovePackageAndModule {
         /// the Move package ID
-        package: ObjectID,
+        package: ObjectId,
         /// the module name (optional)
         module: Option<Identifier>,
     },
@@ -42,7 +39,7 @@ pub enum EventFilter {
     /// event too.
     MoveEventPackageAndModule {
         /// the Move package ID
-        package: ObjectID,
+        package: ObjectId,
         /// the module name (optional)
         module: Option<Identifier>,
     },
@@ -87,20 +84,19 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                     .address
                     .ok_or("sender address is missing")?
                     .address;
-                let iota_address = IotaAddress::from_bytes(&address)
-                    .map_err(|e| format!("invalid sender address: {}", e))?;
+                let iota_address = Address::from_bytes(&address)
+                    .map_err(|e| format!("invalid sender address: {e}"))?;
                 Ok(EventFilter::Sender(iota_address))
             }
             ProtoFilter::MovePackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
-                let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                let package = ObjectId::from_bytes(&package_bytes)
+                    .map_err(|e| format!("invalid package_id: {e}"))?;
                 let module = filter
                     .module
                     .map(|m| {
-                        Identifier::new(m.as_str())
-                            .map_err(|e| format!("invalid module name: {}", e))
+                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
                     })
                     .transpose()?;
                 Ok(EventFilter::MovePackageAndModule { package, module })
@@ -108,13 +104,12 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
             ProtoFilter::MoveEventPackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
-                let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                let package = ObjectId::from_bytes(&package_bytes)
+                    .map_err(|e| format!("invalid package_id: {e}"))?;
                 let module = filter
                     .module
                     .map(|m| {
-                        Identifier::new(m.as_str())
-                            .map_err(|e| format!("invalid module name: {}", e))
+                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
                     })
                     .transpose()?;
                 Ok(EventFilter::MoveEventPackageAndModule { package, module })
@@ -123,7 +118,7 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let tag: StructTag = filter
                     .struct_tag
                     .parse()
-                    .map_err(|e| format!("invalid struct tag: {}", e))?;
+                    .map_err(|e| format!("invalid struct tag: {e}"))?;
                 Ok(EventFilter::MoveEventType(tag))
             }
             _ => Err("Unsupported event filter type".to_string()),
@@ -170,8 +165,7 @@ impl EventFilter {
     pub(crate) fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
         if current_depth > MAX_FILTER_DEPTH {
             return Err(format!(
-                "Event filter depth exceeds maximum allowed depth of {}",
-                MAX_FILTER_DEPTH
+                "Event filter depth exceeds maximum allowed depth of {MAX_FILTER_DEPTH}"
             ));
         }
 
@@ -229,8 +223,7 @@ impl EventFilter {
         let node_count = self.count_nodes();
         if node_count > MAX_FILTER_NODES {
             return Err(format!(
-                "Event filter complexity exceeds maximum allowed nodes: {} > {}",
-                node_count, MAX_FILTER_NODES
+                "Event filter complexity exceeds maximum allowed nodes: {node_count} > {MAX_FILTER_NODES}"
             ));
         }
 
@@ -257,20 +250,20 @@ mod tests {
     #[test]
     fn test_event_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = EventFilter::Sender(IotaAddress::random());
+        let simple_filter = EventFilter::Sender(Address::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = EventFilter::All(vec![
-            EventFilter::Sender(IotaAddress::random()),
+            EventFilter::Sender(Address::random()),
             EventFilter::Any(vec![
                 EventFilter::MovePackageAndModule {
-                    package: ObjectID::random(),
+                    package: ObjectId::random(),
                     module: Some(Identifier::from_static("MyModule")),
                 },
                 EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag::new(
-                    IotaAddress::random(),
+                    Address::random(),
                     Identifier::from_static("MyModule"),
                     Identifier::from_static("MyEvent"),
                     vec![],
@@ -281,7 +274,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = EventFilter::Sender(IotaAddress::random());
+        let mut deep_filter = EventFilter::Sender(Address::random());
         for _ in 0..=10 {
             // MAX_FILTER_DEPTH
             deep_filter = EventFilter::Not(Box::new(deep_filter));
