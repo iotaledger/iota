@@ -7,7 +7,6 @@ use std::{collections::HashMap, net::SocketAddr, num::NonZeroUsize, path::PathBu
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_protocol_config::Chain;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -16,7 +15,7 @@ use url::Url;
 
 use crate::{
     backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
-    types::IndexerResult,
+    restore::Network, types::IndexerResult,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -302,7 +301,7 @@ pub enum Command {
     Restore {
         /// Network to download the snapshot for.
         #[arg(long)]
-        network: Chain,
+        network: Network,
         /// Local directory used to stage the downloaded MANIFEST and `.ref`
         /// files.
         #[arg(long)]

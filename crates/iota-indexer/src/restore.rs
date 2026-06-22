@@ -7,6 +7,7 @@ use std::{num::NonZeroUsize, path::Path, sync::Arc};
 
 use anyhow::{anyhow, bail};
 use bytes::Bytes;
+use clap::ValueEnum;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{FutureExt, TryFutureExt, future::AbortHandle};
 use indicatif::MultiProgress;
@@ -19,7 +20,6 @@ use iota_core::{
     db_checkpoint_handler::SUCCESS_MARKER,
 };
 use iota_data_ingestion_core::IngestionError;
-use iota_protocol_config::Chain;
 use iota_snapshot::{
     EpochInfo, FileMetadata,
     reader::{LiveObjectIter, StateSnapshotReaderV1},
@@ -50,6 +50,15 @@ use crate::{
 
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
+const DEVNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.devnet.iota.cafe";
+
+#[derive(Debug, Copy, Clone, strum_macros::AsRefStr, ValueEnum)]
+#[strum(serialize_all = "lowercase")]
+pub enum Network {
+    Mainnet,
+    Testnet,
+    Devnet,
+}
 
 /// Restores the indexer database from the formal snapshot for the given network
 /// and epoch.
@@ -66,7 +75,7 @@ const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.
 /// - The persist pipeline fails
 /// - The snapshot fails verification.
 pub async fn start(
-    network: Chain,
+    network: Network,
     epoch: Option<u64>,
     staging_path: &Path,
     genesis_path: &Path,
@@ -275,7 +284,7 @@ impl Restore for PgIndexerStore {
 /// - The snapshot for the resolved epoch is incomplete.
 /// - Downloading the MANIFEST or reference files fails.
 pub(crate) async fn setup_reader(
-    network: Chain,
+    network: Network,
     epoch: Option<u64>,
     staging_path: &Path,
     num_parallel_downloads: NonZeroUsize,
@@ -290,7 +299,7 @@ pub(crate) async fn setup_reader(
     remote_store.verify_completed_snapshot(epoch).await?;
 
     info!(
-        network = network.as_str(),
+        network = network.as_ref(),
         epoch,
         num_parallel_downloads = num_parallel_downloads.get(),
         "setting up formal snapshot reader"
@@ -326,15 +335,11 @@ impl FormalSnapshotStore {
     ///
     /// Returns an error if the network is not `mainnet` or `testnet`, or if the
     /// client cannot be constructed.
-    fn new(network: Chain) -> IndexerResult<Self> {
+    fn new(network: Network) -> IndexerResult<Self> {
         let aws_endpoint = match network {
-            Chain::Mainnet => MAINNET_FORMAL_SNAPSHOT_ENDPOINT,
-            Chain::Testnet => TESTNET_FORMAL_SNAPSHOT_ENDPOINT,
-            Chain::Unknown => {
-                return Err(IndexerError::InvalidArgument(
-                    "formal snapshot network must be Mainnet or Testnet".into(),
-                ));
-            }
+            Network::Mainnet => MAINNET_FORMAL_SNAPSHOT_ENDPOINT,
+            Network::Testnet => TESTNET_FORMAL_SNAPSHOT_ENDPOINT,
+            Network::Devnet => DEVNET_FORMAL_SNAPSHOT_ENDPOINT,
         };
         let config = unsigned_http_store_config(aws_endpoint);
         let store = config.make_http()?;
