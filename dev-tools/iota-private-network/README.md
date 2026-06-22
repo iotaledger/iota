@@ -100,7 +100,7 @@ To run stress benchmarks against the private network, bootstrap with the `-b` fl
 ./run.sh faucet
 ```
 
-Then run the stress tool from the **repo root**:
+The `stress` tool lives in the [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark) repo. Run it from a checkout of that repo, passing the absolute paths to the genesis blob and keystore generated above (replace `<iota-repo>` with the absolute path to this repository — `bootstrap.sh` prints these paths when it finishes):
 
 ```bash
 RUST_LOG=info cargo run --release -p iota-benchmark --bin stress -- \
@@ -108,8 +108,8 @@ RUST_LOG=info cargo run --release -p iota-benchmark --bin stress -- \
   --fullnode-rpc-addresses http://127.0.0.1:9000 \
   --use-fullnode-for-execution true \
   --use-fullnode-for-reconfig true \
-  --genesis-blob-path dev-tools/iota-private-network/configs/genesis/genesis.blob \
-  --keystore-path dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
+  --genesis-blob-path <iota-repo>/dev-tools/iota-private-network/configs/genesis/genesis.blob \
+  --keystore-path <iota-repo>/dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
   --primary-gas-owner-id 0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681 \
   --num-client-threads 4 --num-transfer-accounts 10 --run-duration 120s \
   bench --target-qps 500 --in-flight-ratio 5 --num-workers 12 \
