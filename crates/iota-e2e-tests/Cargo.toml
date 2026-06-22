@@ -68,6 +68,7 @@ iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-tool.workspace = true
 iota-types.workspace = true
+iota-vm-sdk = { workspace = true, features = ["grpc"] }
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true

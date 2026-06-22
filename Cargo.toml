@@ -465,6 +465,7 @@ iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
+iota-vm-sdk = { path = "crates/iota-vm-sdk" }
 move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
