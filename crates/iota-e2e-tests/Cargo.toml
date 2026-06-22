@@ -68,10 +68,16 @@ iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-tool.workspace = true
 iota-types.workspace = true
-iota-vm-sdk = { workspace = true, features = ["grpc"] }
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
+
+# The node-parity test drives iota-vm-sdk's gRPC store, which needs a real
+# multi-threaded runtime, so it does not run under the simulator. Confining the
+# dependency to non-msim keeps iota-vm-sdk's native-only gRPC stack out of the
+# simtest build.
+[target.'cfg(not(msim))'.dev-dependencies]
+iota-vm-sdk = { workspace = true, features = ["grpc"] }
