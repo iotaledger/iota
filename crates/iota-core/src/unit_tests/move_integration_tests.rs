@@ -11,7 +11,7 @@ use iota_sdk_types::{
     StructTag, TypeTag,
 };
 use iota_types::{
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{ObjectType, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
@@ -2978,6 +2978,26 @@ pub async fn build_and_publish_test_package(
     .0
 }
 
+/// Returns the package object created (or upgraded) by a transaction.
+///
+/// A publish or upgrade can create more than one immutable object: packages
+/// carrying view or authenticator metadata also get a frozen `PackageMetadata`
+/// object. The package is therefore identified by type rather than by being the
+/// first immutable created object.
+pub fn created_package_ref(authority: &AuthorityState, effects: &TransactionEffects) -> ObjectRef {
+    let store = authority.get_object_store();
+    effects
+        .created()
+        .into_iter()
+        .find_map(|(oref, _)| {
+            let is_package = store
+                .get_object(&oref.object_id)
+                .is_some_and(|obj| ObjectType::from(&obj).is_package());
+            is_package.then_some(oref)
+        })
+        .expect("transaction did not create a package object")
+}
+
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &IotaAddress,
@@ -3007,18 +3027,14 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
         effects.status()
     );
 
-    let package = effects
-        .created()
-        .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
-        .unwrap();
+    let package = created_package_ref(authority, &effects);
     let upgrade_cap = effects
         .created()
         .into_iter()
         .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap();
 
-    (package.0, upgrade_cap.0)
+    (package, upgrade_cap.0)
 }
 
 pub async fn collect_packages_and_upgrade_caps(

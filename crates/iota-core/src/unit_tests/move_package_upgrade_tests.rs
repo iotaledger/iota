@@ -36,7 +36,8 @@ use crate::authority::{
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
         UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
-        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps, run_multi_txns,
+        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps,
+        created_package_ref, run_multi_txns,
     },
     test_authority_builder::TestAuthorityBuilder,
 };
@@ -218,11 +219,7 @@ impl UpgradeStateRunner {
         let effects = self.run(pt).await;
         assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-        let package = effects
-            .created()
-            .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Immutable))
-            .unwrap();
+        let package = created_package_ref(&self.authority_state, &effects);
 
         let cap = effects
             .created()
@@ -230,7 +227,7 @@ impl UpgradeStateRunner {
             .find(|(_, owner)| matches!(owner, Owner::Address(_)))
             .unwrap();
 
-        (package.0, cap.0)
+        (package, cap.0)
     }
 
     pub async fn upgrade(
@@ -262,11 +259,7 @@ impl UpgradeStateRunner {
 
         let effects = self.run(pt).await;
         if effects.status().is_success() {
-            self.package = effects
-                .created()
-                .into_iter()
-                .find_map(|(pkg, owner)| matches!(owner, Owner::Immutable).then_some(pkg))
-                .unwrap();
+            self.package = created_package_ref(&self.authority_state, &effects);
         }
 
         effects
