@@ -22,7 +22,10 @@ use iota_types::object::Object;
 use js_sys::Function;
 use wasm_bindgen::JsValue;
 
-use crate::store::{InMemoryStore, Store};
+use crate::{
+    error::StoreError,
+    store::{InMemoryStore, Store},
+};
 
 /// A [`Store`] that fetches missing objects on demand via a JS callback.
 ///
@@ -84,9 +87,13 @@ impl CallbackStore {
 }
 
 impl Store for CallbackStore {
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
-        if let Some(obj) = self.cache.borrow().get_object(id, version) {
-            return Some(obj);
+    fn get_object(
+        &self,
+        id: &ObjectId,
+        version: Option<Version>,
+    ) -> Result<Option<Object>, StoreError> {
+        if let Some(obj) = self.cache.borrow().get_object(id, version)? {
+            return Ok(Some(obj));
         }
         self.fetch(id);
         self.cache.borrow().get_object(id, version)
@@ -97,13 +104,13 @@ impl Store for CallbackStore {
         parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
-    ) -> Option<Object> {
-        if let Some(obj) = self
-            .cache
-            .borrow()
-            .get_child_object(parent, child, version_upper_bound)
+    ) -> Result<Option<Object>, StoreError> {
+        if let Some(obj) =
+            self.cache
+                .borrow()
+                .get_child_object(parent, child, version_upper_bound)?
         {
-            return Some(obj);
+            return Ok(Some(obj));
         }
         self.fetch(child);
         self.cache
