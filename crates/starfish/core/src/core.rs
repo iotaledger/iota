@@ -1213,11 +1213,7 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(verified_block.transaction_ref())
-        } else {
-            GenericTransactionRef::from(block_ref)
-        };
+        let gen_transaction_ref = GenericTransactionRef::from(verified_block.transaction_ref());
         ack_transactions(gen_transaction_ref);
 
         info!("Created block {block_ref} for round {clock_round}");
@@ -1712,12 +1708,7 @@ impl Core {
     /// propose at `clock_round`. Ancestors strictly below this round are
     /// dropped — the linearizer would filter them out anyway, so keeping
     /// them only costs other validators header-synchronizer round-trips.
-    /// Returns `GENESIS_ROUND` when the `consensus_fast_commit_sync` protocol
-    /// flag is disabled, so the filter is a no-op on networks without it.
     fn min_ancestor_round(&self, clock_round: Round) -> Round {
-        if !self.context.protocol_config.consensus_fast_commit_sync() {
-            return GENESIS_ROUND;
-        }
         self.context.min_ref_round(clock_round)
     }
 

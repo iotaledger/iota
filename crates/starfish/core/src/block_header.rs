@@ -776,34 +776,22 @@ pub(crate) enum ShardWithProof {
 }
 
 impl ShardWithProof {
-    /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
-    /// V1.
+    /// Creates a new ShardWithProof.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if consensus_fast_commit_sync {
-            ShardWithProof::V2(ShardWithProofV2 {
-                shard,
-                proof,
-                transaction_ref: TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: transaction_commitment,
-                },
-            })
-        } else {
-            ShardWithProof::V1(ShardWithProofV1 {
-                shard,
-                transaction_commitment,
-                proof,
-                block_ref,
-            })
-        }
+        ShardWithProof::V2(ShardWithProofV2 {
+            shard,
+            proof,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: transaction_commitment,
+            },
+        })
     }
 }
 

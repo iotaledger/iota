@@ -234,22 +234,18 @@ impl ConsensusAuthority {
         // and the header synchronizer both read it to pause their
         // dispatch loops while fast sync is active, avoiding overlapping
         // ancestor fetches. Only created when fast sync will actually run;
-        // `None` keeps the gate a no-op on deployments (e.g. mainnet today)
-        // where fast sync is disabled.
+        // `None` keeps the gate a no-op when an operator disables fast sync
+        // via the local `enable_fast_commit_syncer` config.
         //
         // Seeded from the durable `DagState::fast_sync_ongoing` flag so a
         // restart mid-fast-sync starts in the paused state, without
         // waiting for fast sync's first schedule-loop tick to set it.
         // Afterwards fast sync owns the atomic; the durable flag is not
         // reactive enough for runtime gating.
-        let fast_sync_active: Option<Arc<AtomicBool>> =
-            if context.protocol_config.consensus_fast_commit_sync()
-                && context.parameters.enable_fast_commit_syncer
-            {
-                Some(Arc::new(AtomicBool::new(fast_sync_ongoing)))
-            } else {
-                None
-            };
+        let fast_sync_active: Option<Arc<AtomicBool>> = context
+            .parameters
+            .enable_fast_commit_syncer
+            .then(|| Arc::new(AtomicBool::new(fast_sync_ongoing)));
 
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -281,10 +277,8 @@ impl ConsensusAuthority {
         )
         .start();
 
-        // FastCommitSyncer is enabled when both the protocol-level flag and the local
-        // config flag are enabled. The protocol flag also controls gRPC endpoint
-        // availability, while the local flag allows operators to disable the
-        // syncer without a protocol upgrade.
+        // FastCommitSyncer runs when the local `enable_fast_commit_syncer`
+        // config flag is enabled, letting operators disable the syncer.
         let fast_commit_syncer_handle = fast_sync_active.as_ref().map(|flag| {
             FastCommitSyncer::new(
                 context.clone(),

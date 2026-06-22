@@ -539,7 +539,7 @@ impl DagState {
         // Reload transactions from storage
         let transactions = self
             .store
-            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
+            .scan_transactions_by_author(authority_index, eviction_round + 1)
             .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
@@ -738,15 +738,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
         {
             if transactions.has_transactions() {
@@ -903,11 +895,7 @@ impl DagState {
                 // Fetch transaction commitments for all acknowledged blocks in batch
                 let acknowledgments = block_header.acknowledgments();
                 let ack_transactions_commitments =
-                    if self.context.protocol_config.consensus_fast_commit_sync() {
-                        self.get_transactions_commitments_batch(acknowledgments)
-                    } else {
-                        vec![None; acknowledgments.len()]
-                    };
+                    self.get_transactions_commitments_batch(acknowledgments);
 
                 let cordial_message = CordialKnowledgeMessage::NewHeader {
                     header: block_header.clone(),
@@ -926,15 +914,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[transaction_ref.author]
             .insert(generic_ref, transactions.clone());
         tracing::debug!("Adding transactions for {generic_ref}");
@@ -1577,16 +1557,11 @@ impl DagState {
             if last.round > GENESIS_ROUND {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
-                    let transaction_ref =
-                        if self.context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::from(TransactionRef {
-                                round: last.round,
-                                author: last.author,
-                                transactions_commitment: last_header.transactions_commitment(),
-                            })
-                        } else {
-                            GenericTransactionRef::from(*last)
-                        };
+                    let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                        round: last.round,
+                        author: last.author,
+                        transactions_commitment: last_header.transactions_commitment(),
+                    });
 
                     if let Some(last_transactions) =
                         self.recent_transactions_by_authority[last.author].get(&transaction_ref)
@@ -1647,15 +1622,11 @@ impl DagState {
             let header_opt = self.recent_block_headers.get(block_ref);
             let mut block_constructed = false;
             if let Some(header) = header_opt {
-                let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-                    GenericTransactionRef::from(TransactionRef {
-                        round: block_ref.round,
-                        author: block_ref.author,
-                        transactions_commitment: header.transactions_commitment(),
-                    })
-                } else {
-                    GenericTransactionRef::from(*block_ref)
-                };
+                let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    transactions_commitment: header.transactions_commitment(),
+                });
                 let transactions_opt =
                     self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);
                 if let Some(transactions) = transactions_opt {
@@ -2128,18 +2099,14 @@ impl DagState {
 
     /// Check if a block's transactions are locally available.
     pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
-        let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            let Some(header) = self.recent_block_headers.get(block_ref) else {
-                return false;
-            };
-            GenericTransactionRef::from(TransactionRef {
-                round: block_ref.round,
-                author: block_ref.author,
-                transactions_commitment: header.transactions_commitment(),
-            })
-        } else {
-            GenericTransactionRef::from(*block_ref)
+        let Some(header) = self.recent_block_headers.get(block_ref) else {
+            return false;
         };
+        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment: header.transactions_commitment(),
+        });
         self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
@@ -2171,19 +2138,11 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: eviction_round + 1,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    eviction_round + 1,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: eviction_round + 1,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_shards_by_authority[authority_index] =
                 self.recent_shards_by_authority[authority_index].split_off(&split_key);
         }
@@ -2210,19 +2169,11 @@ impl DagState {
             };
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: transaction_eviction_round,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    transaction_eviction_round,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: transaction_eviction_round,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
         }
@@ -2520,18 +2471,15 @@ impl DagState {
 
             // Write all buffered data to storage
             self.store
-                .write(
-                    WriteBatch {
-                        transactions,
-                        block_headers,
-                        commits,
-                        commit_info,
-                        voting_block_headers,
-                        fast_commit_sync_flag,
-                        misbehavior_counts,
-                    },
-                    self.context.clone(),
-                )
+                .write(WriteBatch {
+                    transactions,
+                    block_headers,
+                    commits,
+                    commit_info,
+                    voting_block_headers,
+                    fast_commit_sync_flag,
+                    misbehavior_counts,
+                })
                 .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
             self.context

@@ -64,7 +64,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI, TransactionRef},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
@@ -233,11 +233,10 @@ pub(crate) fn check_commit_version_matches_flags(
     commit: &Commit,
     protocol_config: &iota_protocol_config::ProtocolConfig,
 ) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
     let starfish_speed = protocol_config.consensus_starfish_speed();
     let variant_matches_flags = matches!(
-        (commit, fast_commit_sync, starfish_speed),
-        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), true, true)
+        (commit, starfish_speed),
+        (Commit::V2(_), false) | (Commit::V3(_), true)
     );
     if !variant_matches_flags {
         let actual = match commit {
@@ -247,7 +246,7 @@ pub(crate) fn check_commit_version_matches_flags(
         };
         return Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
+            fast_commit_sync: true,
             starfish_speed,
         });
     }
@@ -406,77 +405,6 @@ pub(crate) fn verify_commits(
         .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
         .collect();
     Ok((trusted_commits, verified_voting_headers))
-}
-
-/// Verifies transactions against their block headers and returns a map of
-/// BlockRef to VerifiedTransactions.
-pub(crate) fn verify_transactions_with_headers(
-    context: Arc<Context>,
-    peer: AuthorityIndex,
-    serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
-    block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
-    let mut verified_transactions_map = BTreeMap::new();
-    let mut encoder = create_encoder(&context);
-    let size_limit = serialized_transactions_size_limit(&context);
-    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let block_ref = match committed_transactions_ref {
-            GenericTransactionRef::BlockRef(br) => br,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: false,
-                    expected_variant: "BlockRef",
-                    received_variant: "TransactionRef",
-                });
-            }
-        };
-        // Bound the peer-supplied payload before erasure-encoding it.
-        if inner_serialized_transactions.len() > size_limit {
-            return Err(ConsensusError::SerializedTransactionsTooLarge {
-                size: inner_serialized_transactions.len(),
-                limit: size_limit,
-            });
-        }
-        // Step 1: Get the block header and verify that the transactions commitment
-        // matches. This ensures the transactions we received are exactly
-        // the ones that were included in the block when it was created.
-        let block_header = block_headers
-            .get(&block_ref)
-            .ok_or(ConsensusError::MissingBlockHeader { block_ref })?;
-
-        if block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &inner_serialized_transactions,
-                &context,
-                &mut encoder,
-            )?
-        {
-            return Err(ConsensusError::TransactionCommitmentFailure {
-                round: block_ref.round,
-                author: block_ref.author,
-                peer,
-            });
-        }
-
-        // Step 2: Deserialize the actual transactions vector.
-        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
-
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            TransactionRef::new(block_ref, block_header.transactions_commitment()),
-            Some(block_ref.digest),
-            inner_serialized_transactions,
-        );
-
-        verified_transactions_map.insert(
-            GenericTransactionRef::BlockRef(block_ref),
-            verified_transactions,
-        );
-    }
-
-    Ok(verified_transactions_map)
 }
 
 /// Verifies transactions against their transaction refs and returns a map of

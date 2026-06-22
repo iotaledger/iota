@@ -25,8 +25,8 @@ use crate::{
     CommitIndex, Round, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, ShardWithProofV1, SignedBlockHeader, TransactionsCommitment,
-        VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
+        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -42,8 +42,8 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
-        SerializedTransactionsV2, TransactionFetchMode,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
+        TransactionFetchMode,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -257,7 +257,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 proof_for_shard,
                 block_ref,
                 transaction_commitment,
-                self.context.protocol_config.consensus_fast_commit_sync(),
             ))
         } else {
             None
@@ -389,21 +388,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
             let shard: ShardWithProof =
-                if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    // For backward compatibility, we still support ShardWithProofV1 during the
-                    // epoch during which nodes are upgraded to a new software version. Peers
-                    // running an old version will still send ShardWithProofV1 without the enum
-                    // wrapping. We can remove this support after we are sure
-                    // all peers have been updated to send versioned ShardWithProof.
-                    let shard_v1: ShardWithProofV1 = bcs::from_bytes(serialized_shard)
-                        .map_err(ConsensusError::MalformedShard)?;
-                    ShardWithProof::V1(shard_v1)
-                } else {
-                    bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?
-                };
+                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if let Err(e) = check_shard_version_matches_flags(&shard, &self.context.protocol_config)
-            {
+            if let Err(e) = check_shard_version_matches_flags(&shard) {
                 self.context
                     .metrics
                     .node_metrics
@@ -673,32 +660,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
-/// Rejects a deserialized `ShardWithProof` whose variant does not match the
-/// local protocol-flag configuration. The flag is uniform across the network
-/// within an epoch, so any mismatch implies either a malicious peer or a
-/// misconfigured upgrade path. In the flag-OFF (raw V1 wire form) branch the
-/// check is a tautology — the deserializer always produces V1 — but it is
-/// called there for symmetry.
-pub(crate) fn check_shard_version_matches_flags(
-    shard: &ShardWithProof,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
-    let variant_matches_flags = matches!(
-        (shard, fast_commit_sync),
-        (ShardWithProof::V1(_), false) | (ShardWithProof::V2(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match shard {
-            ShardWithProof::V1(_) => "V1",
-            ShardWithProof::V2(_) => "V2",
-        };
-        return Err(ConsensusError::WrongShardVersionForFlags {
-            actual,
-            fast_commit_sync,
-        });
+/// Rejects a deserialized `ShardWithProof` that is not the current `V2`
+/// variant. The variant is uniform across the network within an epoch, so a
+/// legacy `V1` shard implies either a malicious peer or a misconfigured upgrade
+/// path.
+pub(crate) fn check_shard_version_matches_flags(shard: &ShardWithProof) -> ConsensusResult<()> {
+    match shard {
+        ShardWithProof::V2(_) => Ok(()),
+        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersionForFlags {
+            actual: "V1",
+            fast_commit_sync: true,
+        }),
     }
-    Ok(())
 }
 
 #[async_trait]
@@ -743,11 +716,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
-        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            GenericTransactionRef::from(block_ref)
-        };
+        let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
@@ -908,24 +877,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions and the block is not far-future.
         if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
-            let serialized_shard_for_core: Bytes = match shard_for_core {
-                // For backward compatibility, we still support ShardWithProofV1 during the
-                // epoch during which nodes are upgraded to a new software version. Because of
-                // peers running an old version will still need to send
-                // ShardWithProofV1 without the enum wrapping. We can remove this
-                // support after we are sure all peers have been updated to send
-                // versioned ShardWithProof.
-                ShardWithProof::V1(shard_v1)
-                    if !self.context.protocol_config.consensus_fast_commit_sync() =>
-                {
-                    bcs::to_bytes(&shard_v1)
-                        .map_err(ConsensusError::SerializationFailure)?
-                        .into()
-                }
-                _ => bcs::to_bytes(&shard_for_core)
-                    .map_err(ConsensusError::SerializationFailure)?
-                    .into(),
-            };
+            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+                .map_err(ConsensusError::SerializationFailure)?
+                .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
                 gen_transaction_ref,
@@ -1218,15 +1172,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-        // all networks. Fast commit sync type is controlled by the client, so
-        // we need to validate that the protocol supports it before processing.
-        if matches!(commit_sync_type, CommitSyncType::Fast)
-            && !self.context.protocol_config.consensus_fast_commit_sync()
-        {
-            return Err(ConsensusError::FastCommitSyncNotEnabled);
-        }
-
         // Bound the range based on sync type.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
         let inclusive_bound = commit_range
@@ -1341,14 +1286,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         fail_point_async!("consensus-rpc-response");
 
-        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-        // all networks. This endpoint is gated by the
-        // consensus_fast_commit_sync feature flag as it is more expensive than
-        // just fetching commits or headers.
-        if !self.context.protocol_config.consensus_fast_commit_sync() {
-            return Err(ConsensusError::FastCommitSyncNotEnabled);
-        }
-
         let (commits, certifier_block_headers) = self
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
@@ -1437,14 +1374,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Apply truncation based on fetch mode
         match fetch_mode {
             TransactionFetchMode::FastCommitSync => {
-                // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-                // all networks. FastCommitSync mode is controlled by the
-                // client, so we need to validate that the protocol supports it
-                // before processing. No truncation for fast commit sync - all
-                // transactions referenced by commits must be fetched.
-                if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    return Err(ConsensusError::FastCommitSyncNotEnabled);
-                }
+                // No truncation for fast commit sync - all transactions
+                // referenced by commits must be fetched.
             }
             TransactionFetchMode::TransactionSync => {
                 let max_transactions = max(
@@ -1506,33 +1437,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut result = Vec::new();
         for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let serialized = if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
-                        bcs::to_bytes(&SerializedTransactionsV1 {
-                            block_ref,
+                let serialized =
+                    if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
+                        bcs::to_bytes(&SerializedTransactionsV2 {
+                            transaction_ref,
                             serialized_transactions: serialized_tx,
                         })
                         .map_err(ConsensusError::SerializationFailure)?
                     } else {
                         return Err(ConsensusError::TransactionRefVariantMismatch {
-                            protocol_flag_enabled: false,
-                            expected_variant: "BlockRef",
+                            protocol_flag_enabled: true,
+                            expected_variant: "TransactionRef",
                             received_variant: gen_ref.variant_name(),
                         });
-                    }
-                } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
-                    bcs::to_bytes(&SerializedTransactionsV2 {
-                        transaction_ref,
-                        serialized_transactions: serialized_tx,
-                    })
-                    .map_err(ConsensusError::SerializationFailure)?
-                } else {
-                    return Err(ConsensusError::TransactionRefVariantMismatch {
-                        protocol_flag_enabled: true,
-                        expected_variant: "TransactionRef",
-                        received_variant: gen_ref.variant_name(),
-                    });
-                };
+                    };
                 result.push(Bytes::from(serialized));
             }
         }

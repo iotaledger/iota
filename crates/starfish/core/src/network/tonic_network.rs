@@ -1036,25 +1036,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let committed_transactions_refs: Vec<GenericTransactionRef> = request
             .block_refs
             .iter()
-            .filter_map(|r| {
-                if self.context.protocol_config.consensus_fast_commit_sync() {
-                    match bcs::from_bytes::<TransactionRef>(r) {
-                        Ok(transaction_ref) => {
-                            Some(GenericTransactionRef::TransactionRef(transaction_ref))
-                        }
-                        Err(e) => {
-                            debug!("Failed to deserialize block ref: {e:?}");
-                            None
-                        }
-                    }
-                } else {
-                    match bcs::from_bytes::<BlockRef>(r) {
-                        Ok(block_ref) => Some(GenericTransactionRef::BlockRef(block_ref)),
-                        Err(e) => {
-                            debug!("Failed to deserialize block ref: {e:?}");
-                            None
-                        }
-                    }
+            .filter_map(|r| match bcs::from_bytes::<TransactionRef>(r) {
+                Ok(transaction_ref) => Some(GenericTransactionRef::TransactionRef(transaction_ref)),
+                Err(e) => {
+                    debug!("Failed to deserialize transaction ref: {e:?}");
+                    None
                 }
             })
             .collect();

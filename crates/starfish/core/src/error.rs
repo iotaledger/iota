@@ -177,9 +177,6 @@ pub(crate) enum ConsensusError {
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
-    #[error("Missing block header for {block_ref}")]
-    MissingBlockHeader { block_ref: BlockRef },
-
     #[error(
         "Invalid overlap indices: overlap_start={overlap_start}, overlap_end={overlap_end}, references_len={references_len}"
     )]
@@ -371,12 +368,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
     MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
-
-    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
-    // It's currently used to gate fast commit sync endpoints and features during the gradual
-    // rollout phase.
-    #[error("Fast commit sync is not enabled in the current protocol version")]
-    FastCommitSyncNotEnabled,
 
     #[error(
         "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"

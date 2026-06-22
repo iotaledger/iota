@@ -315,11 +315,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             || self.inner.sync_type.should_schedule(
                 gap,
                 self.inner.context.parameters.commit_sync_gap_threshold,
-                self.inner
-                    .context
-                    .protocol_config
-                    .consensus_fast_commit_sync()
-                    && self.inner.context.parameters.enable_fast_commit_syncer,
+                self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -562,7 +558,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as

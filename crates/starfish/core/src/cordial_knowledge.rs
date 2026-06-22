@@ -600,28 +600,22 @@ impl CordialKnowledge {
             msgs.push(ConnectionKnowledgeMessage::NewHeader { block_ref });
         }
 
-        // 3) The block_author now acknowledges previously known transactions
-        // Use the provided transaction commitments to create the proper
-        // GenericTransactionRef variant
-        let consensus_fast_commit_sync = self.context.protocol_config.consensus_fast_commit_sync();
+        // 3) The block_author now acknowledges previously known transactions,
+        // using the provided transaction commitments.
         for (acknowledgment, &transactions_commitment) in header
             .acknowledgments()
             .iter()
             .zip(ack_transactions_commitments.iter())
         {
-            let gen_tx_ref = if consensus_fast_commit_sync {
-                if let Some(transactions_commitment) = transactions_commitment {
-                    GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
-                        round: acknowledgment.round,
-                        author: acknowledgment.author,
-                        transactions_commitment,
-                    })
-                } else {
-                    continue;
-                }
-            } else {
-                GenericTransactionRef::BlockRef(*acknowledgment)
+            let Some(transactions_commitment) = transactions_commitment else {
+                continue;
             };
+            let gen_tx_ref =
+                GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
+                    round: acknowledgment.round,
+                    author: acknowledgment.author,
+                    transactions_commitment,
+                });
 
             vec_knowledge_msgs[block_author]
                 .push(ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref });
