@@ -5,7 +5,7 @@
 //! filtering.
 //!
 //! Replace `use prometheus::*` with `use prometheus_filtered::*` and set
-//! `METRICS_FILTER` (or call `Registry::with_config`) to control which metrics
+//! `METRICS_FILTER` (or call `Registry::with_filter`) to control which metrics
 //! are registered.
 //!
 //! Filter syntax: comma-separated `pattern=on|off` directives, last-match
@@ -192,7 +192,7 @@ pub mod core {
         };
     }
 
-    pub struct GenericCounter<P: Atomic>(pub(super) Option<prometheus::core::GenericCounter<P>>);
+    pub struct GenericCounter<P: Atomic>(Option<prometheus::core::GenericCounter<P>>);
 
     impl<P: Atomic> GenericCounter<P> {
         pub fn new_some(inner: prometheus::core::GenericCounter<P>) -> Self {
@@ -243,7 +243,7 @@ pub mod core {
 
     impl_generic_metric_traits!(GenericCounter);
 
-    pub struct GenericGauge<P: Atomic>(pub(super) Option<prometheus::core::GenericGauge<P>>);
+    pub struct GenericGauge<P: Atomic>(Option<prometheus::core::GenericGauge<P>>);
 
     impl<P: Atomic> GenericGauge<P> {
         pub fn new_some(inner: prometheus::core::GenericGauge<P>) -> Self {
@@ -308,19 +308,17 @@ pub mod core {
 
     impl_generic_metric_traits!(GenericGauge);
 
-    pub struct GenericCounterVec<P: Atomic>(
-        pub(super) Option<prometheus::core::GenericCounterVec<P>>,
-    );
+    pub struct GenericCounterVec<P: Atomic>(Option<prometheus::core::GenericCounterVec<P>>);
 
     impl_generic_metric_traits!(GenericCounterVec);
     impl_generic_metric_vec!(GenericCounterVec, GenericCounter);
 
-    pub struct GenericGaugeVec<P: Atomic>(pub(super) Option<prometheus::core::GenericGaugeVec<P>>);
+    pub struct GenericGaugeVec<P: Atomic>(Option<prometheus::core::GenericGaugeVec<P>>);
 
     impl_generic_metric_traits!(GenericGaugeVec);
     impl_generic_metric_vec!(GenericGaugeVec, GenericGauge);
 
-    pub struct Histogram(pub Option<prometheus::Histogram>);
+    pub struct Histogram(Option<prometheus::Histogram>);
 
     impl_metric_traits!(Histogram);
 
@@ -568,7 +566,7 @@ impl Registry {
         })
     }
 
-    /// Creates a registry using the supplied config string.
+    /// Creates a registry using the supplied filter string.
     pub fn with_filter(filter_str: &str) -> Self {
         Self {
             inner: prometheus::Registry::new(),
