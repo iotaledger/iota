@@ -16,6 +16,12 @@
 //! and skips expensive validation for transactions that can't acquire object
 //! locks anyway.
 //!
+//! When account-claim invalidation is enabled (issue #11900), the
+//! `0x2::smart_account::build_v1` claimers are validated first (recording their
+//! senders), then every other transaction whose sender or sponsor matches a
+//! claim is dropped. `build_v1` transactions themselves are never dropped by
+//! this rule.
+//!
 //! # Per-transaction order within the loop
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
@@ -39,11 +45,12 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_sdk_types::Address;
 use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{InputObjectKind, TransactionDataAPI, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 
@@ -57,6 +64,36 @@ use crate::{
         VerifiedSequencedConsensusTransaction,
     },
 };
+
+/// Mutable per-commit state threaded through [`transaction_validation_logic`]
+/// and the surrounding loop.
+struct CommitValidationState {
+    /// Seen `ConsensusTransactionKey`s, for deduplication.
+    seen_keys: HashSet<SequencedConsensusTransactionKey>,
+    /// Index-parallel keep flags: `true` = keep, `false` = remove.
+    keep: Vec<bool>,
+    /// `(digest, error)` for every dropped transaction (silent dedup drops are
+    /// not recorded here).
+    dropped: Vec<(TransactionDigest, IotaError)>,
+    /// Owned-object locks acquired within this commit. Populated for every
+    /// transaction that passes all checks; used by subsequent transactions'
+    /// conflict checks.
+    current_commit_locks: HashMap<ObjectRef, LockDetails>,
+    /// Claimed sender address -> one claiming `build_v1` transaction digest.
+    claim_senders: HashMap<Address, TransactionDigest>,
+}
+
+impl CommitValidationState {
+    fn new(num_transactions: usize) -> Self {
+        Self {
+            seen_keys: HashSet::new(),
+            keep: vec![true; num_transactions],
+            dropped: Vec::new(),
+            current_commit_locks: HashMap::new(),
+            claim_senders: HashMap::new(),
+        }
+    }
+}
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
 /// conflicts in a single pass.
@@ -95,205 +132,48 @@ pub async fn validate_and_resolve_conflicts(
     Vec<(TransactionDigest, IotaError)>,
     HashMap<ObjectRef, LockDetails>,
 )> {
-    let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
-    let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
-    // Locks acquired within this commit. Populated for every transaction that
-    // passes all checks; used by subsequent transactions' conflict checks.
-    let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
-    // Index-parallel keep flags: true = keep, false = remove.
-    let mut keep = vec![true; transactions.len()];
+    let mut state = CommitValidationState::new(transactions.len());
 
-    for (i, tx) in transactions.iter().enumerate() {
-        // Check #0: Dedup by ConsensusTransactionKey.
-        // The same UserTransactionV1 may appear in DAG blocks from multiple
-        // validators within the same consensus commit. Only the first occurrence
-        // is kept. Silent drop — not added to `dropped`.
-        if !seen_keys.insert(tx.0.key()) {
-            keep[i] = false;
-            continue;
+    // When enabled, all account build and claim transactions are recorded and
+    // validated first, then every other transaction whose sender or sponsor
+    // matches a claim is dropped.
+    if epoch_store
+        .protocol_config()
+        .enable_account_claim_conflict_invalidation()
+    {
+        // Split the commit into the claimers and everything else,
+        // preserving consensus order within each group.
+        let (build_account_txs, remaining_txs): (Vec<_>, Vec<_>) = transactions
+            .iter()
+            .enumerate()
+            .partition(|(_, tx)| is_smart_account_build_user_transaction(tx));
+
+        // Validate the claimers first so their claims are recorded before any
+        // other transaction is judged against them.
+        for (i, tx) in build_account_txs {
+            transaction_validation_logic(authority_state, epoch_store, tx, i, true, &mut state)
+                .await?;
         }
-
-        // Only validate UserTransactionV1; pass everything else through
-        // unchanged.
-        let transaction = match &tx.0.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(t),
-                ..
-            }) => t,
-            _ => continue,
-        };
-
-        let digest = *transaction.digest();
-
-        // Check #1: Already executed (typically by state-sync before this node's
-        // consensus handler reached the commit). It is a committee-agreed winner, so
-        // keep it in the sequence to flow into checkpoint roots like on every other
-        // validator (dropping it forks — issue #11649). Register its owned-object
-        // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
-        // `TransactionManager::enqueue` suppresses the re-execution.
-        if authority_state
-            .get_transaction_cache_reader()
-            .try_is_tx_already_executed(&digest)?
-        {
-            // Byte-based, so safe even though the inputs are already consumed.
-            let owned_inputs = extract_owned_input_objects(tx)?;
-            for obj_ref in &owned_inputs {
-                // A winner cannot be out-locked: an executed tx owns its inputs. A lock
-                // held by a different tx is a consistency violation, not a conflict.
-                if let Some(other) =
-                    find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
-                {
-                    if other != digest {
-                        fatal!(
-                            "already-executed transaction {:?} has owned input {:?} \
-                             locked by a different transaction {:?}",
-                            digest,
-                            obj_ref,
-                            other,
-                        );
-                    }
-                }
-                current_commit_locks.insert(*obj_ref, digest);
-            }
-            debug!(
-                ?digest,
-                num_owned_inputs = owned_inputs.len(),
-                "Transaction already executed; retained as checkpoint root, skipping re-validation"
-            );
-            // keep[i] stays true so the transaction remains in the sequence.
-            continue;
+        for (j, tx) in remaining_txs {
+            transaction_validation_logic(authority_state, epoch_store, tx, j, false, &mut state)
+                .await?;
         }
-
-        // Check #2: Structural validity.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
-            warn!(
-                ?digest,
-                error = ?e,
-                "UserTransactionV1 failed validity_check post-consensus, dropping"
-            );
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
+    } else {
+        // Single pass when the feature is disabled — unchanged validation
+        // behavior and consensus ordering.
+        for (i, tx) in transactions.iter().enumerate() {
+            transaction_validation_logic(authority_state, epoch_store, tx, i, false, &mut state)
+                .await?;
         }
-
-        // Check #3: Extract owned input objects for lock conflict detection.
-        let owned_inputs = match extract_owned_input_objects(tx) {
-            Ok(inputs) => inputs,
-            Err(e) => {
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "Failed to extract owned input objects post-consensus, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
-            }
-        };
-
-        // Check #4: Three-tier lock conflict check.
-        // Cheap (HashMap + quarantine + DB lookups); performed before the
-        // expensive deny checks so conflicting transactions are filtered first.
-        //
-        // Locks are keyed by full ObjectRef (id + version + digest), not just
-        // ObjectID. Two transactions referencing the same object at different
-        // versions will NOT conflict here — version freshness is validated
-        // later in Check #5 (deny checks load objects from DB and verify
-        // that the transaction's input refs match the current state).
-        //
-        // Tier 1: Local HashMap (current commit).
-        // Tier 2: Consensus quarantine (previous uncommitted commits).
-        // Tier 3: Persistent DB (committed data).
-        let mut conflict: Option<IotaError> = None;
-        for obj_ref in &owned_inputs {
-            if let Some(locked_by) =
-                find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
-            {
-                // A lock held by this same transaction is its own lock from a
-                // prior round: it acquired owned-object locks, was then deferred,
-                // and is reloaded this round. A self-held lock is NOT a conflict
-                // - without this guard, the transaction will be dropped with
-                // `ObjectLockConflict` and never executed. Issue #11649 mirrors
-                // this guard for the already-executed branch in Check #1.
-                //
-                // Note that same-commit duplicates cannot slip through here since
-                // Check #0 already dedups by digest, so a same-digest lock here
-                // is always this transaction's own prior-round lock.
-                if locked_by == digest {
-                    continue;
-                }
-
-                debug!(
-                    ?digest,
-                    ?obj_ref,
-                    ?locked_by,
-                    "Transaction conflicts with existing owned-object lock, dropping"
-                );
-                conflict = Some(IotaError::ObjectLockConflict {
-                    obj_ref: *obj_ref,
-                    pending_transaction: locked_by,
-                });
-                break;
-            }
-        }
-        if let Some(e) = conflict {
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
-        }
-
-        // Check #5: Deny list, gas, ownership, coin deny list, Move
-        // authenticator. Only reached if all locks are free — skips the
-        // expensive object loading for transactions that would be dropped
-        // by the lock conflict check.
-        //
-        // Safe to skip signature re-verification: the consensus block verifier
-        // (`IotaTxValidator::validate_transactions`) already called
-        // `verify_tx()` on every `UserTransactionV1` before accepting the
-        // block. Re-verifying here would not add safety — if a quorum
-        // committed a bad signature it indicates a protocol-level failure
-        // (2f+1 Byzantine/buggy validators), not something we can recover from
-        // by rejecting the transaction post-consensus. Doing so would also risk
-        // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
-        if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
-            .await
-        {
-            if e.is_storage_or_epoch_error() {
-                return Err(e);
-            }
-            warn!(
-                ?digest,
-                error = ?e,
-                "UserTransactionV1 failed post-consensus deny checks, dropping"
-            );
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
-        }
-
-        // All checks passed — acquire owned-object locks in local tracking.
-        let num_owned_inputs = owned_inputs.len();
-        for obj_ref in owned_inputs {
-            current_commit_locks.insert(obj_ref, digest);
-        }
-        debug!(
-            ?digest,
-            num_owned_inputs,
-            "Transaction passed post-consensus validation, acquired all object locks"
-        );
     }
 
-    if !dropped.is_empty() {
+    if !state.dropped.is_empty() {
         warn!(
-            num_dropped = dropped.len(),
+            num_dropped = state.dropped.len(),
             num_retained = transactions
                 .iter()
                 .enumerate()
-                .filter(|(i, _)| keep[*i])
+                .filter(|(i, _)| state.keep[*i])
                 .count(),
             "Post-consensus validation dropped transactions"
         );
@@ -301,10 +181,265 @@ pub async fn validate_and_resolve_conflicts(
 
     // Remove invalid/duplicate/conflicting entries using the parallel keep
     // flags.
-    let mut iter = keep.into_iter();
+    let mut iter = state.keep.into_iter();
     transactions.retain(|_| iter.next().unwrap_or(true));
 
-    Ok((dropped, current_commit_locks))
+    Ok((state.dropped, state.current_commit_locks))
+}
+
+/// Runs Checks #0–#5 for a single sequenced transaction, updating `state`'s
+/// `seen_keys`, `keep`, `dropped` and `current_commit_locks`.
+///
+/// `is_claim_tx` drives account claims checks: when `true`, the tx sender is
+/// recorded in `claim_senders`; when `false`, a transaction whose sender or
+/// sponsor is already in `claim_senders` is dropped with
+/// `AccountClaimConflict`.
+async fn transaction_validation_logic(
+    authority_state: &AuthorityState,
+    epoch_store: &Arc<AuthorityPerEpochStore>,
+    tx: &VerifiedSequencedConsensusTransaction,
+    i: usize,
+    is_claim_tx: bool,
+    state: &mut CommitValidationState,
+) -> IotaResult<()> {
+    // Check #0: Dedup by ConsensusTransactionKey.
+    // The same UserTransactionV1 may appear in DAG blocks from multiple
+    // validators within the same consensus commit. Only the first occurrence
+    // is kept. Silent drop — not added to `dropped`.
+    if !state.seen_keys.insert(tx.0.key()) {
+        state.keep[i] = false;
+        return Ok(());
+    }
+
+    // Only validate UserTransactionV1; pass everything else through
+    // unchanged.
+    let transaction = match &tx.0.transaction {
+        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(t),
+            ..
+        }) => &**t,
+        _ => return Ok(()),
+    };
+
+    let digest = *transaction.digest();
+
+    // Check #1: Already executed (typically by state-sync before this node's
+    // consensus handler reached the commit). It is a committee-agreed winner, so
+    // keep it in the sequence to flow into checkpoint roots like on every other
+    // validator (dropping it forks — issue #11649). Register its owned-object
+    // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
+    // `TransactionManager::enqueue` suppresses the re-execution.
+    if authority_state
+        .get_transaction_cache_reader()
+        .try_is_tx_already_executed(&digest)?
+    {
+        // Byte-based, so safe even though the inputs are already consumed.
+        let owned_inputs = extract_owned_input_objects(tx)?;
+        for obj_ref in &owned_inputs {
+            // A winner cannot be out-locked: an executed tx owns its inputs. A lock
+            // held by a different tx is a consistency violation, not a conflict.
+            if let Some(other) =
+                find_existing_lock(obj_ref, &state.current_commit_locks, epoch_store)?
+            {
+                if other != digest {
+                    fatal!(
+                        "already-executed transaction {:?} has owned input {:?} \
+                         locked by a different transaction {:?}",
+                        digest,
+                        obj_ref,
+                        other,
+                    );
+                }
+            }
+            state.current_commit_locks.insert(*obj_ref, digest);
+        }
+        // An already-executed build smart account tx is a committee-agreed account
+        // claim, so it still claims its sender. It is retained, never dropped.
+        if is_claim_tx {
+            state
+                .claim_senders
+                .entry(transaction.data().transaction_data().sender())
+                .or_insert(digest);
+        }
+        debug!(
+            ?digest,
+            num_owned_inputs = owned_inputs.len(),
+            "Transaction already executed; retained as checkpoint root, skipping re-validation"
+        );
+        // keep[i] stays true so the transaction remains in the sequence.
+        return Ok(());
+    }
+
+    // Check Account-claim: a non-claiming transaction whose sender or sponsor
+    // was claimed by a build/claim transaction in this commit is dropped before
+    // its own validation. Placed after Check #1 so an already-executed transaction
+    // is never dropped here
+    if !is_claim_tx && !state.claim_senders.is_empty() {
+        let transaction_data = transaction.data().transaction_data();
+        let sender = transaction_data.sender();
+        let gas_owner = transaction_data.gas_owner();
+        let hit = state
+            .claim_senders
+            .get(&sender)
+            .map(|claimer| (sender, *claimer))
+            .or_else(|| {
+                (gas_owner != sender)
+                    .then(|| {
+                        state
+                            .claim_senders
+                            .get(&gas_owner)
+                            .map(|claimer| (gas_owner, *claimer))
+                    })
+                    .flatten()
+            });
+        if let Some((address, claiming_transaction)) = hit {
+            debug!(
+                ?digest,
+                ?address,
+                ?claiming_transaction,
+                "Transaction conflicts with a concurrent account claim, dropping"
+            );
+            state.dropped.push((
+                digest,
+                IotaError::AccountClaimConflict {
+                    address,
+                    claiming_transaction,
+                },
+            ));
+            state.keep[i] = false;
+            return Ok(());
+        }
+    }
+
+    // Check #2: Structural validity.
+    if let Err(e) = transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch()) {
+        warn!(
+            ?digest,
+            error = ?e,
+            "UserTransactionV1 failed validity_check post-consensus, dropping"
+        );
+        state.dropped.push((digest, e));
+        state.keep[i] = false;
+        return Ok(());
+    }
+
+    // Check #3: Extract owned input objects for lock conflict detection.
+    let owned_inputs = match extract_owned_input_objects(tx) {
+        Ok(inputs) => inputs,
+        Err(e) => {
+            warn!(
+                ?digest,
+                error = ?e,
+                "Failed to extract owned input objects post-consensus, dropping"
+            );
+            state.dropped.push((digest, e));
+            state.keep[i] = false;
+            return Ok(());
+        }
+    };
+
+    // Check #4: Three-tier lock conflict check.
+    // Cheap (HashMap + quarantine + DB lookups); performed before the
+    // expensive deny checks so conflicting transactions are filtered first.
+    //
+    // Locks are keyed by full ObjectRef (id + version + digest), not just
+    // ObjectID. Two transactions referencing the same object at different
+    // versions will NOT conflict here — version freshness is validated
+    // later in Check #5 (deny checks load objects from DB and verify
+    // that the transaction's input refs match the current state).
+    //
+    // Tier 1: Local HashMap (current commit).
+    // Tier 2: Consensus quarantine (previous uncommitted commits).
+    // Tier 3: Persistent DB (committed data).
+    let mut conflict: Option<IotaError> = None;
+    for obj_ref in &owned_inputs {
+        if let Some(locked_by) =
+            find_existing_lock(obj_ref, &state.current_commit_locks, epoch_store)?
+        {
+            // A lock held by this same transaction is its own lock from a
+            // prior round: it acquired owned-object locks, was then deferred,
+            // and is reloaded this round. A self-held lock is NOT a conflict
+            // - without this guard, the transaction will be dropped with
+            // `ObjectLockConflict` and never executed. Issue #11649 mirrors
+            // this guard for the already-executed branch in Check #1.
+            //
+            // Note that same-commit duplicates cannot slip through here since
+            // Check #0 already dedups by digest, so a same-digest lock here
+            // is always this transaction's own prior-round lock.
+            if locked_by == digest {
+                continue;
+            }
+
+            debug!(
+                ?digest,
+                ?obj_ref,
+                ?locked_by,
+                "Transaction conflicts with existing owned-object lock, dropping"
+            );
+            conflict = Some(IotaError::ObjectLockConflict {
+                obj_ref: *obj_ref,
+                pending_transaction: locked_by,
+            });
+            break;
+        }
+    }
+    if let Some(e) = conflict {
+        state.dropped.push((digest, e));
+        state.keep[i] = false;
+        return Ok(());
+    }
+
+    // Check #5: Deny list, gas, ownership, coin deny list, Move
+    // authenticator. Only reached if all locks are free — skips the
+    // expensive object loading for transactions that would be dropped
+    // by the lock conflict check.
+    //
+    // Safe to skip signature re-verification: the consensus block verifier
+    // (`IotaTxValidator::validate_transactions`) already called
+    // `verify_tx()` on every `UserTransactionV1` before accepting the
+    // block. Re-verifying here would not add safety — if a quorum
+    // committed a bad signature it indicates a protocol-level failure
+    // (2f+1 Byzantine/buggy validators), not something we can recover from
+    // by rejecting the transaction post-consensus. Doing so would also risk
+    // diverging from other honest validators.
+    let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
+    if let Err(e) = authority_state
+        .handle_transaction_validation_checks(&verified_tx, epoch_store)
+        .await
+    {
+        if e.is_storage_or_epoch_error() {
+            return Err(e);
+        }
+        warn!(
+            ?digest,
+            error = ?e,
+            "UserTransactionV1 failed post-consensus deny checks, dropping"
+        );
+        state.dropped.push((digest, e));
+        state.keep[i] = false;
+        return Ok(());
+    }
+
+    // All checks passed — acquire owned-object locks in local tracking.
+    let num_owned_inputs = owned_inputs.len();
+    for obj_ref in &owned_inputs {
+        state.current_commit_locks.insert(*obj_ref, digest);
+    }
+    debug!(
+        ?digest,
+        num_owned_inputs, "Transaction passed post-consensus validation, acquired all object locks"
+    );
+
+    // A surviving claimer records its sender so later transactions in the commit
+    // can be checked against it.
+    if is_claim_tx {
+        state
+            .claim_senders
+            .entry(transaction.data().transaction_data().sender())
+            .or_insert(digest);
+    }
+
+    Ok(())
 }
 
 /// Finds an existing owned-object lock on `obj_ref`, walking three tiers in
@@ -365,6 +500,18 @@ fn extract_owned_input_objects(
         .collect();
 
     Ok(owned_objects)
+}
+
+/// Returns `true` if `tx` is a `UserTransactionV1` that calls
+/// `0x2::smart_account::build_v1`.
+fn is_smart_account_build_user_transaction(tx: &VerifiedSequencedConsensusTransaction) -> bool {
+    matches!(
+        &tx.0.transaction,
+        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(t),
+            ..
+        }) if t.data().transaction_data().calls_smart_account_build_v1()
+    )
 }
 
 #[cfg(test)]

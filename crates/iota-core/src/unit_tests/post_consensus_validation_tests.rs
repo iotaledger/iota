@@ -56,6 +56,39 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
 }
 
+/// Builds and signs a transaction whose single command calls
+/// `0x2::smart_account::build_v1`, paid by `gas_ref` owned by `sender`.
+///
+/// The call is never executed in these tests — it only needs to make
+/// `TransactionKind::calls_smart_account_build_v1()` return `true` and survive
+/// the post-consensus deny checks, which do not resolve the Move function.
+fn make_build_v1_transaction(
+    sender: Address,
+    sender_key: &AccountKeyPair,
+    gas_ref: ObjectRef,
+    rgp: u64,
+) -> iota_types::transaction::Transaction {
+    use iota_sdk_types::Identifier;
+    use iota_types::{
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        transaction::{TransactionData, TransactionDataAPI},
+        utils::to_sender_signed_transaction,
+    };
+    let data = TransactionData::new_move_call(
+        sender,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("smart_account"),
+        Identifier::from_static("build_v1"),
+        vec![],
+        gas_ref,
+        vec![],
+        rgp * 1000,
+        rgp,
+    )
+    .unwrap();
+    to_sender_signed_transaction(data, sender_key)
+}
+
 /// Wraps an `EndOfPublish` message as a consensus transaction.
 fn make_end_of_publish() -> VerifiedSequencedConsensusTransaction {
     use iota_types::base_types::AuthorityName;
@@ -1654,4 +1687,584 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
         &mut transactions,
     )
     .await;
+}
+
+// ---------------------------------------------------------------------------
+// Account-claim conflict invalidation (issue #11900)
+// ---------------------------------------------------------------------------
+//
+// A transaction calling `0x2::smart_account::build_v1` ("B") turns the implicit
+// account at its sender's address into an explicit one. Any *other* transaction
+// in the same commit whose sender or sponsor is that same address ("A") would
+// race the transition and execute non-deterministically, so it is dropped with
+// `AccountClaimConflict`. The behavior is gated on
+// `enable_account_claim_conflict_invalidation`.
+
+/// Installs the P-COOL flow plus the account-claim invalidation flag.
+fn account_claim_overrides(enable_invalidation: bool) -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_account_claim_conflict_invalidation_for_testing(enable_invalidation);
+        config
+    })
+}
+
+/// A `build_v1` transaction invalidates a plain transaction from the same
+/// sender; the `build_v1` transaction itself is retained.
+#[sim_test]
+async fn test_account_claim_drops_same_sender_plain_tx() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_claim_id = ObjectId::random();
+    let gas_plain_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_claim_id, sender),
+        Object::with_id_owner_for_testing(gas_plain_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_claim_ref = authority
+        .get_object(&gas_claim_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let gas_plain_ref = authority
+        .get_object(&gas_plain_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let plain_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_plain_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+    let verified_plain = epoch_store.verify_transaction(plain_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim.clone()),
+        make_user_tx_v1_verified(verified_plain.clone()),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 1, "Only the build_v1 tx should remain");
+    assert_eq!(dropped.len(), 1, "The plain tx should be dropped");
+    assert_eq!(dropped[0].0, *verified_plain.digest());
+    assert!(
+        matches!(dropped[0].1, IotaError::AccountClaimConflict { .. }),
+        "expected AccountClaimConflict, got {:?}",
+        dropped[0].1
+    );
+}
+
+/// Two `build_v1` transactions sharing a sender both survive: `build_v1`
+/// transactions are claimers and are never dropped by the account-claim rule.
+#[sim_test]
+async fn test_account_claim_two_build_v1_same_sender_both_kept() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(gas1_id, sender),
+        Object::with_id_owner_for_testing(gas2_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas1_ref = authority.get_object(&gas1_id).await.unwrap().object_ref();
+    let gas2_ref = authority.get_object(&gas2_id).await.unwrap().object_ref();
+
+    let b1 = make_build_v1_transaction(sender, &sender_key, gas1_ref, rgp);
+    let b2 = make_build_v1_transaction(sender, &sender_key, gas2_ref, rgp);
+    let v1 = epoch_store.verify_transaction(b1).unwrap();
+    let v2 = epoch_store.verify_transaction(b2).unwrap();
+    assert_ne!(v1.digest(), v2.digest());
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(v1.clone()),
+        make_user_tx_v1_verified(v2.clone()),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 2, "Both build_v1 txs should be kept");
+    assert!(dropped.is_empty());
+}
+
+/// A lone `build_v1` transaction is not self-invalidated.
+#[sim_test]
+async fn test_account_claim_lone_build_v1_kept() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) =
+        init_state_with_objects_and_object_basics(vec![Object::with_id_owner_for_testing(
+            gas_id, sender,
+        )])
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+
+    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_ref, rgp);
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+
+    let mut transactions = vec![make_user_tx_v1_verified(verified_claim)];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 1, "Lone build_v1 tx should be kept");
+    assert!(dropped.is_empty());
+}
+
+/// A `build_v1` transaction does not invalidate a transaction from an unrelated
+/// sender.
+#[sim_test]
+async fn test_account_claim_unrelated_sender_kept() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (claimer, claimer_key): (Address, AccountKeyPair) = get_key_pair();
+    let (other, other_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let gas_claim_id = ObjectId::random();
+    let object_id = ObjectId::random();
+    let gas_other_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(gas_claim_id, claimer),
+        Object::with_id_owner_for_testing(object_id, other),
+        Object::with_id_owner_for_testing(gas_other_id, other),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas_claim_ref = authority
+        .get_object(&gas_claim_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_other_ref = authority
+        .get_object(&gas_other_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    let claim_tx = make_build_v1_transaction(claimer, &claimer_key, gas_claim_ref, rgp);
+    let other_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_other_ref,
+        other,
+        &other_key,
+        recipient,
+        rgp,
+    );
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+    let verified_other = epoch_store.verify_transaction(other_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim),
+        make_user_tx_v1_verified(verified_other),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 2, "Both txs should be kept");
+    assert!(dropped.is_empty());
+}
+
+/// A `build_v1` transaction invalidates a *sponsored* transaction whose sponsor
+/// (gas owner) is the claimer, even though its sender differs.
+#[sim_test]
+async fn test_account_claim_drops_sponsored_tx_by_sponsor() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    use iota_types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TransactionData, TransactionDataAPI},
+        utils::to_sender_signed_transaction_with_multi_signers,
+    };
+
+    // `sponsor` claims its account; `tx_sender` sends a sponsored tx paid by
+    // `sponsor`.
+    let (sponsor, sponsor_key): (Address, AccountKeyPair) = get_key_pair();
+    let (tx_sender, tx_sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let gas_claim_id = ObjectId::random();
+    let gas_sponsored_id = ObjectId::random();
+    let object_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        // Both gas objects are owned by the sponsor.
+        Object::with_id_owner_for_testing(gas_claim_id, sponsor),
+        Object::with_id_owner_for_testing(gas_sponsored_id, sponsor),
+        // The object transferred by the sponsored tx is owned by its sender.
+        Object::with_id_owner_for_testing(object_id, tx_sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas_claim_ref = authority
+        .get_object(&gas_claim_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let gas_sponsored_ref = authority
+        .get_object(&gas_sponsored_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+
+    // `build_v1` from the sponsor.
+    let claim_tx = make_build_v1_transaction(sponsor, &sponsor_key, gas_claim_ref, rgp);
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+
+    // Sponsored transfer: sender is `tx_sender`, gas owner is `sponsor`.
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_object(recipient, object_ref).unwrap();
+        builder.finish()
+    };
+    let sponsored_data = TransactionData::new_programmable_allow_sponsor(
+        tx_sender,
+        vec![gas_sponsored_ref],
+        pt,
+        rgp * 1000,
+        rgp,
+        sponsor,
+    );
+    assert_eq!(sponsored_data.gas_owner(), sponsor);
+    assert_eq!(sponsored_data.sender(), tx_sender);
+    let sponsored_tx = to_sender_signed_transaction_with_multi_signers(
+        sponsored_data,
+        vec![&tx_sender_key, &sponsor_key],
+    );
+    let verified_sponsored = epoch_store.verify_transaction(sponsored_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim.clone()),
+        make_user_tx_v1_verified(verified_sponsored.clone()),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 1, "Only the build_v1 tx should remain");
+    assert_eq!(dropped.len(), 1);
+    assert_eq!(dropped[0].0, *verified_sponsored.digest());
+    assert!(
+        matches!(dropped[0].1, IotaError::AccountClaimConflict { .. }),
+        "expected AccountClaimConflict, got {:?}",
+        dropped[0].1
+    );
+}
+
+/// A `build_v1` transaction that is itself dropped by a normal whiteflag check
+/// (here, an owned-object lock conflict against a pre-existing quarantine lock)
+/// does not claim its sender, so a same-sender transaction survives
+/// ("only surviving B"). The pre-seeded lock makes the build_v1 drop regardless
+/// of the phase-1/phase-2 processing order.
+#[sim_test]
+async fn test_account_claim_dropped_build_v1_does_not_invalidate() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let claim_gas_id = ObjectId::random();
+    let plain_object_id = ObjectId::random();
+    let plain_gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(claim_gas_id, sender),
+        Object::with_id_owner_for_testing(plain_object_id, sender),
+        Object::with_id_owner_for_testing(plain_gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let claim_gas_ref = authority
+        .get_object(&claim_gas_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let plain_object_ref = authority
+        .get_object(&plain_object_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let plain_gas_ref = authority
+        .get_object(&plain_gas_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    // Seed a quarantine lock on the build_v1 tx's gas, held by a different
+    // transaction, so the build_v1 tx loses the lock-conflict check and never
+    // claims its sender.
+    let other_digest = TransactionDigest::random();
+    seed_quarantined_lock(&epoch_store, claim_gas_ref, other_digest);
+
+    let claim_tx = make_build_v1_transaction(sender, &sender_key, claim_gas_ref, rgp);
+    // Plain tx from the same sender, independent objects.
+    let plain_tx = make_transfer_object_transaction(
+        plain_object_ref,
+        plain_gas_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+    let verified_plain = epoch_store.verify_transaction(plain_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim.clone()),
+        make_user_tx_v1_verified(verified_plain.clone()),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    // Only the build_v1 tx is dropped, and with a lock conflict — not an account
+    // claim conflict. The plain tx survives because the build_v1 tx never
+    // claimed the sender.
+    // The build_v1 tx is the only drop — and with a lock conflict, not an account
+    // claim conflict. Exactly one tx remains, which must be the plain tx (the
+    // build_v1 tx was dropped).
+    assert_eq!(dropped.len(), 1, "Only the build_v1 tx should be dropped");
+    assert_eq!(dropped[0].0, *verified_claim.digest());
+    assert!(
+        matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }),
+        "expected ObjectLockConflict, got {:?}",
+        dropped[0].1
+    );
+    assert_eq!(transactions.len(), 1, "the plain tx should remain");
+}
+
+/// With the feature flag disabled, no account-claim invalidation happens.
+#[sim_test]
+async fn test_account_claim_disabled_flag_no_drop() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(false);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_claim_id = ObjectId::random();
+    let gas_plain_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_claim_id, sender),
+        Object::with_id_owner_for_testing(gas_plain_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_claim_ref = authority
+        .get_object(&gas_claim_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let gas_plain_ref = authority
+        .get_object(&gas_plain_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let plain_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_plain_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+    let verified_plain = epoch_store.verify_transaction(plain_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim),
+        make_user_tx_v1_verified(verified_plain),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        transactions.len(),
+        2,
+        "Both txs should be kept when the flag is off"
+    );
+    assert!(dropped.is_empty());
+}
+
+/// An already-executed transaction sharing the claimer's address is exempt: it
+/// is retained (not dropped) to avoid forking a committee-agreed winner.
+#[tokio::test]
+async fn test_account_claim_already_executed_exempt() {
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_claim_id = ObjectId::random();
+    let gas_plain_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_claim_id, sender),
+        Object::with_id_owner_for_testing(gas_plain_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_claim_ref = authority
+        .get_object(&gas_claim_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let gas_plain_ref = authority
+        .get_object(&gas_plain_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let plain_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_plain_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
+    let verified_plain = epoch_store.verify_transaction(plain_tx).unwrap();
+    let plain_digest = *verified_plain.digest();
+
+    // The plain tx wins via state-sync before this node's consensus handler runs.
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        verified_plain.clone(),
+        epoch_store.epoch(),
+        1,
+    );
+    authority
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_claim),
+        make_user_tx_v1_verified(verified_plain),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "already-executed tx must not be dropped by the account-claim rule"
+    );
+    assert_eq!(transactions.len(), 2, "both txs should be retained");
+    assert!(
+        authority
+            .get_transaction_cache_reader()
+            .try_is_tx_already_executed(&plain_digest)
+            .unwrap()
+    );
 }

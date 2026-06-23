@@ -169,6 +169,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 30: Enable built-in Move authenticators in devnet.
 //             Add ClaimRegistry singleton for claiming addresses from public
 //             keys.
+//             Invalidate transactions conflicting with a concurrent
+//             account-claim transaction in the same consensus commit.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -545,6 +547,15 @@ struct FeatureFlags {
     // Used to gate genesis creation and epoch-change creation for existing networks.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_registry: bool,
+
+    // If true, the white-flag pass invalidates any transaction whose sender or
+    // sponsor matches the sender of a concurrent account-claim transaction
+    // (one calling `0x2::smart_account::build_v1`) in the same consensus
+    // commit. Removes the implicit-to-explicit account race that would
+    // otherwise make plain-signed transactions from that address
+    // non-deterministic within the commit.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_account_claim_conflict_invalidation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1825,6 +1836,11 @@ impl ProtocolConfig {
     pub fn enable_claim_registry(&self) -> bool {
         self.feature_flags.enable_claim_registry
     }
+
+    pub fn enable_account_claim_conflict_invalidation(&self) -> bool {
+        self.feature_flags
+            .enable_account_claim_conflict_invalidation
+    }
 }
 
 #[cfg(not(msim))]
@@ -2988,6 +3004,9 @@ impl ProtocolConfig {
                         cfg.builtin_move_authenticator_cost_base = Some(0);
                         // Enable claim registry in devnet only.
                         cfg.feature_flags.enable_claim_registry = true;
+                        // Invalidate transactions conflicting with a concurrent
+                        // account-claim transaction in the same commit.
+                        cfg.feature_flags.enable_account_claim_conflict_invalidation = true;
                     }
                 }
                 // Use this template when making changes:
@@ -3247,6 +3266,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_builtin_move_authenticators = val;
+    }
+
+    pub fn set_enable_account_claim_conflict_invalidation_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .enable_account_claim_conflict_invalidation = val;
     }
 }
 
