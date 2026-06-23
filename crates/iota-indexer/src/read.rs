@@ -711,7 +711,12 @@ impl IndexerReader {
     ///   We always expect checkpoint data to be available in the database, so
     ///   an empty page indicates that the given cursor is too high.
     /// * Descending: Should use fallback when a partial page does not reach
-    ///   genesis, or if the cursor is not the genesis checkpoint.
+    ///   genesis, or when the page is empty and the cursor is not the genesis
+    ///   checkpoint.
+    ///
+    /// Note that `db_checkpoints` is expected to follow the sorting
+    /// order implied by `descending_order`. That is, smallest sequence numbers
+    /// come first when order is ascending, and vice-versa.
     fn should_fetch_checkpoints_from_fallback(
         cursor: Option<u64>,
         descending_order: bool,
