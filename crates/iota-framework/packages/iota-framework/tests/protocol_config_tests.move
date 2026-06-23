@@ -42,3 +42,32 @@ fun test_get_attr_u16() {
     let val: u16 = protocol_config::get_attr(b"binary_module_handles");
     assert_eq(val, 100u16);
 }
+
+#[test]
+#[expected_failure(abort_code = 0, location = iota::protocol_config)]
+// A non-UTF-8 byte sequence as the parameter name is a programming error and must abort.
+fun test_get_attr_invalid_utf8() {
+    let _: u64 = protocol_config::get_attr(x"ff");
+}
+
+#[test]
+#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+// An unknown parameter name is a programming error and must abort.
+fun test_get_attr_unknown_param() {
+    let _: u64 = protocol_config::get_attr(b"nonexistent_parameter_name");
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota::protocol_config)]
+// max_arguments is a u32; requesting it as u64 is a programming error that must abort.
+fun test_get_attr_type_mismatch() {
+    let _: u64 = protocol_config::get_attr(b"max_arguments");
+}
+
+#[test]
+#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+// bridge_should_try_to_finalize_committee was deprecated to None at protocol v9;
+// requesting it is a programming error and must abort.
+fun test_get_attr_deprecated_to_none() {
+    let _: bool = protocol_config::get_attr(b"bridge_should_try_to_finalize_committee");
+}
