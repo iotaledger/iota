@@ -87,11 +87,10 @@ use crate::restore::RestoreEpochInfo;
 ///   boundary, so any record present in a published `.obj` file carries a
 ///   concrete checkpoint sequence number.
 /// - REFERENCE file format is unchanged from V1.
-/// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
-///   carrying one [`EpochInfoV1Entry`] per epoch in `[0, snapshot_epoch]` from
-///   `IndexStoreTables::epoch_info`. Writer-node operator contract:
-///   `enable_grpc_api = true`; the writer refuses to publish unless
-///   `Watermark::EpochIndexed >= snapshot_epoch`.
+/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per
+///   epoch in `[0, snapshot_epoch]` from the CheckpointStore's `epoch_info`
+///   table. The writer refuses to publish unless that table's completeness
+///   watermark covers `snapshot_epoch`.
 /// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore
 ///   can reject a foreign-chain snapshot.
 ///

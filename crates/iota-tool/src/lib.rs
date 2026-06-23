@@ -1084,18 +1084,18 @@ pub async fn download_formal_snapshot(
     )
     .await?;
 
-    // Finish the gRPC index store (unless skipped): the live-state indexes
-    // were built while the objects streamed in, so what's left is the epoch
-    // rows from EPOCH_INFO, the open epoch's row, and the finalize that makes
-    // the node open the store in place instead of re-indexing. All RocksDB
-    // handles are dropped before the rename below.
+    // Seed the epoch chain into the staging CheckpointStore unconditionally;
+    // every node holds it.
+    let authority_store =
+        AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
+    verified_epoch_info
+        .restore_epoch_info(&*checkpoint_store)
+        .await?;
+    checkpoint_store.ensure_current_epoch_info(&authority_store)?;
+
+    // Finalize the gRPC live-state index store so the node opens it in place
+    // instead of re-indexing. Drop all RocksDB handles before the rename below.
     if let Some(grpc_indexes) = grpc_indexes {
-        verified_epoch_info
-            .restore_epoch_info(&*grpc_indexes)
-            .await?;
-        let authority_store =
-            AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
-        grpc_indexes.ensure_current_epoch_info(&authority_store, &checkpoint_store)?;
         grpc_indexes.finalize_restore(last_checkpoint.sequence_number)?;
         Arc::into_inner(grpc_indexes)
             .expect("the snapshot task is awaited, so its store handle is gone");

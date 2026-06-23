@@ -20,13 +20,12 @@ use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
+    checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_node_storage::GrpcIndexes;
-use iota_sdk_types::{GasCostSummary, ObjectId};
+use iota_sdk_types::{Address, GasCostSummary, ObjectId};
 use iota_types::{
-    base_types::IotaAddress,
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
     digests::{ChainIdentifier, TransactionDigest},
@@ -38,11 +37,7 @@ use iota_types::{
         EndOfEpochData, SignedCheckpointSummary,
     },
     object::Object,
-    storage::{
-        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionIteratorItem, TransactionInfo,
-        error::Result as StorageResult,
-    },
+    storage::EpochInfoV2,
 };
 
 use crate::{
@@ -52,57 +47,21 @@ use crate::{
     writer::StateSnapshotWriterV1,
 };
 
-/// In-memory `GrpcIndexes` stub for snapshot tests.
-///
-/// Pre-populates `epochs_v2` rows for a contiguous range `[0..=highest]`
-/// with empty-but-structurally-valid `EpochInfoV2`s and advances the
-/// `EpochIndexed` watermark to `highest`. Lets snapshot-writer tests satisfy
-/// the watermark precondition without standing up a full RocksDB-backed
-/// `IndexStoreTables`. Every method other than the two `epoch` paths
-/// returns `None`/empty iterators — tests that exercise other surfaces of
-/// `GrpcIndexes` should not use this stub.
-struct TestGrpcIndexes {
-    entries: HashMap<EpochId, EpochInfoV2>,
-    highest: Option<EpochId>,
+/// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
+/// `[0..=highest]`, advancing the completeness watermark to `highest`.
+fn checkpoint_store_with_epochs(highest: EpochId) -> Arc<CheckpointStore> {
+    let store = CheckpointStore::new_for_tests();
+    // Omits the start-of-epoch-only `highest + 1` row a live store would carry;
+    // the writer only reads `[0, snapshot_epoch]`.
+    let rows = (0..=highest).map(fully_populated_epoch_info).collect();
+    store.insert_epoch_info(rows).expect("seeding epoch_info");
+    store
 }
 
-impl TestGrpcIndexes {
-    /// Synthetic state for the writer's `Some(..)` path: every epoch in
-    /// `[0..=highest]` is fully populated and the watermark is set to
-    /// `highest`. The writer only reads `[0, snapshot_epoch]`, so this
-    /// omits the start-of-epoch-only `highest + 1` row a real index would
-    /// carry.
-    fn with_epochs_through(highest: EpochId) -> Arc<dyn GrpcIndexes> {
-        let mut entries = HashMap::new();
-        for epoch in 0..=highest {
-            entries.insert(epoch, fully_populated_epoch_info(epoch));
-        }
-        Arc::new(TestGrpcIndexes {
-            entries,
-            highest: Some(highest),
-        })
-    }
-
-    /// Stub where the `EpochIndexed` watermark is absent (no epoch has
-    /// been fully indexed yet). Drives the writer's watermark
-    /// precondition into the "no rows" failure branch.
-    fn empty() -> Arc<dyn GrpcIndexes> {
-        Arc::new(TestGrpcIndexes {
-            entries: HashMap::new(),
-            highest: None,
-        })
-    }
-
-    /// Stub with the watermark set to `highest` but no rows populated.
-    /// The watermark precondition fires before any row is read, so this
-    /// is sufficient to drive the "watermark below snapshot_epoch"
-    /// failure branch.
-    fn watermark_only(highest: EpochId) -> Arc<dyn GrpcIndexes> {
-        Arc::new(TestGrpcIndexes {
-            entries: HashMap::new(),
-            highest: Some(highest),
-        })
-    }
+/// A fresh, empty `CheckpointStore` with no completeness watermark set,
+/// driving the writer's precondition into the "no rows" failure branch.
+fn empty_checkpoint_store() -> Arc<CheckpointStore> {
+    CheckpointStore::new_for_tests()
 }
 
 /// Test-fixture system state, reused as a row's decoded `system_state` and as
@@ -221,55 +180,6 @@ fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
     }
 }
 
-impl GrpcIndexes for TestGrpcIndexes {
-    fn get_epoch_info(&self, epoch: EpochId) -> StorageResult<Option<EpochInfoV2>> {
-        Ok(self.entries.get(&epoch).cloned())
-    }
-
-    fn highest_indexed_epoch(&self) -> StorageResult<Option<EpochId>> {
-        Ok(self.highest)
-    }
-
-    fn get_transaction_info(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> StorageResult<Option<TransactionInfo>> {
-        Ok(None)
-    }
-
-    fn account_owned_objects_info_iter(
-        &self,
-        _owner: iota_types::base_types::IotaAddress,
-        _cursor: Option<&OwnedObjectCursor>,
-        _object_type: Option<iota_sdk_types::StructTag>,
-    ) -> StorageResult<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>> {
-        Ok(Box::new(std::iter::empty()))
-    }
-
-    fn dynamic_field_iter(
-        &self,
-        _parent: ObjectId,
-        _cursor: Option<ObjectId>,
-    ) -> StorageResult<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>> {
-        Ok(Box::new(std::iter::empty()))
-    }
-
-    fn get_coin_info(
-        &self,
-        _coin_type: &iota_sdk_types::StructTag,
-    ) -> StorageResult<Option<CoinInfo>> {
-        Ok(None)
-    }
-
-    fn package_versions_iter(
-        &self,
-        _original_package_id: ObjectId,
-        _cursor: Option<u64>,
-    ) -> StorageResult<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>> {
-        Ok(Box::new(std::iter::empty()))
-    }
-}
-
 pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
@@ -332,7 +242,7 @@ async fn snapshot_round_trip(
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(0),
+        checkpoint_store_with_epochs(0),
         ChainIdentifier::default(),
         file_compression,
         NonZeroUsize::new(1).unwrap(),
@@ -384,9 +294,7 @@ async fn snapshot_round_trip(
         );
         let decoded: EpochInfo = bcs::from_bytes(&bytes[MAGIC_BYTES..])?;
         let EpochInfo::V1(decoded_v1) = decoded;
-        // `TestGrpcIndexes::with_epochs_through(0)` provides exactly one
-        // populated entry for epoch 0, so the snapshot's EPOCH_INFO must
-        // carry exactly one entry.
+        // Seeded with only epoch 0, so EPOCH_INFO must carry exactly one entry.
         assert_eq!(
             decoded_v1.entries.len(),
             1,
@@ -468,7 +376,7 @@ async fn epoch_info_backfill_round_trip(
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(snapshot_epoch),
+        checkpoint_store_with_epochs(snapshot_epoch),
         ChainIdentifier::default(),
         FileCompression::Zstd,
         NonZeroUsize::new(1).unwrap(),
@@ -500,9 +408,9 @@ async fn epoch_info_backfill_round_trip(
 
     // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order,
     //    each carrying its summary and a populated proof bundle. The chain-verified
-    //    seed into `epochs_v2` (which derives each row's start state from the
-    //    previous entry) needs a real boundary and is exercised in
-    //    `iota-e2e-tests`.
+    //    seed into the CheckpointStore's `epoch_info` (which derives each row's
+    //    start state from the previous entry) needs a real boundary and is
+    //    exercised in `iota-e2e-tests`.
     for (epoch, entry) in epoch_info.entries().iter().enumerate() {
         let epoch = epoch as EpochId;
         assert_eq!(
@@ -526,7 +434,7 @@ async fn epoch_info_backfill_round_trip(
 async fn writer_with_stub_returns_err(
     tmp_dir: &std::path::Path,
     snapshot_epoch: u64,
-    stub: Arc<dyn GrpcIndexes>,
+    stub: Arc<CheckpointStore>,
 ) -> anyhow::Error {
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
@@ -594,7 +502,7 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(0),
+        checkpoint_store_with_epochs(0),
         ChainIdentifier::default(),
         FileCompression::Zstd,
         NonZeroUsize::new(1).unwrap(),
@@ -605,7 +513,7 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     // to prove (the immutable objects of the other round-trip tests are
     // intentionally not owner-indexed).
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
-    let owner = IotaAddress::from_u16(7);
+    let owner = Address::from_u16(7);
     let mut owned_ids = HashSet::new();
     let mut id = ObjectId::ZERO;
     for _ in 0..4 {
@@ -709,7 +617,7 @@ async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(0),
+        checkpoint_store_with_epochs(0),
         ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
@@ -809,7 +717,7 @@ async fn snapshot_writer_rejects_lifted_v1_row() -> Result<(), anyhow::Error> {
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(0),
+        checkpoint_store_with_epochs(0),
         ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
@@ -873,7 +781,7 @@ async fn snapshot_writer_rejects_literal_v1_row() -> Result<(), anyhow::Error> {
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
-        TestGrpcIndexes::with_epochs_through(0),
+        checkpoint_store_with_epochs(0),
         ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
@@ -906,10 +814,10 @@ async fn snapshot_writer_rejects_literal_v1_row() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn snapshot_writer_rejects_absent_watermark() {
     let dir = iota_common::tempdir();
-    let err = writer_with_stub_returns_err(dir.path(), 0, TestGrpcIndexes::empty()).await;
+    let err = writer_with_stub_returns_err(dir.path(), 0, empty_checkpoint_store()).await;
     let msg = format!("{err:#}");
     assert!(
-        msg.contains("`EpochIndexed` watermark is absent"),
+        msg.contains("epoch_info completeness watermark is absent"),
         "absent-watermark error chain did not match: {msg}"
     );
 }
@@ -921,10 +829,10 @@ async fn snapshot_writer_rejects_absent_watermark() {
 #[tokio::test]
 async fn snapshot_writer_rejects_watermark_below_snapshot_epoch() {
     let dir = iota_common::tempdir();
-    let err = writer_with_stub_returns_err(dir.path(), 5, TestGrpcIndexes::watermark_only(3)).await;
+    let err = writer_with_stub_returns_err(dir.path(), 5, checkpoint_store_with_epochs(3)).await;
     let msg = format!("{err:#}");
     assert!(
-        msg.contains("`EpochIndexed` watermark is at epoch 3"),
+        msg.contains("epoch_info completeness watermark is at epoch 3"),
         "too-low watermark error chain did not match (epoch 3): {msg}"
     );
     assert!(

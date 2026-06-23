@@ -1,16 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_core::{checkpoints::CheckpointStore, grpc_indexes::GrpcIndexesStore};
+use std::{path::Path, sync::Arc};
+
+use iota_core::checkpoints::CheckpointStore;
 use iota_macros::sim_test;
 use iota_snapshot::{EpochInfo, EpochInfoV1};
 use iota_types::{
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointContents,
-    storage::{EpochInfoV1Entry, EpochInfoV2},
+    storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -38,72 +39,85 @@ async fn wait_until_executed_open_epoch(checkpoint_store: &CheckpointStore, open
     }
 }
 
-/// A formal-snapshot restore (unless `--skip-grpc-indexes` is passed) writes
-/// the store's contents and then `finalize_restore`s it (`Watermark::Indexed`
-/// + `meta`).
-/// `GrpcIndexesStore::new` must open such a store in place rather than wipe
-/// and re-index, while an *unfinalized* store (e.g. a restore that crashed
-/// mid-way) must still be wiped.
-///
-/// Uses a sentinel row at an epoch far beyond the node's range, which `init`
-/// can never recreate: its survival across `new` proves the wipe was skipped.
-#[sim_test]
-async fn finalized_restore_survives_grpc_indexes_store_init() {
-    let test_cluster = TestClusterBuilder::new().build().await;
+/// Assert a node's live `epoch_info` chain is complete: every closed epoch
+/// finalized, the watermark covering them, no gap, and the open epoch seeded.
+async fn assert_epoch_info_chain_complete(checkpoint_store: &CheckpointStore, current_epoch: u64) {
+    assert!(current_epoch >= 2, "need at least two closed epochs");
+    wait_until_executed_open_epoch(checkpoint_store, current_epoch).await;
 
-    let state = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.state());
-    let authority_store = state.database_for_testing();
-    let checkpoint_store = state.get_checkpoint_store().clone();
-
-    // An epoch the node will never index, so `init` cannot recreate its row.
-    let sentinel_epoch = state.current_epoch_for_testing() + 1_000;
-
-    // Mimic a completed restore: write a row, then finalize. The restore tool
-    // finalizes a *stopped* staging DB whose executed watermark can't move
-    // afterwards; the cluster here keeps executing checkpoints, so finalize
-    // far ahead to keep the store's watermark current when `new` runs.
-    let finalized_tmp = tempfile::tempdir().unwrap();
-    let finalized_path = finalized_tmp.path().to_path_buf();
-    {
-        let grpc = GrpcIndexesStore::new_without_init(finalized_path.clone());
-        grpc.insert_epoch_info(vec![restored_sentinel_row(sentinel_epoch)])
-            .unwrap();
-        grpc.finalize_restore(u64::MAX).unwrap();
+    for epoch in 0..current_epoch {
+        let row = checkpoint_store
+            .get_epoch_info(epoch)
+            .unwrap()
+            .unwrap_or_else(|| panic!("closed epoch {epoch} must have a row"));
+        assert!(
+            row.is_finalized(),
+            "closed epoch {epoch}'s row must be finalized by its boundary"
+        );
     }
-    let grpc =
-        GrpcIndexesStore::new(finalized_path, authority_store.clone(), &checkpoint_store).await;
-    assert!(
-        grpc.get_epoch_info(sentinel_epoch).unwrap().is_some(),
-        "finalized restore was discarded — the store was wiped and re-initialized"
+    assert_eq!(
+        checkpoint_store.highest_indexed_epoch().unwrap(),
+        Some(current_epoch - 1),
+        "the completeness watermark must cover every closed epoch"
     );
-
-    // Without the finalize (crashed restore), `new` must wipe and re-init.
-    let unfinalized_tmp = tempfile::tempdir().unwrap();
-    let unfinalized_path = unfinalized_tmp.path().to_path_buf();
-    {
-        let grpc = GrpcIndexesStore::new_without_init(unfinalized_path.clone());
-        grpc.insert_epoch_info(vec![restored_sentinel_row(sentinel_epoch)])
-            .unwrap();
-    }
-    let grpc = GrpcIndexesStore::new(unfinalized_path, authority_store, &checkpoint_store).await;
+    assert_eq!(
+        checkpoint_store.epoch_info_gap().unwrap(),
+        None,
+        "live population must leave no gap"
+    );
     assert!(
-        grpc.get_epoch_info(sentinel_epoch).unwrap().is_none(),
-        "an unfinalized restore must be wiped and re-initialized"
+        checkpoint_store
+            .get_epoch_info(current_epoch)
+            .unwrap()
+            .is_some(),
+        "the open epoch's row must be seeded, pending finalization at its boundary"
     );
 }
 
+/// Every node — the fullnode and each validator — populates its `epoch_info`
+/// chain from its own executed boundaries, leaving a complete chain.
+#[sim_test]
+async fn epoch_info_chain_is_populated_live() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .disable_fullnode_pruning()
+        .build()
+        .await;
+    test_cluster.force_new_epoch().await;
+    test_cluster.force_new_epoch().await;
+
+    // Read each node's own checkpoint store and current epoch; validators may
+    // sit at a slightly different epoch than the fullnode.
+    let (fullnode_store, fullnode_epoch) = test_cluster.fullnode_handle.iota_node.with(|node| {
+        let state = node.state();
+        (
+            state.get_checkpoint_store().clone(),
+            state.current_epoch_for_testing(),
+        )
+    });
+    assert_epoch_info_chain_complete(&fullnode_store, fullnode_epoch).await;
+
+    for handle in test_cluster.all_validator_handles() {
+        let (validator_store, validator_epoch) = handle.with(|node| {
+            let state = node.state();
+            (
+                state.get_checkpoint_store().clone(),
+                state.current_epoch_for_testing(),
+            )
+        });
+        assert_epoch_info_chain_complete(&validator_store, validator_epoch).await;
+    }
+}
+
 /// EPOCH_INFO that matches the manifest `chain_id` and chain-verifies against
-/// the genesis committee seeds every closed epoch; a chain-id mismatch or a
-/// non-genesis trust root never yields the verified witness required to
-/// write anything.
+/// the genesis committee seeds every closed epoch into a target store; a
+/// chain-id mismatch or a non-genesis trust root yields no verified witness, so
+/// nothing is written.
 #[sim_test]
 async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // Long epoch duration so the epoch only advances when forced, keeping the
     // closed-epoch set stable across the assertions. Pruning disabled so the
-    // local source store can rebuild every closed epoch's proof bundle.
+    // live store keeps every closed epoch's finalized row.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(600_000)
         .disable_fullnode_pruning()
@@ -116,7 +130,6 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
         .fullnode_handle
         .iota_node
         .with(|node| node.state());
-    let authority_store = state.database_for_testing();
     let checkpoint_store = state.get_checkpoint_store().clone();
     // Closed epochs are `[0, current)`; EPOCH_INFO covers exactly those.
     let current_epoch = state.current_epoch_for_testing();
@@ -131,22 +144,15 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     let genesis_committee = genesis.committee().expect("genesis committee");
     let genesis_system_state = genesis.iota_system_object();
 
-    // A locally-indexed store gives every closed epoch its real proof bundle,
-    // the way the snapshot writer reads them off `epochs_v2`.
-    let source_tmp = tempfile::tempdir().unwrap();
-    let source = GrpcIndexesStore::new(
-        source_tmp.path().to_path_buf(),
-        authority_store,
-        &checkpoint_store,
-    )
-    .await;
+    // The node's live `epoch_info` chain supplies the real proof bundles.
+    let source = &*checkpoint_store;
 
     // SUCCESS: a matching chain_id + committee chain seeds every closed epoch
-    // into a fresh store.
+    // into a fresh CheckpointStore.
     let ok_tmp = tempfile::tempdir().unwrap();
-    let ok_grpc = GrpcIndexesStore::new_without_init(ok_tmp.path().to_path_buf());
+    let ok_store = CheckpointStore::new(&ok_tmp.path().join("checkpoints"));
     let verified = iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         genesis_committee.clone(),
         genesis_system_state.clone(),
         expected_chain_id,
@@ -164,33 +170,33 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
         "committees() must carry one committee per epoch in [0, current_epoch]"
     );
     verified
-        .restore_epoch_info(&ok_grpc)
+        .restore_epoch_info(&*ok_store)
         .await
         .expect("a verified snapshot must seed");
     for epoch in 0..current_epoch {
         assert!(
-            ok_grpc.get_epoch_info(epoch).unwrap().is_some(),
+            ok_store.get_epoch_info(epoch).unwrap().is_some(),
             "epoch {epoch} must be seeded after a verified backfill"
         );
     }
 
     // Re-seeding an already-covered store is a no-op: the watermark spans every
     // epoch, so the write skips the whole prefix.
-    let watermark = ok_grpc.highest_indexed_epoch().unwrap();
+    let watermark = ok_store.highest_indexed_epoch().unwrap();
     assert_eq!(watermark, Some(current_epoch - 1));
     iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         genesis_committee.clone(),
         genesis_system_state.clone(),
         expected_chain_id,
         expected_chain_id,
     )
     .expect("re-verification must succeed")
-    .restore_epoch_info(&ok_grpc)
+    .restore_epoch_info(&*ok_store)
     .await
     .expect("re-seeding a covered store must succeed as a no-op");
     assert_eq!(
-        ok_grpc.highest_indexed_epoch().unwrap(),
+        ok_store.highest_indexed_epoch().unwrap(),
         watermark,
         "re-seeding must leave the watermark unchanged"
     );
@@ -198,7 +204,7 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // FAILURE: a different chain_id never yields a verified witness, so
     // NOTHING can be written.
     let err = iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         genesis_committee.clone(),
         genesis_system_state.clone(),
         ChainIdentifier::default(),
@@ -217,10 +223,10 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     let later_start_state = source
         .get_epoch_info(1)
         .unwrap()
-        .expect("epoch 1 is indexed")
+        .expect("epoch 1 is finalized")
         .system_state;
     let err = iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         genesis_committee.clone(),
         later_start_state,
         expected_chain_id,
@@ -236,7 +242,7 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // FAILURE: a wrong trust root (the current committee instead of the
     // genesis one, after two reconfigurations) fails the chain walk.
     let err = iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         state.clone_committee_for_testing(),
         genesis_system_state,
         expected_chain_id,
@@ -267,7 +273,6 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
         .fullnode_handle
         .iota_node
         .with(|node| node.state());
-    let authority_store = state.database_for_testing();
     let checkpoint_store = state.get_checkpoint_store().clone();
     let current_epoch = state.current_epoch_for_testing();
     assert!(current_epoch >= 2, "need at least two closed epochs");
@@ -278,18 +283,12 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
     let genesis_committee = genesis.committee().expect("genesis committee");
     let genesis_system_state = genesis.iota_system_object();
 
-    let source_tmp = tempfile::tempdir().unwrap();
-    let source = GrpcIndexesStore::new(
-        source_tmp.path().to_path_buf(),
-        authority_store,
-        &checkpoint_store,
-    )
-    .await;
+    let source = &*checkpoint_store;
 
     // Sanity: the untampered bundle verifies, so each rejection below is the
     // tamper's doing, not a fixture defect.
     iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, current_epoch),
+        real_epoch_info(source, current_epoch),
         genesis_committee.clone(),
         genesis_system_state.clone(),
         chain_id,
@@ -352,7 +351,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
     ];
 
     for (label, expected_fragment, mutate) in cases {
-        let EpochInfo::V1(mut info) = real_epoch_info(&source, current_epoch);
+        let EpochInfo::V1(mut info) = real_epoch_info(source, current_epoch);
         mutate(&mut info.entries[idx]);
         let err = iota_snapshot::verify_epoch_info_chain(
             EpochInfo::V1(info),
@@ -403,7 +402,6 @@ async fn epoch_info_verifies_safe_mode_boundary() {
         .fullnode_handle
         .iota_node
         .with(|node| node.state());
-    let authority_store = state.database_for_testing();
     let checkpoint_store = state.get_checkpoint_store().clone();
     let current_epoch = state.current_epoch_for_testing();
     assert!(
@@ -417,14 +415,8 @@ async fn epoch_info_verifies_safe_mode_boundary() {
     let genesis_committee = genesis.committee().expect("genesis committee");
     let genesis_system_state = genesis.iota_system_object();
 
-    let source_tmp = tempfile::tempdir().unwrap();
-    let source = GrpcIndexesStore::new(
-        source_tmp.path().to_path_buf(),
-        authority_store,
-        &checkpoint_store,
-    )
-    .await;
-    let epoch_info = real_epoch_info(&source, current_epoch);
+    let source = &*checkpoint_store;
+    let epoch_info = real_epoch_info(source, current_epoch);
 
     // Confirm the chain genuinely contains a safe-mode boundary — otherwise the
     // verify below would pass on all-normal data. Exactly one entry's
@@ -461,7 +453,7 @@ async fn epoch_info_verifies_safe_mode_boundary() {
         .expect("a normal boundary with events exists")
         .end_of_epoch_tx_events
         .clone();
-    let EpochInfo::V1(mut tampered) = real_epoch_info(&source, current_epoch);
+    let EpochInfo::V1(mut tampered) = real_epoch_info(source, current_epoch);
     tampered.entries[safe_mode_epoch].end_of_epoch_tx_events = normal_events;
     let err = iota_snapshot::verify_epoch_info_chain(
         EpochInfo::V1(tampered),
@@ -479,7 +471,7 @@ async fn epoch_info_verifies_safe_mode_boundary() {
 
     // The whole chain, safe-mode boundary included, must verify and seed.
     let tmp = tempfile::tempdir().unwrap();
-    let grpc = GrpcIndexesStore::new_without_init(tmp.path().to_path_buf());
+    let target = CheckpointStore::new(&tmp.path().join("checkpoints"));
     iota_snapshot::verify_epoch_info_chain(
         epoch_info,
         genesis_committee,
@@ -488,70 +480,22 @@ async fn epoch_info_verifies_safe_mode_boundary() {
         chain_id,
     )
     .expect("a chain with a safe-mode boundary must verify")
-    .restore_epoch_info(&grpc)
+    .restore_epoch_info(&*target)
     .await
     .expect("a verified safe-mode chain must seed");
     for epoch in 0..current_epoch {
         assert!(
-            grpc.get_epoch_info(epoch).unwrap().is_some(),
+            target.get_epoch_info(epoch).unwrap().is_some(),
             "epoch {epoch} must be seeded"
         );
     }
 }
 
-/// `epochs_v2_gap` (the startup guard's check) reports no gap for a
-/// full-history index but a gap for an empty index past genesis.
-#[sim_test]
-async fn epochs_v2_gap_detects_incomplete_index() {
-    // Pruning disabled so the fullnode keeps full history back to genesis —
-    // the case where `init` + local replay can complete `epochs_v2` with no gap.
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(600_000)
-        .disable_fullnode_pruning()
-        .build()
-        .await;
-    test_cluster.force_new_epoch().await;
-    test_cluster.force_new_epoch().await;
-
-    let state = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.state());
-    let authority_store = state.database_for_testing();
-    let checkpoint_store = state.get_checkpoint_store().clone();
-    let current_epoch = state.current_epoch_for_testing();
-    assert!(current_epoch >= 2);
-    wait_until_executed_open_epoch(&checkpoint_store, current_epoch).await;
-
-    // Full-history `new()` indexes `[0, current)` from local data → no gap, so a
-    // gRPC node here would NOT panic.
-    let ok_tmp = tempfile::tempdir().unwrap();
-    let complete = GrpcIndexesStore::new(
-        ok_tmp.path().to_path_buf(),
-        authority_store,
-        &checkpoint_store,
-    )
-    .await;
-    assert!(
-        complete.epochs_v2_gap(&checkpoint_store).unwrap().is_none(),
-        "a full-history index must be complete (no startup panic)"
-    );
-
-    // An un-initialized (empty) index, with the node already past genesis,
-    // reports a gap → a gRPC node here would require state_snapshot_read_config.
-    let gap_tmp = tempfile::tempdir().unwrap();
-    let empty = GrpcIndexesStore::new_without_init(gap_tmp.path().to_path_buf());
-    assert!(
-        empty.epochs_v2_gap(&checkpoint_store).unwrap().is_some(),
-        "an empty index past genesis must report a gap"
-    );
-}
-
-/// When the snapshot backfill seeds a prefix that ends below the locally
-/// executed epochs (the published snapshot lags by more than one epoch),
+/// When a snapshot backfill seeds a prefix that ends below the locally executed
+/// epochs (the published snapshot lags by more than one epoch),
 /// `index_missing_epochs_locally` closes the residual gap from the missing
-/// epochs' own closing checkpoints — and creates the open epoch's row along
-/// the way.
+/// epochs' own closing checkpoints — and creates the open epoch's row along the
+/// way.
 #[sim_test]
 async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
     // Pruning disabled so the closing checkpoints' data is still available
@@ -569,88 +513,105 @@ async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
         .iota_node
         .with(|node| node.state());
     let authority_store = state.database_for_testing();
-    let checkpoint_store = state.get_checkpoint_store().clone();
+    let node_checkpoint_store = state.get_checkpoint_store().clone();
     let current_epoch = state.current_epoch_for_testing();
     assert!(current_epoch >= 2, "need at least two closed epochs");
-    wait_until_executed_open_epoch(&checkpoint_store, current_epoch).await;
+    wait_until_executed_open_epoch(&node_checkpoint_store, current_epoch).await;
 
     let expected_chain_id = state.get_chain_identifier();
     let genesis = &test_cluster.swarm.config().genesis;
     let genesis_committee = genesis.committee().expect("genesis committee");
     let genesis_system_state = genesis.iota_system_object();
 
-    // A locally-indexed store gives epoch 0 its real proof bundle.
-    let source_tmp = tempfile::tempdir().unwrap();
-    let source = GrpcIndexesStore::new(
-        source_tmp.path().to_path_buf(),
-        authority_store.clone(),
-        &checkpoint_store,
-    )
-    .await;
+    // Staging store with only the closing checkpoints (what the replay reads)
+    // and no `epoch_info` rows — the state a lagging-snapshot backfill leaves.
+    let staging_tmp = tempfile::tempdir().unwrap();
+    let staged =
+        stage_closing_checkpoints(staging_tmp.path(), &node_checkpoint_store, current_epoch);
 
-    // Mimic a backfill from a lagging snapshot: seed only epoch 0, leaving
-    // the later closed epochs missing.
-    let tmp = tempfile::tempdir().unwrap();
-    let grpc = GrpcIndexesStore::new_without_init(tmp.path().to_path_buf());
+    // Mimic a backfill from a lagging snapshot: seed only epoch 0, leaving the
+    // later closed epochs missing.
     iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&source, 1),
+        real_epoch_info(&node_checkpoint_store, 1),
         genesis_committee,
         genesis_system_state,
         expected_chain_id,
         expected_chain_id,
     )
     .expect("the lagging snapshot's prefix must verify")
-    .restore_epoch_info(&grpc)
+    .restore_epoch_info(&*staged)
     .await
     .expect("seeding the lagging snapshot's prefix must succeed");
-    assert_eq!(grpc.highest_indexed_epoch().unwrap(), Some(0));
+    assert_eq!(staged.highest_indexed_epoch().unwrap(), Some(0));
     assert!(
-        grpc.epochs_v2_gap(&checkpoint_store).unwrap().is_some(),
+        staged.epoch_info_gap().unwrap().is_some(),
         "the lagging prefix must leave a gap"
     );
 
-    grpc.index_missing_epochs_locally(&authority_store, &checkpoint_store)
+    staged
+        .index_missing_epochs_locally(&authority_store)
         .unwrap();
 
     assert_eq!(
-        grpc.epochs_v2_gap(&checkpoint_store).unwrap(),
+        staged.epoch_info_gap().unwrap(),
         None,
         "the local replay must close the residual gap"
     );
     // The last replayed closing checkpoint also creates the open epoch's row.
-    let open_epoch = grpc.highest_indexed_epoch().unwrap().unwrap() + 1;
-    assert!(grpc.get_epoch_info(open_epoch).unwrap().is_some());
+    assert!(
+        staged.get_epoch_info(current_epoch).unwrap().is_some(),
+        "the local replay must create the open epoch's row"
+    );
 }
 
-/// Build a real `EpochInfo` for closed epochs `[0, current_epoch)` from a
-/// locally-indexed `epochs_v2` store, projecting each row into its entry via
-/// the same `EpochInfoV1Entry::try_from` the snapshot writer uses. `source`
-/// must have fully-populated rows for every closed epoch (e.g. a freshly
-/// `GrpcIndexesStore::new`-indexed store over unpruned history).
-fn real_epoch_info(source: &GrpcIndexesStore, current_epoch: EpochId) -> EpochInfo {
+/// Build a real `EpochInfo` for closed epochs `[0, current_epoch)` from each
+/// `epoch_info` row's close-of-epoch proof. Panics unless `source` has a
+/// finalized row for every closed epoch.
+fn real_epoch_info(source: &CheckpointStore, current_epoch: EpochId) -> EpochInfo {
     let entries = (0..current_epoch)
         .map(|epoch| {
             let row = source
                 .get_epoch_info(epoch)
                 .unwrap()
-                .unwrap_or_else(|| panic!("missing epochs_v2 row for closed epoch {epoch}"));
+                .unwrap_or_else(|| panic!("missing epoch_info row for closed epoch {epoch}"));
             row.epoch_close_proof.unwrap_or_else(|| {
-                panic!("epochs_v2 row for closed epoch {epoch} is not finalized")
+                panic!("epoch_info row for closed epoch {epoch} is not finalized")
             })
         })
         .collect();
     EpochInfo::V1(EpochInfoV1 { entries })
 }
 
-/// A minimal `epochs_v2` row standing in for one written by a snapshot restore.
-/// Only `epoch` and a decodable `system_state` matter here — the close-of-epoch
-/// entry is left `None` since the test asserts row survival, not completeness.
-fn restored_sentinel_row(epoch: u64) -> EpochInfoV2 {
-    EpochInfoV2 {
-        epoch,
-        start_checkpoint: 0,
-        start_timestamp_ms: 0,
-        system_state: IotaSystemState::for_testing(epoch, 1),
-        epoch_close_proof: None,
+/// Copy the closing checkpoints of closed epochs `[0, current_epoch)` from
+/// `node` into a fresh store, with its highest-executed watermark set to the
+/// last one so its first open epoch is `current_epoch`. Writes no `epoch_info`
+/// rows: the caller seeds a partial prefix and runs the local replay over this.
+fn stage_closing_checkpoints(
+    dir: &Path,
+    node: &CheckpointStore,
+    current_epoch: EpochId,
+) -> Arc<CheckpointStore> {
+    let staged = CheckpointStore::new(&dir.join("checkpoints"));
+    let mut last_closing = None;
+    for epoch in 0..current_epoch {
+        let closing = node
+            .get_epoch_last_checkpoint(epoch)
+            .unwrap()
+            .unwrap_or_else(|| panic!("node missing closing checkpoint for epoch {epoch}"));
+        let contents = node
+            .get_checkpoint_contents(&closing.content_digest)
+            .unwrap()
+            .expect("node missing closing checkpoint contents");
+        staged.insert_checkpoint_contents(contents).unwrap();
+        // Writes the certified checkpoint and (since closing checkpoints carry
+        // `next_epoch_committee`) the `epoch_last_checkpoint_map` entry the
+        // replay reads.
+        staged.insert_verified_checkpoint(&closing).unwrap();
+        last_closing = Some(closing);
     }
+    let last_closing = last_closing.expect("current_epoch >= 1");
+    staged
+        .update_highest_executed_checkpoint(&last_closing)
+        .unwrap();
+    staged
 }

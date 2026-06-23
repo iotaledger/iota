@@ -22,9 +22,9 @@ use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
     authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject, SnapshotLiveObject},
+    checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_node_storage::GrpcIndexes;
 use iota_sdk_types::ObjectId;
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
@@ -274,12 +274,9 @@ pub struct StateSnapshotWriterV1 {
     file_compression: FileCompression,
     remote_object_store: Arc<DynObjectStore>,
     local_staging_store: Arc<DynObjectStore>,
-    /// Source of `EPOCH_INFO` data for the snapshot. Required: nodes that
-    /// publish snapshots must run with `enable_grpc_api = true` so that
-    /// `index_epoch` populates the per-epoch metadata this writer emits.
-    /// See the `Watermark::EpochIndexed` precondition in
-    /// `write_epoch_info`.
-    grpc_indexes: Arc<dyn GrpcIndexes>,
+    /// Source of `EPOCH_INFO` data for the snapshot: the CheckpointStore's
+    /// `epoch_info` table.
+    checkpoint_store: Arc<CheckpointStore>,
     /// Chain identifier written into the `ManifestV2`.
     chain_id: ChainIdentifier,
     concurrency: usize,
@@ -290,7 +287,7 @@ impl StateSnapshotWriterV1 {
         local_staging_path: &std::path::Path,
         local_staging_store: &Arc<DynObjectStore>,
         remote_object_store: &Arc<DynObjectStore>,
-        grpc_indexes: Arc<dyn GrpcIndexes>,
+        checkpoint_store: Arc<CheckpointStore>,
         chain_id: ChainIdentifier,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
@@ -300,7 +297,7 @@ impl StateSnapshotWriterV1 {
             local_staging_dir: local_staging_path.to_path_buf(),
             remote_object_store: remote_object_store.clone(),
             local_staging_store: local_staging_store.clone(),
-            grpc_indexes,
+            checkpoint_store,
             chain_id,
             concurrency: concurrency.get(),
         })
@@ -309,7 +306,7 @@ impl StateSnapshotWriterV1 {
     pub async fn new(
         local_store_config: &ObjectStoreConfig,
         remote_store_config: &ObjectStoreConfig,
-        grpc_indexes: Arc<dyn GrpcIndexes>,
+        checkpoint_store: Arc<CheckpointStore>,
         chain_id: ChainIdentifier,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
@@ -326,7 +323,7 @@ impl StateSnapshotWriterV1 {
             file_compression,
             remote_object_store,
             local_staging_store,
-            grpc_indexes,
+            checkpoint_store,
             chain_id,
             concurrency: concurrency.get(),
         })
@@ -501,33 +498,30 @@ impl StateSnapshotWriterV1 {
         Ok(())
     }
 
-    /// Verifies the `Watermark::EpochIndexed` precondition: every epoch
-    /// in `[0, epoch]` must be finalized (its close-of-epoch proof present).
-    /// Called from [`Self::write_internal`] before any disk work so a
-    /// misconfigured node fails fast instead of burning a full DB scan.
-    /// `None` and `Some(h) where h < epoch` are distinct failure modes
-    /// with distinct remediations — keep them as separate messages.
+    /// Verifies that every epoch in `[0, epoch]` is finalized in the
+    /// `epoch_info` table, failing fast before any disk work. `None` and
+    /// `Some(h) where h < epoch` are distinct failure modes with distinct
+    /// remediations — keep them as separate messages.
     fn check_epoch_indexed_watermark(&self, epoch: u64) -> Result<()> {
-        match self.grpc_indexes.highest_indexed_epoch()? {
+        match self.checkpoint_store.highest_indexed_epoch()? {
             None => Err(anyhow!(
-                "Snapshot V2 writer: `EpochIndexed` watermark is absent — \
-                 no epoch_info rows have been fully indexed on this node yet. \
-                 Run the snapshot V2 epoch_info backfill before publishing \
-                 the first V2 snapshot, or wait until at least epoch 0 \
-                 closes under live indexing."
+                "Snapshot V2 writer: the epoch_info completeness watermark is \
+                 absent — no epoch_info rows have been finalized on this node \
+                 yet. Run the epoch_info backfill before publishing the first \
+                 V2 snapshot, or wait until at least epoch 0 closes under live \
+                 indexing."
             )),
             Some(h) if h < epoch => Err(anyhow!(
-                "Snapshot V2 writer: `EpochIndexed` watermark is at epoch {h}, \
-                 but snapshot_epoch is {epoch}. Run the snapshot V2 \
-                 epoch_info backfill on this node before publishing."
+                "Snapshot V2 writer: the epoch_info completeness watermark is at \
+                 epoch {h}, but snapshot_epoch is {epoch}. Run the epoch_info \
+                 backfill on this node before publishing."
             )),
             Some(_) => Ok(()),
         }
     }
 
     /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
-    /// `[0, epoch]`: each row is read via `GrpcIndexes::get_epoch_info` and its
-    /// embedded `epoch_close_proof` taken. Callers must have run
+    /// `[0, epoch]`. Callers must have run
     /// [`Self::check_epoch_indexed_watermark`] first; this function trusts the
     /// precondition and panics on any unfinalized row.
     ///
@@ -553,11 +547,11 @@ impl StateSnapshotWriterV1 {
             // so the panic surfaces as `JoinError` and fails only the
             // snapshot task — exactly the desired blast radius.
             let epoch_info = self
-                .grpc_indexes
+                .checkpoint_store
                 .get_epoch_info(epoch_id)?
                 .unwrap_or_else(|| {
                     panic!(
-                        "epochs_v2[{epoch_id}] is absent despite `EpochIndexed` \
+                        "epoch_info[{epoch_id}] is absent despite the completeness \
                          watermark covering it — watermark/row inconsistency"
                     )
                 });
@@ -567,7 +561,7 @@ impl StateSnapshotWriterV1 {
             // same reason as above.
             let entry = epoch_info.epoch_close_proof.unwrap_or_else(|| {
                 panic!(
-                    "epochs_v2[{epoch_id}] is not finalized despite `EpochIndexed` \
+                    "epoch_info[{epoch_id}] is not finalized despite the completeness \
                      watermark covering it — the watermark must never cover an \
                      unfinalized row"
                 )
@@ -577,7 +571,7 @@ impl StateSnapshotWriterV1 {
             assert_eq!(
                 entry.last_checkpoint_summary.epoch(),
                 epoch_id,
-                "epochs_v2[{epoch_id}] is populated with an entry for epoch {}; the \
+                "epoch_info[{epoch_id}] is populated with an entry for epoch {}; the \
                  snapshot would silently misattribute checkpoints",
                 entry.last_checkpoint_summary.epoch(),
             );

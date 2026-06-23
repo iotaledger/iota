@@ -53,3 +53,17 @@ state-archive-read-config:
       no-sign-request: true
     concurrency: 5
     use-for-pruning-watermark: false
+
+# Formal Snapshot Fallback
+# Backfills the per-epoch verified metadata chain (held by every node) when it
+# cannot be rebuilt from local data (see
+# https://docs.iota.org/operator/common/snapshots). On a validator the full
+# chain is only required once summary pruning ships (the gRPC API and snapshot
+# writing are full-node-only); until then an incomplete chain is just a warning.
+# Uncomment to let the node backfill the missing epochs from a formal snapshot
+# at startup.
+# state-snapshot-read-config:
+#   object-store: "S3"
+#   aws-endpoint: "https://formal-snapshot.mainnet.iota.cafe"
+#   aws-virtual-hosted-style-request: true
+#   no-sign-request: true

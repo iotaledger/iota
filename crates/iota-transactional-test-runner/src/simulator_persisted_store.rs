@@ -798,6 +798,13 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
+    fn get_epoch_info(
+        &self,
+        _epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::EpochInfoV2>> {
+        todo!()
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         None
     }

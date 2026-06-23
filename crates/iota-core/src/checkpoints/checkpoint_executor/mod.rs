@@ -647,7 +647,11 @@ impl CheckpointExecutor {
         ckpt_data: &CheckpointExecutionData,
         tx_data: &CheckpointTransactionData,
     ) -> Option<CheckpointData> {
-        if !self.checkpoint_data_enabled() {
+        let enabled = self.checkpoint_data_enabled();
+        // Boundaries always need full `CheckpointData` to persist `epoch_info`,
+        // even when no other consumer is configured.
+        let is_epoch_boundary = ckpt_data.checkpoint.is_last_checkpoint_of_epoch();
+        if !enabled && !is_epoch_boundary {
             return None;
         }
 
@@ -658,6 +662,18 @@ impl CheckpointExecutor {
             &*self.transaction_cache_reader,
         )
         .expect("failed to load checkpoint data");
+
+        // Runs in epoch order, so `epoch_info` stays a contiguous append-only chain.
+        if is_epoch_boundary {
+            self.checkpoint_store
+                .index_epoch_boundary(&checkpoint_data)
+                .expect("failed to persist epoch info at boundary");
+        }
+
+        if !enabled {
+            // Data was built solely to seed `epoch_info`; skip the other consumers.
+            return None;
+        }
 
         // Index the checkpoint. this is done out of order and is not written and
         // committed to the DB until later (committing must be done

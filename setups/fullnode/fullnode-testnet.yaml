@@ -39,9 +39,11 @@ state-archive-read-config:
     use-for-pruning-watermark: false
 
 # Formal Snapshot Fallback
-# Used to backfill the gRPC epoch metadata when it cannot be rebuilt from local
-# data (see https://docs.iota.org/operator/common/snapshots). Ignored unless
-# the gRPC API is enabled and the metadata is incomplete.
+# Backfills the per-epoch verified metadata chain (held by every node) when it
+# cannot be rebuilt from local data (see
+# https://docs.iota.org/operator/common/snapshots). Used at startup when a
+# feature that needs the full chain (the gRPC API, snapshot writing, or summary
+# pruning) is enabled and the chain is incomplete.
 state-snapshot-read-config:
   object-store: "S3"
   aws-endpoint: "https://formal-snapshot.testnet.iota.cafe"

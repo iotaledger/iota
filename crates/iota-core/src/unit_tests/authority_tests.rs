@@ -46,6 +46,7 @@ use iota_types::{
     execution::SharedInput,
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Object},

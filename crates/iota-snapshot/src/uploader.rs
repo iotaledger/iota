@@ -12,7 +12,6 @@ use iota_core::{
     checkpoints::CheckpointStore,
     db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
 };
-use iota_node_storage::GrpcIndexes;
 use iota_storage::{
     FileCompression,
     object_store::util::{
@@ -68,11 +67,8 @@ pub struct StateSnapshotUploader {
     db_checkpoint_path: PathBuf,
     /// Store on local disk where db checkpoints are written to
     db_checkpoint_store: Arc<DynObjectStore>,
-    /// Checkpoint store; needed to fetch epoch state commitments for
-    /// verification
+    /// Source of per-epoch `EpochInfoV2` rows and epoch state commitments.
     checkpoint_store: Arc<CheckpointStore>,
-    /// gRPC indexes store; source of per-epoch `EpochInfoV2` rows
-    grpc_indexes: Arc<dyn GrpcIndexes>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
     /// Store on local disk where state snapshots are staged for upload
@@ -96,7 +92,6 @@ impl StateSnapshotUploader {
         interval_s: u64,
         registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
-        grpc_indexes: Arc<dyn GrpcIndexes>,
     ) -> Result<Arc<Self>> {
         let db_checkpoint_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -112,7 +107,6 @@ impl StateSnapshotUploader {
             db_checkpoint_path: db_checkpoint_path.to_path_buf(),
             db_checkpoint_store: db_checkpoint_store_config.make()?,
             checkpoint_store,
-            grpc_indexes,
             staging_path: staging_path.to_path_buf(),
             staging_store: staging_store_config.make()?,
             snapshot_store: snapshot_store_config.make()?,
@@ -159,7 +153,7 @@ impl StateSnapshotUploader {
                     &self.staging_path,
                     &self.staging_store,
                     &self.snapshot_store,
-                    self.grpc_indexes.clone(),
+                    self.checkpoint_store.clone(),
                     chain_id,
                     FileCompression::Zstd,
                     self.concurrency,

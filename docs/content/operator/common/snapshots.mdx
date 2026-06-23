@@ -207,9 +207,11 @@ The following steps can be used to restore a node from a Formal snapshot:
    - `--path`: Path to snapshot directory on local filesystem.
    - `--skip-grpc-indexes`: Skips building the gRPC index store during the restore. By default it is built from the same object stream that restores the state, so a full node started with the gRPC API enabled opens it in place instead of re-indexing the whole restored state on first start. Skip it only if the node will never serve the gRPC API.
 
-### Backfilling epoch metadata for the gRPC API
+### Backfilling the per-epoch metadata chain
 
-A full node serving the gRPC API must hold the epoch metadata of every epoch since genesis. Nodes restored from a formal snapshot (without `--skip-grpc-indexes`) or synced from genesis have it already. If a pruned node enables the gRPC API later, the missing epochs can no longer be rebuilt from local data — the node refuses to start and asks for a formal snapshot bucket to backfill them from. Using the IOTA Foundation managed snapshots:
+Every node — validators and full nodes alike — stores the per-epoch verified metadata of every epoch since genesis. Nodes synced from genesis or restored from a formal snapshot have the full chain already, and each node extends it as new epochs close.
+
+A few features need that chain complete back to genesis: serving the gRPC API, writing formal snapshots, and (in a future release) pruning checkpoint summaries. If a node enables one of those after local history has been pruned, the missing epochs can no longer be rebuilt locally. It then backfills them from a configured formal snapshot bucket at startup, or refuses to start if none is configured. A node with none of those features enabled only logs a warning. Using the IOTA Foundation managed snapshots:
 
 <Tabs groupId="default-snapshot-endpoint">
 
@@ -249,7 +251,7 @@ state-snapshot-read-config:
 
 </Tabs>
 
-With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, the node still refuses to start: wait for a newer snapshot, restore from a formal snapshot, or disable the gRPC API.
+With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, a node with one of the above features enabled still refuses to start: wait for a newer snapshot, restore from a formal snapshot, or disable the feature.
 
 ### Backfilling the full checkpoint summary history
 
