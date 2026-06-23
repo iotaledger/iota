@@ -111,7 +111,6 @@ pub fn get_attr(
     let param_name = match String::from_utf8(param_name_bytes) {
         Ok(name) => name,
         Err(_) => {
-            debug_assert!(false, "get_attr: invalid UTF-8 parameter name");
             return Ok(NativeResult::err(
                 context.gas_used(),
                 E_INVALID_UTF8_PARAM_NAME,
@@ -129,16 +128,11 @@ pub fn get_attr(
 
         // The parameter is absent in the current protocol version.
         (_, None) => {
-            debug_assert!(false, "get_attr: parameter not found in protocol config");
             return Ok(NativeResult::err(context.gas_used(), E_PARAM_NOT_FOUND));
         }
 
         // The requested Move type does not match the actual parameter type.
         _ => {
-            debug_assert!(
-                false,
-                "get_attr: type mismatch for protocol config parameter"
-            );
             return Ok(NativeResult::err(context.gas_used(), E_TYPE_MISMATCH));
         }
     };
