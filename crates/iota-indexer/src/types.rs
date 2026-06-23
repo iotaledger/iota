@@ -16,7 +16,8 @@ use iota_types::{
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
+        CheckpointCommitment, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        EndOfEpochData,
     },
     object::Object,
     transaction::SenderSignedData,
@@ -47,6 +48,8 @@ pub struct IndexedCheckpoint {
     pub non_refundable_storage_fee: u64,
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     pub validator_signature: AggregateAuthoritySignature,
+    pub content_digest: CheckpointContentsDigest,
+    pub version_specific_data: Vec<u8>,
     // Note: not used in StoredCheckpoint conversion and in code overall.
     pub successful_tx_num: usize,
     pub end_of_epoch_data: Option<EndOfEpochData>,
@@ -92,6 +95,8 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
+            content_digest: checkpoint.content_digest,
+            version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,
         }

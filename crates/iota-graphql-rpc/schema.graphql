@@ -359,6 +359,12 @@ type Checkpoint {
 	"""
 	digest: String!
 	"""
+	The Base64-encoded BCS serialization of this checkpoint's
+	`CheckpointSummary`. `null` for checkpoints indexed before the summary
+	columns were added.
+	"""
+	bcs: Base64
+	"""
 	This checkpoint's position in the total order of finalized checkpoints,
 	agreed upon by consensus.
 	"""
