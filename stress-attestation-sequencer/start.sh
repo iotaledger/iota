@@ -205,31 +205,60 @@ if [[ -n "${ATTESTOR_SKEW_PERCENT:-}" ]]; then
   fi
 fi
 
-# --- Bring up monitoring (prometheus + grafana), now that the network is up ---
+# --- Bring up monitoring, now that the network is up ---
+# We start ONLY the services these experiments use: prometheus (metrics) + grafana
+# (view) + cadvisor/node-exporter (container/host metrics). We deliberately SKIP
+# `tempo` (distributed tracing — unused here): it alone publishes 6 host ports
+# (3200, 14268, 9095, 4317, 4318, 9411), and cycling it down+up every run is what
+# kept leaking an orphaned docker-proxy that `docker compose down` cannot reap,
+# leaving a port permanently bound -> "address already in use". Not starting tempo
+# removes that failure mode (and the contended ports) entirely.
 GRAFANA_DIR="${GRAFANA_DIR:-$REPO_ROOT/dev-tools/grafana-local}"
+MON_SERVICES=(prometheus grafana cadvisor node-exporter)
+MON_PORTS=(9090 3000 8080 9100) # host ports the above bind (no tempo ports)
+# Need root to kill a root-owned orphaned docker-proxy; use sudo when not root.
+# `sudo -n` so this can NEVER block on a password prompt (during matrix runs the
+# credential is already cached; standalone non-root just falls back to the retry).
+if [[ ${EUID:-$(id -u)} -eq 0 ]]; then SUDO=(); else SUDO=(sudo -n); fi
+
+# Guarantee every monitoring host port is FREE before `docker compose up`, so
+# "address already in use" cannot recur. `docker compose down` removes containers
+# it tracks, but a stray/cross-project container — or an orphaned `docker-proxy`
+# left behind when a container is force-killed under load — can keep a host port
+# bound. For each port we: (1) force-remove any container publishing it, then
+# (2) kill whatever still holds it (the orphan proxy). After this the port is free.
+# (Requires `fuser`, from psmisc — present on Ubuntu/Arch; failures are tolerated.)
+free_mon_ports() {
+  local p c
+  for p in "${MON_PORTS[@]}"; do
+    c="$(docker ps -aq --filter "publish=$p" 2>/dev/null)"
+    [[ -n "$c" ]] && docker rm -f $c >/dev/null 2>&1 || true
+    "${SUDO[@]}" fuser -k "$p/tcp" >/dev/null 2>&1 || true
+  done
+}
+
 if [[ -d "$GRAFANA_DIR" ]]; then
   echo
-  echo "${BLUE}grafana-local @ $GRAFANA_DIR${RESET}"
-  # Retry the bring-up on transient host-port bind races. When the matrix cycles
-  # this stack every run, a just-stopped container's docker-proxy can keep a host
-  # port bound (e.g. tempo's 14268) past `docker compose down`, especially under
-  # heavy load — so an immediate `up` dies with "address already in use" and, under
-  # set -e, would abort the whole run. Tear any partial/lingering stack down and
-  # retry until the port frees; only fail hard if it never does.
+  echo "${BLUE}grafana-local @ $GRAFANA_DIR (services: ${MON_SERVICES[*]}; tempo skipped)${RESET}"
   _mon_up=""
-  for _attempt in 1 2 3 4 5 6; do
-    if (cd "$GRAFANA_DIR" && docker compose up -d); then
+  for _attempt in 1 2 3 4 5; do
+    (cd "$GRAFANA_DIR" && docker compose down --remove-orphans) >/dev/null 2>&1 || true
+    free_mon_ports # provably free the ports (kills stray containers + orphan proxies)
+    sleep 1
+    if (cd "$GRAFANA_DIR" && docker compose up -d "${MON_SERVICES[@]}"); then
       _mon_up=1
       break
     fi
-    echo "${YELLOW}Monitoring up failed (attempt ${_attempt}/6) — likely a lingering" >&2
-    echo "  host-port bind from the previous run; tearing down and retrying in 5s...${RESET}" >&2
-    (cd "$GRAFANA_DIR" && docker compose down --remove-orphans) >/dev/null 2>&1 || true
+    echo "${YELLOW}Monitoring up failed (attempt ${_attempt}/5); freeing ports + retrying in 5s...${RESET}" >&2
     sleep 5
   done
   if [[ -z "$_mon_up" ]]; then
-    echo "${RED}ERROR: monitoring stack failed to start after 6 attempts (port still" >&2
-    echo "  bound?). Check: docker ps; ss -ltnp | grep -E '14268|9090|3000'.${RESET}" >&2
+    echo "${RED}ERROR: monitoring stack failed to start after 5 attempts. Ports still held:${RESET}" >&2
+    "${SUDO[@]}" ss -ltnp 2>/dev/null | grep -E ":($(
+      IFS='|'
+      echo "${MON_PORTS[*]}"
+    ))\b" >&2 || true
+    echo "${RED}  Last resort to reap orphaned proxies: sudo systemctl restart docker.${RESET}" >&2
     exit 1
   fi
   echo "${GREEN}Monitoring up - [Grafana](http://localhost:3000), [Prometheus](http://localhost:9090)${RESET}"
