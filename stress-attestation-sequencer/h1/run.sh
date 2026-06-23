@@ -10,8 +10,10 @@
 #   3. Run A — V1 attestation OFF (control), TotalTxCount
 #   4. Run B — V2 attestation ON, same load (network reset between A and B —
 #                 cleanup + re-bootstrap of a fresh genesis, so Run B cold-starts
-#                 like Run A; the Prometheus TSDB is WIPED before each run, so no
-#                 series carry over; Run A's JSON is saved before the reset)
+#                 like Run A; unattended runs wipe the Prometheus TSDB (at each
+#                 iteration start AND between A and B) for cleanly separated runs;
+#                 interactively nothing is wiped, so all runs coexist in Grafana;
+#                 Run A's JSON is saved before the reset)
 #   5. capture    save each run's window as a raw timeseries JSON + node logs,
 #                 then stop the network.
 # After all ITERS iterations: aggregate.py pools results/<LABEL>/ into summary.md,
@@ -203,13 +205,17 @@ wait_for_fullnode() {
   exit 1
 }
 
-# We do NOT watch Grafana for these runs, so the Prometheus TSDB is WIPED before
-# each run instead of preserved. This keeps the volume from growing across the
-# (configs x ITERS x 2) runs and removes cross-run counter carryforward at the
-# source: a fresh TSDB has no prior (higher) values to bleed into the start of a
-# new run's window, so each run-*.json is clean even without the reset-aware trim
-# in dump_timeseries (kept there only as a belt-and-suspenders safety net).
+# Wipe the Prometheus TSDB (down -v) — but ONLY when output is redirected to a
+# file (an unattended / matrix run). Interactively (stdout is a terminal) it's a
+# no-op, so every run stays visible in Grafana for live debugging. Called at the
+# start of each iteration and between Run A and Run B; for unattended runs that
+# bounds the volume's growth and keeps each run's window on a fresh TSDB (no
+# cross-run carryforward). Where it does NOT wipe (interactive), Run B reuses Run
+# A's series labels and its fresh process resets the counters — but that A->B
+# carryforward is stripped from the saved JSONs by dump_timeseries' reset-aware
+# trim, so the per-run data stays correct regardless.
 wipe_monitoring() {
+  [[ -t 1 ]] && return 0 # interactive: keep the TSDB so Grafana shows all runs
   (cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) \
     >/dev/null 2>&1 || true
 }
@@ -219,19 +225,20 @@ wipe_monitoring() {
 # warmup the same. We tear EVERYTHING down (incl. the monitoring stack) and
 # re-bootstrap a brand-new genesis (current timestamp) with an empty DB, exactly
 # like Run A's [1/5] cleanup + [2/5] bootstrap. Leaving Prometheus up across the
-# reset appears to give Run B a longer warmup, so cleanup.sh brings it down and
-# start.sh brings a fresh one back up for Run B.
+# reset appears to give Run B a longer warmup, so cleanup.sh brings the monitoring
+# container down (WITHOUT -v) and start.sh brings it back up for Run B.
 #
-# Run A is already scraped to run-a-v1-timeseries.json before this point, so
-# tearing Prometheus down here only drops Run A's live Grafana history (the
-# aggregated summary.md, built from the saved timeseries, is unaffected).
+# wipe_monitoring here clears the TSDB between Run A and Run B — but ONLY when
+# output is redirected (unattended run): Run B then starts on a fresh TSDB with no
+# A->B carryforward, so the live dashboard separates the runs cleanly too. INTER-
+# ACTIVELY it's a no-op, so Run A and Run B coexist in one Grafana view for side-
+# by-side debugging (the A->B carryforward that leaves is stripped from the saved
+# JSONs by dump_timeseries, so they stay correct either way).
 reset_network() {
   echo "${YELLOW}Tearing everything down and re-bootstrapping a fresh genesis for Run B...${RESET}"
   echo "  - cleanup   -> $(rel "$RESULTS_DIR/cleanup.log")"
   echo "  - bootstrap -> $(rel "$RESULTS_DIR/bootstrap.log")"
   sudo "$TOOLS_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
-  # Wipe the Prometheus volume so Run B starts on a fresh TSDB (no carryforward
-  # of Run A's counters); start.sh brings a clean monitoring stack back up.
   wipe_monitoring
   sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 }
@@ -338,9 +345,10 @@ run_one_iteration() {
   banner "== H1 [1/5] cleanup (in case something is running) =="
   # cleanup/bootstrap are verbose (docker compose + genesis tooling); send their
   # output to cleanup.log / bootstrap.log to keep the console readable. After the
-  # teardown we also wipe the Prometheus volume so Run A starts on a fresh TSDB —
-  # no series carry over from a previous run/iteration/invocation (we don't watch
-  # Grafana, so there's nothing to preserve and the volume never grows unbounded).
+  # teardown, when output is redirected (unattended run), wipe_monitoring wipes the
+  # Prometheus volume so this ITERATION starts on a fresh TSDB — no series carry
+  # over from a previous iteration/invocation, bounding the volume's growth. (It's
+  # a no-op interactively, so nothing is cleared and all runs stay in Grafana.)
   sudo "$TOOLS_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
   wipe_monitoring
   echo "cleanup output -> $(rel "$RESULTS_DIR/cleanup.log")"
@@ -457,15 +465,15 @@ fi
 echo
 echo "${CYAN}Grafana: http://localhost:3000/d/attestation-sequencer-stress${RESET}"
 
-# Monitoring teardown is opt-in and happens ONCE, after every iteration. `down -v`
-# also removes the prometheus-data volume, clearing every run's series. Only
-# prompt when BOTH stdin AND stdout are a terminal — if stdout is redirected to a
-# log file (or stdin is piped / unattended), the prompt text would be invisible
-# yet still block, so default to KEEPING monitoring instead.
+# Monitoring teardown happens ONCE, after every iteration. `down -v` also removes
+# the prometheus-data volume, clearing every run's series. Interactively (both
+# stdin AND stdout a terminal) we PROMPT and default to keeping it, so you can
+# keep inspecting the runs in Grafana. When output is redirected (unattended /
+# matrix run) we just CLEAR it — no prompt to block on, and nobody's watching.
 if [[ -t 0 && -t 1 ]]; then
   read -r -p "${YELLOW}Also stop and CLEAR monitoring (Prometheus data)? [y/N] ${RESET}" ans
 else
-  ans=n
+  ans=y
 fi
 if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
   (cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) >/dev/null 2>&1 || true
