@@ -6,7 +6,11 @@
 
 #[cfg(msim)]
 mod test {
-    use std::{collections::HashSet, sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, HashSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use iota_config::local_ip_utils;
     use iota_macros::sim_test;
@@ -129,13 +133,53 @@ mod test {
         cycles_per_authority: usize,
     }
 
+    // The first network with a given consensus config runs the test; later
+    // duplicates return immediately.
+    const NETWORK_CHAINS: [Chain; 3] = [Chain::Unknown, Chain::Testnet, Chain::Mainnet];
+
+    type ConsensusConfigKey = (BTreeMap<String, bool>, BTreeMap<String, Option<String>>);
+
+    fn consensus_config_key(config: &ProtocolConfig) -> ConsensusConfigKey {
+        let flags = config
+            .feature_map()
+            .into_iter()
+            .filter(|(name, _)| name.starts_with("consensus_"))
+            .collect();
+        let parameters = config
+            .attr_map()
+            .into_iter()
+            .filter(|(name, _)| name.starts_with("consensus_"))
+            .map(|(name, value)| (name, value.map(|value| value.to_string())))
+            .collect();
+
+        (flags, parameters)
+    }
+
+    fn distinct_network_protocol_config(chain: Chain) -> Option<ProtocolConfig> {
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
+        let key = consensus_config_key(&config);
+        let position = NETWORK_CHAINS
+            .iter()
+            .position(|candidate| *candidate == chain)
+            .expect("network chain must be configured");
+        let is_duplicate = NETWORK_CHAINS[..position].iter().any(|candidate| {
+            let candidate = ProtocolConfig::get_for_version(ProtocolVersion::MAX, *candidate);
+            consensus_config_key(&candidate) == key
+        });
+
+        (!is_duplicate).then_some(config)
+    }
+
     async fn run_network_config(
         chain: Chain,
         mode: RestartMode,
         long_run: bool,
         long_restart: bool,
     ) {
-        let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
+        let Some(protocol_config) = distinct_network_protocol_config(chain) else {
+            tracing::info!(?chain, "skipping duplicate consensus protocol config");
+            return;
+        };
         run_sequential_restarts_test(protocol_config, mode, long_run, long_restart).await;
     }
 
