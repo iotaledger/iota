@@ -61,9 +61,11 @@ else
   RESET=''
 fi
 
-if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+if [[ ${EUID:-$(id -u)} -eq 0 && "${ALLOW_ROOT:-}" != "1" ]]; then
   echo "${RED}ERROR: run as a normal user, not root (cargo would build as root)." >&2
-  echo "       sudo is invoked internally for cleanup/bootstrap.${RESET}" >&2
+  echo "       sudo is invoked internally for cleanup/bootstrap." >&2
+  echo "       On a root-by-default server, re-run with ALLOW_ROOT=1 (cargo will" >&2
+  echo "       build as root and the internal sudo calls become pass-throughs).${RESET}" >&2
   exit 1
 fi
 
