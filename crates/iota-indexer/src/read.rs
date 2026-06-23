@@ -697,32 +697,34 @@ impl IndexerReader {
         Ok(self.get_latest_checkpoint()?.timestamp_ms)
     }
 
-    /// Determines whether the fallback should be used to fetch more
-    /// checkpoints in case of data being pruned.
-    fn should_fetch_from_fallback(
+    /// Determines whether the fallback should be used for checkpoints.
+    ///
+    /// The database may return a page that is either empty, partial (< limit),
+    /// or full.
+    ///
+    /// Depending on the sort type (`descending_order`) we identify the
+    /// following cases:
+    ///
+    /// * Ascending: Should use fallback only when the lowest found checkpoint
+    ///   in a partial or full page does not match the cursor + 1, or genesis.
+    ///   We always expect checkpoint data to be available in the database, so
+    ///   an empty page indicates that the given cursor is too high.
+    /// * Descending: Should use fallback when a partial page does not reach
+    ///   genesis, or if the cursor is not the genesis checkpoint.
+    fn should_fetch_checkpoints_from_fallback(
         cursor: Option<u64>,
         descending_order: bool,
         limit: usize,
-        db_response: &[iota_json_rpc_types::Checkpoint],
+        db_checkpoints: &[iota_json_rpc_types::Checkpoint],
     ) -> bool {
-        match (cursor, descending_order) {
-            // pruning always removes from the lowest checkpoint upwards, so no gaps.
-            // If genesis (checkpoint 0) is present, data is intact.
-            (None, false) => db_response
-                .first()
-                .is_none_or(|chk| chk.sequence_number != 0),
-
-            // for descending, cursor just sets an upper bound. DB returns the highest checkpoint
-            // available. If we got fewer than limit, some data was pruned.
-            (None, true) | (Some(_), true) => {
-                db_response.len() != limit
-                    && db_response.last().is_some_and(|cp| cp.sequence_number != 0)
-            }
-
-            // if first checkpoint matches cursor + 1, data is contiguous from that point.
-            (Some(c), false) => db_response
-                .first()
-                .is_none_or(|chk| chk.sequence_number != c + 1),
+        // Full page
+        if db_checkpoints.len() == limit || limit == 0 {
+            return false;
+        }
+        match db_checkpoints {
+            [] => descending_order && cursor.is_none_or(|seq| seq > 0),
+            [.., lowest_found] if descending_order => lowest_found.sequence_number > 0,
+            [lowest_found, ..] => lowest_found.sequence_number != cursor.map_or(0, |c| c + 1),
         }
     }
 
@@ -748,7 +750,12 @@ impl IndexerReader {
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect::<IndexerResult<Vec<_>>>()?;
 
-        if !Self::should_fetch_from_fallback(cursor, descending_order, limit, &checkpoints) {
+        if !Self::should_fetch_checkpoints_from_fallback(
+            cursor,
+            descending_order,
+            limit,
+            &checkpoints,
+        ) {
             return Ok(checkpoints);
         }
 
