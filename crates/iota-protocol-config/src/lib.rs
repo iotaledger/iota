@@ -1418,11 +1418,14 @@ pub struct ProtocolConfig {
     // Cost params for built-in Move authenticators
     builtin_move_authenticator_cost_base: Option<u64>,
 
-    // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key: &vector<u8>): bool`
+    // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key:
+    // &vector<u8>): bool`
     ed25519_ed25519_validate_pubkey_cost_base: Option<u64>,
-    // Cost param for the Move native function `ecdsa_k1::secp256k1_validate_pubkey(public_key: &vector<u8>): bool`
+    // Cost param for the Move native function `ecdsa_k1::secp256k1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
     ecdsa_k1_secp256k1_validate_pubkey_cost_base: Option<u64>,
-    // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key: &vector<u8>): bool`
+    // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
     ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
 }
 
@@ -2441,7 +2444,7 @@ impl ProtocolConfig {
             ed25519_ed25519_validate_pubkey_cost_base: None,
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
-    
+
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
