@@ -6527,6 +6527,7 @@ dependencies = [
  "move-core-types",
  "move-package",
  "prometheus",
+ "roaring",
  "serde",
  "serde_json",
  "signature 1.6.4",
@@ -7896,6 +7897,7 @@ dependencies = [
  "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-types",
+ "rand 0.8.6",
 ]
 
 [[package]]
@@ -13251,6 +13253,7 @@ dependencies = [
  "rand 0.8.6",
  "rs_merkle",
  "serde",
+ "serde_yaml",
  "tracing",
 ]
 
