@@ -74,6 +74,11 @@ SKIP_PANELS = {
     "congested txs / sec",
     "max scheduled object cost per commit — regular",
     "max scheduled object cost per commit — randomness",
+    # ratio is plotted as a MEAN (rate(_sum)/rate(_count)) on attestation_accuracy.png,
+    # not as histogram quantiles — the buckets straddle 1.0 and interpolate the
+    # quantile off the true value (see draw_mean_ratio). Skip the quantile panels.
+    "actual / attested CUs — p50 (1.0 = perfect)",
+    "actual / attested CUs — p95 (1.0 = perfect)",
 }
 
 # Per-panel display overrides, keyed by dashboard panel title. Any of "file"
@@ -124,9 +129,11 @@ PANEL_OVERRIDES = {
     },
     "submit transaction latency (client, via fullnode)": {
         "title": "Submit transaction latency (client, via fullnode)",
+        "color_by": "version_pct",  # distinct hue per (version, percentile)
     },
     "settlement finality latency (client, via fullnode)": {
         "title": "Settlement finality latency (client, via fullnode)",
+        "color_by": "version_pct",
     },
     "attestation latency p50 (pre-consensus dry-run)": {
         "title": "Attestation latency — p50 (pre-consensus dry-run)",
@@ -192,6 +199,18 @@ PANEL_OVERRIDES = {
 }
 
 VER_STYLE = {"V1": {"color": "#1f77b4"}, "V2": {"color": "#d62728"}}
+
+# For multi-quantile panels using color_by="version_pct": a distinct hue per
+# (version, percentile) so all 6 curves are separable (warm = V2, cool = V1).
+#   V2: p99 red,  p95 orange, p50 gold      V1: p99 blue, p95 cyan, p50 green
+VER_PCT_COLORS = {
+    ("V2", 0.99): "#d62728",  # red
+    ("V2", 0.95): "#ff7f0e",  # orange
+    ("V2", 0.50): "#e6b800",  # gold (a visible "yellow")
+    ("V1", 0.99): "#1f77b4",  # blue
+    ("V1", 0.95): "#17becf",  # cyan
+    ("V1", 0.50): "#2ca02c",  # green
+}
 
 # Composite figures: stack several dashboard panels into ONE figure (subplots,
 # shared x-axis), written as <file>.png. Member panels are NOT also rendered
@@ -273,12 +292,13 @@ COMPOSITE_FIGURES = [
         # (curves overlaid on one axes) or {"panel": title} (a single panel).
         "file": "attestation_accuracy",
         "rows": [
+            # MEAN ratio = rate(_sum)/rate(_count), not a histogram quantile: the
+            # quantile reads off coarse buckets and gets interpolated off the true
+            # value (owned objects are exactly 1.0 but land in the (0.99,1.0] bucket,
+            # so the quantile shows ~0.995). The mean uses the raw _sum, so it's exact.
             {
-                "overlay": [
-                    "actual / attested CUs — p50 (1.0 = perfect)",
-                    "actual / attested CUs — p95 (1.0 = perfect)",
-                ],
-                "title": "Actual / attested CUs (1.0 = perfect)",
+                "mean_ratio": "actual_to_attested_computation_units_ratio",
+                "title": "Actual / attested CUs — mean (1.0 = perfect)",
                 "ylabel": "ratio",
             },
             {"panel": "attested vs actual computation units (CUs, p50)"},
@@ -502,6 +522,40 @@ def eval_target(spec, run, grid, window, host_stat, host_reduce=None):
     return reduce_hosts(np.vstack(stacks))
 
 
+def eval_mean_ratio(base, run, grid, window):
+    """Mean of a histogram's observed values over the window: pooled
+    rate(_sum) / rate(_count) across validators (Δsum/Δcount, the average of the
+    per-tx values). Exact — it reads the raw _sum, so it dodges the bucket-grid
+    interpolation that pulls histogram_quantile OFF a spike value (e.g. every
+    owned-object ratio is exactly 1.0, but the `(0.99,1.0]` bucket smears the
+    quantile to ~0.995). Series are reset-trimmed, so windowed_rate is monotonic."""
+    s, start = run["series"], run["start_epoch"]
+
+    def pooled_rate(suffix):
+        series = s.get(base + suffix)
+        if not isinstance(series, list):
+            return None
+        rates = [
+            windowed_rate(
+                to_arrays(x["values"])[0] - start,
+                to_arrays(x["values"])[1],
+                grid,
+                window,
+            )
+            for x in series
+            if x.get("values")
+        ]
+        return np.nansum(np.vstack(rates), axis=0) if rates else None
+
+    num, den = pooled_rate("_sum"), pooled_rate("_count")
+    if num is None or den is None:
+        return np.full(len(grid), np.nan)
+    with np.errstate(all="ignore"):
+        out = num / den
+    out[~(den > 0)] = np.nan  # no observations in this window slice -> undefined
+    return out
+
+
 # ---------------------------------------------------------------------------
 def panels_from_dashboard(path):
     j = json.load(open(path))
@@ -586,7 +640,16 @@ def draw_panel(ax, panel, g, grid, args):
                 + (f" {tag}" if tag else "")
                 + (f" (n={len(runs)})" if not multi else "")
             )
-            if color_by == "target":
+            if color_by == "version_pct":
+                # distinct hue per (version, percentile); clean "V2 p50" legend.
+                pct = f"p{int(round(spec['q'] * 100))}" if spec["q"] is not None else ""
+                style = {
+                    "color": VER_PCT_COLORS.get(
+                        (ver, spec["q"]), VER_STYLE[ver]["color"]
+                    )
+                }
+                leg = f"{ver} {pct}".strip()
+            elif color_by == "target":
                 # one color per target; version (if >1) shown via linestyle.
                 style = {"color": OVERLAY_PALETTE[ti % len(OVERLAY_PALETTE)]}
                 if len(versions) > 1:
@@ -669,6 +732,50 @@ def draw_overlay(ax, member_panels, g, grid, args, comp):
     ax.set_ylabel(
         comp.get("ylabel") or (member_panels[0]["unit"] if member_panels else "")
     )
+    ax.grid(True, alpha=0.25)
+    if plotted:
+        ax.legend(fontsize=8)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "no data",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            color="gray",
+        )
+    return plotted
+
+
+def draw_mean_ratio(ax, base, g, grid, args, row):
+    """Plot the MEAN actual/attested ratio (rate(_sum)/rate(_count)) per version,
+    instead of a histogram quantile — exact at 1.0 for owned objects and still
+    meaningful where attestation genuinely over-estimates (shared/slow)."""
+    plotted = False
+    color = OVERLAY_PALETTE[0]
+    for ver, ls in (("V2", "-"), ("V1", "--")):
+        runs = g[ver]
+        if not runs:
+            continue
+        per_run = [eval_mean_ratio(base, r, grid, args.rate_window) for r in runs]
+        if not per_run or all(np.all(np.isnan(x)) for x in per_run):
+            continue
+        center, M = aggregate_runs(per_run, args.stat)
+        if np.all(np.isnan(center)):
+            continue
+        leg = ("mean" if ver == "V2" else "mean (V1)") + f" (n={len(runs)})"
+        ax.plot(grid, center, label=leg, linewidth=1.8, color=color, linestyle=ls)
+        if args.band != "none" and len(runs) > 1:
+            lo, hi = band_bounds(M, center, args.band)
+            if lo is not None:
+                ax.fill_between(grid, lo, hi, color=color, alpha=0.12, linewidth=0)
+        plotted = True
+    ax.axhline(
+        1.0, color="gray", linestyle=":", linewidth=1, alpha=0.7
+    )  # 1.0 = perfect
+    ax.set_title(row.get("title", ""), fontsize=10)
+    ax.set_ylabel(row.get("ylabel", "ratio"))
     ax.grid(True, alpha=0.25)
     if plotted:
         ax.legend(fontsize=8)
@@ -803,6 +910,8 @@ def main():
                     if row.get("overlay"):
                         rps = [by_title[t] for t in row["overlay"] if t in by_title]
                         draw_overlay(ax, rps, g, grid, args, row)
+                    elif row.get("mean_ratio"):
+                        draw_mean_ratio(ax, row["mean_ratio"], g, grid, args, row)
                     elif row.get("panel") in by_title:
                         draw_panel(ax, by_title[row["panel"]], g, grid, args)
                 axes[-1].set_xlabel(XLABEL)
