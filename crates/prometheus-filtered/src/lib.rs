@@ -911,3 +911,41 @@ macro_rules! register_histogram_vec {
         }
     }};
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn filter_matches_metric_or_module_name_prefix() {
+        // filter matches all the metric names and module names having given prefix
+        let filter = super::Filter::parse("authority=off");
+        assert!(filter.is_enabled("some_authority", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
+        assert!(filter.is_enabled("certs_total", "iota_core::some_authority"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+
+        // the last matching prefix shadows the previous ones
+        let filter = super::Filter::parse("authority=off,authority_aggregator=on");
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
+        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+
+        // filter can be set off by default
+        let filter = super::Filter::parse("off,authority_aggregator=on");
+        assert!(!filter.is_enabled("some_authority", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
+        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::some_authority"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+
+        // the full prefix must be matched
+        let filter = super::Filter::parse("authority_aggregator=off");
+        assert!(filter.is_enabled("authority", "iota_core::checkpoints"));
+        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+    }
+}
