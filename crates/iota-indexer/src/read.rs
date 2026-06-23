@@ -6,6 +6,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
 };
 
@@ -714,11 +715,10 @@ impl IndexerReader {
     fn should_fetch_checkpoints_from_fallback(
         cursor: Option<u64>,
         descending_order: bool,
-        limit: usize,
+        limit: NonZeroUsize,
         db_checkpoints: &[iota_json_rpc_types::Checkpoint],
     ) -> bool {
-        // Full page
-        if db_checkpoints.len() == limit || limit == 0 {
+        if db_checkpoints.len() == limit.get() && descending_order {
             return false;
         }
         match db_checkpoints {
@@ -739,12 +739,12 @@ impl IndexerReader {
     pub async fn get_checkpoints_with_fallback(
         &self,
         cursor: Option<u64>,
-        limit: usize,
+        limit: NonZeroUsize,
         descending_order: bool,
     ) -> Result<Vec<iota_json_rpc_types::Checkpoint>, IndexerError> {
         let checkpoints = self
             .db()
-            .get_checkpoints(cursor, limit, descending_order)
+            .get_checkpoints(cursor, limit.get(), descending_order)
             .await?
             .into_iter()
             .map(iota_json_rpc_types::Checkpoint::try_from)
@@ -762,10 +762,10 @@ impl IndexerReader {
         // resolve the expected range of checkpoint sequence numbers
         let checkpoints_keys: Vec<CheckpointSequenceNumber> = match (cursor, descending_order) {
             // ascending from 0: expect [0, 1, ..., limit-1].
-            (None, false) => (0..limit as u64).collect(),
+            (None, false) => (0..limit.get() as u64).collect(),
 
             // ascending from cursor+1: expect [c+1, ..., c+limit]
-            (Some(c), false) => (c + 1..=c.saturating_add(limit as u64)).collect(),
+            (Some(c), false) => (c + 1..=c.saturating_add(limit.get() as u64)).collect(),
 
             // descending from cursor-1: expect [c-1, c-2, ..., c-limit].
             (Some(c), true) => {
@@ -775,7 +775,7 @@ impl IndexerReader {
                     .map(|latest_checkpoint| c.min(latest_checkpoint.sequence_number + 1))
                     .unwrap_or(c);
 
-                (c.saturating_sub(limit as u64)..c).rev().collect()
+                (c.saturating_sub(limit.get() as u64)..c).rev().collect()
             }
 
             // descending from DB's latest: expect [latest, ..., latest-limit+1].
@@ -786,7 +786,7 @@ impl IndexerReader {
                 };
                 let start = latest_checkpoint
                     .sequence_number
-                    .saturating_sub(limit as u64 - 1);
+                    .saturating_sub(limit.get() as u64 - 1);
                 (start..=latest_checkpoint.sequence_number).rev().collect()
             }
         };
