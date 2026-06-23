@@ -14,8 +14,12 @@ from typing import Iterator, Optional
 # ---------- Event types ---------------------------------------------------
 
 # Validator events
+# `inputs` is the list of (obj_id, obj_version) the winner acquired locks on,
+# parsed from the winner line's `owned_inputs` field. It is empty for node
+# builds that log only the count, in which case winner-side single-winner
+# detection (Check A) degrades gracefully to loser evidence alone.
 WinnerLockAcquired = namedtuple(
-    "WinnerLockAcquired", "validator digest num_inputs ts"
+    "WinnerLockAcquired", "validator digest num_inputs inputs ts"
 )
 # A transaction dropped post-consensus because one of its owned inputs was
 # already locked by an earlier transaction. The node resolves all three lock
@@ -60,6 +64,12 @@ _TS_RE = re.compile(r"^(\S+)\s+")
 _RE_WINNER = re.compile(
     r'Transaction passed post-consensus validation, acquired all object locks '
     r'digest=Digest\("([^"]+)"\) num_owned_inputs=(\d+)'
+)
+# One (object_id, version) per owned input, as rendered inside the winner
+# line's `owned_inputs` list (same ObjectReference shape as the loser line's
+# obj_ref). `findall` collects every ref the winner locked.
+_RE_OWNED_REF = re.compile(
+    r'object_id: ObjectId\("([^"]+)"\), version: Version\((\d+)\)'
 )
 _RE_LOSER = re.compile(
     r'Transaction conflicts with existing owned-object lock, dropping '
@@ -153,8 +163,12 @@ def parse_validator_log(
             if "passed post-consensus validation" in line:
                 m = _RE_WINNER.search(line)
                 if m:
+                    inputs = [
+                        (oid, int(ver))
+                        for oid, ver in _RE_OWNED_REF.findall(line)
+                    ]
                     yield WinnerLockAcquired(
-                        validator, m.group(1), int(m.group(2)), ts
+                        validator, m.group(1), int(m.group(2)), inputs, ts
                     )
                 continue
 

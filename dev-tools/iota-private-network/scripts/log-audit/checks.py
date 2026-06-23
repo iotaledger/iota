@@ -153,30 +153,39 @@ def check_coverage(
 # ---------- A: Per-input single winner ------------------------------------
 
 def check_single_winner_per_input(events: Iterable) -> CheckResult:
-    """For each (object_id, version) input, the set of `locked_by` digests
-    reported by losers across all validators must be a singleton.
+    """For each (object_id, version) input, at most one transaction may be
+    declared the winner across all validators. More than one means different
+    transactions were accepted for the same owned-object version — a true
+    double-spend safety violation.
 
-    More than one distinct `locked_by` for the same input means different
-    transactions were accepted as the winner for the same gas object version —
-    a true double-spend safety violation.
+    Two independent signals feed the per-input winner set:
+      - Winner evidence: a winner logs the object refs it acquired locks on, so
+        two distinct winner digests naming the same (object_id, version) is a
+        direct two-winners / no-loser leak.
+      - Loser evidence: a loser names the tx that out-locked it (`locked_by`),
+        so two distinct `locked_by` for the same input is also a leak.
 
-    Note: this is keyed on loser evidence (a loser names the tx that out-locked
-    it). It cannot detect a double-spend that produces two *winners* and no
-    loser, because the winner log carries only the tx digest, not the object
-    ref — that case would need the node to log the acquired object ref.
+    Both must agree (a fixed object version has exactly one legitimate winner),
+    so they share one set per input and either source can surface the FAIL.
+    Winner evidence closes the gap that loser evidence alone cannot see — a
+    leak that produces two winners and no loser. It degrades gracefully: winner
+    lines from a node build that logs only the input count contribute no input
+    keys, leaving the loser-based check intact.
     """
     input_to_winners: dict = defaultdict(set)
     input_validators: dict = defaultdict(set)
     input_losers: dict = defaultdict(set)
 
-    n_losers_with_winner = 0
     for ev in events:
-        if isinstance(ev, LoserDropped):
+        if isinstance(ev, WinnerLockAcquired):
+            for key in ev.inputs:
+                input_to_winners[key].add(ev.digest)
+                input_validators[key].add(ev.validator)
+        elif isinstance(ev, LoserDropped):
             key = (ev.obj_id, ev.obj_version)
             input_to_winners[key].add(ev.locked_by)
             input_validators[key].add(ev.validator)
             input_losers[key].add(ev.digest)
-            n_losers_with_winner += 1
 
     anomalies: List[Anomaly] = []
     for inp, winners in input_to_winners.items():
@@ -242,8 +251,8 @@ def check_cross_validator_agreement(events: Iterable) -> CheckResult:
                 )
             )
 
-        # Soft check: where multiple validators report locked_by for the same
-        # loser, they should agree on which tx won.
+        # Validators reporting locked_by for the same loser must agree on the
+        # winner; disagreement is a real safety failure, hence FAIL.
         all_winners = set()
         for vset in locked_by_seen.get(digest, {}).values():
             all_winners.update(vset)
