@@ -27,6 +27,15 @@ FILTER="${1:-}"
 LOGDIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOGDIR"
 
+# When launched detached (nohup / output not a terminal), send our own console
+# output to logs/_matrix.log instead of relying on an outer `> logs/_matrix.log`
+# redirect — that redirect is opened by the shell before this script's mkdir runs,
+# so it would fail if logs/ didn't exist yet. Now `nohup ./matrix.sh &` just works.
+# (Per-config detail still goes to logs/<LABEL>.log.)
+if [[ ! -t 1 ]]; then
+  exec >"$LOGDIR/_matrix.log" 2>&1
+fi
+
 # "LABEL | env assignments passed to run.sh". qps batches: 200, then 1000, then 2000.
 configs=(
   "owned-fn-200|WORKLOAD=owned DIRECT=false TARGET_QPS=200"
