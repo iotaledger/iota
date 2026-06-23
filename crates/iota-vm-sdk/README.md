@@ -32,3 +32,5 @@ All features are off by default:
 
 - `grpc` — resolve objects on demand from a node over gRPC.
 - `graphql` — resolve objects on demand from an indexer over GraphQL.
+- `tracing` — compile the Move VM gas profiler and instruction tracer into the
+  engine so the gas-profile and instruction-trace debug artifacts are captured.

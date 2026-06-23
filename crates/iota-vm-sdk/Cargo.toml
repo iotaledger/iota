@@ -16,6 +16,7 @@ graphql = [
   "dep:iota-sdk-graphql-client",
   "dep:tokio",
 ]
+tracing = ["iota-execution/tracing"]
 
 [dependencies]
 # external dependencies
@@ -29,7 +30,7 @@ tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"
 
 # internal dependencies
 iota-config.workspace = true
-iota-execution = { workspace = true, features = ["tracing"] }
+iota-execution.workspace = true
 iota-framework.workspace = true
 iota-grpc-client = { workspace = true, optional = true }
 iota-protocol-config.workspace = true
@@ -59,6 +60,7 @@ path = "examples/offline_dev_inspect.rs"
 [[example]]
 name = "authenticator_gas_profile"
 path = "examples/authenticator_gas_profile.rs"
+required-features = ["tracing"]
 
 [[example]]
 name = "stake_grpc"

@@ -27,6 +27,9 @@ pub struct DebugConfig {
 
 impl DebugConfig {
     /// Enable the gas profiler, writing to `sink`.
+    ///
+    /// Requires the crate's `tracing` feature; without it the run captures no
+    /// profile and [`DebugArtifacts::profile`] stays `None`.
     #[must_use]
     pub fn with_profile(mut self, sink: ProfileSink) -> Self {
         self.profile = Some(sink);
@@ -34,6 +37,9 @@ impl DebugConfig {
     }
 
     /// Enable instruction-level execution tracing.
+    ///
+    /// Requires the crate's `tracing` feature; without it
+    /// [`DebugArtifacts::trace`] stays `None`.
     ///
     /// Tracing is only captured for signed transactions that authorize via a
     /// `MoveAuthenticator`. The unsigned

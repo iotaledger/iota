@@ -23,9 +23,11 @@ use iota_types::{
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
-    Chain, ChainContext, DebugConfig, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm,
-    ProfileOutput, ProfileSink, ProtocolVersion, SignatureStatus, Store, VmSdkError,
+    Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, ProtocolVersion,
+    SignatureStatus, Store, VmSdkError,
 };
+#[cfg(feature = "tracing")]
+use iota_vm_sdk::{DebugConfig, ProfileOutput, ProfileSink};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -283,6 +285,7 @@ fn move_authenticator_dry_run_meters_body_at_full_budget() {
 
 /// The authenticator path threads a trace builder and a gas profiler through
 /// the engine, so a run with both enabled returns the captured artifacts.
+#[cfg(feature = "tracing")]
 #[test]
 fn move_authenticator_run_captures_trace_and_profile() {
     let opts = ExecuteOptions::dev_inspect().with_debug(
