@@ -1944,7 +1944,7 @@ impl TestEnvironment {
         ));
 
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::with_shared_account_object(
+            MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![self_call_arg],
                 vec![],
                 SharedObjectRef::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
@@ -2243,7 +2243,7 @@ impl TestEnvironment {
         aa_obj_ref: ObjectRef,
     ) -> anyhow::Result<GenericSignature> {
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::with_shared_account_object(
+            MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![],
                 vec![],
                 SharedObjectRef::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
@@ -2311,7 +2311,7 @@ impl TestEnvironment {
             .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::with_shared_account_object(
+            MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![signature_call_arg],
                 vec![],
                 SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),

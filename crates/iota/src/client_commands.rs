@@ -3898,7 +3898,7 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::with_shared_account_object(
+        MoveAuthenticatorV1::new_with_shared_account_object(
             call_args,
             type_args,
             SharedObjectReference::new(address.into(), initial_shared_version, false),

@@ -253,7 +253,7 @@ mod move_authenticator {
     /// the `AuthorityState` used for testing.
     pub fn make_move_authenticator_sig(address: Address) -> (GenericSignature, MoveAuthenticator) {
         let authenticator =
-            MoveAuthenticator::from(MoveAuthenticatorV1::with_shared_account_object(
+            MoveAuthenticator::from(MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![],
                 vec![],
                 SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),

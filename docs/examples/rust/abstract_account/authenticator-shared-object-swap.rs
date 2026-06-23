@@ -418,7 +418,7 @@ pub async fn create_test_transaction(
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::with_shared_account_object(
+        MoveAuthenticatorV1::new_with_shared_account_object(
             vec![signature_call_arg, blacklist_call_arg],
             vec![],
             SharedObjectRef::new(account_ref.object_id, account_ref.version, false),
@@ -450,14 +450,14 @@ pub fn swap_blacklist_in_transaction(
             // the object being authenticated (immutable or shared).
             let authenticator = match move_authenticator.object_to_authenticate() {
                 CallArg::ImmutableOrOwned(immutable) => {
-                    MoveAuthenticatorV1::with_immutable_account_object(
+                    MoveAuthenticatorV1::new_with_immutable_account_object(
                         call_args,
                         vec![],
                         *immutable,
                     )
                 }
                 CallArg::Shared(shared) => {
-                    MoveAuthenticatorV1::with_shared_account_object(call_args, vec![], *shared)
+                    MoveAuthenticatorV1::new_with_shared_account_object(call_args, vec![], *shared)
                 }
                 _ => panic!("Expected ImmutableOrOwned or Shared object"),
             };

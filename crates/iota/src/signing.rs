@@ -89,7 +89,7 @@ pub(crate) async fn sign_transaction(
                 get_shared_object_version(&iota_client, signer_address).await?;
 
             Ok(GenericSignature::MoveAuthenticator(
-                MoveAuthenticatorV1::with_shared_account_object(
+                MoveAuthenticatorV1::new_with_shared_account_object(
                     auth_call_args,
                     auth_type_args,
                     SharedObjectReference::new(
