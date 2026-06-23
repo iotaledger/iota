@@ -12,7 +12,7 @@ use async_graphql::{
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
-use iota_types::messages_checkpoint::CheckpointDigest;
+use iota_types::messages_checkpoint::{CheckpointDigest, CheckpointSummary};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -96,6 +96,23 @@ impl Checkpoint {
     #[graphql(complexity = 0)]
     async fn digest(&self) -> Result<String> {
         Ok(self.digest_impl().extend()?.to_base58())
+    }
+
+    /// The Base64-encoded BCS serialization of this checkpoint's
+    /// `CheckpointSummary`. `null` for checkpoints indexed before the summary
+    /// columns were added.
+    #[graphql(complexity = 0)]
+    async fn bcs(&self) -> Result<Option<Base64>> {
+        if self.stored.content_digest.is_none() || self.stored.version_specific_data.is_none() {
+            return Ok(None);
+        }
+        let summary = CheckpointSummary::try_from(self.stored.clone())
+            .map_err(|e| Error::Internal(format!("Failed to rebuild checkpoint summary: {e}")))
+            .extend()?;
+        let bytes = bcs::to_bytes(&summary)
+            .map_err(|e| Error::Internal(format!("Failed to serialize checkpoint summary: {e}")))
+            .extend()?;
+        Ok(Some(Base64::from(bytes)))
     }
 
     /// This checkpoint's position in the total order of finalized checkpoints,
