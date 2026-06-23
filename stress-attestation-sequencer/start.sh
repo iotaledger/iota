@@ -210,7 +210,28 @@ GRAFANA_DIR="${GRAFANA_DIR:-$REPO_ROOT/dev-tools/grafana-local}"
 if [[ -d "$GRAFANA_DIR" ]]; then
   echo
   echo "${BLUE}grafana-local @ $GRAFANA_DIR${RESET}"
-  (cd "$GRAFANA_DIR" && docker compose up -d)
+  # Retry the bring-up on transient host-port bind races. When the matrix cycles
+  # this stack every run, a just-stopped container's docker-proxy can keep a host
+  # port bound (e.g. tempo's 14268) past `docker compose down`, especially under
+  # heavy load — so an immediate `up` dies with "address already in use" and, under
+  # set -e, would abort the whole run. Tear any partial/lingering stack down and
+  # retry until the port frees; only fail hard if it never does.
+  _mon_up=""
+  for _attempt in 1 2 3 4 5 6; do
+    if (cd "$GRAFANA_DIR" && docker compose up -d); then
+      _mon_up=1
+      break
+    fi
+    echo "${YELLOW}Monitoring up failed (attempt ${_attempt}/6) — likely a lingering" >&2
+    echo "  host-port bind from the previous run; tearing down and retrying in 5s...${RESET}" >&2
+    (cd "$GRAFANA_DIR" && docker compose down --remove-orphans) >/dev/null 2>&1 || true
+    sleep 5
+  done
+  if [[ -z "$_mon_up" ]]; then
+    echo "${RED}ERROR: monitoring stack failed to start after 6 attempts (port still" >&2
+    echo "  bound?). Check: docker ps; ss -ltnp | grep -E '14268|9090|3000'.${RESET}" >&2
+    exit 1
+  fi
   echo "${GREEN}Monitoring up - [Grafana](http://localhost:3000), [Prometheus](http://localhost:9090)${RESET}"
 else
   echo "${YELLOW}WARN: monitoring dir not found, skipping: $GRAFANA_DIR${RESET}" >&2
