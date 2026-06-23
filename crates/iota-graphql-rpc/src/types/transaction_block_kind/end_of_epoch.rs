@@ -46,6 +46,7 @@ pub(crate) struct EndOfEpochTransaction {
 pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     ChangeEpochV2(ChangeEpochTransactionV2),
+    ClaimRegistryCreate(ClaimRegistryCreateTransaction),
 }
 
 // System transaction for advancing the epoch.
@@ -157,6 +158,15 @@ impl ChangeEpochTransactionV2 {
             checkpoint_viewed_at,
         }
     }
+}
+
+/// System transaction for creating the `ClaimRegistry` singleton on networks
+/// that were deployed before the ClaimRegistry was introduced.
+#[derive(SimpleObject, Clone, PartialEq, Eq)]
+pub(crate) struct ClaimRegistryCreateTransaction {
+    /// A workaround to define an empty variant of a GraphQL union.
+    #[graphql(name = "_")]
+    dummy: Option<bool>,
 }
 
 pub(crate) type CTxn = JsonCursor<ConsistentIndexCursor>;
@@ -448,6 +458,9 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
+            N::ClaimRegistryCreate(_) => {
+                K::ClaimRegistryCreate(ClaimRegistryCreateTransaction { dummy: None })
+            }
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),

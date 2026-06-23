@@ -465,6 +465,17 @@ input CheckpointId {
 }
 
 """
+System transaction for creating the `ClaimRegistry` singleton on networks
+that were deployed before the ClaimRegistry was introduced.
+"""
+type ClaimRegistryCreateTransaction {
+	"""
+	A workaround to define an empty variant of a GraphQL union.
+	"""
+	_: Boolean
+}
+
+"""
 Some 0x2::coin::Coin Move object.
 """
 type Coin implements IMoveObject & IObject & IOwner {
@@ -1004,7 +1015,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2
+union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2 | ClaimRegistryCreateTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""

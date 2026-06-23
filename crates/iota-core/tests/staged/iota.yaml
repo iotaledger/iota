@@ -184,6 +184,7 @@ CheckpointTransaction:
     - output_objects:
         SEQ:
           TYPENAME: Object
+ClaimRegistryCreate: UNITSTRUCT
 Command:
   ENUM:
     0:
@@ -315,6 +316,10 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      ClaimRegistryCreate:
+        NEWTYPE:
+          TYPENAME: ClaimRegistryCreate
 Event:
   STRUCT:
     - package_id:
@@ -471,6 +476,10 @@ ExecutionError:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      BuiltinAuthenticatorVerificationError:
+        STRUCT:
+          - reason: STR
 ExecutionStatus:
   ENUM:
     0:

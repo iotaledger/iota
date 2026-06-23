@@ -1114,9 +1114,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1265,6 +1262,9 @@ randomness_state
 	public(package) fun
 	0x2::object
 iota_deny_list_object_id
+	public(package) fun
+	0x2::object
+claim_registry
 	public(package) fun
 	0x2::object
 uid_as_inner
@@ -1476,6 +1476,9 @@ module_name
 	0x2::authenticator_function
 function_name
 	public fun
+	0x2::authenticator_function
+create_auth_function_ref_v1_inner
+	public(package) fun
 	0x2::authenticator_function
 ImmutableAccountCreated
 	public struct
@@ -2284,6 +2287,111 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+SignatureScheme
+	public struct
+	0x2::signature_scheme
+ed25519
+	public fun
+	0x2::signature_scheme
+secp256k1
+	public fun
+	0x2::signature_scheme
+secp256r1
+	public fun
+	0x2::signature_scheme
+multisig
+	public fun
+	0x2::signature_scheme
+passkey
+	public fun
+	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
+flag
+	public fun
+	0x2::signature_scheme
+PublicKey
+	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
+	0x2::public_key
+create
+	public fun
+	0x2::public_key
+scheme
+	public fun
+	0x2::public_key
+raw_bytes
+	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+multisig_to_hash_input
+	fun
+	0x2::public_key
+validate_public_key
+	fun
+	0x2::public_key
+validate_multisig_public_key
+	fun
+	0x2::public_key
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+PublicKeyAttached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyDetached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyRotated
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
+ed25519_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256k1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256r1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+multisig_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+passkey_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+from_signature_scheme
+	public fun
+	0x2::builtin_authenticator_functions
+attach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+detach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+rotate_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+has_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+borrow_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+public_key_field_name
+	fun
+	0x2::builtin_authenticator_functions
+check_builtin_authenticators_enabled
+	fun
+	0x2::builtin_authenticator_functions
 Receiving
 	public struct
 	0x2::transfer
@@ -2326,6 +2434,18 @@ transfer_impl
 receive_impl
 	fun
 	0x2::transfer
+ClaimRegistry
+	public struct
+	0x2::claim_registry
+create
+	fun
+	0x2::claim_registry
+claim
+	public(package) fun
+	0x2::claim_registry
+is_claimed
+	public fun
+	0x2::claim_registry
 Clock
 	public struct
 	0x2::clock
@@ -3553,6 +3673,75 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccount
+	public struct
+	0x2::smart_account
+SmartAccountBuilder
+	public struct
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account
+builtin_auth_builder_v1
+	public fun
+	0x2::smart_account
+claim_builder_v1
+	public fun
+	0x2::smart_account
+with_field
+	public fun
+	0x2::smart_account
+build_v1
+	public fun
+	0x2::smart_account
+build_immutable_v1
+	public fun
+	0x2::smart_account
+account_address
+	public fun
+	0x2::smart_account
+has_field
+	public fun
+	0x2::smart_account
+has_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_field
+	public fun
+	0x2::smart_account
+borrow_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+add_field
+	public fun
+	0x2::smart_account
+attach_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+remove_field
+	public fun
+	0x2::smart_account
+detach_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_field_mut
+	public fun
+	0x2::smart_account
+rotate_field
+	public fun
+	0x2::smart_account
+rotate_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+rotate_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+ensure_tx_sender_is_smart_account
+	fun
+	0x2::smart_account
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap

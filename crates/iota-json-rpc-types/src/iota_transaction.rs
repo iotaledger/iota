@@ -584,6 +584,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            EndOfEpochTransactionKind::ClaimRegistryCreate(_) => {
+                                IotaEndOfEpochTransactionKind::ClaimRegistryCreate
+                            }
                             _ => unimplemented!(
                                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                             ),
@@ -1968,6 +1971,7 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
+    ClaimRegistryCreate,
 }
 
 #[serde_as]
