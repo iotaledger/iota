@@ -271,3 +271,39 @@ pub fn secp256r1_verify(
 
     Ok(NativeResult::ok(cost, smallvec![Value::bool(result)]))
 }
+
+#[derive(Clone)]
+pub struct EcdsaR1Secp256r1ValidatePubkeyCostParams {
+    pub ecdsa_r1_secp256r1_validate_pubkey_cost_base: InternalGas,
+}
+
+/// Implementation of the Move native function
+/// `ecdsa_r1::secp256r1_validate_pubkey(public_key: &vector<u8>): bool`
+///
+/// Returns `true` if `public_key` is a valid compressed point on the secp256r1
+/// curve (the x-coordinate must have a corresponding y on the curve), `false`
+/// otherwise. Passkey public keys use the same secp256r1 curve.
+///
+/// gas cost: ecdsa_r1_secp256r1_validate_pubkey_cost_base
+pub fn secp256r1_validate_pubkey(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .ecdsa_r1_secp256r1_validate_pubkey_cost_params
+        .ecdsa_r1_secp256r1_validate_pubkey_cost_base;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let pubkey = pop_arg!(args, VectorRef);
+    let pubkey_ref = pubkey.as_bytes_ref();
+    let cost = context.gas_used();
+
+    let is_valid = Secp256r1PublicKey::from_bytes(&pubkey_ref).is_ok();
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(is_valid)]))
+}

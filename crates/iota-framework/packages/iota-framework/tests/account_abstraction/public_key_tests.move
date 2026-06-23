@@ -23,8 +23,7 @@ fun create_ed25519_key() {
 
 #[test]
 fun create_secp256k1_key() {
-    // 33 zero bytes — raw secp256k1 compressed point
-    let raw = x"000000000000000000000000000000000000000000000000000000000000000000";
+    let raw = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
     let public_key = public_key::create(signature_scheme::secp256k1(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::secp256k1());
@@ -33,8 +32,7 @@ fun create_secp256k1_key() {
 
 #[test]
 fun create_secp256r1_key() {
-    // 33 zero bytes — raw secp256r1 compressed point
-    let raw = x"000000000000000000000000000000000000000000000000000000000000000000";
+    let raw = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
     let public_key = public_key::create(signature_scheme::secp256r1(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::secp256r1());
@@ -43,8 +41,7 @@ fun create_secp256r1_key() {
 
 #[test]
 fun create_passkey_key() {
-    // 33 zero bytes — raw P-256 compressed point
-    let raw = x"000000000000000000000000000000000000000000000000000000000000000000";
+    let raw = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
     let public_key = public_key::create(signature_scheme::passkey(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::passkey());
@@ -64,9 +61,9 @@ fun create_multisig_key_ed25519_signer() {
 
 #[test]
 fun create_multisig_key_secp256k1_signer() {
-    // BCS-encoded MultiSigPublicKey: 1-of-1 with one Secp256k1 signer (33 zero bytes), weight=1,
-    // threshold=1. Layout: vec_len(1) | tag(1=Secp256k1) | key(33B) | weight(1) | threshold_le(1)
-    let raw = x"0101000000000000000000000000000000000000000000000000000000000000000000010100";
+    // BCS-encoded MultiSigPublicKey: 1-of-1 with one Secp256k1 signer, weight=1, threshold=1.
+    // Layout: vec_len(1) | tag(1=Secp256k1) | key(33B) | weight(1) | threshold_le(1)
+    let raw = x"010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     let public_key = public_key::create(signature_scheme::multisig(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::multisig());
@@ -77,8 +74,9 @@ fun create_multisig_key_secp256k1_signer() {
 fun create_multisig_key_multiple_signers() {
     // BCS-encoded MultiSigPublicKey: 1-of-2 with an Ed25519 and a Secp256k1 signer, each
     // weight=1, threshold=1. Layout: vec_len(2) | Ed25519-entry | Secp256k1-entry | threshold_le(1)
+    // Uses the same key material as the MULTISIG_MIXED_PK constant (minus the 0x03 scheme prefix).
     let raw =
-        x"020000000000000000000000000000000000000000000000000000000000000000000101000000000000000000000000000000000000000000000000000000000000000000010100";
+        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     let public_key = public_key::create(signature_scheme::multisig(), raw);
 
     assert_eq(public_key.scheme(), signature_scheme::multisig());
@@ -114,14 +112,14 @@ fun create_scheme_flag_0x05_aborts() {
 // === Failure: wrong lengths ===
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_ed25519_too_short_aborts() {
     // 1 raw byte — ed25519 requires 32
     public_key::create(signature_scheme::ed25519(), x"00");
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_ed25519_too_long_aborts() {
     // 33 raw bytes — one too many for ed25519 (requires 32)
     let raw = x"000000000000000000000000000000000000000000000000000000000000000000";
@@ -129,14 +127,14 @@ fun create_ed25519_too_long_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_secp256k1_too_short_aborts() {
     // 1 raw byte — secp256k1 requires 33
     public_key::create(signature_scheme::secp256k1(), x"00");
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_secp256k1_too_long_aborts() {
     // 34 raw bytes — one too many for secp256k1 (requires 33)
     let raw = x"0000000000000000000000000000000000000000000000000000000000000000000000";
@@ -144,14 +142,14 @@ fun create_secp256k1_too_long_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_secp256r1_too_short_aborts() {
     // 1 raw byte — secp256r1 requires 33
     public_key::create(signature_scheme::secp256r1(), x"00");
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_secp256r1_too_long_aborts() {
     // 34 raw bytes — one too many for secp256r1 (requires 33)
     let raw = x"0000000000000000000000000000000000000000000000000000000000000000000000";
@@ -159,14 +157,14 @@ fun create_secp256r1_too_long_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_passkey_too_short_aborts() {
     // 1 raw byte — passkey requires 33
     public_key::create(signature_scheme::passkey(), x"00");
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_passkey_too_long_aborts() {
     // 34 raw bytes — one too many for passkey (requires 33)
     let raw = x"0000000000000000000000000000000000000000000000000000000000000000000000";
@@ -277,6 +275,58 @@ fun create_multisig_incomplete_threshold_aborts() {
     public_key::create(signature_scheme::multisig(), raw);
 }
 
+// === Failure: curve point validation ===
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_ed25519_invalid_curve_point_aborts() {
+    // y = 2 in little-endian: x² = (4-1)/(4d+1) mod p is not a quadratic residue,
+    // so no valid x exists for this y value — not a valid Ed25519 point.
+    public_key::create(
+        signature_scheme::ed25519(),
+        x"0200000000000000000000000000000000000000000000000000000000000000",
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_secp256k1_invalid_curve_point_aborts() {
+    // Prefix byte 0x00 is not a valid compressed-point prefix (must be 0x02 or 0x03).
+    public_key::create(
+        signature_scheme::secp256k1(),
+        x"000000000000000000000000000000000000000000000000000000000000000000",
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_secp256r1_invalid_curve_point_aborts() {
+    public_key::create(
+        signature_scheme::secp256r1(),
+        x"000000000000000000000000000000000000000000000000000000000000000000",
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_passkey_invalid_curve_point_aborts() {
+    public_key::create(
+        signature_scheme::passkey(),
+        x"000000000000000000000000000000000000000000000000000000000000000000",
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
+fun create_multisig_secp256k1_invalid_curve_point_aborts() {
+    // Multisig with a Secp256k1 member whose bytes are all-zero (prefix 0x00 is invalid).
+    // vec_len(1) | tag(1=Secp256k1) | 33 zero bytes | weight(1) | threshold_le(1)
+    public_key::create(
+        signature_scheme::multisig(),
+        x"0101000000000000000000000000000000000000000000000000000000000000000000010100",
+    );
+}
+
 // === from_prefixed_bytes — happy paths ===
 
 // Same key material used throughout; addresses cross-checked against the Rust node.
@@ -383,5 +433,8 @@ fun to_iota_address_vectors() {
     // 1-of-1 Ed25519 MultiSig: Ed25519 members have no scheme-flag prefix in the hash input.
     assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address(), MULTISIG_ADDR);
     // Mixed Ed25519 + Secp256k1: pins the per-scheme flag behavior for both member types.
-    assert_eq(public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).to_iota_address(), MULTISIG_MIXED_ADDR);
+    assert_eq(
+        public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).to_iota_address(),
+        MULTISIG_MIXED_ADDR,
+    );
 }

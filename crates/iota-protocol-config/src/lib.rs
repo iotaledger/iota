@@ -169,6 +169,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 30: Enable built-in Move authenticators in devnet.
 //             Add ClaimRegistry singleton for claiming addresses from public
 //             keys.
+//             Introduce Move native functions for validating public keys for
+//             Ed25519, Secp256k1, and Secp256r1 signature schemes.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1415,6 +1417,13 @@ pub struct ProtocolConfig {
 
     // Cost params for built-in Move authenticators
     builtin_move_authenticator_cost_base: Option<u64>,
+
+    // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key: &vector<u8>): bool`
+    ed25519_ed25519_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_k1::secp256k1_validate_pubkey(public_key: &vector<u8>): bool`
+    ecdsa_k1_secp256k1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key: &vector<u8>): bool`
+    ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2428,6 +2437,11 @@ impl ProtocolConfig {
 
             // Built-in Move authenticators
             builtin_move_authenticator_cost_base: None,
+
+            ed25519_ed25519_validate_pubkey_cost_base: None,
+            ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
+            ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
+    
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2989,6 +3003,10 @@ impl ProtocolConfig {
                         // Enable claim registry in devnet only.
                         cfg.feature_flags.enable_claim_registry = true;
                     }
+
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //
