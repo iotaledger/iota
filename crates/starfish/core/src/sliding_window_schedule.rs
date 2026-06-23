@@ -14,12 +14,12 @@
 //! The sliding window is an alternative *score source* for the existing swap
 //! table; it does not select leaders itself.
 //!
-//! # Intended usage
+//! # Usage
 //!
-//! This scorer is not yet wired into the leader schedule (hence the
-//! `expect(dead_code)` below). Once wired, the leader schedule feeds each
-//! committed subdag to [`SlidingWindowSchedule::add_commit`] in consecutive
-//! index order and rebuilds the `LeaderSwapTable` from
+//! When the sliding-window leader schedule is enabled (protocol flag
+//! `consensus_enable_sliding_window_leader_schedule`), the leader schedule
+//! feeds each committed subdag to [`SlidingWindowSchedule::add_commit`] in
+//! consecutive index order and rebuilds the `LeaderSwapTable` from
 //! [`SlidingWindowSchedule::reputation_scores`] at its usual cadence.
 //!
 //! On a restart or fast-sync the in-memory window starts empty and is rebuilt
