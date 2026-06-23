@@ -6,11 +6,7 @@
 
 #[cfg(msim)]
 mod test {
-    use std::{
-        collections::{BTreeMap, HashSet},
-        sync::Arc,
-        time::Duration,
-    };
+    use std::{collections::HashSet, sync::Arc, time::Duration};
 
     use iota_config::local_ip_utils;
     use iota_macros::sim_test;
@@ -133,54 +129,15 @@ mod test {
         cycles_per_authority: usize,
     }
 
-    /// The protocol configuration each network runs at the latest protocol
-    /// version — devnet (which maps to [`Chain::Unknown`]), mainnet, and
-    /// testnet — paired with a label naming the network(s) it covers.
-    ///
-    /// Networks whose configurations are identical collapse into a single entry
-    /// whose label lists all of them (e.g. `devnet+testnet`), so identical
-    /// configs are not run twice while a failing assertion still names every
-    /// network the run stands for.
-    fn network_protocol_configs() -> Vec<(String, ProtocolConfig)> {
-        let mut keys: Vec<BTreeMap<String, String>> = Vec::new();
-        let mut configs: Vec<(String, ProtocolConfig)> = Vec::new();
-        for (network, chain) in [
-            ("devnet", Chain::Unknown),
-            ("mainnet", Chain::Mainnet),
-            ("testnet", Chain::Testnet),
-        ] {
-            let config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
-            // Key on the full parameter surface — every feature flag and every
-            // numeric/`Option` value — so only genuinely identical configs merge.
-            let key: BTreeMap<String, String> = config
-                .feature_map()
-                .into_iter()
-                .map(|(name, value)| (name, value.to_string()))
-                .chain(
-                    config
-                        .attr_map()
-                        .into_iter()
-                        .map(|(name, value)| (name, format!("{value:?}"))),
-                )
-                .collect();
-            match keys.iter().position(|seen| seen == &key) {
-                Some(idx) => configs[idx].0 = format!("{}+{network}", configs[idx].0),
-                None => {
-                    keys.push(key);
-                    configs.push((network.to_owned(), config));
-                }
-            }
-        }
-        configs
-    }
-
-    /// Runs [`run_sequential_restarts_test`] against every distinct network
-    /// configuration (see [`network_protocol_configs`]).
-    async fn run_for_all_network_configs(mode: RestartMode, long_run: bool, long_restart: bool) {
-        for (network, protocol_config) in network_protocol_configs() {
-            run_sequential_restarts_test(&network, protocol_config, mode, long_run, long_restart)
-                .await;
-        }
+    async fn run_network_config(
+        network: &str,
+        chain: Chain,
+        mode: RestartMode,
+        long_run: bool,
+        long_restart: bool,
+    ) {
+        let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
+        run_sequential_restarts_test(network, protocol_config, mode, long_run, long_restart).await;
     }
 
     /// Helper function for sequential authority restarts with commit sync
@@ -504,70 +461,156 @@ mod test {
         );
     }
 
-    /// Fresh DB after each restart, long run before stop, long stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_clean_db_long_run_long_stop() {
-        run_for_all_network_configs(RestartMode::CleanAll, true, true).await;
+    macro_rules! network_simtests {
+        (
+            $(#[$meta:meta])*
+            $devnet_test:ident,
+            $testnet_test:ident,
+            $mainnet_test:ident,
+            $mode:expr,
+            $long_run:expr,
+            $long_restart:expr $(,)?
+        ) => {
+            $(#[$meta])*
+            #[sim_test(config = "test_config()")]
+            async fn $devnet_test() {
+                run_network_config(
+                    "devnet",
+                    Chain::Unknown,
+                    $mode,
+                    $long_run,
+                    $long_restart,
+                )
+                .await;
+            }
+
+            $(#[$meta])*
+            #[sim_test(config = "test_config()")]
+            async fn $testnet_test() {
+                run_network_config(
+                    "testnet",
+                    Chain::Testnet,
+                    $mode,
+                    $long_run,
+                    $long_restart,
+                )
+                .await;
+            }
+
+            $(#[$meta])*
+            #[sim_test(config = "test_config()")]
+            async fn $mainnet_test() {
+                run_network_config(
+                    "mainnet",
+                    Chain::Mainnet,
+                    $mode,
+                    $long_run,
+                    $long_restart,
+                )
+                .await;
+            }
+        };
     }
 
-    /// Fresh DB after each restart, short run before stop, short stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_clean_db_short_run_short_stop() {
-        run_for_all_network_configs(RestartMode::CleanAll, false, false).await;
+    network_simtests! {
+        /// Fresh DB after each restart, long run before stop, long stop duration.
+        devnet_sequential_restarts_clean_db_long_run_long_stop,
+        testnet_sequential_restarts_clean_db_long_run_long_stop,
+        mainnet_sequential_restarts_clean_db_long_run_long_stop,
+        RestartMode::CleanAll,
+        true,
+        true,
     }
 
-    /// Fresh DB after each restart, long run before stop, short stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_clean_db_long_run_short_stop() {
-        run_for_all_network_configs(RestartMode::CleanAll, true, false).await;
+    network_simtests! {
+        /// Fresh DB after each restart, short run before stop, short stop duration.
+        devnet_sequential_restarts_clean_db_short_run_short_stop,
+        testnet_sequential_restarts_clean_db_short_run_short_stop,
+        mainnet_sequential_restarts_clean_db_short_run_short_stop,
+        RestartMode::CleanAll,
+        false,
+        false,
     }
 
-    /// Fresh DB after each restart, short run before stop, long stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_clean_db_short_run_long_stop() {
-        run_for_all_network_configs(RestartMode::CleanAll, false, true).await;
+    network_simtests! {
+        /// Fresh DB after each restart, long run before stop, short stop duration.
+        devnet_sequential_restarts_clean_db_long_run_short_stop,
+        testnet_sequential_restarts_clean_db_long_run_short_stop,
+        mainnet_sequential_restarts_clean_db_long_run_short_stop,
+        RestartMode::CleanAll,
+        true,
+        false,
     }
 
-    /// Persistent DB after each restart, long run before stop, long stop
-    /// duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_persistent_db_long_run_long_stop() {
-        run_for_all_network_configs(RestartMode::PersistAll, true, true).await;
+    network_simtests! {
+        /// Fresh DB after each restart, short run before stop, long stop duration.
+        devnet_sequential_restarts_clean_db_short_run_long_stop,
+        testnet_sequential_restarts_clean_db_short_run_long_stop,
+        mainnet_sequential_restarts_clean_db_short_run_long_stop,
+        RestartMode::CleanAll,
+        false,
+        true,
     }
 
-    /// Persistent DB after each restart, short run before stop, short stop
-    /// duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_persistent_db_short_run_short_stop() {
-        run_for_all_network_configs(RestartMode::PersistAll, false, false).await;
+    network_simtests! {
+        /// Persistent DB after each restart, long run before stop, long stop duration.
+        devnet_sequential_restarts_persistent_db_long_run_long_stop,
+        testnet_sequential_restarts_persistent_db_long_run_long_stop,
+        mainnet_sequential_restarts_persistent_db_long_run_long_stop,
+        RestartMode::PersistAll,
+        true,
+        true,
     }
 
-    /// Persistent DB after each restart, long run before stop, short stop
-    /// duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_persistent_db_long_run_short_stop() {
-        run_for_all_network_configs(RestartMode::PersistAll, true, false).await;
+    network_simtests! {
+        /// Persistent DB after each restart, short run before stop, short stop duration.
+        devnet_sequential_restarts_persistent_db_short_run_short_stop,
+        testnet_sequential_restarts_persistent_db_short_run_short_stop,
+        mainnet_sequential_restarts_persistent_db_short_run_short_stop,
+        RestartMode::PersistAll,
+        false,
+        false,
     }
 
-    /// Persistent DB after each restart, short run before stop, long stop
-    /// duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
-        run_for_all_network_configs(RestartMode::PersistAll, false, true).await;
+    network_simtests! {
+        /// Persistent DB after each restart, long run before stop, short stop duration.
+        devnet_sequential_restarts_persistent_db_long_run_short_stop,
+        testnet_sequential_restarts_persistent_db_long_run_short_stop,
+        mainnet_sequential_restarts_persistent_db_long_run_short_stop,
+        RestartMode::PersistAll,
+        true,
+        false,
     }
 
-    /// DB intact but last_processed_commit reset; long run before stop, long
-    /// stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_reset_last_processed_long_run_long_stop() {
-        run_for_all_network_configs(RestartMode::ResetLastProcessed, true, true).await;
+    network_simtests! {
+        /// Persistent DB after each restart, short run before stop, long stop duration.
+        devnet_sequential_restarts_persistent_db_short_run_long_stop,
+        testnet_sequential_restarts_persistent_db_short_run_long_stop,
+        mainnet_sequential_restarts_persistent_db_short_run_long_stop,
+        RestartMode::PersistAll,
+        false,
+        true,
     }
 
-    /// Erase all transactions from DB, preserving commits and block headers.
-    /// Tests transaction recovery via sync from peers.
-    /// Long run before stop, long stop duration.
-    #[sim_test(config = "test_config()")]
-    async fn test_sequential_restarts_erase_transactions_long_run_long_stop() {
-        run_for_all_network_configs(RestartMode::EraseAllTransactions, true, true).await;
+    network_simtests! {
+        /// DB intact but last_processed_commit reset; long run before stop, long stop duration.
+        devnet_sequential_restarts_reset_last_processed_long_run_long_stop,
+        testnet_sequential_restarts_reset_last_processed_long_run_long_stop,
+        mainnet_sequential_restarts_reset_last_processed_long_run_long_stop,
+        RestartMode::ResetLastProcessed,
+        true,
+        true,
+    }
+
+    network_simtests! {
+        /// Erase all transactions from DB, preserving commits and block headers.
+        /// Tests transaction recovery via sync from peers.
+        /// Long run before stop, long stop duration.
+        devnet_sequential_restarts_erase_transactions_long_run_long_stop,
+        testnet_sequential_restarts_erase_transactions_long_run_long_stop,
+        mainnet_sequential_restarts_erase_transactions_long_run_long_stop,
+        RestartMode::EraseAllTransactions,
+        true,
+        true,
     }
 }
