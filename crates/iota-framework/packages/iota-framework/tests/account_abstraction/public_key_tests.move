@@ -207,6 +207,27 @@ fun create_multisig_weight_below_threshold_aborts() {
 }
 
 #[test]
+#[expected_failure(abort_code = iota::public_key::EMultiSigZeroWeight)]
+fun create_multisig_zero_weight_signer_aborts() {
+    // 1 Ed25519 signer with weight=0, threshold=1. The Move validator must reject this to match
+    // the Rust verifier, which rejects zero-weight members at authentication time.
+    // Layout: vec_len(1) | tag(0=Ed25519) | 32 zero bytes | weight(0) | threshold_le(1)
+    let raw = x"01000000000000000000000000000000000000000000000000000000000000000000000100";
+    public_key::create(signature_scheme::multisig(), raw);
+}
+
+#[test]
+#[expected_failure(abort_code = iota::public_key::EMultiSigDuplicateSigner)]
+fun create_multisig_duplicate_signer_aborts() {
+    // 2 identical Ed25519 signers (same 32 zero bytes), each weight=1, threshold=1. The Move
+    // validator must reject duplicate signer keys to match the Rust verifier.
+    // Layout: vec_len(2) | Ed25519-entry | Ed25519-entry (same key) | threshold_le(1)
+    let raw =
+        x"0200000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000010100";
+    public_key::create(signature_scheme::multisig(), raw);
+}
+
+#[test]
 #[expected_failure(abort_code = iota::public_key::EMultiSigTrailingBytes)]
 fun create_multisig_trailing_bytes_aborts() {
     // Valid 1-of-1 Ed25519 payload followed by a spurious trailing byte (0xff)

@@ -20,8 +20,10 @@
 ///
 /// **Validation scope**: `create` checks that the scheme is recognized, that the raw bytes form
 /// a valid curve point (which implicitly rejects wrong-length inputs), and — for MultiSig — that
-/// the BCS structure is well-formed (signer count, weights, threshold) and each member's key
-/// is a valid curve point.
+/// the BCS structure is well-formed (signer count, weights, threshold), each member's key is a
+/// valid curve point, every signer weight is non-zero, and no signer is duplicated. These
+/// MultiSig rules match the canonical Rust verifier, so a key accepted here is guaranteed to be
+/// authenticatable rather than bricking the account at verification time.
 module iota::public_key;
 
 use iota::address as iota_address;
@@ -53,6 +55,10 @@ const EMultiSigWeightBelowThreshold: vector<u8> =
 #[error(code = 14)]
 const EMultiSigTrailingBytes: vector<u8> =
     b"MultiSig public key bytes contain unexpected trailing data.";
+#[error(code = 15)]
+const EMultiSigZeroWeight: vector<u8> = b"MultiSig signer weight must be greater than zero.";
+#[error(code = 16)]
+const EMultiSigDuplicateSigner: vector<u8> = b"MultiSig public key contains a duplicate signer.";
 
 // === Constants ===
 
@@ -90,7 +96,8 @@ public struct PublicKey has copy, drop, store {
 /// The first byte of `prefixed_bytes` is the scheme flag; the remaining bytes are the raw
 /// key material. Byte lengths after stripping the flag:
 /// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
-/// BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 signers, threshold > 0, total weight ≥ threshold).
+/// BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each weight > 0,
+/// threshold > 0, total weight ≥ threshold).
 ///
 /// Aborts if `prefixed_bytes` is empty, if the flag byte is not a recognized scheme, if the
 /// remaining bytes are not a valid curve point, or if a MultiSig payload fails structural validation.
@@ -104,8 +111,8 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
 ///
 /// `raw_bytes` must be the raw key material **without** the scheme flag prefix:
 /// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
-/// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 signers, threshold > 0,
-/// total weight ≥ threshold).
+/// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 distinct signers, each
+/// weight > 0, threshold > 0, total weight ≥ threshold).
 ///
 /// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the bytes do not
 /// form a valid curve point, or if a MultiSig payload fails structural validation or contains
@@ -220,6 +227,9 @@ fun validate_multisig_public_key(raw_bytes: &vector<u8>) {
     assert!(num_signers <= MAX_MULTISIG_SIGNERS, EMultiSigTooManySigners);
 
     let mut total_weight = 0;
+    // Each entry is `tag || key_bytes`, identifying a signer by scheme and key
+    // material so we can reject duplicates the same way the Rust verifier does.
+    let mut seen_signers = vector[];
     let mut i = 0;
 
     while (i < num_signers) {
@@ -251,7 +261,13 @@ fun validate_multisig_public_key(raw_bytes: &vector<u8>) {
             assert!(ecdsa_r1::secp256r1_validate_pubkey(&key_bytes), EInvalidPublicKeyBytes);
         };
 
+        let mut signer = vector[tag as u8];
+        signer.append(key_bytes);
+        assert!(!seen_signers.contains(&signer), EMultiSigDuplicateSigner);
+        seen_signers.push_back(signer);
+
         let weight = bcs.peel_u8() as u64;
+        assert!(weight > 0, EMultiSigZeroWeight);
 
         total_weight = total_weight + weight;
         i = i + 1;
