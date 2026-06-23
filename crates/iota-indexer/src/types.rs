@@ -47,6 +47,7 @@ pub struct IndexedCheckpoint {
     pub non_refundable_storage_fee: u64,
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     pub validator_signature: AggregateAuthoritySignature,
+    pub checkpoint_summary_bcs: Vec<u8>,
     // Note: not used in StoredCheckpoint conversion and in code overall.
     pub successful_tx_num: usize,
     pub end_of_epoch_data: Option<EndOfEpochData>,
@@ -69,6 +70,8 @@ impl IndexedCheckpoint {
         // NOTE: + 1u64 first to avoid subtraction with overflow
         let min_tx_sequence_number = max_tx_sequence_number + 1u64 - tx_digests.len() as u64;
         let auth_sig = &checkpoint.auth_sig().signature;
+        let checkpoint_summary_bcs = bcs::to_bytes(checkpoint.data())
+            .expect("checkpoint summary serialization should not fail");
         Self {
             sequence_number: checkpoint.sequence_number,
             checkpoint_digest: *checkpoint.digest(),
@@ -92,6 +95,7 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
+            checkpoint_summary_bcs,
             min_tx_sequence_number,
             max_tx_sequence_number,
         }

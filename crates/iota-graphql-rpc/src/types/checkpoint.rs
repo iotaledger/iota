@@ -98,6 +98,25 @@ impl Checkpoint {
         Ok(self.digest_impl().extend()?.to_base58())
     }
 
+    /// The Base64-encoded BCS serialization of this checkpoint's
+    /// `CheckpointSummary`.
+    #[graphql(complexity = 0)]
+    async fn bcs(&self) -> Result<Base64> {
+        let bytes = self
+            .stored
+            .checkpoint_summary_bcs
+            .as_ref()
+            .ok_or_else(|| {
+                Error::Internal(
+                    "Checkpoint summary BCS is not available; the indexer must be re-run to \
+                     populate it"
+                        .to_string(),
+                )
+            })
+            .extend()?;
+        Ok(Base64::from(bytes))
+    }
+
     /// This checkpoint's position in the total order of finalized checkpoints,
     /// agreed upon by consensus.
     #[graphql(complexity = 0)]

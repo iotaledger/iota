@@ -81,6 +81,7 @@ diesel::table! {
         min_tx_sequence_number -> Nullable<Int8>,
         max_tx_sequence_number -> Nullable<Int8>,
         computation_cost_burned -> Nullable<Int8>,
+        checkpoint_summary_bcs -> Nullable<Bytea>,
     }
 }
 

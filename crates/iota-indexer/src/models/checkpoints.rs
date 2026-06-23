@@ -41,6 +41,7 @@ pub struct StoredCheckpoint {
     pub min_tx_sequence_number: Option<i64>,
     pub max_tx_sequence_number: Option<i64>,
     pub computation_cost_burned: Option<i64>,
+    pub checkpoint_summary_bcs: Option<Vec<u8>>,
 }
 
 impl StoredCheckpoint {
@@ -83,6 +84,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
             end_of_epoch: c.end_of_epoch_data.is_some(),
             min_tx_sequence_number: Some(c.min_tx_sequence_number as i64),
             max_tx_sequence_number: Some(c.max_tx_sequence_number as i64),
+            checkpoint_summary_bcs: Some(c.checkpoint_summary_bcs.clone()),
         }
     }
 }
