@@ -6,12 +6,16 @@
 
 #[cfg(msim)]
 mod test {
-    use std::{collections::HashSet, sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, HashSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use iota_config::local_ip_utils;
     use iota_macros::sim_test;
     use iota_network_stack::Multiaddr;
-    use iota_protocol_config::ProtocolConfig;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_simulator::{
         SimConfig,
         configs::{bimodal_latency_ms, env_config, uniform_latency_ms},
@@ -82,7 +86,7 @@ mod test {
     /// Verifies commit digest consistency across all running authorities.
     /// Checks that all authorities have identical commit digests for shared
     /// commit indices.
-    async fn verify_commit_consistency(authorities: &[AuthorityNode], step: &str) {
+    async fn verify_commit_consistency(authorities: &[AuthorityNode], network: &str, step: &str) {
         let commit_indices: Vec<u32> = authorities
             .iter()
             .filter(|a| a.is_running())
@@ -110,7 +114,7 @@ mod test {
                 for (auth_idx, digest) in digests.iter().skip(1) {
                     assert_eq!(
                         first_digest, digest,
-                        "{step}: Commit {commit_idx} digest mismatch at authority {auth_idx}"
+                        "[{network}] {step}: Commit {commit_idx} digest mismatch at authority {auth_idx}"
                     );
                 }
             }
@@ -127,6 +131,56 @@ mod test {
         post_restart_wait: Duration,
         /// Number of stop/restart cycles per authority
         cycles_per_authority: usize,
+    }
+
+    /// The protocol configuration each network runs at the latest protocol
+    /// version — devnet (which maps to [`Chain::Unknown`]), mainnet, and
+    /// testnet — paired with a label naming the network(s) it covers.
+    ///
+    /// Networks whose configurations are identical collapse into a single entry
+    /// whose label lists all of them (e.g. `devnet+testnet`), so identical
+    /// configs are not run twice while a failing assertion still names every
+    /// network the run stands for.
+    fn network_protocol_configs() -> Vec<(String, ProtocolConfig)> {
+        let mut keys: Vec<BTreeMap<String, String>> = Vec::new();
+        let mut configs: Vec<(String, ProtocolConfig)> = Vec::new();
+        for (network, chain) in [
+            ("devnet", Chain::Unknown),
+            ("mainnet", Chain::Mainnet),
+            ("testnet", Chain::Testnet),
+        ] {
+            let config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
+            // Key on the full parameter surface — every feature flag and every
+            // numeric/`Option` value — so only genuinely identical configs merge.
+            let key: BTreeMap<String, String> = config
+                .feature_map()
+                .into_iter()
+                .map(|(name, value)| (name, value.to_string()))
+                .chain(
+                    config
+                        .attr_map()
+                        .into_iter()
+                        .map(|(name, value)| (name, format!("{value:?}"))),
+                )
+                .collect();
+            match keys.iter().position(|seen| seen == &key) {
+                Some(idx) => configs[idx].0 = format!("{}+{network}", configs[idx].0),
+                None => {
+                    keys.push(key);
+                    configs.push((network.to_owned(), config));
+                }
+            }
+        }
+        configs
+    }
+
+    /// Runs [`run_sequential_restarts_test`] against every distinct network
+    /// configuration (see [`network_protocol_configs`]).
+    async fn run_for_all_network_configs(mode: RestartMode, long_run: bool, long_restart: bool) {
+        for (network, protocol_config) in network_protocol_configs() {
+            run_sequential_restarts_test(&network, protocol_config, mode, long_run, long_restart)
+                .await;
+        }
     }
 
     /// Helper function for sequential authority restarts with commit sync
@@ -147,6 +201,8 @@ mod test {
     ///    (some may be lost during restarts when in RAM)
     ///
     /// Parameters:
+    /// - `network`: Label of the network(s) this configuration covers, prefixed
+    ///   onto assertion failures so a failure names the network it came from
     /// - `mode`: Restart mode controlling DB and state persistence
     ///   - `CleanAll`: Fresh empty DB (simulates node replacement)
     ///   - `PersistAll`: Keep DB and state (crash recovery)
@@ -154,7 +210,13 @@ mod test {
     ///     recovery)
     /// - `long_run`: If true, use longer pre-stop and catch-up times
     /// - `long_restart`: If true, use longer stopped duration
-    async fn run_sequential_restarts_test(mode: RestartMode, long_run: bool, long_restart: bool) {
+    async fn run_sequential_restarts_test(
+        network: &str,
+        protocol_config: ProtocolConfig,
+        mode: RestartMode,
+        long_run: bool,
+        long_restart: bool,
+    ) {
         // ═══════════════════════════════════════════════════════════════
         // Constants
         // ═══════════════════════════════════════════════════════════════
@@ -184,10 +246,6 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
-
-        // Enable fast commit sync (always enabled in this test)
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         // Calculate timing based on flags
         let run_time = if long_run {
@@ -296,11 +354,11 @@ mod test {
 
         assert!(
             baseline_commit > MIN_BASELINE_COMMIT,
-            "Should have made initial progress: baseline_commit={baseline_commit}, min={MIN_BASELINE_COMMIT}"
+            "[{network}] Should have made initial progress: baseline_commit={baseline_commit}, min={MIN_BASELINE_COMMIT}"
         );
 
         // Verify consistency after baseline progress
-        verify_commit_consistency(&authorities, "after initial progress").await;
+        verify_commit_consistency(&authorities, network, "after initial progress").await;
 
         // Sequential restart cycles for each authority.
         // CleanAll: restart <1/3 of authorities, keeping a supermajority alive as
@@ -323,7 +381,10 @@ mod test {
                     .max()
                     .unwrap_or(commit_at_stop);
                 authorities[authority_idx].stop().await;
-                assert!(!authorities[authority_idx].is_running());
+                assert!(
+                    !authorities[authority_idx].is_running(),
+                    "[{network}] authority {authority_idx} still running after stop"
+                );
 
                 // Wait while stopped (other authorities make progress)
                 sleep(restart_config.stop_duration).await;
@@ -331,6 +392,7 @@ mod test {
                 // Verify consistency while authority is stopped
                 verify_commit_consistency(
                     &authorities,
+                    network,
                     &format!("authority {authority_idx} cycle {cycle}: during stop"),
                 )
                 .await;
@@ -357,13 +419,14 @@ mod test {
                 if long_run {
                     assert!(
                         incremental_progress >= MIN_INCREMENTAL_COMMIT_PROGRESS,
-                        "Authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
+                        "[{network}] authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
                     );
                 }
 
                 // Verify consistency after restart and catch-up
                 verify_commit_consistency(
                     &authorities,
+                    network,
                     &format!("authority {authority_idx} cycle {cycle}: after restart"),
                 )
                 .await;
@@ -387,11 +450,11 @@ mod test {
 
         assert!(
             max_commit - min_commit < MAX_COMMIT_GAP,
-            "Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP}"
+            "[{network}] Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP}"
         );
 
         // Final commit consistency verification
-        verify_commit_consistency(&authorities, "final").await;
+        verify_commit_consistency(&authorities, network, "final").await;
 
         // Verify catch-up via fast sync: all authorities should have caught up after
         // settlement
@@ -404,7 +467,7 @@ mod test {
 
         assert!(
             max_final - min_final <= CATCH_UP_SLACK,
-            "After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK})",
+            "[{network}] After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK})",
             max_final - min_final
         );
 
@@ -422,21 +485,21 @@ mod test {
 
         assert!(
             !committed_sets.is_empty(),
-            "No running authorities to verify"
+            "[{network}] No running authorities to verify"
         );
         // Verify all submitted transactions are in the committed set (submitted ⊆
         // committed)
         for txn in &submitted {
             assert!(
                 committed_sets.iter().any(|set| set.contains(txn)),
-                "Submitted transaction not in committed set: {txn:?}"
+                "[{network}] Submitted transaction not in committed set: {txn:?}"
             );
         }
 
         // Assert minimum submitted transactions
         assert!(
             submitted.len() >= MIN_SUBMITTED_TRANSACTIONS,
-            "Too few submitted transactions: {} < {MIN_SUBMITTED_TRANSACTIONS}",
+            "[{network}] Too few submitted transactions: {} < {MIN_SUBMITTED_TRANSACTIONS}",
             submitted.len()
         );
     }
@@ -444,60 +507,60 @@ mod test {
     /// Fresh DB after each restart, long run before stop, long stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_long_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::CleanAll, true, true).await;
+        run_for_all_network_configs(RestartMode::CleanAll, true, true).await;
     }
 
     /// Fresh DB after each restart, short run before stop, short stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_short_run_short_stop() {
-        run_sequential_restarts_test(RestartMode::CleanAll, false, false).await;
+        run_for_all_network_configs(RestartMode::CleanAll, false, false).await;
     }
 
     /// Fresh DB after each restart, long run before stop, short stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_long_run_short_stop() {
-        run_sequential_restarts_test(RestartMode::CleanAll, true, false).await;
+        run_for_all_network_configs(RestartMode::CleanAll, true, false).await;
     }
 
     /// Fresh DB after each restart, short run before stop, long stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_clean_db_short_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::CleanAll, false, true).await;
+        run_for_all_network_configs(RestartMode::CleanAll, false, true).await;
     }
 
     /// Persistent DB after each restart, long run before stop, long stop
     /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_long_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::PersistAll, true, true).await;
+        run_for_all_network_configs(RestartMode::PersistAll, true, true).await;
     }
 
     /// Persistent DB after each restart, short run before stop, short stop
     /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_short_run_short_stop() {
-        run_sequential_restarts_test(RestartMode::PersistAll, false, false).await;
+        run_for_all_network_configs(RestartMode::PersistAll, false, false).await;
     }
 
     /// Persistent DB after each restart, long run before stop, short stop
     /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_long_run_short_stop() {
-        run_sequential_restarts_test(RestartMode::PersistAll, true, false).await;
+        run_for_all_network_configs(RestartMode::PersistAll, true, false).await;
     }
 
     /// Persistent DB after each restart, short run before stop, long stop
     /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::PersistAll, false, true).await;
+        run_for_all_network_configs(RestartMode::PersistAll, false, true).await;
     }
 
     /// DB intact but last_processed_commit reset; long run before stop, long
     /// stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_reset_last_processed_long_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::ResetLastProcessed, true, true).await;
+        run_for_all_network_configs(RestartMode::ResetLastProcessed, true, true).await;
     }
 
     /// Erase all transactions from DB, preserving commits and block headers.
@@ -505,6 +568,6 @@ mod test {
     /// Long run before stop, long stop duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_erase_transactions_long_run_long_stop() {
-        run_sequential_restarts_test(RestartMode::EraseAllTransactions, true, true).await;
+        run_for_all_network_configs(RestartMode::EraseAllTransactions, true, true).await;
     }
 }
