@@ -1013,7 +1013,9 @@ impl DBMetrics {
             .dec();
     }
     pub fn get() -> &'static Arc<DBMetrics> {
-        ONCE.get()
-            .unwrap_or_else(|| DBMetrics::init(prometheus::default_registry()))
+        // Lazily initialize against the global default registry when no explicit
+        // `init` has run. `get_or_init` ensures the rocksdb metrics are
+        // registered at most once even when first reached concurrently.
+        ONCE.get_or_init(|| Arc::new(DBMetrics::new(prometheus::default_registry())))
     }
 }
