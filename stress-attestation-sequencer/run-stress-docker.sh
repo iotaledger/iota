@@ -61,6 +61,7 @@ WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
 SLOW_SIZE="${SLOW_SIZE:-}"                      # WORKLOAD=slow: each vector size in bytes
+SLOW_SHARED="${SLOW_SHARED:-}"                  # WORKLOAD=slow: false => owned-only (no shared object / congestion)
 case "$WORKLOAD" in
 owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
 shared)
@@ -71,6 +72,7 @@ slow)
   WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
   [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
+  [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
 *) echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2; exit 1 ;;
 esac

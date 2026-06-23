@@ -5,10 +5,11 @@
 #
 #   3 workloads {owned, shared cnt2, slow 500x500}
 # × 2 paths     {fullnode (DIRECT=false), pinned (DIRECT=true, 1 target validator)}
-# × 3 qps       {200, 1000, 2000}                                      = 18 configs.
+# × 3 qps       {200, 1000, 2000}                                      = 18 configs,
+# plus 6 slow-owned configs (slow compute, owned-only / no shared object) = 24.
 #
 # Each run.sh invocation does ITERS iterations (V1+V2 per iter), so this is
-# 18 * ITERS full experiments — HOURS of wall time at ITERS=5. Per-config console
+# 24 * ITERS full experiments — HOURS of wall time at ITERS=5. Per-config console
 # output goes to logs/<LABEL>.log; redirecting it also makes run.sh non-interactive
 # (no monitoring prompt) and strips ANSI colors, so the matrix runs unattended.
 #
@@ -56,6 +57,15 @@ configs=(
   "shared2-pin-2000|WORKLOAD=shared NUM_SHARED_COUNTERS=2 DIRECT=true NUM_TARGET_VALIDATORS=1 TARGET_QPS=2000"
   "slow-fn-2000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 DIRECT=false TARGET_QPS=2000"
   "slow-pin-2000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 DIRECT=true NUM_TARGET_VALIDATORS=1 TARGET_QPS=2000"
+  # slow-owned: same heavy compute (slow::slow(500,500)) but SLOW_SHARED=false, so
+  # the tx is owned-object-only — no shared-object congestion. Isolates attestation
+  # dry-run cost on expensive txs, with no congestion-control confound.
+  "slow-owned-fn-200|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=false TARGET_QPS=200"
+  "slow-owned-pin-200|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=true NUM_TARGET_VALIDATORS=1 TARGET_QPS=200"
+  "slow-owned-fn-1000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=false TARGET_QPS=1000"
+  "slow-owned-pin-1000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=true NUM_TARGET_VALIDATORS=1 TARGET_QPS=1000"
+  "slow-owned-fn-2000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=false TARGET_QPS=2000"
+  "slow-owned-pin-2000|WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false DIRECT=true NUM_TARGET_VALIDATORS=1 TARGET_QPS=2000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
