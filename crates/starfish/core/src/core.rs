@@ -2808,69 +2808,17 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]);
 
-        // Now iterate over a few rounds and ensure the corresponding signals are
-        // created while network advances
+        // Advance the gossip network round by round; `gossip_one_round` asserts
+        // each round is healthy and fully connected.
         let mut last_round_block_headers = Vec::new();
         for round in 1..=30 {
-            let mut this_round_block_headers = Vec::new();
-
-            // Wait for min block delay to allow blocks to be proposed.
-            sleep(default_params.min_block_delay).await;
-
-            for core_fixture in &mut cores {
-                // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be
-                // emitted
-                core_fixture
-                    .core
-                    .add_block_headers(last_round_block_headers.clone(), DataSource::Test)
-                    .unwrap();
-
-                // A "new round" signal should be received given that all the blocks of previous
-                // round have been processed
-                let new_round = receive(
-                    Duration::from_secs(1),
-                    core_fixture.signal_receivers.new_round_receiver(),
-                )
-                .await;
-                assert_eq!(new_round, round);
-
-                // Check that a new block has been proposed.
-                let verified_block = tokio::time::timeout(
-                    Duration::from_secs(1),
-                    core_fixture.block_receiver.recv(),
-                )
-                .await
-                .unwrap()
-                .unwrap();
-                assert_eq!(verified_block.round(), round);
-                assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
-
-                // append the new block to this round blocks
-                this_round_block_headers
-                    .push(core_fixture.core.last_proposed_block_header().clone());
-
-                let block_header = core_fixture.core.last_proposed_block_header();
-
-                // ensure that produced block is referring to the blocks of last_round
-                assert_eq!(
-                    block_header.ancestors().len(),
-                    core_fixture.core.context.committee.size()
-                );
-                for ancestor in block_header.ancestors() {
-                    if block_header.round() > 1 {
-                        // don't bother with round 1 block which just contains the genesis blocks.
-                        assert!(
-                            last_round_block_headers
-                                .iter()
-                                .any(|block_header| block_header.reference() == *ancestor),
-                            "Reference from previous round should be added"
-                        );
-                    }
-                }
-            }
-
-            last_round_block_headers = this_round_block_headers;
+            last_round_block_headers = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_block_headers,
+                default_params.min_block_delay,
+            )
+            .await;
         }
 
         for core_fixture in cores {
