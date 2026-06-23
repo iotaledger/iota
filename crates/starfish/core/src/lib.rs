@@ -29,6 +29,7 @@ mod misbehavior_store;
 mod network;
 #[cfg(msim)]
 pub mod network;
+mod sliding_window_schedule;
 
 mod header_synchronizer;
 mod stake_aggregator;
