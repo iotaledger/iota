@@ -17,6 +17,15 @@ use smallvec::smallvec;
 
 use crate::{get_extension, object_runtime::ObjectRuntime};
 
+/// Abort code returned when the parameter name is not valid UTF-8.
+const E_INVALID_UTF8_PARAM_NAME: u64 = 0;
+/// Abort code returned when the parameter is absent in the current protocol
+/// version.
+const E_PARAM_NOT_FOUND: u64 = 1;
+/// Abort code returned when the requested Move type does not match the actual
+/// parameter type stored in the protocol config.
+const E_TYPE_MISMATCH: u64 = 2;
+
 /// ****************************************************************************
 /// ********************* native fun is_feature_enabled
 ///
@@ -69,15 +78,6 @@ pub fn is_feature_enabled(
         smallvec![Value::bool(is_enabled)],
     ))
 }
-
-/// Abort code returned when the parameter name is not valid UTF-8.
-const E_INVALID_UTF8_PARAM_NAME: u64 = 0;
-/// Abort code returned when the parameter is absent in the current protocol
-/// version.
-const E_PARAM_NOT_FOUND: u64 = 1;
-/// Abort code returned when the requested Move type does not match the actual
-/// parameter type stored in the protocol config.
-const E_TYPE_MISMATCH: u64 = 2;
 
 /// ****************************************************************************
 /// ********************* native fun get_attr
