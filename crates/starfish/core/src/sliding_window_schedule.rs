@@ -13,6 +13,21 @@
 //! [`ReputationScores`] — the same type the V2 `LeaderSwapTable` is built from.
 //! The sliding window is an alternative *score source* for the existing swap
 //! table; it does not select leaders itself.
+//!
+//! # Intended usage
+//!
+//! This scorer is not yet wired into the leader schedule (hence the
+//! `expect(dead_code)` below). Once wired, the leader schedule feeds each
+//! committed subdag to [`SlidingWindowSchedule::add_commit`] in consecutive
+//! index order and rebuilds the `LeaderSwapTable` from
+//! [`SlidingWindowSchedule::reputation_scores`] at its usual cadence.
+//!
+//! On a restart or fast-sync the in-memory window starts empty and is rebuilt
+//! from storage: [`SlidingWindowSchedule::replay_start`] gives the earliest
+//! commit index to replay, and the committed subdags from that index up to the
+//! last persisted commit are fed back through
+//! [`SlidingWindowSchedule::add_commit`] to repopulate the window before any
+//! scores are read.
 
 #![cfg_attr(
     not(test),
