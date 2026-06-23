@@ -5,8 +5,8 @@
 # Enhanced split-cluster test that specifically triggers and tests Synchronizer and CommitSyncer
 #
 # This script runs a cluster with 3 validators built at the release commit and 1 validator
-# built at the candidate commit. The candidate validator is started late (after 3 minutes)
-# to trigger synchronization components.
+# built at the candidate commit. The candidate validator is started late (once the
+# initial quorum has built up a commit backlog) to trigger synchronization components.
 #
 # Usage:
 #
@@ -16,7 +16,7 @@
 # every time. If you omit WORKING_DIR, a temp dir will be created and used.
 #
 # Test scenario:
-# - Staggered node startup: candidate node started 3 minutes late to accumulate enough rounds for synchronization
+# - Staggered node startup: candidate node started late, once the initial quorum has accumulated enough rounds for synchronization
 
 # first arg is the released commit, defaults to `origin/mainnet`
 RELEASE_COMMIT=${1:-origin/mainnet}
@@ -143,6 +143,45 @@ sum_metric_values() {
 # Track failures
 FAILURES=()
 
+POLL_INTERVAL=${POLL_INTERVAL:-5}
+# Fixed warmup so node-0..2 build a large enough commit backlog that the
+# late-joining node-3 must use the Synchronizer/CommitSyncer to catch up. A
+# small backlog is caught up through live consensus and exercises neither, which
+# is exactly what this test verifies — so this stays a fixed duration rather
+# than an "until N commits" poll. Liveness is still polled to fail fast on an
+# early crash.
+WARMUP_SECS=${WARMUP_SECS:-180}
+# Poll (rather than a fixed sleep) for the late joiner to catch up past the
+# baseline: that wait is an observable condition, and a fixed sleep there was
+# simultaneously wasteful on a fast runner and too short on a loaded one.
+CATCHUP_MAX_WAIT=${CATCHUP_MAX_WAIT:-180}
+
+# Echo "<name> (pid <pid>)" of the first dead node among the given name/pid
+# pairs and return 0; return 1 if all are alive.
+first_dead_node() {
+  while [ "$#" -ge 2 ]; do
+    if ! kill -0 "$2" 2>/dev/null; then
+      echo "$1 (pid $2)"
+      return 0
+    fi
+    shift 2
+  done
+  return 1
+}
+
+# Dump the tail of every node log for triage on failure. node-0..2 and the
+# fullnode run the release binary; node-3 is the candidate.
+dump_log_tails() {
+  local entry name version
+  echo "===== LOG TAILS (last 50 lines) ====="
+  for entry in node-0:release node-1:release node-2:release node-3:candidate fullnode:release; do
+    name="${entry%%:*}"
+    version="${entry##*:}"
+    echo "----- $name.log ($version) -----"
+    tail -n 50 "$LOG_DIR/$name.log" 2>/dev/null
+  done
+}
+
 echo "=== Phase 1: Initial Quorum Startup (3 release nodes) ==="
 echo "Starting nodes 0-2 with release binary to establish quorum..."
 
@@ -164,13 +203,24 @@ echo "Started node-2 (release) with PID ${NODE_PIDS[2]}"
 FULLNODE_PID=$!
 echo "Started fullnode with PID $FULLNODE_PID"
 
-echo "Waiting 3 minutes (180 seconds) for initial quorum to accumulate rounds..."
-sleep 180
+echo "Building a commit backlog for ${WARMUP_SECS}s before starting node-3..."
+SECONDS=0
+while [ "$SECONDS" -lt "$WARMUP_SECS" ]; do
+  if dead=$(first_dead_node "node-0 (release)" "${NODE_PIDS[0]}" "node-1 (release)" "${NODE_PIDS[1]}" "node-2 (release)" "${NODE_PIDS[2]}" "fullnode (release)" "$FULLNODE_PID"); then
+    echo "ERROR: $dead exited early during warmup after ${SECONDS}s"
+    dump_log_tails
+    exit 1
+  fi
+  sleep "$POLL_INTERVAL"
+done
 
-# Capture initial metrics from node-0
+# Capture the baseline commit index that node-3 will have to catch up past.
 get_metrics "${CONFIGS[0]}" "$METRICS_DIR/node-0-before-node3.txt"
 INITIAL_COMMIT_INDEX=$(get_metric_value "$METRICS_DIR/node-0-before-node3.txt" "consensus_last_commit_index")
-echo "Initial commit index on node-0: $INITIAL_COMMIT_INDEX"
+echo "Initial commit index on node-0: $INITIAL_COMMIT_INDEX (after ${WARMUP_SECS}s)"
+if [ "$INITIAL_COMMIT_INDEX" -le 0 ]; then
+  FAILURES+=("FAIL: initial quorum produced no commits in ${WARMUP_SECS}s")
+fi
 
 echo "Consensus protocol: Starfish"
 
@@ -182,12 +232,29 @@ echo "Starting node-3 (candidate) - should trigger synchronization to catch up..
 NODE_PIDS[3]=$!
 echo "Started node-3 (candidate) with PID ${NODE_PIDS[3]}"
 
-echo "Waiting 60 seconds for node-3 to catch up..."
-sleep 60
-
-# Capture metrics after node-3 joined and perform checks
 echo -e "\n=== Checking Node-3 After Initial Sync ==="
-get_metrics "${CONFIGS[3]}" "$METRICS_DIR/node-3-after-join.txt"
+echo "Waiting for node-3 to catch up past commit index $INITIAL_COMMIT_INDEX (up to ${CATCHUP_MAX_WAIT}s)..."
+SECONDS=0
+NODE3_COMMIT_AFTER_JOIN=0
+caught_up=0
+while true; do
+  get_metrics "${CONFIGS[3]}" "$METRICS_DIR/node-3-after-join.txt"
+  NODE3_COMMIT_AFTER_JOIN=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_last_commit_index")
+  if [ "$NODE3_COMMIT_AFTER_JOIN" -gt "$INITIAL_COMMIT_INDEX" ]; then
+    caught_up=1
+    break
+  fi
+  if dead=$(first_dead_node "node-0 (release)" "${NODE_PIDS[0]}" "node-1 (release)" "${NODE_PIDS[1]}" "node-2 (release)" "${NODE_PIDS[2]}" "node-3 (candidate)" "${NODE_PIDS[3]}" "fullnode (release)" "$FULLNODE_PID"); then
+    echo "ERROR: $dead exited early during catch-up after ${SECONDS}s"
+    dump_log_tails
+    exit 1
+  fi
+  # Stop once the deadline passes, but only after the check above so a catch-up
+  # that first happens during the final poll interval is not missed.
+  if [ "$SECONDS" -ge "$CATCHUP_MAX_WAIT" ]; then break; fi
+  sleep "$POLL_INTERVAL"
+done
+echo "node-3 commit index after ${SECONDS}s: $NODE3_COMMIT_AFTER_JOIN"
 
 # Debug: Check if metrics file exists and has content
 if [ ! -s "$METRICS_DIR/node-3-after-join.txt" ]; then
@@ -212,8 +279,8 @@ echo "  commit_sync_total_fetched_transactions_size: $NODE3_COMMIT_SYNC_TXN_SIZE
 echo "  transaction_synchronizer_fetched_transactions_by_peer (sum): $NODE3_TXN_SYNC"
 
 # Check 1: Node-3 caught up past initial commit index
-if [ "$NODE3_COMMIT_AFTER_JOIN" -le "$INITIAL_COMMIT_INDEX" ]; then
-  FAILURES+=("FAIL: Node-3 did not catch up after late start (node-3: $NODE3_COMMIT_AFTER_JOIN, initial node-0: $INITIAL_COMMIT_INDEX)")
+if [ "$caught_up" -ne 1 ]; then
+  FAILURES+=("FAIL: Node-3 did not catch up after late start within ${CATCHUP_MAX_WAIT}s (node-3: $NODE3_COMMIT_AFTER_JOIN, initial node-0: $INITIAL_COMMIT_INDEX)")
 else
   echo "✓ Node-3 caught up past initial commit index"
 fi
@@ -269,7 +336,7 @@ if [ ${#FAILURES[@]} -eq 0 ]; then
   echo ""
   echo "Successfully verified:"
   echo "  - Split-cluster with 3 release + 1 candidate node (consensus: Starfish)"
-  echo "  - Candidate node synchronized after late start (3 minute delay):"
+  echo "  - Candidate node synchronized after late start (joined once a commit backlog had built up):"
   echo "    • Header Synchronizer: fetched $NODE3_HEADER_SYNC block headers"
   echo "    • Commit Syncer: fetched $NODE3_COMMIT_SYNC commits ($NODE3_COMMIT_SYNC_TXN_SIZE bytes txn, txn_sync: $NODE3_TXN_SYNC transactions)"
   echo "    • Caught up from commit $INITIAL_COMMIT_INDEX to $NODE3_COMMIT_AFTER_JOIN"
