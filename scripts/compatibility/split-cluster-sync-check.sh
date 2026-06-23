@@ -159,16 +159,11 @@ sum_metric_values() {
 FAILURES=()
 
 POLL_INTERVAL=${POLL_INTERVAL:-5}
-# Fixed warmup so node-0..2 build a large enough commit backlog that the
-# late-joining node-3 must use the Synchronizer/CommitSyncer to catch up. A
-# small backlog is caught up through live consensus and exercises neither, which
-# is exactly what this test verifies — so this stays a fixed duration rather
-# than an "until N commits" poll. Liveness is still polled to fail fast on an
-# early crash.
+# node-0..2 warm up for this long to build a commit backlog large enough that
+# node-3 must use the Synchronizer/CommitSyncer to catch up; with a small backlog
+# node-3 catches up through live consensus and exercises neither.
 WARMUP_SECS=${WARMUP_SECS:-180}
-# Poll (rather than a fixed sleep) for the late joiner to catch up past the
-# baseline: that wait is an observable condition, and a fixed sleep there was
-# simultaneously wasteful on a fast runner and too short on a loaded one.
+# Upper bound on the poll for node-3 to catch up past the baseline commit index.
 CATCHUP_MAX_WAIT=${CATCHUP_MAX_WAIT:-180}
 
 # Echo "<name> (<version>, pid <pid>)" of the first dead node among those

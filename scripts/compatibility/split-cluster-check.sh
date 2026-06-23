@@ -142,11 +142,9 @@ dump_diagnostics() {
   done
 }
 
-# Poll for the fullnode to finish reconfiguration rather than waiting a fixed
-# 60s: with a 20s epoch the marker normally appears within a minute, but
-# boot + DKG + end-of-epoch checkpoint + fullnode sync can take longer under CI
-# load, which is the source of the historical flake. Polling keeps the
-# slow-but-correct case green while still bounding the wait.
+# Upper bound on the poll for the fullnode to finish reconfiguration. With a 20s
+# epoch the marker normally appears within a minute, but boot + DKG +
+# end-of-epoch checkpoint + fullnode sync can take longer under CI load.
 MAX_WAIT=${MAX_WAIT:-180}
 POLL_INTERVAL=${POLL_INTERVAL:-5}
 RECONFIG_MARKER="Node State has been reconfigured"
@@ -160,7 +158,7 @@ while true; do
     reconfigured=1
     break
   fi
-  # Fail fast if any node died rather than burning the whole timeout.
+  # Fail fast if any node died.
   for i in "${!NODE_NAMES[@]}"; do
     if ! kill -0 "${NODE_PIDS[$i]}" 2>/dev/null; then
       echo "ERROR: ${NODE_NAMES[$i]} exited early after ${SECONDS}s"
@@ -180,10 +178,9 @@ if [ "$reconfigured" -ne 1 ]; then
   exit 1
 fi
 
-# Ensure the random beacon's DKG completes on both versions. node-0 (release)
-# and node-2 (candidate) are each checked for both markers (2 nodes x 2 markers
-# = 4 checks, same coverage as before). Report every missing marker before
-# failing so one run shows the full picture.
+# Ensure the random beacon's DKG completes on both versions: node-0 (release)
+# and node-2 (candidate) are each checked for both markers. Report every missing
+# marker before failing so one run shows the full picture.
 dkg_ok=1
 for node in node-0 node-2; do
   for marker in "random beacon: created" "random beacon: DKG complete"; do
