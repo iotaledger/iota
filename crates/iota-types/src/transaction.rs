@@ -36,7 +36,8 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
@@ -71,6 +72,11 @@ pub const GAS_PRICE_FOR_SYSTEM_TX: u64 = 1;
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 
 const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
+
+/// `0x2::smart_account` module name.
+const SMART_ACCOUNT_MODULE_NAME: &str = "smart_account";
+/// `0x2::smart_account::build_v1` function name.
+const SMART_ACCOUNT_BUILD_V1_FUNCTION_NAME: &str = "build_v1";
 
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
@@ -581,6 +587,7 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
+    fn calls_smart_account_build_v1(&self) -> bool;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
 
@@ -693,6 +700,18 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             .collect()
     }
 
+    fn calls_smart_account_build_v1(&self) -> bool {
+        self.commands.iter().any(|command| {
+            matches!(
+                command,
+                Command::MoveCall(m)
+                    if m.package == IOTA_FRAMEWORK_PACKAGE_ID
+                        && m.module.as_str() == SMART_ACCOUNT_MODULE_NAME
+                        && m.function.as_str() == SMART_ACCOUNT_BUILD_V1_FUNCTION_NAME
+            )
+        })
+    }
+
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> {
         self.commands
             .iter()
@@ -741,6 +760,9 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
+    /// Returns `true` if this transaction is programmable and contains a Move
+    /// call to `0x2::smart_account::build_v1`.
+    fn calls_smart_account_build_v1(&self) -> bool;
     /// Returns the objects received by this transaction.
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     /// Return the metadata of each of the input objects for the transaction.
@@ -819,6 +841,13 @@ impl TransactionKindExt for TransactionKind {
         match &self {
             Self::Programmable(pt) => pt.move_calls(),
             _ => vec![],
+        }
+    }
+
+    fn calls_smart_account_build_v1(&self) -> bool {
+        match &self {
+            Self::Programmable(pt) => pt.calls_smart_account_build_v1(),
+            _ => false,
         }
     }
 
@@ -1008,6 +1037,10 @@ pub trait TransactionDataAPI {
     /// Returns a list of Move calls as `(package_id, module_name,
     /// function_name)` tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
+
+    /// Returns `true` if any command is a Move call to
+    /// `0x2::smart_account::build_v1`.
+    fn calls_smart_account_build_v1(&self) -> bool;
 
     /// Returns all input objects required by this transaction.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
@@ -1330,6 +1363,10 @@ impl TransactionDataAPI for TransactionData {
 
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         self.kind().move_calls()
+    }
+
+    fn calls_smart_account_build_v1(&self) -> bool {
+        self.kind().calls_smart_account_build_v1()
     }
 
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {

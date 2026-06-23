@@ -1322,6 +1322,7 @@
                 "dependency_linkage_error": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "enable_account_claim_conflict_invalidation": false,
                 "enable_builtin_move_authenticators": false,
                 "enable_claim_registry": false,
                 "enable_group_ops_native_function_msm": true,

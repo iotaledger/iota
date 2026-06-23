@@ -518,6 +518,14 @@ pub enum IotaError {
         pending_transaction: TransactionDigest,
     },
     #[error(
+        "Transaction invalidated: sender or sponsor {address} has a concurrent account-claim \
+         (0x2::smart_account::build_v1) transaction {claiming_transaction} in the same consensus commit"
+    )]
+    AccountClaimConflict {
+        address: Address,
+        claiming_transaction: TransactionDigest,
+    },
+    #[error(
         "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
     )]
     ObjectLockedAtFutureEpoch {
@@ -859,6 +867,11 @@ impl IotaError {
             // Transient consensus failure — other validators likely unaffected
             IotaError::FailedToSubmitToConsensus(..) => true,
 
+            // Set aside for this commit due to a concurrent account claim;
+            // resubmitting in a later commit can succeed once the account
+            // state has settled.
+            IotaError::AccountClaimConflict { .. } => true,
+
             // Non retryable error
             IotaError::Execution(..) => false,
             IotaError::ByzantineAuthoritySuspicion { .. } => false,
@@ -958,6 +971,8 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         | IotaError::TransactionExpired => ErrorCategory::InvalidTransaction,
 
         IotaError::ObjectLockConflict { .. } => ErrorCategory::LockConflict,
+
+        IotaError::AccountClaimConflict { .. } => ErrorCategory::Aborted,
 
         IotaError::TooManyTransactionsPendingExecution { .. }
         | IotaError::TooManyTransactionsPendingOnObject { .. }
