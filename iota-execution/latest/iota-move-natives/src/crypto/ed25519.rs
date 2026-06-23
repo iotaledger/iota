@@ -8,8 +8,8 @@ use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
     traits::{ToFromBytes, VerifyingKey},
 };
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
@@ -100,7 +100,7 @@ pub fn ed25519_verify(
 
 #[derive(Clone)]
 pub struct Ed25519ValidatePubkeyCostParams {
-    pub ed25519_ed25519_validate_pubkey_cost_base: InternalGas,
+    pub ed25519_ed25519_validate_pubkey_cost_base: Option<InternalGas>,
 }
 /// Implementation of the Move native function
 /// `ed25519::ed25519_validate_pubkey(public_key: &vector<u8>): bool`
@@ -123,7 +123,11 @@ pub fn ed25519_validate_pubkey(
         .extensions()
         .get::<NativesCostTable>()?
         .ed25519_validate_pubkey_cost_params
-        .ed25519_ed25519_validate_pubkey_cost_base;
+        .ed25519_ed25519_validate_pubkey_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for ed25519_validate_pubkey not available".to_string())
+        })?;
     native_charge_gas_early_exit!(context, cost_base);
 
     let public_key_bytes = pop_arg!(args, VectorRef);

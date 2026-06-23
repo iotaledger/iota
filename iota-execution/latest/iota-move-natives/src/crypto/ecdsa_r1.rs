@@ -12,8 +12,8 @@ use fastcrypto::{
     },
     traits::{RecoverableSignature, ToFromBytes},
 };
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
@@ -274,7 +274,7 @@ pub fn secp256r1_verify(
 
 #[derive(Clone)]
 pub struct EcdsaR1Secp256r1ValidatePubkeyCostParams {
-    pub ecdsa_r1_secp256r1_validate_pubkey_cost_base: InternalGas,
+    pub ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<InternalGas>,
 }
 
 /// Implementation of the Move native function
@@ -297,7 +297,11 @@ pub fn secp256r1_validate_pubkey(
         .extensions()
         .get::<NativesCostTable>()?
         .ecdsa_r1_secp256r1_validate_pubkey_cost_params
-        .ecdsa_r1_secp256r1_validate_pubkey_cost_base;
+        .ecdsa_r1_secp256r1_validate_pubkey_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for secp256r1_validate_pubkey not available".to_string())
+        })?;
     native_charge_gas_early_exit!(context, cost_base);
 
     let pubkey = pop_arg!(args, VectorRef);

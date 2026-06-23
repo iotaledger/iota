@@ -362,8 +362,8 @@ impl NativesCostTable {
             // ed25519_validate_pubkey
             ed25519_validate_pubkey_cost_params: Ed25519ValidatePubkeyCostParams {
                 ed25519_ed25519_validate_pubkey_cost_base: protocol_config
-                    .ed25519_ed25519_validate_pubkey_cost_base()
-                    .into(),
+                    .ed25519_ed25519_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
             },
             // hash
             hash_blake2b256_cost_params: HashBlake2b256CostParams {
@@ -596,8 +596,8 @@ impl NativesCostTable {
             ecdsa_k1_secp256k1_validate_pubkey_cost_params:
                 EcdsaK1Secp256k1ValidatePubkeyCostParams {
                     ecdsa_k1_secp256k1_validate_pubkey_cost_base: protocol_config
-                        .ecdsa_k1_secp256k1_validate_pubkey_cost_base()
-                        .into(),
+                        .ecdsa_k1_secp256k1_validate_pubkey_cost_base_as_option()
+                        .map(Into::into),
                 },
             ecdsa_k1_secp256k1_verify_cost_params: EcdsaK1Secp256k1VerifyCostParams {
                 ecdsa_k1_secp256k1_verify_keccak256_cost_base: protocol_config
@@ -642,8 +642,8 @@ impl NativesCostTable {
             ecdsa_r1_secp256r1_validate_pubkey_cost_params:
                 EcdsaR1Secp256r1ValidatePubkeyCostParams {
                     ecdsa_r1_secp256r1_validate_pubkey_cost_base: protocol_config
-                        .ecdsa_r1_secp256r1_validate_pubkey_cost_base()
-                        .into(),
+                        .ecdsa_r1_secp256r1_validate_pubkey_cost_base_as_option()
+                        .map(Into::into),
                 },
             ecdsa_r1_secp256_r1_verify_cost_params: EcdsaR1Secp256R1VerifyCostParams {
                 ecdsa_r1_secp256r1_verify_keccak256_cost_base: protocol_config
