@@ -877,6 +877,14 @@ impl IotaNode {
         expected_chain_id: ChainIdentifier,
         enforce: bool,
     ) -> anyhow::Result<()> {
+        // On a node with unpruned history back to genesis (e.g. freshly
+        // upgraded onto this feature), rebuild the whole closed-epoch chain
+        // from local checkpoints, so a snapshot backfill is only needed when
+        // history is actually pruned.
+        checkpoint_store
+            .backfill_epoch_info_from_local_history(authority_store)
+            .map_err(|e| anyhow::anyhow!("rebuilding epoch_info from local history: {e}"))?;
+
         // No-op if present. Without the open row, the next executed boundary
         // can't finalize it and the completeness watermark wedges below it.
         checkpoint_store
@@ -968,7 +976,7 @@ impl IotaNode {
         // residual gap as pruning allows by replaying the missing epochs'
         // closing checkpoints.
         checkpoint_store
-            .index_missing_epochs_locally(authority_store)
+            .backfill_epoch_info_from_local_history(authority_store)
             .map_err(|e| anyhow::anyhow!("indexing missing epochs locally: {e}"))?;
 
         // With the closed-epoch rows seeded, re-seed the current (open) epoch

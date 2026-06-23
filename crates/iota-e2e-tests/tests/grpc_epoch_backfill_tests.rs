@@ -493,9 +493,9 @@ async fn epoch_info_verifies_safe_mode_boundary() {
 
 /// When a snapshot backfill seeds a prefix that ends below the locally executed
 /// epochs (the published snapshot lags by more than one epoch),
-/// `index_missing_epochs_locally` closes the residual gap from the missing
-/// epochs' own closing checkpoints — and creates the open epoch's row along the
-/// way.
+/// `backfill_epoch_info_from_local_history` closes the residual gap from the
+/// missing epochs' own closing checkpoints — and creates the open epoch's row
+/// along the way.
 #[sim_test]
 async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
     // Pruning disabled so the closing checkpoints' data is still available
@@ -549,7 +549,7 @@ async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
     );
 
     staged
-        .index_missing_epochs_locally(&authority_store)
+        .backfill_epoch_info_from_local_history(&authority_store)
         .unwrap();
 
     assert_eq!(

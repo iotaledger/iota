@@ -140,18 +140,23 @@ impl CheckpointStore {
         Ok(())
     }
 
-    /// Index locally any closed epochs still missing above the
-    /// `epoch_info_indexed_watermark`, by replaying their closing checkpoints
-    /// from local data.
+    /// Rebuild the closed-epoch `epoch_info` chain from local checkpoints,
+    /// replaying each missing epoch's closing checkpoint above the finalized
+    /// prefix. With no finalized prefix it starts from genesis, seeding epoch
+    /// 0's row from the genesis checkpoint first (the only place epoch 0's
+    /// start state exists).
     ///
-    /// Only needed when the latest published formal snapshot lags this node's
-    /// executed history by more than one epoch (a delayed snapshot pipeline):
-    /// the backfill then seeds a prefix that ends below the locally executed
-    /// epochs, and the rows in between can only come from their own closing
-    /// checkpoints. Best-effort: stops at the first epoch whose checkpoint data
-    /// is already pruned, leaving the rest to a newer snapshot. Must not run
+    /// Two callers rely on this:
+    /// - At startup, a node with unpruned history back to genesis rebuilds its
+    ///   whole chain locally, so a snapshot backfill is only needed when
+    ///   history is actually pruned.
+    /// - After a snapshot backfill that lags this node's executed history, it
+    ///   closes the residual gap above the seeded prefix.
+    ///
+    /// Best-effort: stops at the first epoch (or genesis) whose checkpoint data
+    /// is already pruned, leaving the rest to a snapshot. Must not run
     /// concurrently with live indexing, like [`Self::insert_epoch_info`].
-    pub fn index_missing_epochs_locally(
+    pub fn backfill_epoch_info_from_local_history(
         &self,
         authority_store: &AuthorityStore,
     ) -> Result<(), StorageError> {
@@ -161,43 +166,35 @@ impl CheckpointStore {
         else {
             return Ok(()); // no closed epoch yet
         };
-        let Some(highest_indexed) = self.highest_indexed_epoch()? else {
-            // Without a seeded prefix the replay would start at genesis, which
-            // backfill-dependent nodes don't have; live indexing covers the rest.
-            return Ok(());
-        };
-        if highest_indexed >= last_executed {
-            return Ok(());
+        let highest_indexed = self.highest_indexed_epoch()?;
+        if highest_indexed.is_some_and(|highest| highest >= last_executed) {
+            return Ok(()); // chain already complete
         }
 
-        // Replay the closing checkpoints of epochs `[highest_indexed,
-        // last_executed]` in order: the first one re-finalizes the already
-        // complete prefix end and creates the next epoch's row (an epoch's
-        // start state only exists in the previous epoch's closing checkpoint),
-        // each subsequent one finalizes a missing row and creates the next.
-        for epoch in highest_indexed..=last_executed {
-            // The map is never pruned, but the checkpoint data it points to may
-            // be: missing data ends what we can rebuild locally.
-            let checkpoint_data = (|| -> Result<Option<CheckpointData>, StorageError> {
-                let Some(seq) = self.get_epoch_last_checkpoint_seq_number(epoch)? else {
-                    return Ok(None);
-                };
-                let Some(summary) = self.get_checkpoint_by_sequence_number(seq)? else {
-                    return Ok(None);
-                };
-                let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
-                    return Ok(None);
-                };
-                match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
-                    Ok(data) => Ok(Some(data)),
-                    // Pruned-away transactions/effects/objects are the expected
-                    // end of what can be rebuilt locally; anything else is a
-                    // real storage failure and must propagate.
-                    Err(e) if e.kind() == StorageErrorKind::Missing => Ok(None),
-                    Err(e) => Err(e),
+        // Where the replay starts. With a finalized prefix, resume at the
+        // watermark (its row exists). Otherwise start at genesis, which first
+        // needs epoch 0's row seeded from the genesis checkpoint before its
+        // close can be finalized; if genesis data is pruned, nothing local can
+        // seed the prefix and only a snapshot backfill can fill the chain.
+        let start_epoch = match highest_indexed {
+            Some(highest) => highest,
+            None => {
+                if !self.try_seed_genesis_epoch(authority_store)? {
+                    return Ok(());
                 }
-            })()?;
-            let Some(checkpoint_data) = checkpoint_data else {
+                0
+            }
+        };
+
+        // Replay the closing checkpoints of epochs `[start_epoch,
+        // last_executed]` in order: the first re-finalizes the prefix end (or,
+        // from genesis, finalizes the just-seeded epoch 0) and creates the next
+        // epoch's row (an epoch's start state only exists in the previous
+        // epoch's closing checkpoint), each subsequent one finalizes a missing
+        // row and creates the next.
+        for epoch in start_epoch..=last_executed {
+            let Some(checkpoint_data) = self.assemble_closing_checkpoint(authority_store, epoch)?
+            else {
                 warn!(
                     epoch,
                     "cannot index epoch locally (its closing checkpoint's data is pruned); \
@@ -208,11 +205,64 @@ impl CheckpointStore {
 
             self.index_epoch_boundary(&checkpoint_data)?;
         }
-        info!(
-            "locally indexed epochs ({highest_indexed}, {last_executed}] not covered by the \
-             snapshot backfill"
-        );
+        info!("rebuilt the local epoch_info chain through epoch {last_executed}");
         Ok(())
+    }
+
+    /// Assemble the full data of `epoch`'s closing checkpoint from local
+    /// stores, or `None` when any of it (the summary, contents, or the
+    /// underlying transactions/effects/objects) has been pruned.
+    fn assemble_closing_checkpoint(
+        &self,
+        authority_store: &AuthorityStore,
+        epoch: EpochId,
+    ) -> Result<Option<CheckpointData>, StorageError> {
+        // The map is never pruned, but the checkpoint data it points to may be.
+        let Some(seq) = self.get_epoch_last_checkpoint_seq_number(epoch)? else {
+            return Ok(None);
+        };
+        let Some(summary) = self.get_checkpoint_by_sequence_number(seq)? else {
+            return Ok(None);
+        };
+        let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
+            return Ok(None);
+        };
+        match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
+            Ok(data) => Ok(Some(data)),
+            // Pruned-away transactions/effects/objects are the expected end of
+            // what can be rebuilt locally; anything else is a real storage
+            // failure and must propagate.
+            Err(e) if e.kind() == StorageErrorKind::Missing => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Seed epoch 0's row by replaying the genesis checkpoint. Returns whether
+    /// the row is present afterwards (false only when the genesis checkpoint's
+    /// data is unavailable, e.g. pruned).
+    fn try_seed_genesis_epoch(
+        &self,
+        authority_store: &AuthorityStore,
+    ) -> Result<bool, StorageError> {
+        if self.tables.epoch_info.get(&0)?.is_some() {
+            return Ok(true);
+        }
+        let Some(summary) = self.get_checkpoint_by_sequence_number(0)? else {
+            return Ok(false);
+        };
+        let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
+            return Ok(false);
+        };
+        match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
+            Ok(genesis_data) => {
+                self.index_epoch_boundary(&genesis_data)?;
+                Ok(true)
+            }
+            // Pruned genesis data is the expected "nothing to rebuild locally"
+            // case; anything else is a real storage failure and must propagate.
+            Err(e) if e.kind() == StorageErrorKind::Missing => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 
     /// The current epoch's start checkpoint, or `None` when it can't be derived
