@@ -3466,3 +3466,175 @@ enum TransactionFilterKind {
     V1(TransactionFilter),
     V2(TransactionFilterV2),
 }
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroUsize;
+
+    use iota_json_rpc_types::Checkpoint;
+
+    use super::IndexerReader;
+
+    fn dummy_checkpoint(sequence_number: u64) -> Checkpoint {
+        Checkpoint {
+            epoch: 0,
+            sequence_number,
+            digest: Default::default(),
+            network_total_transactions: 0,
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: Default::default(),
+            timestamp_ms: 0,
+            end_of_epoch_data: None,
+            transactions: vec![],
+            checkpoint_commitments: vec![],
+            validator_signature: Default::default(),
+        }
+    }
+
+    /// Wraps `IndexerReader::should_fetch_checkpoints_from_fallback` by passing
+    /// dummy checkpoints with the given sequence numbers.
+    fn should_fetch_checkpoints_from_fallback(
+        cursor: Option<u64>,
+        descending_order: bool,
+        limit: usize,
+        sequence_numbers: &[u64],
+    ) -> bool {
+        let page: Vec<Checkpoint> = sequence_numbers
+            .iter()
+            .copied()
+            .map(dummy_checkpoint)
+            .collect();
+        IndexerReader::should_fetch_checkpoints_from_fallback(
+            cursor,
+            descending_order,
+            NonZeroUsize::new(limit).unwrap(),
+            &page,
+        )
+    }
+
+    #[test]
+    fn descending_full_page_never_falls_back() {
+        // A full descending page reveals nothing about data below it, so the
+        // floor being above genesis must not trigger fallback.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            3,
+            &[100, 99, 98]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(99),
+            true,
+            3,
+            &[98, 97, 96]
+        ));
+    }
+
+    #[test]
+    fn descending_partial_page_falls_back_only_above_genesis() {
+        // Short page whose lowest row is above genesis: data was pruned below.
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            5,
+            &[100, 99, 98]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(99),
+            true,
+            5,
+            &[98, 97, 96]
+        ));
+        // Short page reaching genesis: nothing below, no fallback.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            5,
+            &[2, 1, 0]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(3),
+            true,
+            5,
+            &[2, 1, 0]
+        ));
+    }
+
+    #[test]
+    fn descending_empty_page_decided_by_cursor() {
+        // No cursor, or a cursor above genesis, may have pruned data below.
+        assert!(should_fetch_checkpoints_from_fallback(None, true, 3, &[]));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(10),
+            true,
+            3,
+            &[]
+        ));
+        // A cursor at genesis has nothing below it to fetch.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(0),
+            true,
+            3,
+            &[]
+        ));
+    }
+
+    #[test]
+    fn ascending_falls_back_only_on_gap_from_expected_start() {
+        // Contiguous from the expected start (genesis or cursor + 1).
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            3,
+            &[0, 1, 2]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            5,
+            &[0, 1, 2]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(95),
+            false,
+            3,
+            &[96, 97, 98]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(95),
+            false,
+            5,
+            &[96, 97]
+        ));
+        // First row past the expected start, implying pruned data.
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            3,
+            &[50, 51, 52]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            5,
+            &[50, 51, 52]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(10),
+            false,
+            5,
+            &[50, 51]
+        ));
+    }
+
+    #[test]
+    fn ascending_empty_page_does_not_fall_back() {
+        assert!(!should_fetch_checkpoints_from_fallback(None, false, 3, &[]));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(5),
+            false,
+            3,
+            &[]
+        ));
+    }
+}
