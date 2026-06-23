@@ -9,7 +9,7 @@
 //! are registered.
 //!
 //! Filter syntax: comma-separated `pattern=on|off` directives, last-match
-//! wins.  A bare `off` or `on` sets the global default.  A pattern matches if
+//! wins. A bare `off` or `on` sets the global default. A pattern matches if
 //! it is a prefix of the metric name OR is a component/prefix of the calling
 //! module path (e.g. `traffic_controller` matches
 //! `iota_core::traffic_controller::metrics`).
@@ -464,7 +464,7 @@ struct FilterDirective {
 /// Parses and evaluates `METRICS_FILTER`-style directives.
 ///
 /// Filter string: comma-separated `pattern=on|off`. Bare `on`/`off` is a
-/// global default.  A pattern matches if it is a prefix of the metric name OR
+/// global default. A pattern matches if it is a prefix of the metric name OR
 /// is a component/prefix of the module path (e.g. `traffic_controller` matches
 /// `iota_core::traffic_controller::metrics`).
 #[derive(Default)]
@@ -624,7 +624,7 @@ pub fn default_filter() -> &'static Arc<Filter> {
 }
 
 /// Returns a reference to the global default `Registry`, wrapping the
-/// underlying `prometheus::default_registry()`.  Metrics registered here
+/// underlying `prometheus::default_registry()`. Metrics registered here
 /// appear in the standard prometheus default gather output.
 pub fn default_registry() -> &'static Registry {
     use std::sync::OnceLock;
@@ -642,7 +642,7 @@ pub fn default_registry() -> &'static Registry {
 // Each macro captures `module_path!()` at the call site so the filter can
 // match by subsystem in addition to metric name.
 //
-// The `$registry` must be a `prometheus_filtered::Registry`.  On success the
+// The `$registry` must be a `prometheus_filtered::Registry`. On success the
 // macro always returns `Ok(WrappedType(Some(...)))` or `Ok(WrappedType(None))`
 // — never `Err` from the filtering logic itself.
 //
@@ -839,7 +839,7 @@ macro_rules! register_gauge_with_registry {
     }};
 }
 
-/// register_counter!(name, help)  — global prometheus registry, filtered.
+/// register_counter!(name, help) - global prometheus registry, filtered.
 #[macro_export]
 macro_rules! register_counter {
     ($name:expr, $help:expr $(,)?) => {{
@@ -855,7 +855,7 @@ macro_rules! register_counter {
     }};
 }
 
-/// register_counter_vec!(name, help, labels)  — global registry, filtered.
+/// register_counter_vec!(name, help, labels) - global registry, filtered.
 #[macro_export]
 macro_rules! register_counter_vec {
     ($name:expr, $help:expr, $labels:expr $(,)?) => {{
