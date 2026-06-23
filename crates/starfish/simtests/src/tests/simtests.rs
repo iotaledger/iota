@@ -82,7 +82,7 @@ mod test {
     /// Verifies commit digest consistency across all running authorities.
     /// Checks that all authorities have identical commit digests for shared
     /// commit indices.
-    async fn verify_commit_consistency(authorities: &[AuthorityNode], network: &str, step: &str) {
+    async fn verify_commit_consistency(authorities: &[AuthorityNode], step: &str) {
         let commit_indices: Vec<u32> = authorities
             .iter()
             .filter(|a| a.is_running())
@@ -110,7 +110,7 @@ mod test {
                 for (auth_idx, digest) in digests.iter().skip(1) {
                     assert_eq!(
                         first_digest, digest,
-                        "[{network}] {step}: Commit {commit_idx} digest mismatch at authority {auth_idx}"
+                        "{step}: Commit {commit_idx} digest mismatch at authority {auth_idx}"
                     );
                 }
             }
@@ -130,14 +130,13 @@ mod test {
     }
 
     async fn run_network_config(
-        network: &str,
         chain: Chain,
         mode: RestartMode,
         long_run: bool,
         long_restart: bool,
     ) {
         let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, chain);
-        run_sequential_restarts_test(network, protocol_config, mode, long_run, long_restart).await;
+        run_sequential_restarts_test(protocol_config, mode, long_run, long_restart).await;
     }
 
     /// Helper function for sequential authority restarts with commit sync
@@ -158,8 +157,6 @@ mod test {
     ///    (some may be lost during restarts when in RAM)
     ///
     /// Parameters:
-    /// - `network`: Label of the network(s) this configuration covers, prefixed
-    ///   onto assertion failures so a failure names the network it came from
     /// - `mode`: Restart mode controlling DB and state persistence
     ///   - `CleanAll`: Fresh empty DB (simulates node replacement)
     ///   - `PersistAll`: Keep DB and state (crash recovery)
@@ -168,7 +165,6 @@ mod test {
     /// - `long_run`: If true, use longer pre-stop and catch-up times
     /// - `long_restart`: If true, use longer stopped duration
     async fn run_sequential_restarts_test(
-        network: &str,
         protocol_config: ProtocolConfig,
         mode: RestartMode,
         long_run: bool,
@@ -311,11 +307,11 @@ mod test {
 
         assert!(
             baseline_commit > MIN_BASELINE_COMMIT,
-            "[{network}] Should have made initial progress: baseline_commit={baseline_commit}, min={MIN_BASELINE_COMMIT}"
+            "Should have made initial progress: baseline_commit={baseline_commit}, min={MIN_BASELINE_COMMIT}"
         );
 
         // Verify consistency after baseline progress
-        verify_commit_consistency(&authorities, network, "after initial progress").await;
+        verify_commit_consistency(&authorities, "after initial progress").await;
 
         // Sequential restart cycles for each authority.
         // CleanAll: restart <1/3 of authorities, keeping a supermajority alive as
@@ -340,7 +336,7 @@ mod test {
                 authorities[authority_idx].stop().await;
                 assert!(
                     !authorities[authority_idx].is_running(),
-                    "[{network}] authority {authority_idx} still running after stop"
+                    "authority {authority_idx} still running after stop"
                 );
 
                 // Wait while stopped (other authorities make progress)
@@ -349,7 +345,6 @@ mod test {
                 // Verify consistency while authority is stopped
                 verify_commit_consistency(
                     &authorities,
-                    network,
                     &format!("authority {authority_idx} cycle {cycle}: during stop"),
                 )
                 .await;
@@ -376,14 +371,13 @@ mod test {
                 if long_run {
                     assert!(
                         incremental_progress >= MIN_INCREMENTAL_COMMIT_PROGRESS,
-                        "[{network}] authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
+                        "authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
                     );
                 }
 
                 // Verify consistency after restart and catch-up
                 verify_commit_consistency(
                     &authorities,
-                    network,
                     &format!("authority {authority_idx} cycle {cycle}: after restart"),
                 )
                 .await;
@@ -407,11 +401,11 @@ mod test {
 
         assert!(
             max_commit - min_commit < MAX_COMMIT_GAP,
-            "[{network}] Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP}"
+            "Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP}"
         );
 
         // Final commit consistency verification
-        verify_commit_consistency(&authorities, network, "final").await;
+        verify_commit_consistency(&authorities, "final").await;
 
         // Verify catch-up via fast sync: all authorities should have caught up after
         // settlement
@@ -424,7 +418,7 @@ mod test {
 
         assert!(
             max_final - min_final <= CATCH_UP_SLACK,
-            "[{network}] After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK})",
+            "After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK})",
             max_final - min_final
         );
 
@@ -442,21 +436,21 @@ mod test {
 
         assert!(
             !committed_sets.is_empty(),
-            "[{network}] No running authorities to verify"
+            "No running authorities to verify"
         );
         // Verify all submitted transactions are in the committed set (submitted ⊆
         // committed)
         for txn in &submitted {
             assert!(
                 committed_sets.iter().any(|set| set.contains(txn)),
-                "[{network}] Submitted transaction not in committed set: {txn:?}"
+                "Submitted transaction not in committed set: {txn:?}"
             );
         }
 
         // Assert minimum submitted transactions
         assert!(
             submitted.len() >= MIN_SUBMITTED_TRANSACTIONS,
-            "[{network}] Too few submitted transactions: {} < {MIN_SUBMITTED_TRANSACTIONS}",
+            "Too few submitted transactions: {} < {MIN_SUBMITTED_TRANSACTIONS}",
             submitted.len()
         );
     }
@@ -474,40 +468,19 @@ mod test {
             $(#[$meta])*
             #[sim_test(config = "test_config()")]
             async fn $devnet_test() {
-                run_network_config(
-                    "devnet",
-                    Chain::Unknown,
-                    $mode,
-                    $long_run,
-                    $long_restart,
-                )
-                .await;
+                run_network_config(Chain::Unknown, $mode, $long_run, $long_restart).await;
             }
 
             $(#[$meta])*
             #[sim_test(config = "test_config()")]
             async fn $testnet_test() {
-                run_network_config(
-                    "testnet",
-                    Chain::Testnet,
-                    $mode,
-                    $long_run,
-                    $long_restart,
-                )
-                .await;
+                run_network_config(Chain::Testnet, $mode, $long_run, $long_restart).await;
             }
 
             $(#[$meta])*
             #[sim_test(config = "test_config()")]
             async fn $mainnet_test() {
-                run_network_config(
-                    "mainnet",
-                    Chain::Mainnet,
-                    $mode,
-                    $long_run,
-                    $long_restart,
-                )
-                .await;
+                run_network_config(Chain::Mainnet, $mode, $long_run, $long_restart).await;
             }
         };
     }
