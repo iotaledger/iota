@@ -779,10 +779,10 @@ impl Store for RocksDBStore {
             .collect()
     }
 
-    fn read_fast_sync_ongoing(&self) -> bool {
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
         self.fast_commit_sync_flag
             .contains_key(&())
-            .unwrap_or(false)
+            .map_err(ConsensusError::RocksDBFailure)
     }
 }
 

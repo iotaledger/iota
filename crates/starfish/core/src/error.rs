@@ -90,10 +90,10 @@ pub(crate) enum ConsensusError {
     )]
     InvalidSizeOfHighestAcceptedRounds(usize, usize),
 
-    #[error("Invalid authority index: {index} > {max}")]
+    #[error("Invalid authority index: {index} >= {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
 
-    #[error("Invalid authority index: {index} > {max} from peer {peer}")]
+    #[error("Invalid authority index: {index} >= {max} from peer {peer}")]
     InvalidAuthorityIndexRequested {
         index: AuthorityIndex,
         max: usize,
