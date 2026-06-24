@@ -43,7 +43,7 @@ mod checked {
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        move_authenticator::MoveAuthenticator,
+        move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
@@ -1981,7 +1981,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            authenticator.type_arguments().clone(),
+            authenticator.type_args().to_vec(),
             args,
         );
 

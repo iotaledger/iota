@@ -1457,23 +1457,6 @@ where
     }
 }
 
-/// Manual [`Signable`] impl for MoveAuthenticator.
-///
-/// `serde_name::trace_name` returns `None` for types that carry
-/// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
-/// We hardcode the tag and serialise via `self.inner` — the same
-/// representation that `AsRef<[u8]>` already uses.
-impl<W> Signable<W> for crate::move_authenticator::MoveAuthenticator
-where
-    W: std::io::Write,
-{
-    fn write(&self, writer: &mut W) {
-        let name = "MoveAuthenticator";
-        write!(writer, "{name}::").expect("Hasher should not fail");
-        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
-    }
-}
-
 impl<W> Signable<W> for EpochId
 where
     W: std::io::Write,

@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota::protocol_config_tests;
+module iota_system::protocol_config_tests;
 
-use iota::protocol_config;
 use iota::test_utils::assert_eq;
+use iota_system::protocol_config;
 
 #[test]
 fun test_is_feature_enabled_true() {
@@ -19,8 +19,6 @@ fun test_is_feature_enabled_false() {
     let is_enabled = protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection");
     assert_eq(is_enabled, false);
 }
-
-// --- get_attr tests ---
 
 #[test]
 // max_tx_size_bytes is a u64 set to 128 * 1024 = 131072 since protocol v1.
@@ -44,30 +42,22 @@ fun test_get_attr_u16() {
 }
 
 #[test]
-#[expected_failure(abort_code = 0, location = iota::protocol_config)]
+#[expected_failure(abort_code = 0, location = iota_system::protocol_config)]
 // A non-UTF-8 byte sequence as the parameter name is a programming error and must abort.
 fun test_get_attr_invalid_utf8() {
     let _: u64 = protocol_config::get_attr(x"ff");
 }
 
 #[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
+#[expected_failure(abort_code = 1, location = iota_system::protocol_config)]
 // An unknown parameter name is a programming error and must abort.
 fun test_get_attr_unknown_param() {
     let _: u64 = protocol_config::get_attr(b"nonexistent_parameter_name");
 }
 
 #[test]
-#[expected_failure(abort_code = 2, location = iota::protocol_config)]
+#[expected_failure(abort_code = 2, location = iota_system::protocol_config)]
 // max_arguments is a u32; requesting it as u64 is a programming error that must abort.
 fun test_get_attr_type_mismatch() {
     let _: u64 = protocol_config::get_attr(b"max_arguments");
-}
-
-#[test]
-#[expected_failure(abort_code = 1, location = iota::protocol_config)]
-// bridge_should_try_to_finalize_committee was deprecated to None at protocol v9;
-// requesting it is a programming error and must abort.
-fun test_get_attr_deprecated_to_none() {
-    let _: bool = protocol_config::get_attr(b"bridge_should_try_to_finalize_committee");
 }

@@ -1,285 +1,160 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashSet,
-    hash::{Hash, Hasher},
-};
+use std::collections::HashSet;
 
-use enum_dispatch::enum_dispatch;
-use fastcrypto::error::FastCryptoError;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, TypeTag, crypto::IntentMessage};
-use serde::{Deserialize, Serialize};
+pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
+use serde::Serialize;
 
 use crate::{
     base_types::{ObjectRef, SequenceNumber},
-    crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ObjectDigest},
+    digests::ObjectDigest,
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
 };
 
-/// MoveAuthenticator is a GenericSignature variant that enables a new
-/// method of authentication through Move code.
-/// This function represents the data received by the Move authenticate function
-/// during the Account Abstraction authentication flow.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct MoveAuthenticator {
-    #[serde(flatten)]
-    pub(crate) inner: MoveAuthenticatorInner,
+mod move_authenticator_ext {
+    pub trait Sealed {}
+    impl Sealed for super::MoveAuthenticator {}
+    impl Sealed for super::MoveAuthenticatorV1 {}
 }
 
-impl MoveAuthenticator {
-    /// Creates a new MoveAuthenticator of version 1.
-    pub fn new_v1(
-        call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeTag>,
-        object_to_authenticate: CallArg,
-    ) -> Self {
-        Self {
-            inner: MoveAuthenticatorInner::new_v1(
-                call_args,
-                type_arguments,
-                object_to_authenticate,
+pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
+    /// Returns the address of the object being authenticated, which acts as the
+    /// sender of the transaction.
+    fn address(&self) -> Address;
+
+    /// Returns the input objects or primitive values passed to the authenticate
+    /// function.
+    fn call_args(&self) -> &[CallArg];
+
+    /// Returns the type arguments for the Move authenticate function.
+    fn type_args(&self) -> &[TypeTag];
+
+    /// Returns the object that is being authenticated (the account/sender).
+    fn object_to_authenticate(&self) -> &CallArg;
+
+    fn object_to_authenticate_components(
+        &self,
+    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)>;
+
+    fn input_objects(&self) -> Vec<InputObjectKind>;
+
+    fn receiving_objects(&self) -> Vec<ObjectRef>;
+
+    fn shared_objects(&self) -> Vec<SharedObjectRef>;
+
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+}
+
+impl MoveAuthenticatorExt for MoveAuthenticator {
+    fn address(&self) -> Address {
+        match self {
+            Self::V1(v1) => v1.address(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
             ),
         }
     }
 
-    /// Computes the digest of the MoveAuthenticator.
-    pub fn digest(&self) -> MoveAuthenticatorDigest {
-        MoveAuthenticatorDigest::new(default_hash(self))
-    }
-
-    /// Returns the version of the MoveAuthenticator.
-    pub fn version(&self) -> u64 {
-        self.inner.version()
-    }
-
-    /// Returns the address of the MoveAuthenticator.
-    pub fn address(&self) -> IotaResult<Address> {
-        self.inner.address()
-    }
-
-    /// Returns the call arguments of the MoveAuthenticator.
-    pub fn call_args(&self) -> &Vec<CallArg> {
-        self.inner.call_args()
-    }
-
-    /// Returns the type arguments of the MoveAuthenticator.
-    pub fn type_arguments(&self) -> &Vec<TypeTag> {
-        self.inner.type_arguments()
-    }
-
-    /// Returns the object to authenticate of the MoveAuthenticator.
-    pub fn object_to_authenticate(&self) -> &CallArg {
-        self.inner.object_to_authenticate()
-    }
-
-    /// Returns the components of the object to authenticate.
-    pub fn object_to_authenticate_components(
-        &self,
-    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
-        self.inner.object_to_authenticate_components()
-    }
-
-    /// Returns all input objects used by the MoveAuthenticator,
-    /// including those from the object to authenticate.
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
-        self.inner.input_objects()
-    }
-
-    /// Returns all receiving objects used by the MoveAuthenticator.
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
-        self.inner.receiving_objects()
-    }
-
-    /// Returns all shared input objects used by the MoveAuthenticator,
-    /// including those from the object to authenticate.
-    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
-        self.inner.shared_objects()
-    }
-
-    /// Validity check for MoveAuthenticator.
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        self.inner.validity_check(config)
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![SignatureScheme::MoveAuthenticator.flag()];
-        bcs::serialize_into(&mut bytes, &self.inner).expect("BCS serialization should not fail");
-        bytes
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        match bytes.split_first() {
-            Some((flag, tail)) if flag == &SignatureScheme::MoveAuthenticator.flag() => {
-                let inner = bcs::from_bytes(tail).map_err(|_| FastCryptoError::InvalidSignature)?;
-                Ok(Self { inner })
-            }
-            _ => Err(FastCryptoError::InvalidInput),
-        }
-    }
-}
-
-impl AuthenticatorTrait for MoveAuthenticator {
-    // This function accepts all inputs, as signature verification is performed
-    // later on the Move side.
-    fn verify_claims<T>(
-        &self,
-        value: &IntentMessage<T>,
-        author: Address,
-        aux_verify_data: &VerifyParams,
-    ) -> IotaResult
-    where
-        T: Serialize,
-    {
-        self.inner.verify_claims(value, author, aux_verify_data)
-    }
-}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
-/// implemented only for MoveAuthenticator and not for specific versions of
-/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-/// serialization/deserialization signature logic is defined on the
-/// MoveAuthenticator level.
-impl Hash for MoveAuthenticator {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.to_bytes().hash(state);
-    }
-}
-
-/// MoveAuthenticatorInner is an enum that represents the different versions
-/// of MoveAuthenticator.
-#[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum MoveAuthenticatorInner {
-    V1(MoveAuthenticatorV1),
-}
-
-impl MoveAuthenticatorInner {
-    pub fn new_v1(
-        call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeTag>,
-        object_to_authenticate: CallArg,
-    ) -> Self {
-        MoveAuthenticatorInner::V1(MoveAuthenticatorV1::new(
-            call_args,
-            type_arguments,
-            object_to_authenticate,
-        ))
-    }
-
-    pub fn version(&self) -> u64 {
+    fn call_args(&self) -> &[CallArg] {
         match self {
-            MoveAuthenticatorInner::V1(_) => 1,
+            Self::V1(v1) => v1.call_args(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn address(&self) -> IotaResult<Address> {
+    fn type_args(&self) -> &[TypeTag] {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.address(),
+            Self::V1(v1) => v1.type_args(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn call_args(&self) -> &Vec<CallArg> {
+    fn object_to_authenticate(&self) -> &CallArg {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.call_args(),
+            Self::V1(v1) => v1.object_to_authenticate(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeTag> {
-        match self {
-            MoveAuthenticatorInner::V1(v1) => v1.type_arguments(),
-        }
-    }
-
-    pub fn object_to_authenticate(&self) -> &CallArg {
-        match self {
-            MoveAuthenticatorInner::V1(v1) => v1.object_to_authenticate(),
-        }
-    }
-
-    pub fn object_to_authenticate_components(
+    fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.object_to_authenticate_components(),
+            Self::V1(v1) => v1.object_to_authenticate_components(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
+    fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.input_objects(),
+            Self::V1(v1) => v1.input_objects(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectRef> {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.receiving_objects(),
+            Self::V1(v1) => v1.receiving_objects(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
+    fn shared_objects(&self) -> Vec<SharedObjectRef> {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.shared_objects(),
+            Self::V1(v1) => v1.shared_objects(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            MoveAuthenticatorInner::V1(v1) => v1.validity_check(config),
+            Self::V1(v1) => v1.validity_check(config),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
         }
     }
 }
 
-/// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct MoveAuthenticatorV1 {
-    /// Input objects or primitive values
-    call_args: Vec<CallArg>,
-    /// Type arguments for the Move authenticate function
-    type_arguments: Vec<TypeTag>,
-    /// The object that is authenticated. Represents the account being the
-    /// sender of the transaction.
-    object_to_authenticate: CallArg,
-}
-
-impl MoveAuthenticatorV1 {
-    pub fn new(
-        call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeTag>,
-        object_to_authenticate: CallArg,
-    ) -> Self {
-        Self {
-            call_args,
-            type_arguments,
-            object_to_authenticate,
-        }
+impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
+    // Forward to the inherent accessors of the same name; inherent methods take
+    // priority in resolution, so these are not recursive.
+    fn address(&self) -> Address {
+        self.address()
     }
 
-    /// Returns the address of the MoveAuthenticatorV1, which is the object ID
-    /// of the object to authenticate.
-    pub fn address(&self) -> IotaResult<Address> {
-        let (id, _, _) = self.object_to_authenticate_components()?;
-        Ok(Address::from(id))
+    fn call_args(&self) -> &[CallArg] {
+        self.call_args()
     }
 
-    pub fn call_args(&self) -> &Vec<CallArg> {
-        &self.call_args
+    fn type_args(&self) -> &[TypeTag] {
+        self.type_args()
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeTag> {
-        &self.type_arguments
+    fn object_to_authenticate(&self) -> &CallArg {
+        self.object_to_authenticate()
     }
 
-    pub fn object_to_authenticate(&self) -> &CallArg {
-        &self.object_to_authenticate
-    }
-
-    pub fn object_to_authenticate_components(
+    fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
@@ -316,16 +191,16 @@ impl MoveAuthenticatorV1 {
 
     /// Returns all input objects used by the MoveAuthenticatorV1,
     /// including those from the object to authenticate.
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
-        self.call_args
+    fn input_objects(&self) -> Vec<InputObjectKind> {
+        self.call_args()
             .iter()
             .filter_map(|arg| arg.input_object_kind())
             .chain(self.object_to_authenticate().input_object_kind())
             .collect::<Vec<_>>()
     }
 
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
-        self.call_args
+    fn receiving_objects(&self) -> Vec<ObjectRef> {
+        self.call_args()
             .iter()
             .filter_map(|arg| arg.as_opt_receiving().copied())
             .collect()
@@ -333,8 +208,8 @@ impl MoveAuthenticatorV1 {
 
     /// Returns all shared input objects used by the MoveAuthenticatorV1,
     /// including those from the object to authenticate.
-    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
-        self.call_args
+    fn shared_objects(&self) -> Vec<SharedObjectRef> {
+        self.call_args()
             .iter()
             .filter_map(|arg| arg.as_opt_shared())
             .chain(self.object_to_authenticate().as_opt_shared())
@@ -343,7 +218,7 @@ impl MoveAuthenticatorV1 {
     }
 
     /// Validity check for MoveAuthenticatorV1.
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         // Check that the object to authenticate is valid.
         self.object_to_authenticate_components()?;
 
@@ -391,11 +266,32 @@ impl MoveAuthenticatorV1 {
         // Each type argument is checked for validity in the same way as it is done for
         // `MoveCall`.
         let mut type_arguments_count = 0;
-        self.type_arguments().iter().try_for_each(|type_arg| {
+        self.type_args().iter().try_for_each(|type_arg| {
             crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)
         })?;
 
         Ok(())
+    }
+}
+
+impl AuthenticatorTrait for MoveAuthenticator {
+    // This function accepts all inputs, as signature verification is performed
+    // later on the Move side.
+    fn verify_claims<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: Address,
+        aux_verify_data: &VerifyParams,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        match self {
+            Self::V1(v1) => v1.verify_claims(value, author, aux_verify_data),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
     }
 }
 
@@ -411,107 +307,12 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
     where
         T: Serialize,
     {
-        if author != self.address()? {
+        if author != self.address() {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid author".to_string(),
             });
         };
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::{
-        base_types::{ObjectRef, SequenceNumber},
-        digests::ObjectDigest,
-        transaction::CallArg,
-    };
-
-    fn make_simple_authenticator() -> MoveAuthenticator {
-        let object_to_authenticate = CallArg::ImmutableOrOwned(ObjectRef {
-            object_id: ObjectId::ZERO,
-            version: SequenceNumber::default(),
-            digest: ObjectDigest::MIN,
-        });
-        MoveAuthenticator::new_v1(vec![], vec![], object_to_authenticate)
-    }
-
-    #[test]
-    fn round_trip() {
-        let auth = make_simple_authenticator();
-        let bytes = auth.to_bytes();
-        let decoded = MoveAuthenticator::from_bytes(&bytes).expect("round-trip should succeed");
-        assert_eq!(auth, decoded);
-    }
-
-    #[test]
-    fn as_ref_starts_with_flag_byte() {
-        let auth = make_simple_authenticator();
-        let bytes = auth.to_bytes();
-        assert_eq!(bytes[0], SignatureScheme::MoveAuthenticator.flag());
-    }
-
-    #[test]
-    fn from_bytes_rejects_wrong_flag() {
-        let auth = make_simple_authenticator();
-        let mut bytes = auth.to_bytes();
-        bytes[0] = SignatureScheme::ED25519.flag();
-        assert!(MoveAuthenticator::from_bytes(&bytes).is_err());
-    }
-
-    #[test]
-    fn from_bytes_rejects_empty_input() {
-        assert!(MoveAuthenticator::from_bytes(&[]).is_err());
-    }
-
-    #[test]
-    fn from_bytes_rejects_flag_only() {
-        let flag = SignatureScheme::MoveAuthenticator.flag();
-        assert!(MoveAuthenticator::from_bytes(&[flag]).is_err());
-    }
-
-    // ---- Signable (write) format tests ----
-
-    use crate::crypto::Signable;
-
-    /// Helper: produce the signable bytes for a MoveAuthenticator (the
-    /// `"MoveAuthenticator::" ++ BCS(inner)` format).
-    fn signable_bytes(auth: &MoveAuthenticator) -> Vec<u8> {
-        let mut buf = Vec::new();
-        auth.write(&mut buf);
-        buf
-    }
-
-    #[test]
-    fn signable_bytes_start_with_name_tag() {
-        let auth = make_simple_authenticator();
-        let bytes = signable_bytes(&auth);
-        let tag = b"MoveAuthenticator::";
-        assert!(
-            bytes.starts_with(tag),
-            "signable bytes must start with the hardcoded name tag"
-        );
-    }
-
-    #[test]
-    fn signable_bytes_payload_is_bcs_of_inner() {
-        let auth = make_simple_authenticator();
-        let bytes = signable_bytes(&auth);
-        let tag_len = "MoveAuthenticator::".len();
-        let payload = &bytes[tag_len..];
-        let expected_bcs = bcs::to_bytes(&auth.inner).expect("BCS serialization should not fail");
-        assert_eq!(payload, expected_bcs.as_slice());
-    }
-
-    #[test]
-    fn digest_is_stable() {
-        let auth = make_simple_authenticator();
-        let d1 = auth.digest();
-        let d2 = auth.digest();
-        assert_eq!(d1, d2, "digest must be deterministic");
     }
 }

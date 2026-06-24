@@ -15,13 +15,15 @@ use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+};
 use iota_types::{
     base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef, Transaction, TransactionData},
-    utils::MoveAuthenticator,
+    transaction::{CallArg, Transaction, TransactionData},
+    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -209,17 +211,15 @@ pub async fn create_test_transaction(
     let tx_data = create_transaction_data(iota_client, account_address, pt).await?;
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
-        account_ref.object_id,
-        account_ref.version,
-        false,
-    ));
 
-    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-        vec![],
-        vec![],
-        account_call_arg,
-    ));
+    let signature = GenericSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![],
+            vec![],
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
+        )
+        .into(),
+    );
 
     Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
 }
