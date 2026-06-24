@@ -41,10 +41,15 @@ use std::{
 use bytes::Bytes;
 use itertools::Itertools;
 use parking_lot::RwLock;
+use rand::thread_rng;
 #[cfg(not(test))]
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
+use tokio::{
+    sync::oneshot,
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{info, warn};
 
 use crate::{
@@ -64,6 +69,7 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
+    peer_responsiveness::FetchKind,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
 };
@@ -540,8 +546,25 @@ where
                 }
             })
             .collect_vec();
-        #[cfg(not(test))]
-        target_authorities.shuffle(&mut ThreadRng::default());
+        // Order the targets so more responsive peers are tried first. Ranking is
+        // re-sampled every loop iteration (fresh `rng`) so a peer cannot lock the
+        // head of the list across retries, and is applied before truncation so
+        // the retained `MAX_NUM_TARGETS` reflect the ranking. When disabled we
+        // keep the previous behaviour: a uniform shuffle in production, a stable
+        // committee order under test.
+        if inner.context.parameters.enable_peer_responsiveness_ranking {
+            // `thread_rng` keeps peer ordering deterministic under the consensus
+            // simulator (entropy-seeded RNGs are not virtualized there).
+            let mut rng = thread_rng();
+            inner.context.peer_responsiveness.prioritize(
+                FetchKind::Commits,
+                &mut target_authorities,
+                &mut rng,
+            );
+        } else {
+            #[cfg(not(test))]
+            target_authorities.shuffle(&mut ThreadRng::default());
+        }
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
@@ -550,6 +573,9 @@ where
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
         for authority in target_authorities {
+            // Time the attempt with the tokio clock so the responsiveness signal
+            // is consistent and deterministic under the simulator.
+            let started = Instant::now();
             match tokio::time::timeout(
                 fetch_timeout,
                 fetch_once_fn(
@@ -562,6 +588,11 @@ where
             .await
             {
                 Ok(Ok(data)) => {
+                    inner.context.peer_responsiveness.record_success(
+                        FetchKind::Commits,
+                        authority,
+                        started.elapsed(),
+                    );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
@@ -569,6 +600,10 @@ where
                     return (commit_range.end(), data);
                 }
                 Ok(Err(e)) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure(FetchKind::Commits, authority);
                     let hostname = inner
                         .context
                         .committee
@@ -590,6 +625,10 @@ where
                         .inc();
                 }
                 Err(_) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure(FetchKind::Commits, authority);
                     let hostname = inner
                         .context
                         .committee
