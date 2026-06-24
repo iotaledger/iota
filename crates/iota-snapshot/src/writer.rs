@@ -350,8 +350,8 @@ impl StateSnapshotWriterV1 {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
-        // Fail fast on the `Watermark::EpochIndexed` precondition so a
-        // misconfigured node does not perform a full live-object scan
+        // Fail fast on the epoch-info completeness precondition so a node with
+        // an incomplete epoch chain does not perform a full live-object scan
         // (tens of GiB on mainnet-sized DBs) before failing.
         self.check_epoch_indexed_watermark(epoch)?;
 

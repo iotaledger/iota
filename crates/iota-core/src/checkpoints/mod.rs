@@ -186,25 +186,25 @@ pub struct CheckpointStoreTables {
     /// `epoch_info` row. Never pruned.
     epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
 
-    /// An index of extra metadata for Epochs: each epoch's start-of-epoch
-    /// identity plus its close-of-epoch proof bundle ([`EpochInfoV2`]).
+    /// Per-epoch verified data (start-of-epoch identity plus its close-of-epoch
+    /// proof bundle ([`EpochInfoV2`])) keyed by epoch ID. Populated at every
+    /// epoch boundary by the checkpoint executor and seeded from a formal
+    /// snapshot's `EPOCH_INFO` on restore.
     ///
     /// Intentionally not pruned: callers (the snapshot writer, the gRPC API,
-    /// and later summary pruning) need full `[0, snapshot_epoch]` coverage, so
+    /// etc.) need full `[0, snapshot_epoch]` coverage, so
     /// this table grows unboundedly with epoch count (one row per epoch, ever)
     /// by design. Do not add it to `prune_checkpoints`.
     ///
-    /// Completeness is tracked by `epoch_info_indexed_watermark`. See
-    /// [`epoch_info`](self::epoch_info).
+    /// Completeness is tracked by `epoch_info_watermark`.
     epoch_info: DBMap<EpochId, EpochInfoV2>,
 
     /// Highest epoch whose `epoch_info` row is finalized (close-of-epoch proof
     /// present), as a contiguous prefix `[0, watermark]`. Singleton keyed by
     /// `()`. Advanced atomically with the close-of-epoch upsert in
     /// `index_epoch`, and recomputed over a seeded prefix by
-    /// `insert_epoch_info`; only ever raised. The snapshot V2 writer refuses to
-    /// publish when this is `< snapshot_epoch` (or absent). Never pruned.
-    epoch_info_indexed_watermark: DBMap<(), EpochId>,
+    /// `insert_epoch_info`; only ever raised. Never pruned.
+    epoch_info_watermark: DBMap<(), EpochId>,
 
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints

@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Per-epoch verified metadata (`epoch_info`) held by every node, independent
@@ -8,7 +8,7 @@
 //! Each row is an [`EpochInfoV2`]: the start-of-epoch identity plus the
 //! close-of-epoch proof bundle ([`EpochInfoV1Entry`]). A row is seeded when its
 //! epoch opens and finalized when the epoch closes. The table is append-only
-//! and never pruned; the `epoch_info_indexed_watermark` tracks the highest
+//! and never pruned; the `epoch_info_watermark` tracks the highest
 //! epoch whose contiguous prefix is finalized.
 
 use iota_types::{
@@ -34,16 +34,16 @@ impl CheckpointStore {
         self.tables.epoch_info.get(&epoch)
     }
 
-    /// Read `epoch_info_indexed_watermark`: the highest epoch whose
+    /// Read `epoch_info_watermark`: the highest epoch whose
     /// `epoch_info` row is finalized (the full close-of-epoch proof bundle
     /// present, see [`EpochInfoV2::is_finalized`]). `None` if no epoch has
     /// been fully indexed yet.
     pub fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
-        self.tables.epoch_info_indexed_watermark.get(&())
+        self.tables.epoch_info_watermark.get(&())
     }
 
     /// Persist fully-populated epoch rows (e.g. restored from a snapshot) and
-    /// advance the `epoch_info_indexed_watermark` over the now-contiguous
+    /// advance the `epoch_info_watermark` over the now-contiguous
     /// prefix.
     ///
     /// Must not run concurrently with live boundary indexing: it recomputes the
@@ -378,7 +378,9 @@ impl CheckpointStore {
         Ok(())
     }
 
-    /// Advance the `epoch_info_indexed_watermark` only if there is no gap.
+    /// Advance the completeness watermark by exactly one, only if `prev_epoch`
+    /// is the next contiguous epoch. Guards against advancing across a gap
+    /// left by a node that bootstrapped mid-history.
     fn try_advance_epoch_info_watermark(
         &self,
         prev_epoch: EpochId,
@@ -386,19 +388,16 @@ impl CheckpointStore {
     ) -> Result<(), StorageError> {
         let next_expected = self
             .tables
-            .epoch_info_indexed_watermark
+            .epoch_info_watermark
             .get(&())?
             .map_or(0, |e| e.saturating_add(1));
         if prev_epoch == next_expected {
-            batch.insert_batch(
-                &self.tables.epoch_info_indexed_watermark,
-                [((), prev_epoch)],
-            )?;
+            batch.insert_batch(&self.tables.epoch_info_watermark, [((), prev_epoch)])?;
         }
         Ok(())
     }
 
-    /// Recompute `epoch_info_indexed_watermark` = the highest epoch whose
+    /// Recompute `epoch_info_watermark` = the highest epoch whose
     /// contiguous prefix `[0, epoch]` is finalized (see
     /// [`EpochInfoV2::is_finalized`]). Only ever raises it.
     ///
@@ -408,7 +407,7 @@ impl CheckpointStore {
     fn reconcile_epoch_info_watermark(&self) -> Result<(), TypedStoreError> {
         // `[0, watermark]` is already known complete, so resume the scan from
         // `watermark + 1` rather than re-scanning the whole table.
-        let current = self.tables.epoch_info_indexed_watermark.get(&())?;
+        let current = self.tables.epoch_info_watermark.get(&())?;
         let mut next = current.map_or(0, |w| w + 1);
         for entry in self
             .tables
@@ -423,9 +422,7 @@ impl CheckpointStore {
         }
         if let Some(highest) = next.checked_sub(1) {
             if Some(highest) > current {
-                self.tables
-                    .epoch_info_indexed_watermark
-                    .insert(&(), &highest)?;
+                self.tables.epoch_info_watermark.insert(&(), &highest)?;
             }
         }
         Ok(())
@@ -669,11 +666,7 @@ mod tests {
         assert_eq!(store.highest_indexed_epoch().unwrap(), Some(2));
 
         // Simulate a concurrent live advance to a higher epoch.
-        store
-            .tables
-            .epoch_info_indexed_watermark
-            .insert(&(), &5)
-            .unwrap();
+        store.tables.epoch_info_watermark.insert(&(), &5).unwrap();
 
         // A reconcile that only sees the [0, 2] prefix must NOT lower it.
         store.reconcile_epoch_info_watermark().unwrap();
@@ -786,7 +779,7 @@ mod tests {
         let store = CheckpointStore::new_for_tests();
 
         let advance = |epoch| {
-            let mut batch = store.tables.epoch_info_indexed_watermark.batch();
+            let mut batch = store.tables.epoch_info_watermark.batch();
             store
                 .try_advance_epoch_info_watermark(epoch, &mut batch)
                 .unwrap();

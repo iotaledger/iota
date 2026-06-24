@@ -211,7 +211,7 @@ The following steps can be used to restore a node from a Formal snapshot:
 
 Every node — validators and full nodes alike — stores the per-epoch verified metadata of every epoch since genesis. Nodes synced from genesis or restored from a formal snapshot have the full chain already, and each node extends it as new epochs close.
 
-A few features need that chain complete back to genesis: serving the gRPC API, writing formal snapshots, and (in a future release) pruning checkpoint summaries. If a node enables one of those after local history has been pruned, the missing epochs can no longer be rebuilt locally. It then backfills them from a configured formal snapshot bucket at startup, or refuses to start if none is configured. A node with none of those features enabled only logs a warning. Using the IOTA Foundation managed snapshots:
+If a node is missing part of the chain, for example the first time it upgrades to a release that maintains it, and the missing epochs can no longer be rebuilt from local data (their checkpoints have been pruned), the node refuses to start and asks for a formal snapshot bucket to backfill them from. Using the IOTA Foundation managed snapshots:
 
 <Tabs groupId="default-snapshot-endpoint">
 
@@ -251,7 +251,7 @@ state-snapshot-read-config:
 
 </Tabs>
 
-With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, a node with one of the above features enabled still refuses to start: wait for a newer snapshot, restore from a formal snapshot, or disable the feature.
+With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, the node still refuses to start: wait for a newer snapshot, or restore from a formal snapshot.
 
 ### Backfilling the full checkpoint summary history
 

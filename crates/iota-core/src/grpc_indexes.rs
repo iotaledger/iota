@@ -27,7 +27,7 @@ use iota_types::{
     },
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
     rocks::{DBMap, MetricConf},
