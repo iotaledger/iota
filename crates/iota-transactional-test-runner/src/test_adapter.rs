@@ -517,7 +517,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.as_package_opt()?;
+                let package = object.data.as_opt_package()?;
                 if package
                     .serialized_module_map()
                     .get(&Identifier::new_unchecked(first_module_name.clone()))
@@ -551,7 +551,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .get_object(&created_package, None)
             .unwrap()
             .data
-            .as_package_opt()
+            .as_opt_package()
             .unwrap()
             .serialized_module_map()
             .values()
@@ -1062,7 +1062,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
                         };
                         let obj = self.get_object(&id, version)?;
-                        let package = obj.data.as_package_opt().map(|package| {
+                        let package = obj.data.as_opt_package().map(|package| {
                             package
                                 .serialized_module_map()
                                 .values()
@@ -1640,7 +1640,7 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.as_package_opt()?;
+                let package = object.data.as_opt_package()?;
                 Some(package.id())
             })
             .unwrap();

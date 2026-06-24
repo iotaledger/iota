@@ -480,11 +480,11 @@ impl std::ops::DerefMut for Object {
 
 impl Object {
     pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.object_type()
+        self.data.opt_object_type()
     }
 
     pub fn is_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
         } else {
             false
@@ -494,7 +494,7 @@ impl Object {
     // TODO: use `MoveObj::get_balance_unsafe` instead.
     // context: https://github.com/iotaledger/iota/pull/10679#discussion_r1165877816
     pub fn as_coin_maybe(&self) -> Option<Coin> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
             Some(coin)
         } else {
@@ -503,7 +503,7 @@ impl Object {
     }
 
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
@@ -516,7 +516,7 @@ impl Object {
     /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unchecked(&self) -> u64 {
         self.data
-            .as_struct_opt()
+            .as_opt_struct()
             .unwrap()
             .get_coin_value_unchecked()
     }
@@ -553,7 +553,7 @@ impl Object {
     /// like this: `S<T>`.
     /// Returns the inner parameter type `T`.
     pub fn get_move_template_type(&self) -> IotaResult<TypeTag> {
-        let move_struct = self.data.struct_tag().ok_or_else(|| IotaError::Type {
+        let move_struct = self.data.opt_struct_tag().ok_or_else(|| IotaError::Type {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(

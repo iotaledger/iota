@@ -2808,7 +2808,7 @@ impl AuthorityState {
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
-        let Some(move_object) = o.data.as_struct_opt().cloned() else {
+        let Some(move_object) = o.data.as_opt_struct().cloned() else {
             return Ok(None);
         };
 
@@ -2879,7 +2879,7 @@ impl AuthorityState {
                     (
                         object.version(),
                         object.digest(),
-                        object.data.object_type().unwrap().clone(),
+                        object.data.opt_object_type().unwrap().clone(),
                     )
                 } else {
                     // If not found, try to find it in the database.
@@ -2892,7 +2892,7 @@ impl AuthorityState {
                         })?;
                     let version = object.version();
                     let digest = object.digest();
-                    let object_type = object.data.object_type().unwrap().clone();
+                    let object_type = object.data.opt_object_type().unwrap().clone();
                     (version, digest, object_type)
                 };
 
@@ -3063,7 +3063,7 @@ impl AuthorityState {
             })?;
 
         let layout = if let (LayoutGenerationOption::Generate, Some(move_obj)) =
-            (request.generate_layout, object.data.as_struct_opt())
+            (request.generate_layout, object.data.as_opt_struct())
         {
             Some(into_struct_layout(
                 epoch_store
@@ -3899,7 +3899,7 @@ impl AuthorityState {
         T: DeserializeOwned,
     {
         let o = self.get_object_read(object_id)?.into_object()?;
-        if let Some(move_object) = o.data.as_struct_opt() {
+        if let Some(move_object) = o.data.as_opt_struct() {
             Ok(bcs::from_bytes(move_object.contents()).map_err(|e| {
                 IotaError::ObjectDeserialization {
                     error: format!("{e}"),
@@ -3991,7 +3991,7 @@ impl AuthorityState {
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
-            .as_struct_opt()
+            .as_opt_struct()
             .map(|object| {
                 into_struct_layout(
                     self.load_epoch_store_one_call_per_task()
@@ -4095,7 +4095,7 @@ impl AuthorityState {
                     version: Some(id.1),
                 })
             })?;
-            let move_object = object.data.as_struct_opt().ok_or_else(|| {
+            let move_object = object.data.as_opt_struct().ok_or_else(|| {
                 IotaError::from(UserInputError::MovePackageAsObject { object_id: id.0 })
             })?;
             move_objects.push(bcs::from_bytes(move_object.contents()).map_err(|e| {
@@ -5618,7 +5618,7 @@ impl AuthorityState {
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             let field_move_object = authenticator_function_ref_field_obj
                 .data
-                .as_struct_opt()
+                .as_opt_struct()
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =

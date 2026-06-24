@@ -1852,7 +1852,7 @@ mod checked {
                 // the version growing by one in the effects.
                 new_package
                     .data
-                    .as_package_mut_opt()
+                    .as_opt_mut_package()
                     .unwrap()
                     .decrement_version()
                     .expect("package version should never underflow");
