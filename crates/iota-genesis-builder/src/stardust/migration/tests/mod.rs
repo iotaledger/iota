@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -362,20 +365,21 @@ fn extract_native_tokens_from_bag(
     );
     let InnerTemporaryStore { written, .. } = executor.execute_pt_unmetered(input_objects, pt)?;
 
+    // Index coin objects by their `StructTag` so the lookup below does not
+    // depend on `HashMap` iteration order — randomised output IDs were making
+    // the test flaky.
+    let coins_by_tag: BTreeMap<StructTag, _> = written
+        .values()
+        .filter_map(|obj| Some((obj.struct_tag()?, obj)))
+        .collect();
+
     for (native_token, _, token_type_tag) in native_tokens {
         let coin_token_struct_tag = StructTag::new_coin(token_type_tag);
-        let coin_token = written
-            .values()
-            .find(|obj| {
-                obj.struct_tag()
-                    .map(|tag| tag == coin_token_struct_tag)
-                    .unwrap_or(false)
-            })
-            .ok_or_else(|| anyhow!("missing coin object"))
-            .and_then(|obj| {
-                obj.as_coin_maybe()
-                    .ok_or_else(|| anyhow!("object is not a coin"))
-            })?;
+        let coin_token = coins_by_tag
+            .get(&coin_token_struct_tag)
+            .ok_or_else(|| anyhow!("missing coin object"))?
+            .as_coin_maybe()
+            .ok_or_else(|| anyhow!("object is not a coin"))?;
 
         ensure!(
             coin_token.balance.value() == native_token.amount().as_u64(),
