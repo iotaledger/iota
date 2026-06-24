@@ -8,8 +8,8 @@ use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
     traits::{ToFromBytes, VerifyingKey},
 };
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
@@ -96,4 +96,44 @@ pub fn ed25519_verify(
         cost,
         smallvec![Value::bool(public_key.verify(&msg_ref, &signature).is_ok())],
     ))
+}
+
+#[derive(Clone)]
+pub struct Ed25519ValidatePubkeyCostParams {
+    pub ed25519_ed25519_validate_pubkey_cost_base: Option<InternalGas>,
+}
+/// Implementation of the Move native function
+/// `ed25519::ed25519_validate_pubkey(public_key: &vector<u8>): bool`
+///
+/// Returns `true` if `public_key` is a valid point on the Ed25519 curve: the
+/// encoded y-coordinate must have a corresponding x-coordinate on the curve
+/// (i.e. x² must be a quadratic residue mod p) and y must be less than p.
+/// Returns `false` otherwise.
+///
+/// gas cost: ed25519_ed25519_validate_pubkey_cost_base
+pub fn ed25519_validate_pubkey(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 1);
+
+    let cost_base = context
+        .extensions()
+        .get::<NativesCostTable>()?
+        .ed25519_validate_pubkey_cost_params
+        .ed25519_ed25519_validate_pubkey_cost_base
+        .ok_or_else(|| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message("Gas cost for ed25519_validate_pubkey not available".to_string())
+        })?;
+    native_charge_gas_early_exit!(context, cost_base);
+
+    let public_key_bytes = pop_arg!(args, VectorRef);
+    let public_key_bytes_ref = public_key_bytes.as_bytes_ref();
+    let cost = context.gas_used();
+
+    let is_valid = Ed25519PublicKey::from_bytes(&public_key_bytes_ref).is_ok();
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(is_valid)]))
 }
