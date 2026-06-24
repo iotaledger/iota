@@ -1411,13 +1411,6 @@ pub trait Signable<W> {
     fn write(&self, writer: &mut W);
 }
 
-pub trait SignableBytes
-where
-    Self: Sized,
-{
-    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error>;
-}
-
 /// Activate the blanket implementation of `Signable` based on serde and BCS.
 /// * We use `serde_name` to extract a seed from the name of structs and enums.
 /// * We use `BCS` to generate canonical bytes suitable for hashing and signing.
@@ -1464,56 +1457,12 @@ where
     }
 }
 
-/// Manual [`Signable`] impl for MoveAuthenticator.
-///
-/// `serde_name::trace_name` returns `None` for types that carry
-/// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
-/// We hardcode the tag and serialise via `self.inner` — the same
-/// representation that `AsRef<[u8]>` already uses.
-impl<W> Signable<W> for crate::move_authenticator::MoveAuthenticator
-where
-    W: std::io::Write,
-{
-    fn write(&self, writer: &mut W) {
-        let name = "MoveAuthenticator";
-        write!(writer, "{name}::").expect("Hasher should not fail");
-        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
-    }
-}
-
-impl SignableBytes for crate::move_authenticator::MoveAuthenticator {
-    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let name = "MoveAuthenticator";
-        let name_byte_len = format!("{name}::").bytes().len();
-        let inner = bcs::from_bytes(
-            bytes
-                .get(name_byte_len..)
-                .ok_or_else(|| anyhow!("Failed to deserialize to {name}."))?,
-        )?;
-        Ok(Self::from_inner(inner))
-    }
-}
-
 impl<W> Signable<W> for EpochId
 where
     W: std::io::Write,
 {
     fn write(&self, writer: &mut W) {
         bcs::serialize_into(writer, &self).expect("Message serialization should not fail");
-    }
-}
-
-impl<T> SignableBytes for T
-where
-    T: bcs_signable::BcsSignable,
-{
-    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        // Remove name tag before deserialization using BCS
-        let name = serde_name::trace_name::<Self>().expect("Self should be a struct or an enum");
-        let name_byte_len = format!("{name}::").bytes().len();
-        Ok(bcs::from_bytes(bytes.get(name_byte_len..).ok_or_else(
-            || anyhow!("Failed to deserialize to {name}."),
-        )?)?)
     }
 }
 
