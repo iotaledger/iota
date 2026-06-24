@@ -735,7 +735,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // When the sliding-window leader schedule is enabled, recovery replays
             // the scorer over `replay_start..=last`; fetch enough commits to cover
             // that range so the replayed window matches a fully-synced node
-            // (otherwise the recovered leader schedule could diverge).
             let num_commits = if inner
                 .context
                 .protocol_config

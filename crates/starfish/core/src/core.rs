@@ -1912,7 +1912,7 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
             genesis_blocks,
         },
-        commit::CommitAPI,
+        commit::{CommitAPI, CommitRange},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -2938,14 +2938,16 @@ mod test {
         min_block_delay: Duration,
     ) {
         const NUM_COMMITS_PER_SCHEDULE: u64 = 10;
+        // Generous safety ceiling; the loop actually breaks dynamically below.
+        const MAX_ROUNDS: u32 = 6 * NUM_COMMITS_PER_SCHEDULE as u32;
         let mut round = 0u32;
         let mut last_round_block_headers = Vec::new();
         let mut rotated = false;
         loop {
             round += 1;
             assert!(
-                round <= 60,
-                "network did not reach a post-rotation mid-interval state within 60 rounds"
+                round <= MAX_ROUNDS,
+                "network did not reach a post-rotation mid-interval state within {MAX_ROUNDS} rounds"
             );
             last_round_block_headers =
                 gossip_one_round(cores, round, &last_round_block_headers, min_block_delay).await;
@@ -2959,7 +2961,7 @@ mod test {
                 .read()
                 .reputation_scores
                 .commit_range
-                != crate::commit::CommitRange::default()
+                != CommitRange::default()
             {
                 rotated = true;
             }

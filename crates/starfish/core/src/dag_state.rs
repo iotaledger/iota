@@ -228,8 +228,14 @@ pub(crate) struct DagState {
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// The committed subdags that have been scored but scores have not been
-    /// used for leader schedule yet.
+    /// Committed subdags scored since the last leader-schedule rotation, not
+    /// yet applied to the schedule. The V2 path computes its reputation
+    /// scores from these; the sliding-window path takes scores from the
+    /// window scorer instead, so there this serves only as the rotation
+    /// counter (`scoring_subdags_count`) and the just-rotated edge
+    /// (`is_scoring_subdag_empty`). Once V2 is removed it can be dropped
+    /// entirely, both roles replaced by a single recovered `u32` holding the
+    /// last rotation boundary index.
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks. Ordered by

@@ -419,8 +419,9 @@ impl LeaderSchedule {
             .unwrap()
     }
 
-    /// Feeds newly committed subdags to the sliding-window scorer when enabled;
-    /// a no-op on the V2 path.
+    /// Feeds newly committed subdags to the sliding-window scorer when enabled.
+    /// Called on every commit; returns without effect on the V2 path (no
+    /// scorer).
     pub(crate) fn feed_committed_subdags(&self, subdags: impl IntoIterator<Item = SubDagBase>) {
         if let Some(sliding_window) = &self.sliding_window {
             let mut scorer = sliding_window.lock();
@@ -433,7 +434,8 @@ impl LeaderSchedule {
     /// Rebuilds the sliding-window scorer (when enabled) by replaying the last
     /// `window_size` committed subdags from storage, so the running aggregate
     /// is current after a restart or fast-sync. The in-effect swap table is
-    /// recovered separately from `CommitInfo`. A no-op on the V2 path.
+    /// recovered separately from `CommitInfo`. Returns without effect on the V2
+    /// path (no scorer).
     fn recover_sliding_window(&self, dag_state: &RwLock<DagState>) {
         let Some(sliding_window) = &self.sliding_window else {
             return;
