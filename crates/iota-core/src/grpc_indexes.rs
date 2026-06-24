@@ -982,8 +982,9 @@ impl GrpcIndexesStore {
                     .expect("unable to initialize gRPC index");
 
                 // Flush all data to disk before dropping tables. This is critical because
-                // WAL is disabled for the bulk writes during initialization. We only need
-                // to flush one table because all tables share the same underlying database.
+                // WAL is disabled for the bulk writes during initialization. Flushing any
+                // table flushes every column family of the shared underlying database, so
+                // one call covers all tables.
                 tables
                     .meta
                     .flush()

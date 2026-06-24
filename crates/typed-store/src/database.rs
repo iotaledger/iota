@@ -311,13 +311,22 @@ impl Database {
         }
     }
 
-    /// Flush all memtables to SST files on disk.
+    /// Iterate all column families and flush the memtables of every column
+    /// family to SST files on disk.
     pub fn flush(&self) -> Result<(), TypedStoreError> {
         match &self.storage {
-            Storage::Rocks(rocks) => rocks
-                .underlying
-                .flush()
-                .map_err(|e| TypedStoreError::RocksDB(format!("Failed to flush database: {e}"))),
+            Storage::Rocks(rocks) => {
+                for cf_name in &rocks.cf_names {
+                    if let Some(cf) = rocks.underlying.cf_handle(cf_name) {
+                        rocks.underlying.flush_cf(&cf).map_err(|e| {
+                            TypedStoreError::RocksDB(format!(
+                                "Failed to flush column family {cf_name}: {e}"
+                            ))
+                        })?;
+                    }
+                }
+                Ok(())
+            }
             // InMemory databases don't need flushing.
             Storage::InMemory(_) => Ok(()),
         }
