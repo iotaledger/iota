@@ -26,6 +26,7 @@ use futures::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_config::{
+    node::ArchiveReaderConfig,
     NodeConfig,
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -660,24 +661,25 @@ pub async fn backfill_checkpoint_summaries(
         .ok_or_else(|| anyhow!("node has no genesis checkpoint; restore the node first"))?;
     let network = ChainIdentifier::from(*genesis_checkpoint.digest()).chain();
 
-    let config = ArchiveReaderConfig {
-        remote_store_config: default_archive_store_config(network),
-        download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
-        use_for_pruning_watermark: false,
-    };
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let archive_reader = ArchiveReader::new(config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
+    // let config = ArchiveReaderConfig {
+    //     remote_store_config: default_archive_store_config(network),
+    //     download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
+    //     ingestion_url: None,
+    // };
+    // let metrics = ArchiveReaderMetrics::new(&Registry::default());
+    // let archive_reader = ArchiveReader::new(config, &metrics)?;
+    // archive_reader.sync_manifest_once().await?;
 
-    // Fill the contiguous range `[1, target]`; genesis (0) is the chain root
-    // and is already present. Cap `target` at the archive's latest: summaries
-    // above the restore point the node already holds in full from p2p, and the
-    // archive may not reach as far as the node has synced.
-    let archive_latest = archive_reader
-        .get_manifest()
-        .await?
-        .next_checkpoint_seq_num()
-        .saturating_sub(1);
+    // // Fill the contiguous range `[1, target]`; genesis (0) is the chain root
+    // // and is already present. Cap `target` at the archive's latest: summaries
+    // // above the restore point the node already holds in full from p2p, and the
+    // // archive may not reach as far as the node has synced.
+    // let archive_latest = archive_reader
+    //     .get_manifest()
+    //     .await?
+    //     .next_checkpoint_seq_num()
+    //     .saturating_sub(1);
+    let archive_latest = todo!();
     let target = highest_synced.min(archive_latest);
     if target == 0 {
         m.println("Nothing to backfill: no archived summaries below the node's state.")?;

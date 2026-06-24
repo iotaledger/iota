@@ -24,6 +24,7 @@ use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
     ConsensusConfig, NodeConfig,
     node::{DBCheckpointConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
