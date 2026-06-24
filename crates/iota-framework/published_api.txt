@@ -1093,27 +1093,9 @@ activate_validators
 DerivedObjectKey
 	public struct
 	0x2::derived_object
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
-ed25519_verify
-	public fun
-	0x2::ed25519
 hash_to_input
 	public fun
 	0x2::vdf
@@ -2311,6 +2293,33 @@ from_flag
 flag
 	public fun
 	0x2::signature_scheme
+ed25519_validate_pubkey
+	public fun
+	0x2::ed25519
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_validate_pubkey
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+secp256k1_validate_pubkey
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
 PublicKey
 	public struct
 	0x2::public_key

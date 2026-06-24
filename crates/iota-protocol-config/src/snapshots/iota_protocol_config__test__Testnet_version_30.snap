@@ -336,3 +336,6 @@ auth_context_tx_inputs_cost_per_byte: 2
 auth_context_replace_cost_base: 30
 auth_context_replace_cost_per_byte: 2
 auth_context_authenticator_function_info_v1_cost_base: 270
+ed25519_ed25519_validate_pubkey_cost_base: 52
+ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
+ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52

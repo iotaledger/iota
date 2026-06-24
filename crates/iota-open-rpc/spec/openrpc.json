@@ -1575,6 +1575,7 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": null,
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1611,6 +1612,7 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": null,
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1638,6 +1640,7 @@
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
                 },
+                "ed25519_ed25519_validate_pubkey_cost_base": null,
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
                 },

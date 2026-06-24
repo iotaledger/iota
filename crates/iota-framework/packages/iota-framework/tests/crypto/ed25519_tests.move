@@ -48,3 +48,44 @@ fun test_ed25519_invalid_pubkey() {
     let verify = ed25519::ed25519_verify(&sig, &pk, &msg);
     assert!(verify == false)
 }
+
+#[test]
+fun test_ed25519_validate_pubkey_valid() {
+    // Known valid Ed25519 public key.
+    let pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    assert!(ed25519::ed25519_validate_pubkey(&pk));
+}
+
+#[test]
+fun test_ed25519_validate_pubkey_invalid() {
+    // y = 2: x² = (4-1)/(4d+1) mod p is not a quadratic residue, so no valid x exists.
+    let pk = x"0200000000000000000000000000000000000000000000000000000000000000";
+    assert!(!ed25519::ed25519_validate_pubkey(&pk));
+
+    // y = 7 and y = 8 are also non-QR y values on Ed25519 (empirically verified).
+    assert!(
+        !ed25519::ed25519_validate_pubkey(
+            &x"0700000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+    assert!(
+        !ed25519::ed25519_validate_pubkey(
+            &x"0800000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Wrong lengths return false (the function does not abort).
+    assert!(!ed25519::ed25519_validate_pubkey(&x""));
+    // 31 bytes — one byte too short
+    assert!(
+        !ed25519::ed25519_validate_pubkey(
+            &x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd",
+        ),
+    );
+    // 33 bytes — one byte too long
+    assert!(
+        !ed25519::ed25519_validate_pubkey(
+            &x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd8800",
+        ),
+    );
+}

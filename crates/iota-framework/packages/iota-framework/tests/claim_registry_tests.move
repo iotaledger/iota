@@ -320,7 +320,7 @@ fun test_claim_move_authenticator_is_invalid() {
 }
 
 #[test]
-#[expected_failure(abort_code = public_key::EInvalidPublicKeyLength)]
+#[expected_failure(abort_code = public_key::EInvalidPublicKeyBytes)]
 fun test_claim_ed25519_wrong_key_length() {
     let mut scenario = setup();
     scenario.next_tx(@0xdead);
