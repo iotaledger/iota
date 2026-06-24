@@ -156,6 +156,12 @@ impl CheckpointStore {
     /// Best-effort: stops at the first epoch (or genesis) whose checkpoint data
     /// is already pruned, leaving the rest to a snapshot. Must not run
     /// concurrently with live indexing, like [`Self::insert_epoch_info`].
+    ///
+    /// TODO: https://github.com/iotaledger/iota/issues/12028 — one-time
+    /// migration aid (with its `try_seed_genesis_epoch` / `assemble_*`
+    /// helpers); remove once every node has backfilled the chain, after
+    /// which it is maintained live and seeded by V2 formal-snapshot
+    /// restore.
     pub fn backfill_epoch_info_from_local_history(
         &self,
         authority_store: &AuthorityStore,

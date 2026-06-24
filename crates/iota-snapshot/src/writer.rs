@@ -353,7 +353,7 @@ impl StateSnapshotWriterV1 {
         // Fail fast on the epoch-info completeness precondition so a node with
         // an incomplete epoch chain does not perform a full live-object scan
         // (tens of GiB on mainnet-sized DBs) before failing.
-        self.check_epoch_indexed_watermark(epoch)?;
+        self.check_epoch_watermark(epoch)?;
 
         self.setup_epoch_dir(epoch).await?;
 
@@ -502,7 +502,7 @@ impl StateSnapshotWriterV1 {
     /// `epoch_info` table, failing fast before any disk work. `None` and
     /// `Some(h) where h < epoch` are distinct failure modes with distinct
     /// remediations — keep them as separate messages.
-    fn check_epoch_indexed_watermark(&self, epoch: u64) -> Result<()> {
+    fn check_epoch_watermark(&self, epoch: u64) -> Result<()> {
         match self.checkpoint_store.highest_indexed_epoch()? {
             None => Err(anyhow!(
                 "Snapshot V2 writer: the epoch_info completeness watermark is \
@@ -522,7 +522,7 @@ impl StateSnapshotWriterV1 {
 
     /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
     /// `[0, epoch]`. Callers must have run
-    /// [`Self::check_epoch_indexed_watermark`] first; this function trusts the
+    /// [`Self::check_epoch_watermark`] first; this function trusts the
     /// precondition and panics on any unfinalized row.
     ///
     /// File layout: 4-byte magic | bcs(EpochInfo). Integrity is anchored

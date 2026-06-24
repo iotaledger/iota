@@ -101,7 +101,7 @@ use iota_network::{
     randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -120,7 +120,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
     crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
-    digests::ChainIdentifier,
+    digests::{ChainIdentifier, get_devnet_chain_identifier},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
@@ -533,28 +533,12 @@ impl IotaNode {
             None
         };
 
-        // Seed and, if a consumer needs it complete, backfill the `epoch_info`
-        // chain. Done here, not in the store, because the EPOCH_INFO reader is
-        // in `iota-snapshot`, which depends on `iota-core`.
-        // Enforce a complete chain only when a consumer that actually runs on
-        // this node needs it. Both current consumers are full-node-only: the
-        // gRPC API (same gate as `grpc_indexes_store`) and snapshot writing.
-        let enforce_epoch_info_completeness = grpc_indexes_store.is_some()
-            || (is_full_node
-                && config
-                    .state_snapshot_write_config
-                    .object_store_config
-                    .is_some());
-        Self::seed_epoch_info(
-            &checkpoint_store,
-            &store,
-            &config,
-            &genesis,
-            chain_identifier,
-            enforce_epoch_info_completeness,
-        )
-        .await
-        .expect("failed to seed the epoch_info chain");
+        // Seed and backfill the `epoch_info` chain before services start. Done
+        // here, not in the store, because the EPOCH_INFO reader lives in
+        // `iota-snapshot`, which depends on `iota-core`.
+        Self::seed_epoch_info(&checkpoint_store, &store, &genesis, chain_identifier)
+            .await
+            .expect("failed to seed the epoch_info chain");
 
         info!("creating archive reader");
         // Create network
@@ -865,17 +849,21 @@ impl IotaNode {
     }
 
     /// Seeds the open epoch's `epoch_info` row and backfills any historical gap
-    /// from the configured formal-snapshot bucket, before live execution
-    /// resumes. With `enforce`, an unrecoverable gap is a fatal startup error;
-    /// otherwise it is only a warning, as the chain still extends going
-    /// forward.
+    /// before live execution resumes: first from local checkpoint history, then
+    /// — on a recognized chain — from that chain's formal-snapshot
+    /// `EPOCH_INFO`. On a recognized chain an unfillable gap is a fatal
+    /// startup error, since every node must hold the verified chain since
+    /// genesis; on an unrecognized network (no published snapshot) it is
+    /// only a warning, as the chain still extends going forward.
+    ///
+    /// TODO: https://github.com/iotaledger/iota/issues/12028 — once every node
+    /// holds the chain this startup backfill is no longer needed; it reduces to
+    /// seeding the open epoch, or is removed entirely.
     async fn seed_epoch_info(
         checkpoint_store: &CheckpointStore,
         authority_store: &AuthorityStore,
-        config: &NodeConfig,
         genesis: &iota_config::genesis::Genesis,
         expected_chain_id: ChainIdentifier,
-        enforce: bool,
     ) -> anyhow::Result<()> {
         // On a node with unpruned history back to genesis (e.g. freshly
         // upgraded onto this feature), rebuild the whole closed-epoch chain
@@ -898,60 +886,57 @@ impl IotaNode {
             return Ok(());
         };
 
-        let Some(remote_store_config) = &config.state_snapshot_read_config else {
-            let detail = format!(
+        // Pruned history: fill the gap from the chain's public formal-snapshot
+        // `EPOCH_INFO`. A recognized chain (mainnet, testnet, or the current
+        // devnet — see `formal_snapshot_read_config`) must end up complete and
+        // refuses to start otherwise. Unrecognized networks (custom/local, or a
+        // devnet that has since reset) have no published source, so there the
+        // gap is best-effort and the chain simply extends forward.
+        let chain = expected_chain_id.chain();
+        let Some(remote_store_config) = formal_snapshot_read_config(expected_chain_id) else {
+            warn!(
                 "the epoch_info chain is incomplete (finalized through {highest_indexed:?}, \
-                 executed through epoch {last_executed}) and no `state-snapshot-read-config` \
-                 is set, so the missing epochs cannot be backfilled from a formal snapshot"
+                 executed through epoch {last_executed}) and {chain:?} has no public \
+                 formal-snapshot source to backfill from; the chain will still extend as new \
+                 epochs close"
             );
-            if enforce {
-                anyhow::bail!(
-                    "{detail}. A consumer of the epoch chain (the gRPC API, snapshot writing, \
-                     or summary pruning) is enabled and needs it complete: set \
-                     `state-snapshot-read-config` to a formal-snapshot bucket, re-restore from \
-                     a V2 formal snapshot, or disable that consumer."
-                );
-            }
-            warn!("{detail}; the chain will still extend as new epochs close");
             return Ok(());
         };
 
         let snapshot_epoch = Self::backfill_epoch_info_from_snapshot(
             checkpoint_store,
             authority_store,
-            remote_store_config,
+            &remote_store_config,
             genesis.committee()?,
             genesis.iota_system_object(),
             expected_chain_id,
         )
         .await?;
 
-        // The published snapshot can lag this node's history; if a gap remains,
-        // it's fatal only when a consumer needs the chain complete.
+        // The published snapshot can lag this node's history; a residual gap on
+        // a recognized chain is fatal — the node must hold the verified chain
+        // since genesis — and clears once a newer snapshot is published.
         if let Some((highest_indexed, last_executed)) = checkpoint_store
             .epoch_info_gap()
             .map_err(|e| anyhow::anyhow!("re-checking epoch_info completeness: {e}"))?
         {
-            let detail = format!(
+            anyhow::bail!(
                 "the epoch_info chain is still incomplete after backfilling (finalized through \
                  {highest_indexed:?}, executed through epoch {last_executed}): the latest \
                  published snapshot (epoch {snapshot_epoch}) is older than this node's history \
-                 and the missing epochs' checkpoint data is already pruned locally"
+                 and the missing epochs' checkpoint data is already pruned locally; retry once a \
+                 newer snapshot is published"
             );
-            if enforce {
-                anyhow::bail!(
-                    "{detail}; retry once a newer snapshot is published, or disable the \
-                     consumer until then"
-                );
-            }
-            warn!("{detail}; the chain will still extend as new epochs close");
         }
         Ok(())
     }
 
-    /// Backfills the CheckpointStore's `epoch_info` chain from the configured
+    /// Backfills the CheckpointStore's `epoch_info` chain from the given
     /// formal-snapshot bucket's EPOCH_INFO, verifying it against this node's
     /// trust roots. A wrong-network snapshot is rejected before any write.
+    ///
+    /// TODO: https://github.com/iotaledger/iota/issues/12028 — one-time
+    /// migration aid; remove once every node has backfilled the chain.
     async fn backfill_epoch_info_from_snapshot(
         checkpoint_store: &CheckpointStore,
         authority_store: &AuthorityStore,
@@ -1067,9 +1052,6 @@ impl IotaNode {
 
     /// Creates a StateSnapshotUploader and starts it if the StateSnapshotConfig
     /// is set.
-    ///
-    /// The embedded `EPOCH_INFO` comes from the CheckpointStore's `epoch_info`
-    /// chain.
     fn start_state_snapshot(
         config: &NodeConfig,
         prometheus_registry: &Registry,
@@ -1080,7 +1062,7 @@ impl IotaNode {
             // Snapshot publication is a fullnode-only role.
             anyhow::ensure!(
                 is_full_node,
-                "Snapshot V2 upload is configured, but this node is a validator. \
+                "Snapshot upload is configured, but this node is a validator. \
                  Snapshot publication is only supported on fullnodes. Remove the \
                  `state_snapshot_write_config.object_store_config` setting, or move \
                  the upload to a fullnode."
@@ -2376,6 +2358,51 @@ impl SpawnOnce {
             handle.trigger_shutdown();
         }
     }
+}
+
+/// The public formal-snapshot source for a recognized chain, used to backfill a
+/// pruned node's `epoch_info` chain from the bucket's `EPOCH_INFO`. `None` for
+/// networks without a published bucket (custom/local), where a residual gap is
+/// left to extend forward instead.
+///
+/// Hardcoded deliberately: this is a one-time migration aid. Remove it together
+/// with `backfill_epoch_info_from_snapshot` (and `get_devnet_chain_identifier`)
+/// one release after this ships, once every node holds the chain and new nodes
+/// get it from genesis sync or a V2 formal-snapshot restore. Anything fetched
+/// is verified against the genesis committee, so the URL is only a source hint,
+/// not a trust root.
+///
+/// TODO: https://github.com/iotaledger/iota/issues/12028
+fn formal_snapshot_read_config(chain_id: ChainIdentifier) -> Option<ObjectStoreConfig> {
+    let (bucket, endpoint) = match chain_id.chain() {
+        Chain::Mainnet => (
+            "iota-mainnet-formal",
+            "https://formal-snapshot.mainnet.iota.cafe",
+        ),
+        Chain::Testnet => (
+            "iota-testnet-formal",
+            "https://formal-snapshot.testnet.iota.cafe",
+        ),
+        // Devnet has no stable identity (`Chain::Unknown`), so match the current
+        // devnet genesis explicitly. After a reset the new genesis no longer
+        // matches and this falls through to `None`. Devnet backfill is
+        // best-effort (see `seed_epoch_info`), so a stale id or absent bucket is
+        // never fatal.
+        Chain::Unknown if chain_id == get_devnet_chain_identifier() => (
+            "iota-devnet-formal",
+            "https://formal-snapshot.devnet.iota.cafe",
+        ),
+        Chain::Unknown => return None,
+    };
+    Some(ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::S3),
+        bucket: Some(bucket.to_owned()),
+        aws_endpoint: Some(endpoint.to_owned()),
+        aws_virtual_hosted_style_request: true,
+        object_store_connection_limit: 200,
+        no_sign_request: true,
+        ..Default::default()
+    })
 }
 
 /// Notify [`DiscoveryEventLoop`] that a new list of trusted peers are now

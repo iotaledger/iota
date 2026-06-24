@@ -42,14 +42,3 @@ state-archive-read-config:
       no-sign-request: true
     concurrency: 5
     use-for-pruning-watermark: false
-
-# Formal Snapshot Fallback
-# Used to backfill the per-epoch verified data chain (kept by every node) when
-# it cannot be rebuilt from local data (see
-# https://docs.iota.org/operator/common/snapshots). Consulted only when the
-# chain is incomplete.
-state-snapshot-read-config:
-  object-store: "S3"
-  aws-endpoint: "https://formal-snapshot.mainnet.iota.cafe"
-  aws-virtual-hosted-style-request: true
-  no-sign-request: true
