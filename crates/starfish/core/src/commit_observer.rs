@@ -48,6 +48,10 @@ impl CommittedSubDagSource {
     }
 }
 
+/// Maximum number of commits scanned and processed per batch during recovery,
+/// to bound peak memory when a large unprocessed range must be replayed.
+const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
+
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
 /// - The newly committed leaders are sent to commit observer and then commit
@@ -329,80 +333,101 @@ impl CommitObserver {
         let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
         let recovery_start = linearizer_recovery_start.min(solidifier_recovery_start);
 
-        let recovery_commits = self
-            .store
-            .scan_commits((recovery_start..=last_commit_index).into())?;
-
         info!(
-            "Recovering linearizer/solidifier state from {} commits (indices {}..={})",
-            recovery_commits.len(),
-            recovery_start,
-            last_commit_index
+            "Recovering linearizer/solidifier state from commits {recovery_start}..={last_commit_index}"
         );
 
+        // Set the solidifier cursor exactly once. The solidifier advances
+        // last_solid_committed_index itself in try_get_solid_sub_dags, so it must
+        // not be reset per batch.
         self.commit_solidifier
             .set_last_solid_committed_index(self.last_sent_commit_index);
 
-        let mut pending_for_solidifier = Vec::new();
-        for commit in recovery_commits {
-            // Recovery only needs headers/acks, so reputation scores are irrelevant here.
-            let commit_index = commit.index();
-            let is_optimistic = commit.is_optimistic();
-            let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
+        // Process in bounded batches so a large unprocessed range (e.g. when tx
+        // data lagged behind commits for a long period) is never materialized at
+        // once. Disjoint, ascending, contiguous batches feed the solidifier
+        // exactly as a single pass would.
+        for start_index in
+            (recovery_start..=last_commit_index).step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
+        {
+            let end_index = start_index
+                .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
+                .min(last_commit_index);
 
-            if commit_index >= linearizer_recovery_start {
-                // Rebuild traversed headers tracker
-                self.linearizer
-                    .record_traversed_headers(pending_sub_dag.headers.iter());
+            let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
+            if batch_commits.is_empty() {
+                break;
+            }
 
-                // Recover transaction acknowledgments tracker state
-                for ((round, authority_idx), transaction_acknowledgments) in
-                    pending_sub_dag.transaction_acknowledgments().into_iter()
-                {
-                    self.linearizer.add_committed_transaction_acks(
-                        round,
-                        authority_idx,
-                        transaction_acknowledgments,
-                    );
-                }
+            // Re-declared per batch so it stays bounded to the batch.
+            let mut pending_for_solidifier = Vec::new();
+            for commit in batch_commits {
+                // Recovery only needs headers/acks, so reputation scores are irrelevant here.
+                let commit_index = commit.index();
+                let is_optimistic = commit.is_optimistic();
+                let pending_sub_dag =
+                    load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
 
-                // Repopulate the ack tracker for transactions optimistically committed
-                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
-                // The full committee is used as a conservative over-approximation of
-                // the actual acknowledging set.
-                if is_optimistic {
-                    let leader_ref = pending_sub_dag.leader;
-                    let leader_header = pending_sub_dag
-                        .headers
-                        .iter()
-                        .find(|h| h.reference() == leader_ref)
-                        .expect("leader header must be present in pending sub-dag");
-                    let refs: Vec<BlockRef> = std::iter::once(leader_ref)
-                        .chain(leader_header.acknowledgments().iter().copied())
-                        .collect();
-                    for (authority_idx, _) in self.context.committee.authorities() {
-                        let _ = self.linearizer.add_committed_transaction_acks(
-                            leader_header.round() + 1,
+                if commit_index >= linearizer_recovery_start {
+                    // Rebuild traversed headers tracker
+                    self.linearizer
+                        .record_traversed_headers(pending_sub_dag.headers.iter());
+
+                    // Recover transaction acknowledgments tracker state
+                    for ((round, authority_idx), transaction_acknowledgments) in
+                        pending_sub_dag.transaction_acknowledgments().into_iter()
+                    {
+                        self.linearizer.add_committed_transaction_acks(
+                            round,
                             authority_idx,
-                            refs.clone(),
+                            transaction_acknowledgments,
                         );
                     }
+
+                    // Repopulate the ack tracker for transactions optimistically committed
+                    // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                    // The full committee is used as a conservative over-approximation of
+                    // the actual acknowledging set.
+                    if is_optimistic {
+                        let leader_ref = pending_sub_dag.leader;
+                        let leader_header = pending_sub_dag
+                            .headers
+                            .iter()
+                            .find(|h| h.reference() == leader_ref)
+                            .expect("leader header must be present in pending sub-dag");
+                        let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                            .chain(leader_header.acknowledgments().iter().copied())
+                            .collect();
+                        for (authority_idx, _) in self.context.committee.authorities() {
+                            let _ = self.linearizer.add_committed_transaction_acks(
+                                leader_header.round() + 1,
+                                authority_idx,
+                                refs.clone(),
+                            );
+                        }
+                    }
                 }
+
+                if commit_index >= solidifier_recovery_start {
+                    pending_for_solidifier.push(pending_sub_dag);
+                }
+
+                tokio::task::yield_now().await;
             }
 
-            if commit_index >= solidifier_recovery_start {
-                pending_for_solidifier.push(pending_sub_dag);
+            if !pending_for_solidifier.is_empty() {
+                let (solid_sub_dags, _missing) = self
+                    .commit_solidifier
+                    .try_get_solid_sub_dags(&pending_for_solidifier);
+                self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)?;
             }
 
+            if end_index == last_commit_index {
+                break;
+            }
+
+            // Yield between batches during a potentially long recovery.
             tokio::task::yield_now().await;
-        }
-
-        if !pending_for_solidifier.is_empty() {
-            let (solid_sub_dags, _missing) = self
-                .commit_solidifier
-                .try_get_solid_sub_dags(&pending_for_solidifier);
-            self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)?;
         }
         Ok(())
     }
@@ -508,8 +533,6 @@ impl CommitObserver {
         // To avoid loading too many commits at once and causing OOM under stress
         // (e.g. when an authority quarantines commits for a long period), process
         // in bounded batches.
-        const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
-
         let unhandled_commits_threshold = self.context.parameters.unhandled_commits_threshold();
         let mut any_sent = false;
         let mut expected_commit_index = last_processed_commit_index;
