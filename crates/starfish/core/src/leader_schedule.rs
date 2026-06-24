@@ -285,9 +285,20 @@ impl LeaderSchedule {
             // spans many rotation intervals, so consecutive rebuilds have
             // overlapping commit ranges. Skip `range_validation` (it requires
             // contiguous, equal-length ranges), as the fast-sync path does.
-            let reputation_scores = sliding_window.lock().reputation_scores();
-            let seed = reputation_scores.commit_range.end();
-            let table = LeaderSwapTable::new(self.context.clone(), seed, reputation_scores.clone());
+            //
+            // The scorer's range ends at its last *scored* commit, which lags this
+            // rotation boundary by `MAX_PENDING_COMMITS`. Persist the boundary as
+            // the range end so recovery resumes the scoring subdag from the same
+            // commit a never-restarted node would, keeping the rotation cadence
+            // restart-invariant (as the V2 path already does).
+            let window_scores = sliding_window.lock().reputation_scores();
+            let boundary = dag_state_write_lock.last_commit_index();
+            let reputation_scores = ReputationScores::new(
+                CommitRange::new(window_scores.commit_range.start()..=boundary),
+                window_scores.scores_per_authority,
+            );
+            let table =
+                LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
             self.persist_scores(dag_state_write_lock, reputation_scores);
             self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
             return;
@@ -1110,8 +1121,9 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Feed the first 6 commits, then rebuild: scores come from the sliding
-        // window (commits 1..=3 are scored, given the 3-commit lookback), not from
-        // a ScoringSubdag snapshot.
+        // window (commits 1..=3 are scored, given the 3-commit lookback), not a
+        // ScoringSubdag snapshot. The range is tagged to the rotation boundary
+        // (last committed index = 6), not the last scored commit.
         leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
         {
             let mut ds = dag_state.write();
@@ -1124,10 +1136,10 @@ mod tests {
             .reputation_scores
             .commit_range
             .clone();
-        assert_eq!(range, (1..=3).into());
+        assert_eq!(range, (1..=6).into());
 
-        // Feed 3 more and rebuild again. The new window range (1..=6) overlaps the
-        // previous one (1..=3) — V2's range_validation would reject that, so this
+        // Feed 3 more and rebuild again. The new range (1..=9) overlaps the
+        // previous one (1..=6) — V2's range_validation would reject that, so this
         // not panicking confirms the sliding-window path skips it.
         leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
         {
@@ -1141,7 +1153,7 @@ mod tests {
             .reputation_scores
             .commit_range
             .clone();
-        assert_eq!(range, (1..=6).into());
+        assert_eq!(range, (1..=9).into());
     }
 
     #[tokio::test]
