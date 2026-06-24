@@ -392,43 +392,26 @@ error[Iota E02011]: invalid 'view' function signature
     ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:255:7
     │
 255 │     #[view]
-    │       ^^^^ Invalid return type for view function 'returns_generic_obj_reference'
-    ·
-258 │     ): &GenericObject<Wrapped> {
-    │        ----------------------- View functions cannot return references
-
-error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:262:7
-    │
-262 │     #[view]
-    │       ^^^^ Invalid return type for view function 'returns_u64_reference'
-263 │     public fun returns_u64_reference(input: &u64): &u64 {
-    │                                                    ---- View functions cannot return references
-
-error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:267:7
-    │
-267 │     #[view]
-    │       ^^^^ Invalid return type for view function 'returns_tuple_with_reference'
-268 │     public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
-    │                                                           ----------- View functions cannot return references
-
-error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:272:7
-    │
-272 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'store_only_type_param'
-273 │     public native fun store_only_type_param<T: store>(x: T): u64;
+256 │     public native fun store_only_type_param<T: store>(x: T): u64;
     │                                                       -  - View functions cannot accept objects or values that could contain objects by value
     │                                                       │   
     │                                                       Invalid view parameter 'x'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:275:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:258:7
     │
-275 │     #[view]
+258 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'native_mut_ref'
-276 │     public native fun native_mut_ref(x: &mut u64): u64;
+259 │     public native fun native_mut_ref(x: &mut u64): u64;
     │                                      -  -------- View functions cannot accept mutable references
     │                                      │   
     │                                      Invalid view parameter 'x'
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:261:7
+    │
+261 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_mut_reference'
+262 │     public native fun returns_mut_reference(input: &u64): &mut u64;
+    │                                                           -------- View functions cannot return mutable references

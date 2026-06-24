@@ -677,12 +677,15 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
                 ),
             ));
         }
-        _ if contains_reference_ty(return_type) => {
+        _ if contains_mutable_reference_ty(return_type) => {
             let msg = format!("Invalid return type for view function '{}'", name);
             context.add_diag(diag!(
                 VIEW_FUN_SIGNATURE_DIAG,
                 (view_loc, msg),
-                (return_type.loc, "View functions cannot return references"),
+                (
+                    return_type.loc,
+                    "View functions cannot return mutable references",
+                ),
             ));
         }
         _ if contains_view_unsafe_by_value_ty(return_type) => {
@@ -702,7 +705,7 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
 
 fn is_valid_view_return_ty(return_type: &Type) -> bool {
     !matches!(return_type.value, Type_::Unit)
-        && !contains_reference_ty(return_type)
+        && !contains_mutable_reference_ty(return_type)
         && !contains_view_unsafe_by_value_ty(return_type)
 }
 
@@ -769,10 +772,6 @@ fn is_valid_view_param_ty(mutability: &Mutability, param_ty: &Type) -> bool {
     !matches!(mutability, Mutability::Mut(_))
         && !contains_mutable_reference_ty(param_ty)
         && !contains_view_unsafe_by_value_ty(param_ty)
-}
-
-fn contains_reference_ty(ty: &Type) -> bool {
-    contains_reference_ty_where(ty, |_| true)
 }
 
 fn contains_mutable_reference_ty(ty: &Type) -> bool {
