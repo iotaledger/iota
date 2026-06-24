@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 
 use futures::{StreamExt, stream::ReadyChunks};
 use iota_metrics::metered_channel::ReceiverStream;
+use iota_snapshot::VerifiedEpochInfo;
+use iota_types::iota_system_state::IotaSystemStateTrait;
 use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
@@ -15,7 +17,7 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
-        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
     },
@@ -50,6 +52,50 @@ pub struct TransactionObjectChangesToCommit {
 pub struct EpochToCommit {
     pub(crate) last_epoch: Option<EndOfEpochUpdate>,
     pub(crate) new_epoch: StartOfEpochUpdate,
+}
+
+impl EpochToCommit {
+    /// Builds the epoch commits for a verified snapshot, ready to persist with
+    /// [`IndexerStore::persist_epoch`].
+    ///
+    /// Returns one commit per epoch from 0 through `snapshot_epoch + 1`, in
+    /// epoch order. Each entry closes its own epoch and opens the next, exactly
+    /// as live ingestion does at an end-of-epoch checkpoint; the leading commit
+    /// opens the genesis epoch.
+    pub(crate) fn from_verified_epoch_info(verified_epoch_info: VerifiedEpochInfo) -> Vec<Self> {
+        let epoch_info_entries = verified_epoch_info.entries();
+        let start_system_states = verified_epoch_info.start_system_states();
+
+        // Genesis epoch: open epoch 0 from its start state; no prior epoch to
+        // close.
+        let genesis_system_state =
+            start_system_states[0].clone().into_iota_system_state_summary();
+        let mut epochs_to_commit = vec![EpochToCommit {
+            last_epoch: None,
+            new_epoch: StartOfEpochUpdate::new(&genesis_system_state, 0, 0, None),
+        }];
+
+        for (epoch, epoch_info_entry) in epoch_info_entries.iter().enumerate() {
+            let event = extract_epoch_info_event(&epoch_info_entry.end_of_epoch_tx_events)
+                .unwrap_or_default();
+            let last_checkpoint_summary = &epoch_info_entry.last_checkpoint_summary;
+            let new_epoch_system_state =
+                start_system_states[epoch + 1].clone().into_iota_system_state_summary();
+            let new_epoch_first_checkpoint_id = *last_checkpoint_summary.sequence_number() + 1;
+            let new_epoch_first_tx_sequence_number =
+                last_checkpoint_summary.network_total_transactions;
+            epochs_to_commit.push(EpochToCommit {
+                last_epoch: Some(EndOfEpochUpdate::new(last_checkpoint_summary, &event)),
+                new_epoch: StartOfEpochUpdate::new(
+                    &new_epoch_system_state,
+                    new_epoch_first_checkpoint_id,
+                    new_epoch_first_tx_sequence_number,
+                    Some(&event),
+                ),
+            });
+        }
+        epochs_to_commit
+    }
 }
 
 pub(crate) struct PrimaryWriter {

@@ -8,6 +8,8 @@ use diesel::{
 };
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use iota_types::{
+    effects::TransactionEvents,
+    event::SystemEpochInfoEvent,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::CertifiedCheckpointSummary,
 };
@@ -44,6 +46,21 @@ pub struct StoredEpochInfo {
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: i64,
+}
+
+/// Extracts the indexed epoch-info facts from a transaction's events.
+///
+/// Returns `None` when no `SystemEpochInfoEvent` is present, as on a safe-mode
+/// epoch boundary.
+pub(crate) fn extract_epoch_info_event(
+    events: &TransactionEvents,
+) -> Option<IndexedEpochInfoEvent> {
+    events
+        .iter()
+        .find(|event| event.is_system_epoch_info_event())
+        .cloned()
+        .map(SystemEpochInfoEvent::from)
+        .map(|event| IndexedEpochInfoEvent::from(&event))
 }
 
 impl StoredEpochInfo {
