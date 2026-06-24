@@ -7,7 +7,7 @@ tags:
 
 # Define a View Function
 
-This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that ranks player scores, a `menu` that demonstrates returning references, and a generic, time-locked `vault`.
+This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that ranks player scores, a `menu`, and a generic, time-locked `vault`.
 
 ## Read State From a View
 
@@ -22,13 +22,13 @@ These examples come from the `leaderboard` module, which stores player scores in
 3. A view may take additional immutable references and return an `Option`. This one looks up the entry for a given `player`, returning `none` when the player has no score.
 ```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L62-L72
 ```
-4. A view may return a vector of allowed values, such as `vector<ScoreEntry>` — `ScoreEntry` is a non-object struct with `copy` and `drop`, so it may be returned by value.
+4. A view may return a vector of values, such as `vector<ScoreEntry>` — `ScoreEntry` is a non-object struct with `copy` and `drop`, so it may be returned by value.
 ```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L74-L78
 ```
 
 ## Return a Reference From a View
 
-A view may return an **immutable** reference; only mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `menu` module keeps a list of regular dishes inline and stores special dishes as dynamic fields.
+A view may return an **immutable** reference; mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `menu` module keeps a list of regular dishes inline and stores special dishes as dynamic fields.
 
 1. Define the menu and its dishes.
 ```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L8-L28
