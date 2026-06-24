@@ -240,7 +240,7 @@ impl GenericSignature {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             GenericSignature::MultiSig(s) => s.to_bytes(),
-            GenericSignature::Signature(s) => s.as_ref().to_vec(),
+            GenericSignature::Signature(s) => s.to_bytes(),
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
             GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),

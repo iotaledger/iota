@@ -41,8 +41,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signature, Signer, ToFromBytes,
+        empty_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -2542,12 +2542,7 @@ impl VerifiedTransaction {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
             .pipe(|data| {
-                SenderSignedData::new_from_sender_signature(
-                    data,
-                    Ed25519IotaSignature::from_bytes(&[0; Ed25519IotaSignature::LENGTH])
-                        .unwrap()
-                        .into(),
-                )
+                SenderSignedData::new_from_sender_signature(data, empty_signature())
             })
             .pipe(Transaction::new)
             .pipe(Self::new_from_verified)
