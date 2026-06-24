@@ -35,14 +35,19 @@ LATENCY_METRICS = [
     ),
 ]
 
-# Safety counters that MUST stay 0. Not plotted; the health section of summary.md
-# lists only the non-zero ones (with a warning). (metric, display label)
+# Safety counters that MUST stay 0 — the H4 (safety) pass/fail signals. Any
+# non-zero one fails H4. Not plotted; summary.md's H4 section lists the offenders.
+# (metric, display label)
 SAFETY_COUNTERS = [
     ("validator_attestation_task_panics", "attestation task panics"),
     ("split_brain_checkpoint_forks", "split-brain checkpoint forks"),
     ("remote_checkpoint_forks", "remote checkpoint forks"),
     ("global_state_hash_inconsistent_state", "inconsistent state hash"),
     ("total_client_double_spend_attempts_detected", "double-spend attempts detected"),
+    (
+        "validator_service_num_rejected_tx_soft_lock_conflict",
+        "soft-lock conflicts (equivocation)",
+    ),
 ]
 
 
@@ -174,6 +179,37 @@ def dlt(a, b):
     return "—" if (a is None or b is None) else f"{b - a:+.6g}"
 
 
+def crash_incidents(results_dir):
+    """Scan per-iteration node-logs/_state.log for a validator that crashed,
+    restarted, or was OOM-killed — an H4 failure the timeseries counters don't
+    capture. run.sh writes one line per node:
+      /validator-1 status=running restarts=0 oom=false exit=0
+    Returns a list of human-readable strings for any non-clean node."""
+    incidents = []
+    for sp in sorted(
+        glob.glob(os.path.join(results_dir, "*", "node-logs", "_state.log"))
+    ):
+        itr = sp.split(os.sep)[-3]  # results/<LABEL>/<iter-NNN>/node-logs/_state.log
+        try:
+            lines = open(sp).read().splitlines()
+        except Exception as e:  # noqa: BLE001
+            print(f"WARN: cannot read {sp}: {e}", file=sys.stderr)
+            continue
+        for line in lines:
+            toks = line.split()
+            if not toks:
+                continue
+            kv = dict(t.split("=", 1) for t in toks if "=" in t)
+            restarts = int(kv.get("restarts", "0") or 0)
+            oom = kv.get("oom", "false") == "true"
+            status = kv.get("status", "")
+            if restarts > 0 or oom or status not in ("running", ""):
+                incidents.append(
+                    f"{itr} {toks[0]}: status={status} restarts={restarts} oom={oom}"
+                )
+    return incidents
+
+
 def main():
     results_dir = sys.argv[1] if len(sys.argv) > 1 else "."
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(results_dir, "summary.md")
@@ -223,31 +259,56 @@ def main():
         f"| finalized TPS | {fmt(a['_tps'])} | {fmt(b['_tps'])} | {dlt(a['_tps'], b['_tps'])} |",
         f"| per-validator CPU (busy cores) | {fmt(a['_cpu'])} | {fmt(b['_cpu'])} | {dlt(a['_cpu'], b['_cpu'])} |",
     ]
-    # Health: safety counters that must be 0 (not plotted). Only the NON-ZERO ones
-    # are listed; if all are zero, a single all-clear line is shown.
+    # --- H4 (safety): the ONLY pass/fail hypothesis. FAILS if any safety counter is
+    # non-zero (fork / inconsistent state / double-spend / attestor panic / soft-lock
+    # equivocation) OR any validator crashed/restarted/OOM'd. Watched on every run. ---
     nonzero = [
         (label, a["_safety"][m], b["_safety"][m])
         for m, label in SAFETY_COUNTERS
         if (a["_safety"][m] or 0) > 0 or (b["_safety"][m] or 0) > 0
     ]
-    L += ["", "## health\n"]
-    if nonzero:
-        L += [
-            "> [!WARNING]",
-            "> Safety counters are NON-ZERO — a fork / inconsistency / attestor panic /",
-            "> double-spend occurred. Investigate node-logs/_crashes.txt for the run(s).",
-            "",
-            "| safety counter | V1 | V2 |",
-            "| --- | --- | --- |",
-        ]
-        L += [f"| {label} | {fmt(va)} | {fmt(vb)} |" for label, va, vb in nonzero]
-    else:
+    incidents = crash_incidents(results_dir)
+    failed = bool(nonzero or incidents)
+    L += [
+        "",
+        "## H4 — safety (pass/fail)\n",
+        f"**H4: {'FAIL ✗' if failed else 'PASS ✓'}**",
+        "",
+    ]
+    if not failed:
         L.append(
-            "All safety counters are zero (attestor panics, checkpoint forks, "
-            "inconsistent state, double-spend). ✓"
+            "All safety counters zero (checkpoint forks, inconsistent state, "
+            "double-spend, attestor panics, soft-lock equivocation) and no validator "
+            "crash / restart / OOM across the pooled runs."
         )
+    else:
+        L += [
+            "> [!CAUTION]",
+            "> H4 FAILED — a safety violation occurred. Treat any H1/H2/H3 numbers from",
+            "> these runs as suspect until investigated (node-logs/, _crash.log).",
+        ]
+        if nonzero:
+            L += [
+                "",
+                "Non-zero safety counters (max across pooled runs):",
+                "",
+                "| safety counter | V1 | V2 |",
+                "| --- | --- | --- |",
+            ]
+            L += [f"| {label} | {fmt(va)} | {fmt(vb)} |" for label, va, vb in nonzero]
+        if incidents:
+            L += ["", "Validator crash / restart / OOM (node-logs/_state.log):", ""]
+            L += [f"- {x}" for x in incidents]
     with open(out, "w") as f:
         f.write("\n".join(L) + "\n")
+    # Echo the verdict to stderr too, so a FAIL is visible in the run log without
+    # opening summary.md (non-fatal: the run still completes and plots render).
+    if failed:
+        print(
+            f"H4: FAIL — {len(nonzero)} non-zero safety counter(s), "
+            f"{len(incidents)} validator incident(s) in {results_dir}",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
