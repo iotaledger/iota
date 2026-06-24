@@ -205,10 +205,9 @@ fun ed25519_public_key(): public_key::PublicKey {
 }
 
 fun secp256k1_public_key(): public_key::PublicKey {
-    // 33 zero bytes — raw secp256k1 compressed point
     public_key::create(
         signature_scheme::secp256k1(),
-        x"000000000000000000000000000000000000000000000000000000000000000000",
+        x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
     )
 }
 
