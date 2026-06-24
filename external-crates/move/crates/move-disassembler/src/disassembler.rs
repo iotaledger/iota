@@ -1558,15 +1558,26 @@ impl Disassembler<'_> {
         constant: &Constant,
         use_inline_formatting: bool,
     ) -> Result<()> {
-        let data_str = match try_render_constant(constant) {
-            RenderResult::NotRendered => hex::encode(&constant.data),
-            RenderResult::AsValue(v_str) => v_str,
-            RenderResult::AsString(s) => "\"".to_owned() + &s + "\" // interpreted as UTF8 string",
-        };
+        let rendered = try_render_constant(constant);
         if use_inline_formatting {
+            // The inline preview omits the `// interpreted as UTF8 string`
+            // suffix so that short rendered values (e.g. `"TA"`) are not
+            // falsely flagged as truncated by `preview_string`.
+            let inline_repr = match &rendered {
+                RenderResult::NotRendered => hex::encode(&constant.data),
+                RenderResult::AsValue(v_str) => v_str.clone(),
+                RenderResult::AsString(s) => format!("\"{s}\""),
+            };
             self.disassemble_sig_tok(buffer, &constant.type_, None, &[])?;
-            any_write!(buffer, ": {}", Self::preview_string(&data_str))
+            any_write!(buffer, ": {}", Self::preview_string(&inline_repr))
         } else {
+            let data_str = match rendered {
+                RenderResult::NotRendered => hex::encode(&constant.data),
+                RenderResult::AsValue(v_str) => v_str,
+                RenderResult::AsString(s) => {
+                    "\"".to_owned() + &s + "\" // interpreted as UTF8 string"
+                }
+            };
             any_write!(buffer, "\t{const_idx} => ")?;
             self.disassemble_sig_tok(buffer, &constant.type_, None, &[])?;
             any_writeln!(buffer, ": {data_str}")
