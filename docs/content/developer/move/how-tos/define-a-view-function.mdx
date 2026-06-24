@@ -7,67 +7,66 @@ tags:
 
 # Define a View Function
 
-This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that stores player scores, a `registry` that demonstrates returning references, and a generic `vault`.
+This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that ranks player scores, a `menu` that demonstrates returning references, and a generic, time-locked `vault`.
 
 ## Read State From a View
 
 These examples come from the `leaderboard` module, which stores player scores in a shared object.
 
-1. Start from a module with some state to read. Here a shared `Leaderboard` holds a vector of score `Entry` values.
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L6-L14
+1. Start from a module with some state to read. Here a shared `Leaderboard` holds a vector of `ScoreEntry` values.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L9-L20
 ```
 2. Annotate a `public` function with `#[view]`. A view takes its object by immutable reference (`&Leaderboard`) and returns a value — this one returns the entry count.
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L31-L35
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L56-L60
 ```
-3. A view may take primitives by value alongside immutable references. This one reads the score for a given `player` address.
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L37-L50
+3. A view may take additional immutable references and return an `Option`. This one looks up the entry for a given `player`, returning `none` when the player has no score.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L62-L72
 ```
-4. A view may return a vector of allowed values, such as `vector<u64>`.
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L52-L63
-```
-5. A view need not touch on-chain state at all. A pure view takes only values by copy and returns a computed result.
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L65-L71
+4. A view may return a vector of allowed values, such as `vector<ScoreEntry>` — `ScoreEntry` is a non-object struct with `copy` and `drop`, so it may be returned by value.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L74-L78
 ```
 
 ## Return a Reference From a View
 
-A view may return an **immutable** reference; only mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `registry` module keeps a primary `Setting` inline and stores additional settings as dynamic fields.
+A view may return an **immutable** reference; only mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `menu` module keeps a list of regular dishes inline and stores special dishes as dynamic fields.
 
-1. Define the registry and its settings.
-```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L9-L20
+1. Define the menu and its dishes.
+```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L8-L28
 ```
 2. Return an immutable reference into a field of the object received by reference.
-```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L37-L44
+```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L49-L56
 ```
 3. Return a reference to a value stored as a dynamic field.
-```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L46-L50
+```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L64-L68
 ```
 4. Return a tuple that mixes a value and a reference.
-```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L52-L58
+```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L70-L77
 ```
 
 ## Write a Generic View
 
-A view can be generic. A type parameter used only behind a reference may be unconstrained; a type parameter passed or returned by value must have `copy` or `drop`. The `vault` module wraps a single generic value.
+A view can be generic. A type parameter used only behind a reference may be unconstrained; a type parameter passed or returned by value must have `copy` or `drop`. The `vault` module wraps a single generic value behind a time lock.
 
 1. Define a generic container.
-```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L5-L9
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L13-L24
 ```
 2. Return an immutable reference to the stored item. `T` needs no extra constraint because it is only accessed behind a reference.
-```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L16-L23
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L44-L51
 ```
-3. Accept and return a type parameter by value. It must have `copy` or `drop`.
-```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L25-L31
-```
-4. Read through an immutable reference to a vector of an unconstrained type.
-```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L33-L39
+3. A view on a generic type can read more than one object. This one also takes the shared `Clock` by immutable reference to report whether the time lock has elapsed.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L65-L69
 ```
 
 ## What Not to Annotate
 
-A function that mutates state cannot be a view. `submit_score` takes `&mut Leaderboard` and pushes a new entry, so it is a regular function — adding `#[view]` to it would be a compile error.
+A function that mutates state cannot be a view. `submit_score` takes `&mut Leaderboard` and re-ranks its entries, so it is a regular function — adding `#[view]` to it would be a compile error.
 
-```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L24-L29
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L31-L54
+```
+
+A view also cannot take an object by value. `vault::unlock` consumes the `Vault` to release its contents, so it too must be a regular function.
+
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L32-L42
 ```
 
 For the full list of what a view function may and may not do, see the [view functions reference](../references/view-functions.mdx).
@@ -79,9 +78,9 @@ The complete `leaderboard` module:
 ```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move
 ```
 
-The complete `registry` module:
+The complete `menu` module:
 
-```move file=<rootDir>/examples/move/view_functions/sources/registry.move
+```move file=<rootDir>/examples/move/view_functions/sources/menu.move
 ```
 
 The complete `vault` module:
