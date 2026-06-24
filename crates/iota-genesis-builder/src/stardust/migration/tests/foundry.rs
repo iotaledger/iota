@@ -132,7 +132,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
     // Check the package object.
     let type_origin_table = package_object
         .data
-        .as_package_opt()
+        .as_opt_package()
         .expect("should be a package object")
         .type_origin_table();
     assert_eq!(type_origin_table.len(), 1);
@@ -220,7 +220,7 @@ fn foundry_with_special_metadata() -> Result<()> {
     // Check the package object.
     let type_origin_table = package_object
         .data
-        .as_package_opt()
+        .as_opt_package()
         .expect("should be a package object")
         .type_origin_table();
     assert_eq!(type_origin_table.len(), 1);

@@ -128,7 +128,7 @@ pub fn check_coin_deny_list_v1_during_execution(
         let Some(coin_type) = obj.coin_type_opt() else {
             continue;
         };
-        let Some(owner) = obj.owner.as_address_opt() else {
+        let Some(owner) = obj.owner.as_opt_address() else {
             continue;
         };
         new_coin_owners
@@ -238,7 +238,7 @@ pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) 
     get_deny_list_root_object(object_store)
         .map(|obj| {
             obj.owner
-                .into_shared_opt()
+                .into_opt_shared()
                 .expect("Deny list object must be shared")
         })
         .expect("Deny list object must exist")

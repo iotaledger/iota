@@ -2192,7 +2192,7 @@ fn load_authenticator_function_ref(
 
     let field_move_object = field_obj
         .data
-        .as_struct_opt()
+        .as_opt_struct()
         .expect("dynamic field should never be a package object");
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object

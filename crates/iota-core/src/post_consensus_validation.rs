@@ -277,12 +277,15 @@ pub async fn validate_and_resolve_conflicts(
 
         // All checks passed — acquire owned-object locks in local tracking.
         let num_owned_inputs = owned_inputs.len();
-        for obj_ref in owned_inputs {
-            current_commit_locks.insert(obj_ref, digest);
+        for obj_ref in &owned_inputs {
+            current_commit_locks.insert(*obj_ref, digest);
         }
+        // Log the acquired refs, not just their count, so the winner's locks
+        // are attributable per (object_id, version).
         debug!(
             ?digest,
             num_owned_inputs,
+            owned_inputs = ?owned_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
     }
