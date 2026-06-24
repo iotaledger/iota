@@ -21,7 +21,10 @@ use std::{
 
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::object::Object;
-use tokio::{runtime::Handle, task::block_in_place};
+use tokio::{
+    runtime::{Handle, RuntimeFlavor},
+    task::block_in_place,
+};
 
 use crate::{
     error::StoreError,
@@ -77,13 +80,26 @@ impl<F: ObjectFetcher> CachingStore<F> {
         self.inner.lock().expect("store lock poisoned").clone()
     }
 
-    /// Fetch `refs` by blocking on the fetcher from within the executor. Must
-    /// run inside a multi-threaded Tokio runtime.
+    /// Fetch `refs` by blocking on the fetcher from within the executor.
+    ///
+    /// Bridges the synchronous [`Store`] surface to the async fetcher via
+    /// [`block_in_place`], which requires a multi-threaded Tokio runtime. A
+    /// missing or current-thread runtime is reported as a [`StoreError`] up
+    /// front, rather than panicking deep inside the VM's object resolution.
     fn fetch_blocking(
         &self,
         refs: &[(ObjectId, Option<Version>)],
     ) -> Result<Vec<Object>, StoreError> {
-        block_in_place(|| Handle::current().block_on(self.fetcher.fetch_objects(refs)))
+        let handle = Handle::try_current().map_err(|e| {
+            StoreError::new("on-demand fetch requires a multi-threaded Tokio runtime", e)
+        })?;
+        if !matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread) {
+            return Err(StoreError::new(
+                "on-demand fetch requires a multi-threaded Tokio runtime",
+                "called from a current-thread runtime, where block_in_place is unavailable",
+            ));
+        }
+        block_in_place(|| handle.block_on(self.fetcher.fetch_objects(refs)))
     }
 }
 

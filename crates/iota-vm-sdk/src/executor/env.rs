@@ -43,6 +43,9 @@ struct ProfileCapture {
 
 impl ExecutionEnv {
     pub(super) fn new(vm: &LocalVm, debug: &DebugConfig) -> Result<Self, VmSdkError> {
+        if debug.any_enabled() {
+            warn_if_tracing_unavailable();
+        }
         // Built per run because `iota_execution::executor` bakes the profiler
         // path in at construction, so it cannot be shared across runs.
         let (executor, profile_capture) = build_executor_with_profile(&vm.protocol_config, debug)?;
@@ -89,6 +92,26 @@ impl Drop for ExecutionEnv {
         }
     }
 }
+
+/// Warn once when a debug capture was requested but the crate was built
+/// without the `tracing` feature, so the otherwise-silent no-op is visible.
+#[cfg(not(feature = "tracing"))]
+fn warn_if_tracing_unavailable() {
+    use std::sync::Once;
+    static WARNED: Once = Once::new();
+    WARNED.call_once(|| {
+        eprintln!(
+            "iota-vm-sdk: a gas profile or trace was requested, but the crate was built \
+             without the `tracing` feature; nothing will be captured. Rebuild with \
+             `--features tracing` to enable it."
+        );
+    });
+}
+
+/// With the `tracing` feature on, capture works and there is nothing to warn
+/// about.
+#[cfg(feature = "tracing")]
+fn warn_if_tracing_unavailable() {}
 
 /// Build a Move executor with no profiler.
 pub(super) fn build_executor(

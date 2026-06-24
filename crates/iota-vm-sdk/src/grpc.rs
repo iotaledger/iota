@@ -182,15 +182,12 @@ impl ObjectFetcher for GrpcFetcher {
         };
         let mut objects = Vec::with_capacity(proto_objects.len());
         for proto_obj in proto_objects {
-            // The proto helper yields the SDK `Object`; round-trip through BCS
-            // into the node's `iota_types::object::Object` (identical layout).
-            let sdk_obj = proto_obj
+            // The proto helper yields the SDK `Object`, which the node's
+            // `iota_types::object::Object` is a newtype over.
+            let obj: Object = proto_obj
                 .object()
-                .map_err(|e| StoreError::new("decode gRPC object", e))?;
-            let bytes =
-                bcs::to_bytes(&sdk_obj).map_err(|e| StoreError::new("re-encode object", e))?;
-            let obj: Object =
-                bcs::from_bytes(&bytes).map_err(|e| StoreError::new("decode object", e))?;
+                .map_err(|e| StoreError::new("decode gRPC object", e))?
+                .into();
             objects.push(obj);
         }
         Ok(objects)
