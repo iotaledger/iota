@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
@@ -390,14 +390,15 @@ impl ReadApiServer for ReadApi {
             iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
         )
         .map_err(IotaRpcInputError::from)?;
+        let limit = NonZeroUsize::new(limit).expect("limit should be validated as positive");
 
         let mut checkpoints = self
             .inner
-            .get_checkpoints_with_fallback(cursor, limit + 1, descending_order)
+            .get_checkpoints_with_fallback(cursor, limit.saturating_add(1), descending_order)
             .await?;
 
-        let has_next_page = checkpoints.len() > limit;
-        checkpoints.truncate(limit);
+        let has_next_page = checkpoints.len() > limit.get();
+        checkpoints.truncate(limit.get());
 
         let next_cursor = checkpoints.last().map(|d| d.sequence_number.into());
 

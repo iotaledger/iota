@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 29;
+pub const MAX_PROTOCOL_VERSION: u64 = 30;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -166,6 +166,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+// Version 30: Extend the protocol_config framework module with a generic
+//             `get_attr<T>` native that lets Move code read any numeric or
+//             boolean protocol parameter by name, returning Option<T>.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2941,6 +2944,12 @@ impl ProtocolConfig {
                     // header size by committee size and garbage-collect the block
                     // manager.
                     cfg.feature_flags.consensus_block_restrictions = true;
+                }
+                30 => {
+                    // Extend the protocol_config framework module with
+                    // `get_attr<T>`, a generic native that
+                    // lets Move code read any numeric or boolean
+                    // protocol parameter by name (returning Option<T>).
                 }
                 // Use this template when making changes:
                 //

@@ -6,6 +6,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
 };
 
@@ -697,32 +698,38 @@ impl IndexerReader {
         Ok(self.get_latest_checkpoint()?.timestamp_ms)
     }
 
-    /// Determines whether the fallback should be used to fetch more
-    /// checkpoints in case of data being pruned.
-    fn should_fetch_from_fallback(
+    /// Determines whether the fallback should be used for checkpoints.
+    ///
+    /// The database may return a page that is either empty, partial (< limit),
+    /// or full.
+    ///
+    /// Depending on the sort type (`descending_order`) we identify the
+    /// following cases:
+    ///
+    /// * Ascending: Should use fallback only when the lowest found checkpoint
+    ///   in a partial or full page does not match the cursor + 1, or genesis.
+    ///   We always expect checkpoint data to be available in the database, so
+    ///   an empty page indicates that the given cursor is too high.
+    /// * Descending: Should use fallback when a partial page does not reach
+    ///   genesis, or when the page is empty and the cursor is not the genesis
+    ///   checkpoint.
+    ///
+    /// Note that `db_checkpoints` is expected to follow the sorting
+    /// order implied by `descending_order`. That is, smallest sequence numbers
+    /// come first when order is ascending, and vice-versa.
+    fn should_fetch_checkpoints_from_fallback(
         cursor: Option<u64>,
         descending_order: bool,
-        limit: usize,
-        db_response: &[iota_json_rpc_types::Checkpoint],
+        limit: NonZeroUsize,
+        db_checkpoints: &[iota_json_rpc_types::Checkpoint],
     ) -> bool {
-        match (cursor, descending_order) {
-            // pruning always removes from the lowest checkpoint upwards, so no gaps.
-            // If genesis (checkpoint 0) is present, data is intact.
-            (None, false) => db_response
-                .first()
-                .is_none_or(|chk| chk.sequence_number != 0),
-
-            // for descending, cursor just sets an upper bound. DB returns the highest checkpoint
-            // available. If we got fewer than limit, some data was pruned.
-            (None, true) | (Some(_), true) => {
-                db_response.len() != limit
-                    && db_response.last().is_some_and(|cp| cp.sequence_number != 0)
-            }
-
-            // if first checkpoint matches cursor + 1, data is contiguous from that point.
-            (Some(c), false) => db_response
-                .first()
-                .is_none_or(|chk| chk.sequence_number != c + 1),
+        if db_checkpoints.len() == limit.get() && descending_order {
+            return false;
+        }
+        match db_checkpoints {
+            [] => descending_order && cursor.is_none_or(|seq| seq > 0),
+            [.., lowest_found] if descending_order => lowest_found.sequence_number > 0,
+            [lowest_found, ..] => lowest_found.sequence_number != cursor.map_or(0, |c| c + 1),
         }
     }
 
@@ -737,28 +744,33 @@ impl IndexerReader {
     pub async fn get_checkpoints_with_fallback(
         &self,
         cursor: Option<u64>,
-        limit: usize,
+        limit: NonZeroUsize,
         descending_order: bool,
     ) -> Result<Vec<iota_json_rpc_types::Checkpoint>, IndexerError> {
         let checkpoints = self
             .db()
-            .get_checkpoints(cursor, limit, descending_order)
+            .get_checkpoints(cursor, limit.get(), descending_order)
             .await?
             .into_iter()
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect::<IndexerResult<Vec<_>>>()?;
 
-        if !Self::should_fetch_from_fallback(cursor, descending_order, limit, &checkpoints) {
+        if !Self::should_fetch_checkpoints_from_fallback(
+            cursor,
+            descending_order,
+            limit,
+            &checkpoints,
+        ) {
             return Ok(checkpoints);
         }
 
         // resolve the expected range of checkpoint sequence numbers
         let checkpoints_keys: Vec<CheckpointSequenceNumber> = match (cursor, descending_order) {
             // ascending from 0: expect [0, 1, ..., limit-1].
-            (None, false) => (0..limit as u64).collect(),
+            (None, false) => (0..limit.get() as u64).collect(),
 
             // ascending from cursor+1: expect [c+1, ..., c+limit]
-            (Some(c), false) => (c + 1..=c.saturating_add(limit as u64)).collect(),
+            (Some(c), false) => (c + 1..=c.saturating_add(limit.get() as u64)).collect(),
 
             // descending from cursor-1: expect [c-1, c-2, ..., c-limit].
             (Some(c), true) => {
@@ -768,7 +780,7 @@ impl IndexerReader {
                     .map(|latest_checkpoint| c.min(latest_checkpoint.sequence_number + 1))
                     .unwrap_or(c);
 
-                (c.saturating_sub(limit as u64)..c).rev().collect()
+                (c.saturating_sub(limit.get() as u64)..c).rev().collect()
             }
 
             // descending from DB's latest: expect [latest, ..., latest-limit+1].
@@ -779,7 +791,7 @@ impl IndexerReader {
                 };
                 let start = latest_checkpoint
                     .sequence_number
-                    .saturating_sub(limit as u64 - 1);
+                    .saturating_sub(limit.get() as u64 - 1);
                 (start..=latest_checkpoint.sequence_number).rev().collect()
             }
         };
@@ -3458,4 +3470,176 @@ impl<'a> DBReader<'a> {
 enum TransactionFilterKind {
     V1(TransactionFilter),
     V2(TransactionFilterV2),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroUsize;
+
+    use iota_json_rpc_types::Checkpoint;
+
+    use super::IndexerReader;
+
+    fn dummy_checkpoint(sequence_number: u64) -> Checkpoint {
+        Checkpoint {
+            epoch: 0,
+            sequence_number,
+            digest: Default::default(),
+            network_total_transactions: 0,
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: Default::default(),
+            timestamp_ms: 0,
+            end_of_epoch_data: None,
+            transactions: vec![],
+            checkpoint_commitments: vec![],
+            validator_signature: Default::default(),
+        }
+    }
+
+    /// Wraps `IndexerReader::should_fetch_checkpoints_from_fallback` by passing
+    /// dummy checkpoints with the given sequence numbers.
+    fn should_fetch_checkpoints_from_fallback(
+        cursor: Option<u64>,
+        descending_order: bool,
+        limit: usize,
+        sequence_numbers: &[u64],
+    ) -> bool {
+        let page: Vec<Checkpoint> = sequence_numbers
+            .iter()
+            .copied()
+            .map(dummy_checkpoint)
+            .collect();
+        IndexerReader::should_fetch_checkpoints_from_fallback(
+            cursor,
+            descending_order,
+            NonZeroUsize::new(limit).unwrap(),
+            &page,
+        )
+    }
+
+    #[test]
+    fn descending_full_page_never_falls_back() {
+        // A full descending page reveals nothing about data below it, so the
+        // floor being above genesis must not trigger fallback.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            3,
+            &[100, 99, 98]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(99),
+            true,
+            3,
+            &[98, 97, 96]
+        ));
+    }
+
+    #[test]
+    fn descending_partial_page_falls_back_only_above_genesis() {
+        // Short page whose lowest row is above genesis: data was pruned below.
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            5,
+            &[100, 99, 98]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(99),
+            true,
+            5,
+            &[98, 97, 96]
+        ));
+        // Short page reaching genesis: nothing below, no fallback.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            true,
+            5,
+            &[2, 1, 0]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(3),
+            true,
+            5,
+            &[2, 1, 0]
+        ));
+    }
+
+    #[test]
+    fn descending_empty_page_decided_by_cursor() {
+        // No cursor, or a cursor above genesis, may have pruned data below.
+        assert!(should_fetch_checkpoints_from_fallback(None, true, 3, &[]));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(10),
+            true,
+            3,
+            &[]
+        ));
+        // A cursor at genesis has nothing below it to fetch.
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(0),
+            true,
+            3,
+            &[]
+        ));
+    }
+
+    #[test]
+    fn ascending_falls_back_only_on_gap_from_expected_start() {
+        // Contiguous from the expected start (genesis or cursor + 1).
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            3,
+            &[0, 1, 2]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            5,
+            &[0, 1, 2]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(95),
+            false,
+            3,
+            &[96, 97, 98]
+        ));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(95),
+            false,
+            5,
+            &[96, 97]
+        ));
+        // First row past the expected start, implying pruned data.
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            3,
+            &[50, 51, 52]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            None,
+            false,
+            5,
+            &[50, 51, 52]
+        ));
+        assert!(should_fetch_checkpoints_from_fallback(
+            Some(10),
+            false,
+            5,
+            &[50, 51]
+        ));
+    }
+
+    #[test]
+    fn ascending_empty_page_does_not_fall_back() {
+        assert!(!should_fetch_checkpoints_from_fallback(None, false, 3, &[]));
+        assert!(!should_fetch_checkpoints_from_fallback(
+            Some(5),
+            false,
+            3,
+            &[]
+        ));
+    }
 }

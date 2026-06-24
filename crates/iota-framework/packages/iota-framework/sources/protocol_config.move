@@ -32,3 +32,23 @@ module iota::protocol_config;
 /// };
 /// ```
 public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bool;
+
+/// Returns the value of a protocol config parameter.
+///
+/// Aborts if the parameter is not defined in the current protocol version,
+/// if `T` does not match the parameter's actual type, or if `param_name` is
+/// not valid UTF-8 — all three are programming errors.
+///
+/// Restricted to internal use within the iota-framework package.
+///
+/// # Arguments
+/// * `param_name` - The name of the config parameter as bytes (e.g., b"max_arguments")
+///
+/// # Type parameter
+/// * `T` - Must be one of `u16`, `u32`, `u64`, or `bool` — the concrete type of the parameter.
+///
+/// # Example (framework use only)
+/// ```move
+/// let max_args: u32 = protocol_config::get_attr<u32>(b"max_arguments");
+/// ```
+public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u8>): T;

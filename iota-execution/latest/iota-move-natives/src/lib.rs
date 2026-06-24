@@ -1323,6 +1323,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(protocol_config::is_feature_enabled),
         ),
         (
+            "protocol_config",
+            "get_attr",
+            make_native!(protocol_config::get_attr),
+        ),
+        (
             "vdf",
             "vdf_verify_internal",
             make_native!(vdf::vdf_verify_internal),

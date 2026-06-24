@@ -1117,6 +1117,9 @@ ed25519_verify
 is_feature_enabled
 	public(package) fun
 	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
