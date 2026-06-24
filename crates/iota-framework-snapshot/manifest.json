@@ -765,7 +765,7 @@
     ]
   },
   "30": {
-    "git_revision": "0bb3a9b44bad7f94f5387e72fa159fe2f861af43",
+    "git_revision": "328fcc3cc72a3ac121b7eb5d066b1ba0b479e419",
     "packages": [
       {
         "name": "MoveStdlib",
