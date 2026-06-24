@@ -878,9 +878,7 @@ impl IotaNode {
             .map_err(|e| anyhow::anyhow!("checking epoch_info completeness: {e}"))?
             .is_some()
         {
-            // A recognized network pulls the formal snapshot's `EPOCH_INFO`
-            // first — cheap and bulk. Unrecognized networks have no published
-            // snapshot and skip straight to local replay.
+            // snapshot pull (recognized chains only)
             if let Some(remote_store_config) = &recognized_source {
                 Self::backfill_epoch_info_from_snapshot(
                     checkpoint_store,
@@ -892,9 +890,7 @@ impl IotaNode {
                 .await?;
             }
 
-            // Replay local checkpoints for whatever the snapshot didn't cover
-            // (its published epoch can lag this node's history), or for the
-            // whole chain on an unrecognized network.
+            // local replay
             checkpoint_store
                 .backfill_epoch_info_from_local_history(authority_store)
                 .map_err(|e| anyhow::anyhow!("rebuilding epoch_info from local history: {e}"))?;
