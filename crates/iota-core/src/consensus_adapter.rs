@@ -21,7 +21,7 @@ use futures::{
     pin_mut,
     stream::FuturesUnordered,
 };
-use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -769,7 +769,7 @@ impl ConsensusAdapter {
             let _permit: SemaphorePermit = self
                 .submit_semaphore
                 .acquire()
-                .count_in_flight(&self.metrics.sequencing_in_flight_semaphore_wait)
+                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
                 .await
                 .expect("Consensus adapter does not close semaphore");
             let _in_flight_submission_guard =
