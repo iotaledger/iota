@@ -51,7 +51,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -71,13 +71,13 @@ use iota_types::{
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::MoveAuthenticatorV1,
     move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
         TransactionDataAPI, TransactionKindExt,
     },
 };
@@ -3898,15 +3898,12 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_v1(
+        MoveAuthenticatorV1::new_with_shared_account_object(
             call_args,
             type_args,
-            CallArg::Shared(SharedObjectRef::new(
-                ObjectId::from(address),
-                initial_shared_version,
-                false,
-            )),
-        ),
+            SharedObjectReference::new(address.into(), initial_shared_version, false),
+        )
+        .into(),
     ))
 }
 

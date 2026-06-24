@@ -47,7 +47,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -2078,10 +2078,7 @@ impl SenderSignedData {
 
         self.move_authenticators()
             .into_iter()
-            .find(|a| match a.address() {
-                Ok(addr) => addr == sender,
-                Err(_) => false,
-            })
+            .find(|a| a.address() == sender)
     }
 
     /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
@@ -2094,10 +2091,7 @@ impl SenderSignedData {
 
             self.move_authenticators()
                 .into_iter()
-                .find(|a| match a.address() {
-                    Ok(addr) => addr == gas_owner,
-                    Err(_) => false,
-                })
+                .find(|a| a.address() == gas_owner)
         } else {
             None
         }
