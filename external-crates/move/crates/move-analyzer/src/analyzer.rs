@@ -275,11 +275,19 @@ pub fn run(implicit_deps: Dependencies) {
                             _ => on_notification(ide_files_root.clone(), &symbolicator_runner, &notification),
                         }
                     }
-                    Err(error) => eprintln!("IDE message error: {:?}", error),
+                    Err(error) => {
+                        eprintln!("IDE message error: {:?}", error);
+                        break;
+                    }
                 }
             }
         };
     }
+
+    // Drop context before joining to allow the LspServerWriter thread to terminate.
+    // The writer thread's channel stays connected as long as context.connection.sender is alive;
+    // dropping context causes into_iter() to return None and the thread to exit cleanly.
+    drop(context);
 
     io_threads.join().expect("I/O threads could not finish");
     symbolicator_runner.quit();
