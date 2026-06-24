@@ -522,6 +522,16 @@ impl GrpcStateReader for GrpcReadStore {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
+    fn get_epoch_info(
+        &self,
+        epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::EpochInfoV2>> {
+        self.rocks
+            .checkpoint_store
+            .get_epoch_info(epoch)
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes> {
         self.grpc_indexes_store().ok().map(|index| index as _)
     }

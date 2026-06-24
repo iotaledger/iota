@@ -193,14 +193,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub state_snapshot_write_config: StateSnapshotConfig,
 
-    /// Read-side formal-snapshot source. When set, a fullnode whose gRPC
-    /// `epochs_v2` table is incomplete backfills it from the snapshot's
-    /// `EPOCH_INFO` synchronously at startup; with a gap and no source
-    /// configured, the node refuses to start. Disabled when `None` (the
-    /// default).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub state_snapshot_read_config: Option<ObjectStoreConfig>,
-
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
