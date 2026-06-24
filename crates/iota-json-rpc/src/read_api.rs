@@ -1203,7 +1203,7 @@ fn get_move_struct(
 ) -> Result<MoveStruct, ObjectDisplayError> {
     let layout = layout.as_ref().ok_or_else(|| ObjectDisplayError::Layout)?;
     Ok(o.data
-        .as_struct_opt()
+        .as_opt_struct()
         .ok_or_else(|| ObjectDisplayError::MoveObject)?
         .to_move_struct(layout)?)
 }

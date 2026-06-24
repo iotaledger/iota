@@ -225,7 +225,7 @@ impl Scenario {
         let mut inner = object.into_inner();
         inner
             .data
-            .as_struct_mut_opt()
+            .as_opt_mut_struct()
             .unwrap()
             .increment_version_to(version + delta);
         inner.into()
