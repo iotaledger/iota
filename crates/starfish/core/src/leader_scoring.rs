@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 use tracing::instrument;
 
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef, Round},
+    block_header::{BlockHeaderAPI, BlockRef},
     commit::{CommitRange, SubDagBase},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -242,26 +242,6 @@ impl ScoringSubdag {
     }
 }
 
-/// Walks `[c_minus_2, c_minus_1, c]` in order, returning every commit up to and
-/// **including** the first whose leader round is strictly greater than `upper`.
-/// Callers pass strictly increasing leader rounds, so the scan always stops on
-/// a commit above `upper` rather than running off the end.
-fn scan_until_leader_round_above<'a>(
-    c_minus_2: &'a SubDagBase,
-    c_minus_1: &'a SubDagBase,
-    c: &'a SubDagBase,
-    upper: Round,
-) -> Vec<&'a SubDagBase> {
-    let mut out = Vec::with_capacity(3);
-    for cmt in [c_minus_2, c_minus_1, c] {
-        out.push(cmt);
-        if cmt.leader.round > upper {
-            break;
-        }
-    }
-    out
-}
-
 /// Compute the per-commit score contribution for the new commit `c`, scoring
 /// the oldest of the 3 pending commits (`c_minus_3`). Returns per-authority
 /// score deltas indexed by `AuthorityIndex`.
@@ -270,14 +250,11 @@ fn scan_until_leader_round_above<'a>(
 /// for each authority A, `contribution[A]` is the sum of stake of authorities
 /// whose round-(r+2) blocks strongly link to A's round-(r+1) voting block,
 /// where A's voting block strongly links to `c_minus_3`'s leader block (round
-/// r).
+/// r). The round-(r+1) and round-(r+2) blocks are collected from all three
+/// commits following `c_minus_3` (`c_minus_2`, `c_minus_1`, `c`).
 ///
-/// Equivocation: if A has multiple voting blocks at r+1 within the lookback
-/// window, `contribution[A] = 0`.
-///
-/// Assumes consecutive commits have strictly increasing leader rounds
-/// (`c_minus_3 < c_minus_2 < c_minus_1 < c`), which the driving schedule
-/// maintains by construction.
+/// Equivocation: if A has multiple voting blocks at r+1 within that window,
+/// `contribution[A] = 0`.
 pub(crate) fn compute_per_commit_contribution(
     context: &Context,
     c_minus_3: &SubDagBase,
@@ -294,9 +271,8 @@ pub(crate) fn compute_per_commit_contribution(
     // Voting blocks at round r+1 that strongly link to the leader block, grouped by
     // author. Multiple blocks per author indicates equivocation in the lookback
     // window.
-    let voting_commits = scan_until_leader_round_above(c_minus_2, c_minus_1, c, vote_round);
     let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<BlockRef>> = BTreeMap::new();
-    for commit in &voting_commits {
+    for commit in [c_minus_2, c_minus_1, c] {
         for header in &commit.headers {
             if header.round() != vote_round {
                 continue;
@@ -312,9 +288,8 @@ pub(crate) fn compute_per_commit_contribution(
     }
 
     // Round-(r+2) certifying blocks, with their ancestor lists.
-    let certifying_commits = scan_until_leader_round_above(c_minus_2, c_minus_1, c, certify_round);
     let mut certifying_blocks: Vec<(AuthorityIndex, &[BlockRef])> = Vec::new();
-    for commit in &certifying_commits {
+    for commit in [c_minus_2, c_minus_1, c] {
         for header in &commit.headers {
             if header.round() == certify_round {
                 certifying_blocks.push((header.author(), header.ancestors()));
@@ -347,7 +322,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, TestBlockHeader, VerifiedBlockHeader},
+        block_header::{BlockHeaderDigest, Round, TestBlockHeader, VerifiedBlockHeader},
         commit::{CommitDigest, CommitRef},
         test_dag_builder::DagBuilder,
     };
