@@ -223,6 +223,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
+    pub(crate) peer_responsiveness_effective_latency: IntGaugeVec,
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
     pub(crate) sub_dags_per_commit_count: HistogramVec,
@@ -1275,6 +1276,12 @@ impl NodeMetrics {
                 "Number of concurrent transaction fetch requests",
                 registry;
                 MetricLevel::Warn,
+            ).unwrap(),
+            peer_responsiveness_effective_latency: register_int_gauge_vec_with_registry!(
+                "peer_responsiveness_effective_latency",
+                "Smoothed effective fetch latency (ms) per peer and fetch kind, used to rank peers for synchronizer selection",
+                &["peer", "kind"],
+                registry,
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",

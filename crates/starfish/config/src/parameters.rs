@@ -153,6 +153,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
+    /// Prefer more responsive peers when the transactions synchronizer and the
+    /// commit syncer select peers to fetch from. Ranking is a preference within
+    /// the already-eligible candidate set, not a change of eligibility, so it
+    /// cannot affect safety. Enabled by default; operators can disable it
+    /// locally to fall back to uniform random peer selection.
+    #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
+    pub enable_peer_responsiveness_ranking: bool,
+
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
     /// Only has an effect when the `dag-visualizer` feature is compiled in.
@@ -423,6 +431,10 @@ impl Parameters {
     pub(crate) fn default_enable_starfish_speed_adaptive_acknowledgments() -> bool {
         true
     }
+
+    pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
+        true
+    }
 }
 
 impl Default for Parameters {
@@ -457,6 +469,8 @@ impl Default for Parameters {
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
             enable_starfish_speed_adaptive_acknowledgments:
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
+            enable_peer_responsiveness_ranking:
+                Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
         }
     }

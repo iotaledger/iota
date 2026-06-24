@@ -10,6 +10,14 @@ fn parameters_snapshot_matches() {
 }
 
 #[test]
+fn missing_peer_responsiveness_field_defaults_to_enabled() {
+    // A config that predates the field must still deserialize, with the
+    // operational kill-switch defaulting to enabled.
+    let parameters: starfish_config::Parameters = serde_yaml::from_str("{}").unwrap();
+    assert!(parameters.enable_peer_responsiveness_ranking);
+}
+
+#[test]
 fn protective_preset_enables_bounds_and_default_stays_inert() {
     let protective = starfish_config::TonicParameters::protective();
     assert_eq!(protective.max_concurrent_streams, 64);
