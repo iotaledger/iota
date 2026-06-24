@@ -20,7 +20,8 @@
 //! `consensus_enable_sliding_window_leader_schedule`), the leader schedule
 //! feeds each committed subdag to [`SlidingWindowSchedule::add_commit`] in
 //! consecutive index order and rebuilds the `LeaderSwapTable` from
-//! [`SlidingWindowSchedule::reputation_scores`] at its usual cadence.
+//! [`SlidingWindowSchedule::reputation_scores`] every `commits_per_schedule`
+//! commits.
 //!
 //! On a restart or fast-sync the in-memory window starts empty and is rebuilt
 //! from storage: [`SlidingWindowSchedule::replay_start`] gives the earliest
@@ -82,8 +83,11 @@ impl SlidingWindowSchedule {
         // Replays a full window, not just the latest commit: the window slides by
         // adding new and subtracting evicted per-commit contributions, so recovery
         // must rebuild those per-commit entries — the aggregate sum alone cannot
-        // evict. The swap table in effect at restart is recovered separately, from
-        // the scores persisted in `CommitInfo`, not by this replay.
+        // evict. The extra `MAX_PENDING_COMMITS` starts the replay three commits
+        // before the window so the lookback buffer (`pending_commits`) is refilled
+        // and the first in-window commit scores identically to live operation. The
+        // swap table in effect at restart is recovered separately, from the scores
+        // persisted in `CommitInfo`, not by this replay.
         last_commit_index
             .saturating_sub(window_size + MAX_PENDING_COMMITS as u32)
             .max(1)
@@ -101,8 +105,11 @@ impl SlidingWindowSchedule {
             return;
         }
 
-        // Steady state: 3 commits already pending; this is the 4th. The scored
-        // commit is c_minus_3 (the oldest pending).
+        // Steady state: the window now holds four consecutive commits. We score
+        // the OLDEST of the four, c_minus_3: its leader is at round r, and the
+        // r+1 votes and r+2 certifiers that score it live in the three newer
+        // commits. So a commit is scored only once the third commit after it is
+        // committed; the just-fed c merely unlocks scoring c_minus_3.
         let c_minus_3 = &self.pending_commits[0];
         let c_minus_2 = &self.pending_commits[1];
         let c_minus_1 = &self.pending_commits[2];
@@ -137,8 +144,11 @@ impl SlidingWindowSchedule {
     }
 
     /// Current running aggregate as [`ReputationScores`], tagged with the
-    /// commit range of the scored commits in the window. Returns all-zero
-    /// scores over the empty range until the first commit is scored.
+    /// commit range of the scored commits in the window. The range ends at
+    /// the last *scored* commit, which trails the last fed commit by
+    /// `MAX_PENDING_COMMITS` (a commit is scored only once the third commit
+    /// after it arrives). Returns all-zero scores over the empty range
+    /// until the first commit is scored.
     pub(crate) fn reputation_scores(&self) -> ReputationScores {
         let commit_range = match (self.scores_entries.front(), self.scores_entries.back()) {
             (Some((first, _)), Some((last, _))) => CommitRange::new(*first..=*last),

@@ -281,22 +281,29 @@ impl LeaderSchedule {
             .start_timer();
 
         if let Some(sliding_window) = &self.sliding_window {
-            // Sliding-window path: scores come from the running window, which
-            // spans many rotation intervals, so consecutive rebuilds have
-            // overlapping commit ranges. Skip `range_validation` (it requires
-            // contiguous, equal-length ranges), as the fast-sync path does.
+            // commit_range is the committed interval this update closes: the last
+            // `num_commits_per_schedule` commits, ending at the boundary L — the
+            // same shape the V2 path tags. Its end (L) is the recovery anchor; a
+            // restarted node resumes the scoring subdag from L+1, the commit a
+            // never-restarted node would. The scores are aggregated over a deeper
+            // window (window_size) whose scored frontier lags L by
+            // MAX_PENDING_COMMITS; that depth and lag are the scorer's concern,
+            // rebuilt on restart by replaying window_size + MAX_PENDING_COMMITS
+            // commits (see recover_sliding_window / replay_start), not encoded in
+            // this range.
             //
-            // The scorer's range ends at its last *scored* commit, which lags this
-            // rotation boundary by `MAX_PENDING_COMMITS`. Persist the boundary as
-            // the range end so recovery resumes the scoring subdag from the same
-            // commit a never-restarted node would, keeping the rotation cadence
-            // restart-invariant (as the V2 path already does).
-            let window_scores = sliding_window.lock().reputation_scores();
+            // Skip `range_validation` (it requires contiguous, equal-length
+            // ranges): after fast-sync the committed range can jump, so the strict
+            // check would panic — as the fast-sync path also skips it.
+            let scores = sliding_window
+                .lock()
+                .reputation_scores()
+                .scores_per_authority;
             let boundary = dag_state_write_lock.last_commit_index();
-            let reputation_scores = ReputationScores::new(
-                CommitRange::new(window_scores.commit_range.start()..=boundary),
-                window_scores.scores_per_authority,
-            );
+            let interval = self.num_commits_per_schedule as u32;
+            let start = boundary.saturating_sub(interval).saturating_add(1);
+            let reputation_scores =
+                ReputationScores::new(CommitRange::new(start..=boundary), scores);
             let table =
                 LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
             self.persist_scores(dag_state_write_lock, reputation_scores);
