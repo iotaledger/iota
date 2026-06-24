@@ -38,6 +38,10 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 
     fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
 
+    /// Per-epoch verified metadata, held by every node in the CheckpointStore's
+    /// `epoch_info` table (served by `GetEpoch`).
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
+
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
 
@@ -72,15 +76,9 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 /// GRPC-index-specific queries.
 ///
 /// Provides access to the on-disk indexes needed by the gRPC server:
-/// epoch info, transaction-to-checkpoint mapping, owned objects, dynamic
-/// fields, coin info, and package versions.
+/// transaction-to-checkpoint mapping, owned objects, dynamic fields, coin
+/// info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
-
-    /// Highest epoch whose `epochs_v2` epochs have been fully populated
-    /// (indexed and closed epochs).
-    fn highest_indexed_epoch(&self) -> Result<Option<EpochId>>;
-
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
     /// Iterate over objects owned by `owner`, optionally filtered by

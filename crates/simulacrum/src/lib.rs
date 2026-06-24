@@ -720,35 +720,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         }))
     }
 
-    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
-        Some(self)
-    }
-
-    fn get_struct_layout(
-        &self,
-        _: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
-    {
-        Ok(None)
-    }
-}
-
-impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
-    fn get_system_state_for_epoch(&self, epoch: u64) -> Option<IotaSystemState> {
-        self.with_store(|store| {
-            if let Some(historical_state) = store.get_system_state_by_epoch(epoch) {
-                return Some(historical_state.clone());
-            }
-            let current_system_state = store.get_system_state();
-            if epoch == current_system_state.epoch() {
-                return Some(current_system_state);
-            }
-            None
-        })
-    }
-}
-
-impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
     fn get_epoch_info(
         &self,
         epoch: iota_types::committee::EpochId,
@@ -779,12 +750,35 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         }))
     }
 
-    fn highest_indexed_epoch(
-        &self,
-    ) -> iota_types::storage::error::Result<Option<iota_types::committee::EpochId>> {
-        Ok(None)
+    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
+        Some(self)
     }
 
+    fn get_struct_layout(
+        &self,
+        _: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
+    {
+        Ok(None)
+    }
+}
+
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
+    fn get_system_state_for_epoch(&self, epoch: u64) -> Option<IotaSystemState> {
+        self.with_store(|store| {
+            if let Some(historical_state) = store.get_system_state_by_epoch(epoch) {
+                return Some(historical_state.clone());
+            }
+            let current_system_state = store.get_system_state();
+            if epoch == current_system_state.epoch() {
+                return Some(current_system_state);
+            }
+            None
+        })
+    }
+}
+
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,

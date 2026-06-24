@@ -10,7 +10,8 @@ use anyhow::Result;
 use bytes::Bytes;
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
-    grpc_indexes::{GrpcIndexesStore, GrpcLiveObjectRestorer},
+    checkpoints::CheckpointStore,
+    grpc_indexes::GrpcLiveObjectRestorer,
 };
 use iota_storage::SHA3_BYTES;
 use iota_types::storage::{EpochInfoV2, error::Error as StorageError};
@@ -108,9 +109,9 @@ impl Restore for RestoreWithGrpcIndexes<'_> {
 /// Deliberately separate from [`Restore`]: the two cover different snapshot
 /// payloads with different targets (live objects vs. epoch metadata), and a
 /// database implements only the traits for the data it hosts — the node's
-/// perpetual tables take live objects, the gRPC index takes epoch info, and an
-/// external indexer bootstrapping from a snapshot takes both. Keeping them
-/// separate lets each call site require exactly the capability it uses,
+/// perpetual tables take live objects, the CheckpointStore takes epoch info,
+/// and an external indexer bootstrapping from a snapshot takes both. Keeping
+/// them separate lets each call site require exactly the capability it uses,
 /// instead of forcing no-op stubs that would let an incomplete restore pass
 /// silently.
 ///
@@ -125,19 +126,18 @@ pub trait RestoreEpochInfo {
     -> impl Future<Output = Result<()>> + Send;
 }
 
-impl RestoreEpochInfo for GrpcIndexesStore {
+impl RestoreEpochInfo for CheckpointStore {
     async fn restore_epoch_info(&self, rows: Vec<EpochInfoV2>) -> Result<()> {
-        // Skip epochs already covered by the `EpochIndexed` watermark to avoid
-        // re-writing held rows. `insert_epoch_info` is itself idempotent, so
-        // this filter is a pure optimization.
+        // Pure optimization: skip rows below the watermark. `insert_epoch_info`
+        // is idempotent.
         let highest_indexed = self
             .highest_indexed_epoch()
-            .map_err(|e| anyhow::anyhow!("failed to read the epochs_v2 watermark: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("failed to read the epoch_info watermark: {e}"))?;
         let rows: Vec<EpochInfoV2> = rows
             .into_iter()
             .filter(|row| highest_indexed.is_none_or(|highest| row.epoch > highest))
             .collect();
         self.insert_epoch_info(rows)
-            .map_err(|e| anyhow::anyhow!("failed to seed epochs_v2 from snapshot: {e}"))
+            .map_err(|e| anyhow::anyhow!("failed to seed epoch_info from snapshot: {e}"))
     }
 }

@@ -647,7 +647,11 @@ impl CheckpointExecutor {
         ckpt_data: &CheckpointExecutionData,
         tx_data: &CheckpointTransactionData,
     ) -> Option<CheckpointData> {
-        if !self.checkpoint_data_enabled() {
+        let is_checkpoint_data_enabled = self.checkpoint_data_enabled();
+        // Boundaries always need full `CheckpointData` to persist `epoch_info`,
+        // even when no other consumer is configured.
+        let is_last_checkpoint_of_epoch = ckpt_data.checkpoint.is_last_checkpoint_of_epoch();
+        if !is_checkpoint_data_enabled && !is_last_checkpoint_of_epoch {
             return None;
         }
 
@@ -659,9 +663,31 @@ impl CheckpointExecutor {
         )
         .expect("failed to load checkpoint data");
 
-        // Index the checkpoint. this is done out of order and is not written and
-        // committed to the DB until later (committing must be done
-        // in-order)
+        // Persist the boundary's `epoch_info` row eagerly. Two properties make
+        // that safe. Boundaries run in epoch order: the boundary waits for every
+        // earlier checkpoint (`notify_read_executed_checkpoint(seq - 1)` in
+        // `execute_checkpoint`) and the stream stops at epoch end, so two
+        // boundaries are never in flight. And `index_epoch_boundary` is
+        // idempotent — a row upsert plus a contiguous +1 watermark guard — so a
+        // crash before the executed watermark advances just re-applies it on the
+        // next run.
+        if is_last_checkpoint_of_epoch {
+            self.checkpoint_store
+                .index_epoch_boundary(&checkpoint_data)
+                .expect("failed to persist epoch info at boundary");
+        }
+
+        if !is_checkpoint_data_enabled {
+            // Data was built solely to seed `epoch_info`; skip the other consumers.
+            return None;
+        }
+
+        // Index the checkpoint. The grpc indexes accumulate non-idempotent state
+        // (owner indexes, live-object sets), so each update must land exactly
+        // once. Indexing runs here out of order (checkpoints execute
+        // concurrently), so the write is only staged now and committed later, in
+        // sequence order, via `commit_update_for_checkpoint` — keeping the grpc
+        // watermark consistent with the executed checkpoint and crash-safe.
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store.index_checkpoint(&checkpoint_data);
         }
