@@ -527,6 +527,12 @@ where
         .node_metrics
         .commit_sync_fetch_loop_latency
         .start_timer();
+    // Regular and fast commit sync transfer different amounts of data per fetch,
+    // so their per-peer responsiveness is tracked under distinct kinds.
+    let fetch_kind = match inner.sync_type {
+        CommitSyncType::Regular => FetchKind::CommitSync,
+        CommitSyncType::Fast => FetchKind::FastCommitSync,
+    };
     info!(
         "[{}] Starting to fetch commits in {commit_range:?} ...",
         inner.sync_type.as_str()
@@ -557,7 +563,7 @@ where
             // simulator (entropy-seeded RNGs are not virtualized there).
             let mut rng = thread_rng();
             inner.context.peer_responsiveness.prioritize(
-                FetchKind::Commits,
+                fetch_kind,
                 &mut target_authorities,
                 &mut rng,
             );
@@ -589,7 +595,7 @@ where
             {
                 Ok(Ok(data)) => {
                     inner.context.peer_responsiveness.record_success(
-                        FetchKind::Commits,
+                        fetch_kind,
                         authority,
                         started.elapsed(),
                     );
@@ -603,7 +609,7 @@ where
                     inner
                         .context
                         .peer_responsiveness
-                        .record_failure(FetchKind::Commits, authority);
+                        .record_failure(fetch_kind, authority);
                     let hostname = inner
                         .context
                         .committee
@@ -628,7 +634,7 @@ where
                     inner
                         .context
                         .peer_responsiveness
-                        .record_failure(FetchKind::Commits, authority);
+                        .record_failure(fetch_kind, authority);
                     let hostname = inner
                         .context
                         .committee
