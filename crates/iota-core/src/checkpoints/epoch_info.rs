@@ -215,9 +215,9 @@ impl CheckpointStore {
         Ok(())
     }
 
-    /// Assemble the full data of `epoch`'s closing checkpoint from local
-    /// stores, or `None` when any of it (the summary, contents, or the
-    /// underlying transactions/effects/objects) has been pruned.
+    /// Assemble `epoch`'s closing checkpoint (its boundary tx only) from local
+    /// stores, or `None` when any of it (the summary, contents, or the boundary
+    /// tx's effects/objects) has been pruned.
     fn assemble_closing_checkpoint(
         &self,
         authority_store: &AuthorityStore,
@@ -233,11 +233,11 @@ impl CheckpointStore {
         let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
             return Ok(None);
         };
-        match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
+        match assemble_boundary_checkpoint_data(authority_store, summary, contents) {
             Ok(data) => Ok(Some(data)),
-            // Pruned-away transactions/effects/objects are the expected end of
-            // what can be rebuilt locally; anything else is a real storage
-            // failure and must propagate.
+            // A pruned-away boundary transaction/effects/objects is the expected
+            // end of what can be rebuilt locally; anything else is a real
+            // storage failure and must propagate.
             Err(e) if e.kind() == StorageErrorKind::Missing => Ok(None),
             Err(e) => Err(e),
         }
@@ -259,7 +259,7 @@ impl CheckpointStore {
         let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
             return Ok(false);
         };
-        match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
+        match assemble_boundary_checkpoint_data(authority_store, summary, contents) {
             Ok(genesis_data) => {
                 self.index_epoch_boundary(&genesis_data)?;
                 Ok(true)
@@ -452,11 +452,19 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
     }
 }
 
-/// Load a `CheckpointData`, including events for any transaction that emitted
-/// them (the epoch-change tx's events feed the EPOCH_INFO proof bundle); a
-/// pruned transactions/effects/objects/events table surfaces as a `Missing`
-/// error.
-fn assemble_sparse_checkpoint_data(
+/// Assemble a `CheckpointData` carrying only the checkpoint's *boundary*
+/// transaction — the epoch-change tx (last in `contents`), or the genesis tx
+/// for checkpoint 0. The result is deliberately sparse: `transactions` holds a
+/// single entry while `checkpoint_contents` keeps the full digest list (the
+/// close-of-epoch proof bundle is anchored to it). It is valid only for
+/// epoch-boundary indexing, which reads `transactions.last()` and the boundary
+/// tx's effects/output objects/events.
+///
+/// A pruned boundary transaction, effects, output objects, or events surfaces
+/// as a `Missing` error. The boundary tx's *input* objects are never loaded:
+/// boundary indexing does not read them, and skipping them avoids a spurious
+/// `Missing` when only old input-object versions have been pruned.
+fn assemble_boundary_checkpoint_data(
     authority_store: &AuthorityStore,
     summary: VerifiedCheckpoint,
     contents: CheckpointContents,
@@ -465,66 +473,46 @@ fn assemble_sparse_checkpoint_data(
         effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     };
 
-    let transaction_digests = contents
-        .iter()
-        .map(|execution_digests| execution_digests.transaction)
-        .collect::<Vec<_>>();
-    let transactions = authority_store
-        .multi_get_transaction_blocks(&transaction_digests)?
-        .into_iter()
-        .map(|maybe_transaction| {
-            maybe_transaction.ok_or_else(|| StorageError::missing("missing transaction"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let Some(boundary_digests) = contents.inner().last() else {
+        return Err(StorageError::custom("empty checkpoint contents"));
+    };
+    let tx_digest = boundary_digests.transaction;
 
+    let transaction = authority_store
+        .get_transaction_block(&tx_digest)?
+        .ok_or_else(|| StorageError::missing("missing boundary transaction"))?;
     let effects = authority_store
-        .multi_get_executed_effects(&transaction_digests)?
-        .into_iter()
-        .map(|maybe_effects| maybe_effects.ok_or_else(|| StorageError::missing("missing effects")))
-        .collect::<Result<Vec<_>, _>>()?;
+        .get_executed_effects(&tx_digest)?
+        .ok_or_else(|| StorageError::missing("missing boundary transaction effects"))?;
+    let output_objects =
+        iota_types::storage::get_transaction_output_objects(authority_store, &effects)?;
 
-    let mut full_transactions = Vec::with_capacity(transactions.len());
-    for (tx, fx) in transactions.into_iter().zip(effects) {
-        let input_objects =
-            iota_types::storage::get_transaction_input_objects(authority_store, &fx)?;
-        let output_objects =
-            iota_types::storage::get_transaction_output_objects(authority_store, &fx)?;
-
-        // Load events for any emitting tx. Only the last (epoch-change) tx's
-        // events are consumed downstream, but loading all keeps the assembled
-        // `CheckpointData` self-consistent and costs little. A pruned events
-        // table surfaces as a `Missing` error.
-        let events = if fx.events_digest().is_some() {
-            Some(
-                authority_store
-                    .get_events(fx.transaction_digest())
-                    .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
-                    .ok_or_else(|| {
-                        StorageError::missing("missing events for an emitting transaction")
-                    })?,
-            )
-        } else {
-            None
-        };
-
-        let full_transaction = CheckpointTransaction {
-            transaction: tx.into(),
-            effects: fx,
-            events,
-            input_objects,
-            output_objects,
-        };
-
-        full_transactions.push(full_transaction);
-    }
-
-    let checkpoint_data = CheckpointData {
-        checkpoint_summary: summary.into(),
-        checkpoint_contents: contents,
-        transactions: full_transactions,
+    let events = if effects.events_digest().is_some() {
+        Some(
+            authority_store
+                .get_events(effects.transaction_digest())
+                .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
+                .ok_or_else(|| {
+                    StorageError::missing("missing events for the boundary transaction")
+                })?,
+        )
+    } else {
+        None
     };
 
-    Ok(checkpoint_data)
+    let boundary_transaction = CheckpointTransaction {
+        transaction: transaction.into(),
+        effects,
+        events,
+        input_objects: Vec::new(),
+        output_objects,
+    };
+
+    Ok(CheckpointData {
+        checkpoint_summary: summary.into(),
+        checkpoint_contents: contents,
+        transactions: vec![boundary_transaction],
+    })
 }
 
 #[cfg(test)]

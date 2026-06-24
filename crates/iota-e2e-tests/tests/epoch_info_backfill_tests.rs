@@ -621,7 +621,9 @@ fn stage_closing_checkpoints(
 /// replaying genesis and each closed epoch's closing checkpoint from local
 /// data, closing the gap entirely. Unlike
 /// `missing_epochs_above_snapshot_prefix_are_indexed_locally`, no prefix is
-/// seeded first, so this exercises the genesis-seeding branch.
+/// seeded first, so this exercises the genesis-seeding branch. Each rebuilt row
+/// is asserted byte-identical to the node's live-indexed row, proving the
+/// boundary transaction alone reconstructs the same proof bundle.
 #[sim_test]
 async fn epoch_info_rebuilds_from_local_history() {
     // Pruning disabled so the closing checkpoints' data is still available
@@ -699,10 +701,22 @@ async fn epoch_info_rebuilds_from_local_history() {
         None,
         "the from-genesis local rebuild must close the gap"
     );
+    // Each rebuilt row is byte-identical to the node's live-indexed row: the
+    // boundary tx alone reconstructs the same proof bundle the full checkpoint
+    // produced live.
     for epoch in 0..current_epoch {
-        assert!(
-            target.get_epoch_info(epoch).unwrap().is_some(),
-            "epoch {epoch} must be rebuilt from local history"
+        let rebuilt = target
+            .get_epoch_info(epoch)
+            .unwrap()
+            .unwrap_or_else(|| panic!("epoch {epoch} must be rebuilt from local history"));
+        let live = node_checkpoint_store
+            .get_epoch_info(epoch)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing live row for epoch {epoch}"));
+        assert_eq!(
+            bcs::to_bytes(&rebuilt).unwrap(),
+            bcs::to_bytes(&live).unwrap(),
+            "rebuilt row for epoch {epoch} must match the live-indexed row"
         );
     }
 }
