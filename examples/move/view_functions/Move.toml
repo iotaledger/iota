@@ -8,5 +8,3 @@ Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
 view_functions = "0x0"
-
-
