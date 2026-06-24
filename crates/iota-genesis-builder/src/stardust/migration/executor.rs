@@ -17,14 +17,17 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Command, Identifier, ObjectId};
+use iota_sdk_types::{
+    Address, Command, Identifier, ObjectId, ProgrammableTransaction,
+    move_package::{MovePackage, TypeOrigin},
+};
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TxContext},
+    base_types::{ObjectRef, SequenceNumber, TxContext},
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -32,17 +35,13 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::{MovePackage, TypeOrigin},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
         coin_type::CoinType,
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
-    transaction::{
-        CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ProgrammableTransaction,
-    },
+    transaction::{CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult},
 };
 use move_vm_runtime_latest::move_vm::MoveVM;
 
@@ -252,7 +251,7 @@ impl Executor {
                 // not have the drop ability.
                 //
                 // We ignore it in the genesis, to render the package immutable.
-                builder.transfer_arg(IotaAddress::ZERO, upgrade_cap);
+                builder.transfer_arg(Address::ZERO, upgrade_cap);
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
@@ -345,7 +344,7 @@ impl Executor {
             &self.tx_context.borrow(),
             version,
         )?;
-        let move_alias_object_ref = move_alias_object.compute_object_reference();
+        let move_alias_object_ref = move_alias_object.object_ref();
 
         self.store.insert_object(move_alias_object);
 
@@ -364,7 +363,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        let move_alias_output_object_ref = move_alias_output_object.object_ref();
 
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
@@ -423,7 +422,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -456,7 +455,7 @@ impl Executor {
             // Nevertheless, we only store the contents of the object, and thus the
             // ownership metadata are irrelevant to us. This is a dummy transfer
             // then to satisfy the VM.
-            builder.transfer_arg(IotaAddress::ZERO, bag);
+            builder.transfer_arg(Address::ZERO, bag);
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
@@ -503,7 +502,7 @@ impl Executor {
     fn create_native_token_coins(
         &mut self,
         native_tokens: &NativeTokens,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<ObjectId>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
@@ -521,7 +520,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
                 foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
@@ -694,7 +693,7 @@ impl Executor {
             version,
         )?;
 
-        let move_nft_object_ref = move_nft_object.compute_object_reference();
+        let move_nft_object_ref = move_nft_object.object_ref();
         self.store.insert_object(move_nft_object);
 
         let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
@@ -711,7 +710,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
+        let move_nft_output_object_ref = move_nft_output_object.object_ref();
         created_objects.set_output(move_nft_output_object.id())?;
         self.store.insert_object(move_nft_output_object);
 

@@ -1,15 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, Owner};
-use iota_types::base_types::{IotaAddress, SequenceNumber};
+use iota_sdk_types::{Address, ObjectId, Owner};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
-use crate::iota_primitives::{
-    IotaAddress as IotaAddressSchema, SequenceNumberU64 as SequenceNumberU64Schema,
-};
+use crate::iota_primitives::{Address as AddressSchema, SequenceNumberU64};
 
 /// Enum of different types of ownership for an object.
 ///
@@ -30,19 +27,17 @@ use crate::iota_primitives::{
 #[serde(rename = "Owner")]
 pub enum OwnerSchema {
     /// Object is exclusively owned by a single address, and is mutable.
-    #[schemars(with = "IotaAddressSchema")]
-    AddressOwner(#[serde_as(as = "IotaAddressSchema")] IotaAddress),
+    #[schemars(with = "AddressSchema")]
+    AddressOwner(#[serde_as(as = "AddressSchema")] Address),
     /// Object is exclusively owned by a single object, and is mutable.
-    /// The object ID is converted to IotaAddress as IotaAddress is
+    /// The object ID is converted to Address as Address is
     /// universal.
-    #[schemars(with = "IotaAddressSchema")]
-    ObjectOwner(#[serde_as(as = "IotaAddressSchema")] IotaAddress),
+    #[schemars(with = "AddressSchema")]
+    ObjectOwner(#[serde_as(as = "AddressSchema")] Address),
     /// Object is shared, can be used by any address, and is mutable.
     Shared {
         /// The version at which the object became shared
-        #[serde_as(as = "SequenceNumberU64Schema")]
-        #[schemars(with = "SequenceNumberU64Schema")]
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: SequenceNumberU64,
     },
     /// Object is immutable, and hence ownership doesn't matter.
     Immutable,
@@ -94,7 +89,7 @@ impl From<Owner> for OwnerSchema {
             Owner::Address(address) => OwnerSchema::AddressOwner(address),
             Owner::Object(object_id) => OwnerSchema::ObjectOwner(*object_id.as_address()),
             Owner::Shared(initial_shared_version) => OwnerSchema::Shared {
-                initial_shared_version,
+                initial_shared_version: initial_shared_version.into(),
             },
             Owner::Immutable => OwnerSchema::Immutable,
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
@@ -109,7 +104,7 @@ impl From<OwnerSchema> for Owner {
             OwnerSchema::ObjectOwner(address) => Owner::Object(ObjectId::from(address)),
             OwnerSchema::Shared {
                 initial_shared_version,
-            } => Owner::Shared(initial_shared_version),
+            } => Owner::Shared(initial_shared_version.into()),
             OwnerSchema::Immutable => Owner::Immutable,
         }
     }

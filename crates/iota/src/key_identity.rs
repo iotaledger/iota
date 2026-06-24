@@ -7,7 +7,7 @@ use std::{fmt::Display, str::FromStr};
 use anyhow::Error;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::Address;
 use serde::Serialize;
 
 /// An address or an alias associated with a key in the wallet
@@ -15,14 +15,14 @@ use serde::Serialize;
 /// enabling a user to use an alias for any command that requires an address.
 #[derive(Serialize, Clone)]
 pub enum KeyIdentity {
-    Address(IotaAddress),
+    Address(Address),
     Alias(String),
     #[cfg(feature = "iota-names")]
     Name(iota_names::name::Name),
 }
 
-impl From<IotaAddress> for KeyIdentity {
-    fn from(address: IotaAddress) -> Self {
+impl From<Address> for KeyIdentity {
+    fn from(address: Address) -> Self {
         Self::Address(address)
     }
 }
@@ -54,12 +54,12 @@ impl Display for KeyIdentity {
     }
 }
 
-/// Get the IotaAddress corresponding to this key identity.
+/// Get the Address corresponding to this key identity.
 /// If no string is provided, then the current active address is returned.
 pub async fn get_identity_address(
     input: Option<KeyIdentity>,
     ctx: &WalletContext,
-) -> Result<IotaAddress, Error> {
+) -> Result<Address, Error> {
     if let Some(addr) = input {
         match addr {
             KeyIdentity::Address(x) => Ok(x),
@@ -91,7 +91,7 @@ pub async fn get_identity_address(
 pub fn get_identity_address_from_keystore(
     input: KeyIdentity,
     keystore: &Keystore,
-) -> Result<IotaAddress, Error> {
+) -> Result<Address, Error> {
     match input {
         KeyIdentity::Address(x) => Ok(x),
         KeyIdentity::Alias(x) => Ok(*keystore.get_address_by_alias(x)?),

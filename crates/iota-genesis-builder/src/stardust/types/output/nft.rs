@@ -6,16 +6,16 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
 use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, SequenceNumber, TxContext},
+    base_types::{SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::{
@@ -131,7 +131,7 @@ impl Irc27MetadataExt for Irc27Metadata {
                             value: FixedPoint32::try_from_f64(*value)?,
                         })
                     })
-                    .collect::<Result<Vec<Entry<IotaAddress, FixedPoint32>>, anyhow::Error>>()?,
+                    .collect::<Result<Vec<Entry<Address, FixedPoint32>>, anyhow::Error>>()?,
             },
             issuer_name: irc27.issuer_name().clone(),
             description: irc27.description().clone(),
@@ -174,7 +174,7 @@ impl NftExt for Nft {
             anyhow::bail!("nft_id must be non-zeroed");
         }
 
-        let legacy_sender: Option<IotaAddress> = nft
+        let legacy_sender: Option<Address> = nft
             .features()
             .sender()
             .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
@@ -184,7 +184,7 @@ impl NftExt for Nft {
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
         let tag: Option<Vec<u8>> = nft.features().tag().map(|tag_feat| tag_feat.tag().to_vec());
-        let immutable_issuer: Option<IotaAddress> = nft
+        let immutable_issuer: Option<Address> = nft
             .immutable_features()
             .issuer()
             .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))
@@ -267,7 +267,7 @@ impl NftExt for Nft {
         };
 
         let move_nft_object = Object::new_from_genesis(
-            Data::Struct(move_nft_object),
+            ObjectData::Struct(move_nft_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the nft output object.
             owner,
@@ -291,7 +291,7 @@ pub trait NftOutputExt {
     /// Creates a genesis object from this NFT output.
     fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
@@ -328,7 +328,7 @@ impl NftOutputExt for NftOutput {
 
     fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
         version: SequenceNumber,
@@ -351,7 +351,7 @@ impl NftOutputExt for NftOutput {
         };
 
         let move_nft_output_object = Object::new_from_genesis(
-            Data::Struct(move_nft_output_object),
+            ObjectData::Struct(move_nft_output_object),
             owner,
             tx_context.digest(),
         );

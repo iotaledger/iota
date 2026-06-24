@@ -15,15 +15,12 @@ use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TransactionKind, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    object::Owner,
+    base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{
-        Argument, CallArg, SharedObjectRef, Transaction, TransactionData, TransactionKind,
-    },
+    transaction::{CallArg, SharedObjectRef, Transaction, TransactionData},
     utils::MoveAuthenticator,
 };
 
@@ -86,7 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
     request_tokens_from_faucet(&iota_client, account_address).await?;
 
     // Create an abstract account transaction
-    let recipient = IotaAddress::random();
+    let recipient = Address::random();
 
     println!("Recipient address: {recipient}");
 
@@ -104,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction = create_test_transaction(&iota_client, recipient, &account_ref).await?;
 
     // Swap the recipient in the transaction to an attacker-controlled address
-    let attacker = IotaAddress::random();
+    let attacker = Address::random();
 
     println!("Attacker address: {attacker}");
 
@@ -127,7 +124,7 @@ async fn main() -> Result<(), anyhow::Error> {
 pub async fn create_account(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package_id: &ObjectId,
     package_metadata_ref: ObjectRef,
     unlock_time: u64,
@@ -196,7 +193,7 @@ pub async fn create_account(
 /// Creates a test transaction from the abstract account.
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
-    recipient: IotaAddress,
+    recipient: Address,
     account_ref: &ObjectRef,
 ) -> Result<Transaction> {
     let account_address = account_ref.object_id.into();
@@ -230,7 +227,7 @@ pub async fn create_test_transaction(
 /// Swaps the recipient in the transaction to an attacker-controlled address.
 pub fn swap_recipient_in_transaction(
     mut transaction: Transaction,
-    attacker: IotaAddress,
+    attacker: Address,
 ) -> Transaction {
     match &mut transaction.inner_mut().intent_message.value {
         TransactionData::V1(data) => match &mut data.kind {

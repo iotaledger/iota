@@ -13,12 +13,13 @@ use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
 use iota_sdk_types::{
-    Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
+    Address, Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
+    move_package::MovePackage,
 };
 use iota_types::{
-    base_types::{IotaAddress, TxContext, TxContextKind, is_primitive_type_tag},
+    base_types::{TxContext, TxContextKind, is_primitive_type_tag},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
     transaction::{CallArg, SharedObjectRef},
@@ -469,7 +470,7 @@ impl<'a> PTBBuilder<'a> {
 
         MovePackage::new(
             package.id,
-            package.version,
+            package.version.into(),
             package
                 .module_map
                 .into_iter()
@@ -1007,7 +1008,7 @@ impl<'a> PTBBuilder<'a> {
                         package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )
                     .map_err(|e| err!(pkg_loc, "{e}"))?
                 } else {
@@ -1245,7 +1246,7 @@ impl<'a> PTBBuilder<'a> {
                 &package_path,
                 build_config.install_dir.clone(),
                 chain_id,
-                IotaAddress::ZERO,
+                Address::ZERO,
             )
             .map_err(|e| err!(path_loc, "{e}"))?
         } else {

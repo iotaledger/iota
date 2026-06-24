@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use iota_metrics::spawn_monitored_task;
-use tokio::time::sleep;
+use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -122,16 +122,16 @@ impl WatermarkTask {
     /// Runs the watermark update loop
     async fn run(self, cancel: CancellationToken) {
         info!("Starting watermark update task");
-
+        let mut interval = interval(self.update_interval);
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
                     info!("Watermark update task cancelled");
                     break;
                 }
-                _ = sleep(self.update_interval) => {
+                _ = interval.tick() => {
                     if let Err(e) = self.update_watermarks().await {
-                        error!("Failed to update watermarks: {}", e);
+                        error!("Failed to update watermarks: {e}");
                     }
                 }
             }

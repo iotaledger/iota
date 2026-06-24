@@ -1,16 +1,23 @@
 ---
 title: IOTA Notarization
-description: Discover how the IOTA Notarization framework provides a universal layer of trust and integrity for digital data.
+description: Discover the IOTA Notarization Toolkit — combining the Single Notarization and Audit Trails components to anchor digital data and event history to the IOTA ledger.
 sidebar_label: Introduction
 tags:
  - reference
  - notarization
+ - single-notarization
+ - audit-trails
 ---
 # IOTA Notarization
 
-![IOTA Notarization](/img/banner/banner_notarization.png)
+![IOTA Notarization Toolkit](/img/banner/banner_notarization.png)
 
-The IOTA Notarization provides a powerful suite of tools for creating verifiable, on-chain records of any digital data. It is designed to act as a universal layer of trust, ensuring the integrity and provenance of data for applications, organizations, and digital assets. By anchoring data to the IOTA ledger, Notarization transforms it into a permanent, tamper-proof asset that can be independently verified by anyone, at any time.
+The IOTA Notarization Toolkit is part of the IOTA Trust Framework and anchors digital data and the events surrounding it to the IOTA ledger. It bundles two complementary components that share a common goal — making information verifiable, tamper-proof, and independently auditable — but address different needs:
+
+- **[Single Notarization](./single-notarization/index.mdx)** — for creating verifiable, on-chain records of individual pieces of digital data. Use it when you need to prove that *a specific piece of data existed at a specific point in time* and has not been altered since. Single Notarization supports two Notarization Methods: **Locked Notarization** (immutable records, ideal for contracts and certificates) and **Dynamic Notarization** (evolving state, ideal for registries and living documents).
+- **[Audit Trails](./audit-trails/index.mdx)** — for creating tamper-proof, chronological logs of activities. Use it when you need to record *who did what and when* in a sequential, append-only fashion. Audit trails are shared on-chain and governed by Role-Based Access Control (RBAC), enabling multiple authorized parties to write to the same trail under fine-grained permission rules.
+
+Together, Single Notarization and Audit Trails form the Notarization Toolkit for digital trust: Single Notarization captures *facts* and *current state*, while Audit Trails captures the *history of events* that led to them.
 
 ## Introduction to Data Notarization
 
@@ -38,43 +45,31 @@ For both physical goods and digital assets, their value is often tied to their h
 
 IOTA Notarization provides this by allowing manufacturers, creators, and owners to create an immutable log for any asset. This is the foundation of technologies like the Digital Product Passport (DPP), where every step from manufacturing to recycling is verifiably recorded. For digital assets, such as creative works or source code, notarization establishes a permanent proof of authorship and existence. This layer of trust prevents fraud, enhances value, and enables new business models based on the verifiable history of an asset.
 
-### One Framework. Two Powerful Methods.
+## Choosing the Right Component
 
-The IOTA Notarization framework is not a one-size-fits-all solution. It offers two powerful, distinct methods to cater to a wide range of use cases:
--   **Locked Notarization**: For creating permanent, static records that can not be changed until the object is destroyed. Ideal for contracts, certificates, and legal evidence.
--   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant. Ideal for tracking asset status, managing registries, or versioning living documents.
+The following table will help you choose the right Notarization component and — in the case of Single Notarization — the appropriate Notarization Method.
 
-Together, these methods provide a comprehensive toolkit for building applications that require a robust foundation of digital trust.
+| Question | Use |
+|----------|-----|
+| "Did this document exist at this time?" | [Single Notarization — Locked](./single-notarization/explanations/locked-notarization.mdx) |
+| "What is the current state of this asset?" | [Single Notarization — Dynamic](./single-notarization/explanations/dynamic-notarization.mdx) |
+| "Who did what and when?" | [Audit Trails](./audit-trails/index.mdx) |
+| "How did this asset evolve over its lifecycle?" | [Audit Trails](./audit-trails/index.mdx) (often combined with a Dynamic Notarization for current state) |
 
-### Why IOTA for Notarization?
+For a deeper comparison of Single Notarization Methods, see the [Notarization Method Comparison](./single-notarization/explanations/notarization-comparison.mdx).
 
-IOTA stands apart as a scalable Distributed Ledger Technology (DLT), making it uniquely suitable for a universal notarization solution. Key features include:
+## Why IOTA for Notarization?
 
-* **Cost-Effectiveness**: Creating Notarizations on IOTA involves a refundable storage deposit for the ledger space occupied. This deposit can be fully reclaimed when the record is no longer needed, making long-term storage highly affordable.
-* **High Availability**: Notarized data is stored on every node in the IOTA network, ensuring it is always available for verifiers around the globe.
-* **Security**: Write access to a Notarization object is exclusively controlled by the owner's private keys, preventing any unauthorized modifications.
-* **Integrity**: Updates and state transitions are secured by the same robust consensus mechanism that secures the entire IOTA network, guaranteeing the consistency and immutability of every record.
+IOTA stands apart as a scalable Distributed Ledger Technology (DLT), making it uniquely suitable as a universal notarization platform:
 
-## Key Actors in the Notarization Process
+* **Cost-Effectiveness**: All on-chain objects use a refundable storage deposit. The deposit can be reclaimed when a record is no longer needed, making long-term data retention highly affordable.
+* **High Availability**: Notarized data is replicated across every node in the IOTA network, ensuring global availability and verifiability.
+* **Security**: Write access to notarizations and audit trails is controlled by cryptographic keys and on-chain Capability objects, preventing unauthorized modifications.
+* **Integrity**: The IOTA consensus mechanism guarantees that records, sequence numbers, and timestamps cannot be tampered with after the fact.
 
-The IOTA Notarization framework involves two primary actors that work together to ensure data integrity and verification:
+## Where to Start
 
-### Prover
-
-The **Prover** is responsible for creating and submitting notarization transactions that embed immutable data into the IOTA network.
-
-**Key Responsibilities:**
-- Generate cryptographic hashes of documents, media files, or any data requiring notarization
-- Submit transactions that store this data on the IOTA network, ensuring immutability
-- Maintain original documents off-chain while linking them to on-chain records through unique object IDs (for privacy-focused implementations)
-- Optionally store complete data on-chain using the notarization object as the official data repository
-
-### Verifier
-
-The **Verifier** confirms the integrity and immutability of data by validating information stored on the IOTA ledger.
-
-**Key Responsibilities:**
-- Request original documents and their associated object IDs from the Prover
-- Query the IOTA network through the Notarization Library to retrieve stored data using object IDs
-- Validate that data stored in the ledger matches the original document (for hash-based verification)
-- Verify the authenticity and integrity of on-chain stored data independently
+- **New to Notarization?** Read the [Introduction to Data Notarization](#introduction-to-data-notarization) for the conceptual foundation, followed by [Choosing the Right Component](#choosing-the-right-component) to decide which component is the best for your use-case.
+- **Only need Single Notarization?** Read the [Single Notarization introduction](./single-notarization/index.mdx), then continue with the getting-started guides in [Rust](./single-notarization/getting-started/rust.mdx) or [Wasm](./single-notarization/getting-started/wasm.mdx).
+- **Need event logs?** Jump straight to the [Audit Trails introduction](./audit-trails/index.mdx) and its [getting-started](./audit-trails/getting-started/rust.mdx) guides.
+- **Want to contribute?** See the [Contribute](./contribute.mdx) page.

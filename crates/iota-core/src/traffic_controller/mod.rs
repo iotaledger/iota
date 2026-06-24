@@ -12,7 +12,10 @@ use std::{
     fs,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     ops::Add,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -23,7 +26,8 @@ use iota_metrics::spawn_monitored_task;
 use iota_types::{
     error::IotaError,
     traffic_control::{
-        PolicyConfig, PolicyType, RemoteFirewallConfig, TrafficControlReconfigParams, Weight,
+        ClientIdSource, PolicyConfig, PolicyType, RemoteFirewallConfig,
+        TrafficControlReconfigParams, Weight,
     },
 };
 use parking_lot::Mutex as ParkingLotMutex;
@@ -47,13 +51,13 @@ pub const DEFAULT_DRAIN_TIMEOUT_SECS: u64 = 300;
 type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
 
 #[derive(Clone)]
-pub struct Blocklists {
+struct Blocklists {
     clients: Blocklist,
     proxied_clients: Blocklist,
 }
 
 #[derive(Clone)]
-pub enum Acl {
+enum Acl {
     Blocklists(Blocklists),
     /// If this variant is set, then we do no tallying or running
     /// of background tasks, and instead simply block all IPs not
@@ -70,6 +74,10 @@ pub struct TrafficController {
     spam_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
     error_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
     policy_config: Arc<RwLock<PolicyConfig>>,
+    // Lifted out of `policy_config` so the request hot path in `check`
+    // can read it with a relaxed atomic load instead of acquiring the
+    // RwLock and cloning the entire config.
+    dry_run: Arc<AtomicBool>,
     fw_config: Option<RemoteFirewallConfig>,
 }
 
@@ -100,6 +108,7 @@ impl TrafficController {
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
+        let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
         match policy_config.allow_list.clone() {
             Some(allow_list) => {
                 let allowlist = allow_list
@@ -115,6 +124,7 @@ impl TrafficController {
                     acl: Acl::Allowlist(allowlist),
                     metrics,
                     policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
                     fw_config,
                     spam_policy: None,
                     error_policy: None,
@@ -135,6 +145,7 @@ impl TrafficController {
                     }),
                     metrics,
                     policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
                     fw_config,
                     spam_policy: Some(spam_policy),
                     error_policy: Some(error_policy),
@@ -220,7 +231,7 @@ impl TrafficController {
             }
         }
 
-        result.dry_run = Some(self.policy_config.read().await.dry_run);
+        result.dry_run = Some(self.dry_run.load(Ordering::Relaxed));
         result
     }
 
@@ -234,30 +245,30 @@ impl TrafficController {
             dry_run,
         } = params;
         if let Some(error_threshold) = error_threshold {
+            let policy = self.error_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure error policy threshold in allowlist mode".to_string(),
+                )
+            })?;
             self.metrics
                 .error_client_threshold
                 .set(error_threshold as i64);
-            Self::update_policy_threshold(
-                self.error_policy.as_ref().unwrap(),
-                error_threshold,
-                dry_run,
-            )
-            .await?;
+            Self::update_policy_threshold(policy, error_threshold, dry_run).await?;
         }
         if let Some(spam_threshold) = spam_threshold {
+            let policy = self.spam_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure spam policy threshold in allowlist mode".to_string(),
+                )
+            })?;
             self.metrics
                 .spam_client_threshold
                 .set(spam_threshold as i64);
-            Self::update_policy_threshold(
-                self.spam_policy.as_ref().unwrap(),
-                spam_threshold,
-                dry_run,
-            )
-            .await?;
+            Self::update_policy_threshold(policy, spam_threshold, dry_run).await?;
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
-            self.policy_config.write().await.dry_run = dry_run;
+            self.dry_run.store(dry_run, Ordering::Relaxed);
         }
 
         Ok(self.get_current_state().await)
@@ -343,9 +354,9 @@ impl TrafficController {
 
     /// Handle check with dry-run mode considered
     pub async fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
-        let policy_config = { self.policy_config.read().await.clone() };
+        let dry_run = self.dry_run.load(Ordering::Relaxed);
         let check_with_dry_run_maybe = |allowed| -> bool {
-            match (allowed, policy_config.dry_run) {
+            match (allowed, dry_run) {
                 // request allowed
                 (true, _) => true,
                 // request blocked while in dry-run mode
@@ -1006,4 +1017,71 @@ pub fn parse_ip(ip: &str) -> Option<IpAddr> {
                 None
             })
     })
+}
+
+/// Outcome of resolving the client IP for an incoming request.
+#[derive(Debug)]
+pub enum ClientIpStatus {
+    Ok(IpAddr),
+    /// `SocketAddr` source but the IO type did not expose a remote address
+    /// (e.g. Unix sockets, custom transports). In tests this is usually a
+    /// programming error; in production it usually means a misconfigured
+    /// transport.
+    SocketAddrMissing,
+    /// `XForwardedFor` source but no `x-forwarded-for` header on the request.
+    XForwardedForHeaderMissing,
+    /// `XForwardedFor` source but the header value was not valid UTF-8.
+    XForwardedForInvalidUtf8,
+    /// `XForwardedFor` configured with `num_hops == 0` (operator misconfig).
+    XForwardedForZeroHops,
+    /// `XForwardedFor` configured with `expected` hops but the header
+    /// only had `actual` entries.
+    XForwardedForConfigMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    /// `XForwardedFor` header was present and well-formed but the chosen hop
+    /// position did not parse as an IP address.
+    XForwardedForUnparsable,
+}
+
+/// Resolve the client IP for an incoming request.
+pub fn get_client_ip(
+    headers: &http::HeaderMap,
+    remote_addr: Option<SocketAddr>,
+    source: &ClientIdSource,
+) -> ClientIpStatus {
+    match source {
+        ClientIdSource::SocketAddr => match remote_addr {
+            Some(addr) => ClientIpStatus::Ok(addr.ip()),
+            None => ClientIpStatus::SocketAddrMissing,
+        },
+        ClientIdSource::XForwardedFor(num_hops) => {
+            let header = match headers
+                .get("x-forwarded-for")
+                .or_else(|| headers.get("X-Forwarded-For"))
+            {
+                Some(h) => h,
+                None => return ClientIpStatus::XForwardedForHeaderMissing,
+            };
+            let value = match header.to_str() {
+                Ok(v) => v,
+                Err(_) => return ClientIpStatus::XForwardedForInvalidUtf8,
+            };
+            if *num_hops == 0 {
+                return ClientIpStatus::XForwardedForZeroHops;
+            }
+            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
+            if contents.len() < *num_hops {
+                return ClientIpStatus::XForwardedForConfigMismatch {
+                    expected: *num_hops,
+                    actual: contents.len(),
+                };
+            }
+            match parse_ip(contents[contents.len() - num_hops]) {
+                Some(ip) => ClientIpStatus::Ok(ip),
+                None => ClientIpStatus::XForwardedForUnparsable,
+            }
+        }
+    }
 }

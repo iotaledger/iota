@@ -13,7 +13,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, KeyPair},
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{ExecutionStatus, Owner, StructTag};
+use iota_sdk_types::{Address, ExecutionStatus, Owner, StructTag, gas::GasCostSummary};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -29,7 +29,6 @@ use crate::{
     },
     digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
-    gas::GasCostSummary,
     signature::ZkLoginAuthenticatorDeprecated,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
@@ -880,7 +879,7 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![IotaAddress::random()],
+                vec![Address::random()],
                 vec![100000],
             )
             .unwrap();
@@ -894,7 +893,7 @@ fn test_sponsored_transaction_validity_check() {
     // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(IotaAddress::random(), Some(50000));
+        builder.transfer_iota(Address::random(), Some(50000));
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
@@ -916,7 +915,7 @@ fn test_sponsored_transaction_validity_check() {
     // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_iota(IotaAddress::random());
+        builder.pay_all_iota(Address::random());
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
@@ -1144,7 +1143,7 @@ fn test_move_input_objects() {
         args,
     ));
     let data = TransactionData::new_programmable(
-        IotaAddress::random(),
+        Address::random(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
@@ -1427,7 +1426,7 @@ fn auth_digest_for_zk_login_returns_unsupported_error() {
 
 #[test]
 fn compute_auth_digests_non_sponsored_move_authenticator() {
-    let sender = IotaAddress::random();
+    let sender = Address::random();
     let (_, authenticator) = make_move_authenticator_sig(sender);
     let tx = make_move_authenticator_tx(sender);
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
@@ -1450,7 +1449,7 @@ fn compute_auth_digests_non_sponsored_regular_signature() {
 #[test]
 fn compute_auth_digests_sponsored_both_move_authenticators() {
     let (tx, sender_auth, sponsor_auth) =
-        make_sponsored_move_authenticator_tx(IotaAddress::random(), IotaAddress::random());
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
     assert_eq!(sender_digest, sender_auth.digest());
     assert_eq!(sponsor_digest.unwrap(), sponsor_auth.digest());
@@ -1464,12 +1463,12 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     let sender_sig = tx
         .tx_signatures()
         .iter()
-        .find(|s| IotaAddress::try_from(*s).ok() == Some(sender))
+        .find(|s| Address::try_from(*s).ok() == Some(sender))
         .unwrap();
     let sponsor_sig = tx
         .tx_signatures()
         .iter()
-        .find(|s| IotaAddress::try_from(*s).ok() == Some(sponsor))
+        .find(|s| Address::try_from(*s).ok() == Some(sponsor))
         .unwrap();
 
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();

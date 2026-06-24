@@ -234,7 +234,7 @@ mod test {
                 network_type: iota_protocol_config::ConsensusNetwork::Tonic,
                 boot_counter: 0,
                 protocol_config: protocol_config.clone(),
-                clock_drift: clock_drifts[authority_index.value() as usize],
+                clock_drift: clock_drifts[authority_index.value()],
                 last_processed_commit: 0,
             };
             let node = AuthorityNode::new(config);

@@ -15,14 +15,12 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
-    transaction::{
-        EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{SenderSignedData, TransactionDataAPI},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -404,7 +402,7 @@ impl DataFetcher for RemoteFetcher {
                 x.extend(cached);
                 // Backfill the cache
                 for obj in &x {
-                    let r = obj.compute_object_reference();
+                    let r = obj.object_ref();
                     self.versioned_object_cache
                         .write()
                         .put((r.object_id, r.version), obj.clone());
@@ -665,7 +663,10 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             Err(ReplayEngineError::ObjectNotExist { id })
         }
         IotaPastObjectResponse::VersionNotFound(id, version) => {
-            Err(ReplayEngineError::ObjectVersionNotFound { id, version })
+            Err(ReplayEngineError::ObjectVersionNotFound {
+                id,
+                version: version.into(),
+            })
         }
         IotaPastObjectResponse::VersionTooHigh {
             object_id,
@@ -673,8 +674,8 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             latest_version,
         } => Err(ReplayEngineError::ObjectVersionTooHigh {
             id: object_id,
-            asked_version,
-            latest_version,
+            asked_version: asked_version.into(),
+            latest_version: latest_version.into(),
         }),
     }
 }

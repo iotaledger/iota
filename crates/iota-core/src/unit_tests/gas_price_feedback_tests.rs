@@ -8,19 +8,20 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus,
-    ObjectId, VersionAssignment,
+    Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
+    ExecutionStatus, ObjectId, ProgrammableTransaction, TransactionKind, UnchangedSharedKind,
+    VersionAssignment,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
+    effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, VerifiedCertificate,
+        CallArg, SharedObjectRef, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedCertificate,
     },
     utils::to_sender_signed_transaction,
 };
@@ -65,7 +66,7 @@ impl GasDataForTests {
 struct GasPriceFeedbackTester {
     authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
     gas_object_ids: Vec<ObjectId>,
     package: ObjectRef,
@@ -87,7 +88,7 @@ impl GasPriceFeedbackTester {
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
-        let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
@@ -176,7 +177,7 @@ impl GasPriceFeedbackTester {
         authority_state: &AuthorityState,
         package_id: &ObjectId,
         gas_object_id: &ObjectId,
-        sender: &IotaAddress,
+        sender: &Address,
         sender_key: &AccountKeyPair,
     ) -> ObjectRef {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -192,7 +193,7 @@ impl GasPriceFeedbackTester {
             .get_object(gas_object_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
 
         let transaction_data = TransactionData::new_programmable(
             *sender,
@@ -231,7 +232,7 @@ impl GasPriceFeedbackTester {
             .get_object(&gas_data.gas_object_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
 
         let transaction_data = TransactionData::new_programmable(
             self.sender,

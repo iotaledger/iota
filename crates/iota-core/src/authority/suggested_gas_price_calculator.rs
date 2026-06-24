@@ -47,24 +47,24 @@ type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 /// info from a single consensus commit.
 ///
 /// The congestion info stored by the calculator should only be updated
-/// for scheduled certificates. In contrast, calculations of the suggested
-/// gas price should only be invoked for deferred/cancelled certificates.
+/// for scheduled transactions. In contrast, calculations of the suggested
+/// gas price should only be invoked for deferred/cancelled transactions.
 ///
 /// Roughly speaking, the suggested gas price calculator works as follows:
-/// 1. For every scheduled certificate, obtain its reference gas price,
+/// 1. For every scheduled transaction, obtain its reference gas price,
 ///    execution start time and estimated execution duration.
 /// 2. For every input shared object accessed mutably by the scheduled
 ///    transaction, keep and update a map, ordered by execution start time
-///    (key), whose values store scheduled certificate's gas price and estimated
+///    (key), whose values store scheduled transaction's gas price and estimated
 ///    execution duration.
-/// 3. For every deferred/cancelled certificate, obtain its estimated execution
+/// 3. For every deferred/cancelled transaction, obtain its estimated execution
 ///    duration, as well as all input shared objects.
-/// 4. Calculate a suggested gas price for the deferred/cancelled certificate as
+/// 4. Calculate a suggested gas price for the deferred/cancelled transaction as
 ///    follows:
 ///    - compute its (imaginary) execution start time as congestion limit per
 ///      commit minus its estimated execution duration;
 ///    - for each input shared object, get the maximum gas price over scheduled
-///      certificates whose end execution time is larger than our imaginary
+///      transactions whose end execution time is larger than our imaginary
 ///      start time;
 ///    - take the maximum over the values obtained in the previous step;
 ///    - the suggested gas price equals the maximum value obtained in the
@@ -114,11 +114,11 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Update per-commit congestion info for a single certificate. This should
-    /// only be called for scheduled certificates that contain shared object(s);
+    /// Update per-commit congestion info for a single transaction. This should
+    /// only be called for scheduled transactions that contain shared object(s);
     /// otherwise, the calculator might wrongly calculate suggested gas price.
     /// `bump_object_execution_slots_result` is the outcome of the
-    /// [`bump_object_execution_slots`] of `SharedObjectCongestionTracker`.
+    /// `bump_object_execution_slots` of `SharedObjectCongestionTracker`.
     pub(super) fn update_congestion_info(
         &mut self,
         bump_object_execution_slots_result: Option<BumpObjectExecutionSlotsResult>,
@@ -159,19 +159,19 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Calculate a suggested gas price for a deferred/cancelled `certificate`
+    /// Calculate a suggested gas price for a deferred/cancelled `transaction`
     /// using the single-commit congestion info held by the calculator. This
-    /// should only be called for certificates deferred/cancelled due to
+    /// should only be called for transactions deferred/cancelled due to
     /// shared object congestion; otherwise, there is a risk of panic.
     #[instrument(level = "trace", skip_all)]
     pub(super) fn calculate_suggested_gas_price(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
     ) -> u64 {
         if let Some(congestion_limit_per_commit) = self.get_effective_congestion_limit_per_commit()
         {
             let clearing_gas_price =
-                self.find_clearing_gas_price(certificate, congestion_limit_per_commit);
+                self.find_clearing_gas_price(transaction, congestion_limit_per_commit);
 
             // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
             // transaction would be scheduled if the same commit structure was repeated.
@@ -207,26 +207,26 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Find the gas price for which a deferred/scheduled certificate would be
+    /// Find the gas price for which a deferred/scheduled transaction would be
     /// scheduled if (i) that gas price was paid, and (ii) if exactly the same
     /// set of transactions appeared in a commit.
     fn find_clearing_gas_price(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         congestion_limit_per_commit: ExecutionTime,
     ) -> Option<u64> {
-        // Imaginary start time of the deferred/cancelled certificate. We consider
+        // Imaginary start time of the deferred/cancelled transaction. We consider
         // only the highest possible (but sufficient for scheduling) start time as
-        // it is very likely that scheduled certificates with lower gas prices
+        // it is very likely that scheduled transactions with lower gas prices
         // appear have higher start times. If a transaction with its estimated
         // execution duration cannot fit within `congestion_limit_per_commit`,
         // set its imaginary start time to 0.
-        let start_time_of_deferred_cert = congestion_limit_per_commit.saturating_sub(
+        let start_time_of_deferred_tx = congestion_limit_per_commit.saturating_sub(
             self.congestion_control_parameters
-                .get_estimated_execution_duration(certificate),
+                .get_estimated_execution_duration(transaction),
         );
 
-        certificate
+        transaction
             .shared_input_objects()
             .into_iter()
             .filter_map(|object| {
@@ -236,30 +236,29 @@ impl SuggestedGasPriceCalculator {
                         per_object_congestion_info
                             .iter()
                             .filter_map(|(execution_start_time, tx_congestion_info)| {
-                                let end_time_of_scheduled_cert = execution_start_time
-                                    .saturating_add(
-                                        tx_congestion_info.estimated_execution_duration,
-                                    );
+                                let end_time_of_scheduled_tx = execution_start_time.saturating_add(
+                                    tx_congestion_info.estimated_execution_duration,
+                                );
 
-                                if end_time_of_scheduled_cert > start_time_of_deferred_cert {
-                                    // Store gas price of that scheduled certificate
+                                if end_time_of_scheduled_tx > start_time_of_deferred_tx {
+                                    // Store gas price of that scheduled transaction
                                     Some(tx_congestion_info.gas_price)
                                 } else {
                                     None
                                 }
                             })
-                            // Take the maximum over all found gas prices of scheduled certificates
+                            // Take the maximum over all found gas prices of scheduled transactions
                             // whose execution end time is larger than the imaginary start time
                             // of the deferred/cancelled transaction. It has to be maximum here
                             // since otherwise the suggested gas price will be insufficient to
-                            // guarantee scheduling if the same set of certificates was repeated
+                            // guarantee scheduling if the same set of transactions was repeated
                             // again in a commit.
                             .max()
                     })
             })
             // Take the maximum over all input shared objects, as we need to consider the
             // "worst-case" (most congested) object; otherwise, the suggested gas price
-            // will be insufficient to guarantee scheduling if the same set of certificates
+            // will be insufficient to guarantee scheduling if the same set of transactions
             // was repeated again in a commit.
             .max()
     }
@@ -298,12 +297,12 @@ pub mod suggested_gas_price_calculator_test_utils {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    let certificate =
+                    let transaction =
                         build_transaction(&[(*object_id, true)], *duration, *gas_price);
 
                     let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                         &mut shared_object_congestion_tracker,
-                        &certificate.shared_input_objects(),
+                        &transaction.shared_input_objects(),
                         *duration,
                     )
                     .expect(
@@ -312,19 +311,19 @@ pub mod suggested_gas_price_calculator_test_utils {
                     );
 
                     let bump_result = shared_object_congestion_tracker
-                        .bump_object_execution_slots(&certificate, execution_start_time);
+                        .bump_object_execution_slots(&transaction, execution_start_time);
 
                     suggested_gas_price_calculator.update_congestion_info(bump_result);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     let tx_duration = 1; // since this is TotalTxCount mode
                     for _ in 0..*duration {
-                        let certificate =
+                        let transaction =
                             build_transaction(&[(*object_id, true)], tx_duration, *gas_price);
 
                         let execution_start_time = initialize_tracker_and_compute_tx_start_time(
                             &mut shared_object_congestion_tracker,
-                            &certificate.shared_input_objects(),
+                            &transaction.shared_input_objects(),
                             tx_duration,
                         )
                         .expect(
@@ -333,7 +332,7 @@ pub mod suggested_gas_price_calculator_test_utils {
                         );
 
                         let bump_result = shared_object_congestion_tracker
-                            .bump_object_execution_slots(&certificate, execution_start_time);
+                            .bump_object_execution_slots(&transaction, execution_start_time);
 
                         suggested_gas_price_calculator.update_congestion_info(bump_result);
                     }
@@ -412,58 +411,58 @@ mod tests {
         .collect()
     }
 
-    /// Helper function for tests to build a certificate with `tx_data` and
+    /// Helper function for tests to build a transaction with `tx_data` and
     /// then try sequencing it by `shared_object_congestion_tracker`.
-    /// Returns the certificate itself and a result of its sequencing.
-    fn build_and_try_sequencing_certificate(
+    /// Returns the transaction itself and a result of its sequencing.
+    fn build_and_try_sequencing_transaction(
         tx_data: &TransactionData,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> (VerifiedExecutableTransaction, SequencingResult) {
-        let certificate = build_transaction(
+        let transaction = build_transaction(
             &tx_data.input_shared_objects,
             tx_data.gas_budget,
             tx_data.gas_price,
         );
-        let shared_input_objects = certificate.shared_input_objects();
+        let shared_input_objects = transaction.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
 
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
-            &certificate,
+            &transaction,
             // The remaining inputs are not important for these tests
             &HashMap::new(),
             0,
         );
 
-        (certificate, sequencing_result)
+        (transaction, sequencing_result)
     }
 
     /// Helper function for tests to update data internally stored by
     /// `shared_object_congestion_tracker` and `suggested_gas_price_calculator`
-    /// for a `certificate` scheduled at `execution_start_time`.
-    fn update_data_for_scheduled_certificate(
-        certificate: &VerifiedExecutableTransaction,
+    /// for a `transaction` scheduled at `execution_start_time`.
+    fn update_data_for_scheduled_transaction(
+        transaction: &VerifiedExecutableTransaction,
         execution_start_time: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) {
         let bump_result = shared_object_congestion_tracker
-            .bump_object_execution_slots(certificate, execution_start_time);
+            .bump_object_execution_slots(transaction, execution_start_time);
         suggested_gas_price_calculator.update_congestion_info(bump_result);
     }
 
-    /// Helper function to test if a certificate with and `tx_data` is
-    /// scheduled. Returns execution start time of the certificate if
+    /// Helper function to test if a transaction with and `tx_data` is
+    /// scheduled. Returns execution start time of the transaction if
     /// it is scheduled, otherwise returns `None`.
     fn try_schedule(
         tx_data: &TransactionData,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<ExecutionTime> {
-        let (certificate, sequencing_result) =
-            build_and_try_sequencing_certificate(tx_data, shared_object_congestion_tracker);
+        let (transaction, sequencing_result) =
+            build_and_try_sequencing_transaction(tx_data, shared_object_congestion_tracker);
         if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
-            update_data_for_scheduled_certificate(
-                &certificate,
+            update_data_for_scheduled_transaction(
+                &transaction,
                 execution_start_time,
                 shared_object_congestion_tracker,
                 suggested_gas_price_calculator,
@@ -475,20 +474,20 @@ mod tests {
         }
     }
 
-    /// Helper function to test if a certificate with and `tx_data` is
+    /// Helper function to test if a transaction with and `tx_data` is
     /// deferred. Returns congested objects and suggested gas price if
-    /// the certificate is deferred, otherwise returns `None`.
+    /// the transaction is deferred, otherwise returns `None`.
     fn try_defer(
         tx_data: &TransactionData,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<(Vec<ObjectId>, u64)> {
-        let (certificate, sequencing_result) =
-            build_and_try_sequencing_certificate(tx_data, shared_object_congestion_tracker);
+        let (transaction, sequencing_result) =
+            build_and_try_sequencing_transaction(tx_data, shared_object_congestion_tracker);
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
             Some((
                 congested_objects,
-                suggested_gas_price_calculator.calculate_suggested_gas_price(&certificate),
+                suggested_gas_price_calculator.calculate_suggested_gas_price(&transaction),
             ))
         } else {
             None
@@ -524,14 +523,14 @@ mod tests {
         let object_4 = ObjectId::random();
         let object_5 = ObjectId::random();
 
-        // Construct the first certificate that touches shared objects:
+        // Construct the first transaction that touches shared objects:
         // - `object_1` by mutable reference,
         // - `object_2` by immutable reference.
         let objects_1 = [(object_1, true), (object_2, false)];
         let gas_price_1 = 1_003;
         let execution_start_time_1 = 0;
         let estimated_execution_duration_1 = 3;
-        // Update the calculator's congestion info for this certificate.
+        // Update the calculator's congestion info for this transaction.
         suggested_gas_price_calculator.update_congestion_info(
             max_execution_duration_per_commit.map(|_| {
                 BumpObjectExecutionSlotsResult::new_for_test(
@@ -568,7 +567,7 @@ mod tests {
             );
         }
 
-        // Construct the second certificate that touches shared objects:
+        // Construct the second transaction that touches shared objects:
         // - `object_2` by mutable reference,
         // - `object_3` by immutable reference,
         // - `object_4` by mutable reference.
@@ -576,7 +575,7 @@ mod tests {
         let gas_price_2 = 1_002;
         let execution_start_time_2 = 1;
         let estimated_execution_duration_2 = 2;
-        // Update the calculator's congestion info for this certificate.
+        // Update the calculator's congestion info for this transaction.
         suggested_gas_price_calculator.update_congestion_info(
             max_execution_duration_per_commit.map(|_| {
                 BumpObjectExecutionSlotsResult::new_for_test(
@@ -631,14 +630,14 @@ mod tests {
             );
         }
 
-        // Construct the third certificate that touches shared objects:
+        // Construct the third transaction that touches shared objects:
         // - `object_4` by immutable reference,
         // - `object_5` by mutable reference.
         let objects_3 = [(object_4, false), (object_5, true)];
         let gas_price_3 = 1_001;
         let execution_start_time_3 = 2;
         let estimated_execution_duration_3 = 1;
-        // Update the calculator's congestion info for this certificate.
+        // Update the calculator's congestion info for this transaction.
         suggested_gas_price_calculator.update_congestion_info(
             max_execution_duration_per_commit.map(|_| {
                 BumpObjectExecutionSlotsResult::new_for_test(
@@ -754,11 +753,11 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 3 -----|
-        // |                  | cert. 2 (g=8000) |            |
+        // |                  |  tx. 2 (g=8000)  |            |
         // |                  |------------------|---- 2      |
-        // |                  | cert. 1 (g=9000) |            |
+        // |                  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 1      |
-        // | cert. 0 (g=100K) |                  |            |
+        // |  tx. 0 (g=100K)  |                  |            |
         // |-------------------------------------|---- 0 -----|
         (0..=2).for_each(|i| {
             let tx_data = &txs_data[i];
@@ -784,11 +783,11 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 3 -----|
-        // |                  | cert. 2 (g=8000) |            |
+        // |                  |  tx. 2 (g=8000)  |            |
         // |                  |------------------|---- 2      |
-        // |                  | cert. 1 (g=9000) |            |
+        // |                  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 1      |
-        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |  tx. 0 (g=100K)  |  tx. 3 (g=7000)  |            |
         // |-------------------------------------|---- 0 -----|
         // If `assign_min_free_exec_slot` is `false`, transaction 3 must be deferred,
         // in which case object 2 must be labeled as congested and suggested gas price
@@ -918,13 +917,13 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 3 -----|
-        // | cert. 9 (g=5000) | cert. 2 (g=8000) |            |
+        // |  tx. 9 (g=5000)  |  tx. 2 (g=8000)  |            |
         // |------------------|------------------|---- 2      |
-        // | cert. 8 (g=6000) | cert. 1 (g=9000) |            |
+        // |  tx. 8 (g=6000)  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 1      |
-        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |  tx. 0 (g=100K)  |  tx. 3 (g=7000)  |            |
         // |-------------------------------------|---- 0 -----|
-        // NOTE: certificate 3 will only be scheduled if
+        // NOTE: transaction 3 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
         (8..=9).for_each(|i| {
             let tx_data = &txs_data[i];
@@ -1037,16 +1036,16 @@ mod tests {
         // |                        |                        |            |
         // |                        |                        |---- 7M     |
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 6M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 6M     |
         // |                        |                        |            |
         // |                        |                        |---- 5M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 4M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 3M     |
         // |                        |                        |            |
         // |                        |                        |---- 2M     |
-        // | cert. 0 (g=100K, d=3M) |                        |            |
+        // |  tx. 0 (g=100K, d=3M)  |                        |            |
         // |                        |                        |---- 1M     |
         // |                        |                        |            |
         // |-------------------------------------------------|---- 0 -----|
@@ -1106,17 +1105,17 @@ mod tests {
         // |                        |                        |            |
         // |                        |                        |---- 7M     |
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 6M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 6M     |
         // |                        |                        |            |
         // |                        |                        |---- 5M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 4M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 3M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 2M     |
-        // | cert. 0 (g=100K, d=3M) |                        |            |
-        // |                        | cert. 3 (g=7000, d=2M) |---- 1M     |
+        // |  tx. 0 (g=100K, d=3M)  |                        |            |
+        // |                        |  tx. 3 (g=7000, d=2M)  |---- 1M     |
         // |                        |                        |            |
         // |-------------------------------------------------|---- 0 -----|
         // If `assign_min_free_exec_slot` is `false`, transaction 3 must be deferred,
@@ -1277,24 +1276,24 @@ mod tests {
         // |________________________|________________________|____________|
         // |------------------------|------------------------|---- 9M ----|
         // |                        |                        |            |
-        // | cert. 9 (g=5000, d=2M) |------------------------|---- 8M     |
+        // |  tx. 9 (g=5000, d=2M)  |------------------------|---- 8M     |
         // |                        |                        |            |
         // |------------------------|                        |---- 7M     |
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 6M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 6M     |
         // |                        |                        |            |
-        // | cert. 8 (g=6000, d=4M) |                        |---- 5M     |
+        // |  tx. 8 (g=6000, d=4M)  |                        |---- 5M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 4M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 3M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 2M     |
-        // | cert. 0 (g=100K, d=3M) |                        |            |
-        // |                        | cert. 3 (g=7000, d=2M) |---- 1M     |
+        // |  tx. 0 (g=100K, d=3M)  |                        |            |
+        // |                        |  tx. 3 (g=7000, d=2M)  |---- 1M     |
         // |                        |                        |            |
         // |-------------------------------------------------|---- 0 -----|
-        // NOTE: certificate 3 will only be scheduled if
+        // NOTE: transaction 3 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
         // 8:
         let tx_data = &txs_data[8];
@@ -1473,11 +1472,11 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 5 -----|
-        // |                  | cert. 2 (g=8000) |            |
+        // |                  |  tx. 2 (g=8000)  |            |
         // |                  |------------------|---- 4      |
-        // |                  | cert. 1 (g=9000) |            |
+        // |                  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 3 -----|
-        // | cert. 0 (g=100K) |                  |            |
+        // |  tx. 0 (g=100K)  |                  |            |
         // |------------------|------------------|---- 2      |
         // |                  | init. obj. debts |            |
         // |------------------| init. obj. debts |---- 1      |
@@ -1507,11 +1506,11 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 5 -----|
-        // |                  | cert. 2 (g=8000) |            |
+        // |                  |  tx. 2 (g=8000)  |            |
         // |                  |------------------|---- 4      |
-        // |                  | cert. 1 (g=9000) |            |
+        // |                  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 3 -----|
-        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |  tx. 0 (g=100K)  |  tx. 3 (g=7000)  |            |
         // |------------------|------------------|---- 2      |
         // |                  | init. obj. debts |            |
         // |------------------| init. obj. debts |---- 1      |
@@ -1661,17 +1660,17 @@ mod tests {
         // |     object_1     |     object_2     | start time |
         // |__________________|__________________|____________|
         // |------------------|------------------|---- 5 -----|
-        // |                  | cert. 2 (g=8000) |            |
+        // |                  |  tx. 2 (g=8000)  |            |
         // |------------------|------------------|---- 4      |
-        // | cert. 9 (g=5000) | cert. 1 (g=9000) |            |
+        // |  tx. 9 (g=5000)  |  tx. 1 (g=9000)  |            |
         // |------------------|------------------|---- 3 -----|
-        // | cert. 0 (g=100K) | cert. 3 (g=7000) |            |
+        // |  tx. 0 (g=100K)  |  tx. 3 (g=7000)  |            |
         // |------------------|------------------|---- 2      |
-        // | cert. 8 (g=6000) | init. obj. debts |            |
+        // |  tx. 8 (g=6000)  | init. obj. debts |            |
         // |------------------| init. obj. debts |---- 1      |
         // | init. obj. debts | init. obj. debts |            |
         // |-------------------------------------|---- 0 -----|
-        // NOTE: certificate 3 will only be scheduled if
+        // NOTE: transaction 3 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
         // Tx 8:
         let tx_data = &txs_data[8];
@@ -1811,16 +1810,16 @@ mod tests {
         // |                        |                        |            |
         // |                        |                        |---- 9M ----|
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 8M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 8M     |
         // |                        |                        |            |
         // |                        |                        |---- 7M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 6M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 5M     |
         // |                        |                        |            |
         // |                        |                        |---- 4M     |
-        // | cert. 0 (g=100K, d=3M) |                        |            |
+        // |  tx. 0 (g=100K, d=3M)  |                        |            |
         // |                        |                        |---- 3M     |
         // |                        |                        |            |
         // |------------------------|                        |---- 2M     |
@@ -1885,19 +1884,19 @@ mod tests {
         // |                        |                        |            |
         // |                        |                        |---- 9M ----|
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 8M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 8M     |
         // |                        |                        |            |
         // |                        |                        |---- 7M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 6M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 5M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 4M     |
-        // | cert. 0 (g=100K, d=3M) | cert. 4 (g=7000, ~d=1M)|            |
+        // |  tx. 0 (g=100K, d=3M)  |  tx. 4 (g=7000, ~d=1M) |            |
         // |                        |------------------------|---- 3M     |
         // |                        |                        |            |
-        // |------------------------| cert. 3 (g=7000, d=2M) |---- 2M ----|
+        // |------------------------|  tx. 3 (g=7000, d=2M)  |---- 2M ----|
         // | initial object debts   |                        |            |
         // | initial object debts   |------------------------|---- 1M     |
         // | initial object debts   | initial object debts   |            |
@@ -2080,28 +2079,28 @@ mod tests {
         // |________________________|________________________|____________|
         // |------------------------|------------------------|---- 11M ---|
         // |                        |                        |            |
-        // | cert. 9 (g=5000, d=2M) |------------------------|---- 10M    |
+        // |  tx. 9 (g=5000, d=2M)  |------------------------|---- 10M    |
         // |                        |                        |            |
         // |------------------------|                        |---- 9M ----|
         // |                        |                        |            |
-        // |                        | cert. 2 (g=8000, d=4M) |---- 8M     |
+        // |                        |  tx. 2 (g=8000, d=4M)  |---- 8M     |
         // |                        |                        |            |
-        // | cert. 8 (g=6000, d=4M) |                        |---- 7M     |
+        // |  tx. 8 (g=6000, d=4M)  |                        |---- 7M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 6M     |
-        // |                        | cert. 1 (g=9000, d=1M) |            |
+        // |                        |  tx. 1 (g=9000, d=1M)  |            |
         // |------------------------|------------------------|---- 5M     |
         // |                        |                        |            |
         // |                        |------------------------|---- 4M     |
-        // | cert. 0 (g=100K, d=3M) | cert. 4 (g=7000, ~d=1M)|            |
+        // |  tx. 0 (g=100K, d=3M)  |  tx. 4 (g=7000, ~d=1M) |            |
         // |                        |------------------------|---- 3M     |
         // |                        |                        |            |
-        // |------------------------| cert. 3 (g=7000, d=2M) |---- 2M ----|
+        // |------------------------|  tx. 3 (g=7000, d=2M)  |---- 2M ----|
         // | initial object debts   |                        |            |
         // | initial object debts   |------------------------|---- 1M     |
         // | initial object debts   | initial object debts   |            |
         // |-------------------------------------------------|---- 0 -----|
-        // NOTE: certificates 3 and 4 will only be scheduled if
+        // NOTE: transactions 3 and 4 will only be scheduled if
         // `assign_min_free_exec_slot` is `true`.
         // 8:
         let tx_data = &txs_data[8];

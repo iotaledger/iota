@@ -6,9 +6,9 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Argument, Owner};
+use iota_sdk_types::{Address, Argument, Owner};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     move_package::UpgradePolicy,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -477,7 +477,7 @@ impl IotaExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+            let address: Address = Address::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -543,7 +543,7 @@ impl IotaValue {
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
-        Ok(CallArg::Receiving(obj.compute_object_reference()))
+        Ok(CallArg::Receiving(obj.object_ref()))
     }
 
     fn read_shared_arg(
@@ -578,7 +578,7 @@ impl IotaValue {
                 true,
             ))),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                let obj_ref = obj.compute_object_reference();
+                let obj_ref = obj.object_ref();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))
             }
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
@@ -689,7 +689,7 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+        let address: Address = Address::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }

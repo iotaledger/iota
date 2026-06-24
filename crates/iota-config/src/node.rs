@@ -13,8 +13,8 @@ use std::{
 use anyhow::Result;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
@@ -257,6 +257,12 @@ pub struct NodeConfig {
     /// in an error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_override_for_testing: Option<Chain>,
+
+    /// Configuration for the validator client monitor that tracks
+    /// client-observed performance metrics for validators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validator_client_monitor_config:
+        Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -726,7 +732,7 @@ impl NodeConfig {
         Ok(migration_tx_data)
     }
 
-    pub fn iota_address(&self) -> IotaAddress {
+    pub fn iota_address(&self) -> Address {
         (&self.account_key_pair.keypair().public()).into()
     }
 

@@ -331,7 +331,7 @@ pub async fn accumulate_live_object_iter(
     for live_object in iter {
         match live_object {
             LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().digest);
+                acc.insert(object.object_ref().digest);
             }
             LiveObject::Wrapped(key) => {
                 acc.insert(

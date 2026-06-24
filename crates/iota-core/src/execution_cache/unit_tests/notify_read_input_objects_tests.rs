@@ -7,11 +7,11 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use futures::FutureExt;
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey},
@@ -296,7 +296,7 @@ async fn test_writeback_receiving_object_higher_version() {
     let object = Object::with_id_owner_version_for_testing(
         object_id,
         higher_version,
-        Owner::Address(IotaAddress::ZERO),
+        Owner::Address(Address::ZERO),
     );
 
     // Write higher version to cache

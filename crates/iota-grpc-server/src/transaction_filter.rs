@@ -4,9 +4,8 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Command, ExecutionStatus, ObjectId, Owner};
+use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
-    base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionDataAPI,
@@ -30,22 +29,20 @@ pub enum TransactionKind {
     RandomnessStateUpdate = 6,
 }
 
-impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
-    fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
+impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
+    fn from(kind: &iota_sdk_types::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::Programmable(_) => {
-                TransactionKind::Programmable
-            }
-            iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
-            iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
+            iota_sdk_types::TransactionKind::Programmable(_) => TransactionKind::Programmable,
+            iota_sdk_types::TransactionKind::Genesis(_) => TransactionKind::Genesis,
+            iota_sdk_types::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
             #[allow(deprecated)]
-            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+            iota_sdk_types::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 TransactionKind::System
             }
-            iota_types::transaction::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
-            iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
+            iota_sdk_types::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
+            iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
             _ => unimplemented!(
@@ -212,10 +209,10 @@ pub enum TransactionFilter {
     TransactionKind(Vec<TransactionKind>),
 
     /// Filter by sender address.
-    Sender(IotaAddress),
+    Sender(Address),
     /// Filter by recipient address. The recipient is determined by
     /// checking the owners of mutated and unwrapped objects.
-    Receiver(IotaAddress),
+    Receiver(Address),
 
     /// Filter for transactions that touch this object.
     AffectedObject(ObjectId),
@@ -279,7 +276,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .address
                     .ok_or("sender address is missing")?
                     .address;
-                let iota_address = IotaAddress::from_bytes(&address)
+                let iota_address = Address::from_bytes(&address)
                     .map_err(|e| format!("invalid sender address: {e}"))?;
                 Ok(TransactionFilter::Sender(iota_address))
             }
@@ -288,7 +285,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .address
                     .ok_or("receiver address is missing")?
                     .address;
-                let iota_address = IotaAddress::from_bytes(&address)
+                let iota_address = Address::from_bytes(&address)
                     .map_err(|e| format!("invalid receiver address: {e}"))?;
                 Ok(TransactionFilter::Receiver(iota_address))
             }
@@ -365,7 +362,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::Programmable(pt) => {
+                iota_sdk_types::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,
@@ -485,13 +482,13 @@ mod tests {
     #[test]
     fn test_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
+        let simple_filter = TransactionFilter::Sender(Address::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random()),
+            TransactionFilter::Sender(Address::random()),
             TransactionFilter::Any(vec![
                 TransactionFilter::AffectedObject(ObjectId::random()),
                 TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
@@ -503,7 +500,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random());
+        let mut deep_filter = TransactionFilter::Sender(Address::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             deep_filter = TransactionFilter::Not(Box::new(deep_filter));
         }
@@ -514,15 +511,15 @@ mod tests {
     #[test]
     fn test_filter_complexity_validation() {
         // Simple filter should pass complexity validation
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
+        let simple_filter = TransactionFilter::Sender(Address::random());
         assert!(simple_filter.validate_complexity().is_ok());
         assert_eq!(simple_filter.count_nodes(), 1);
 
         // Moderately complex filter should pass
         let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random()),
+            TransactionFilter::Sender(Address::random()),
             TransactionFilter::Any(vec![
-                TransactionFilter::Receiver(IotaAddress::random()),
+                TransactionFilter::Receiver(Address::random()),
                 TransactionFilter::AffectedObject(ObjectId::random()),
             ]),
         ]);
@@ -532,11 +529,11 @@ mod tests {
 
     #[test]
     fn test_new_validated() {
-        let valid_filter = TransactionFilter::Sender(IotaAddress::random());
+        let valid_filter = TransactionFilter::Sender(Address::random());
         assert!(TransactionFilter::new_validated(valid_filter).is_ok());
 
         // Create an invalid deeply nested filter
-        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random());
+        let mut invalid_filter = TransactionFilter::Sender(Address::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             invalid_filter = TransactionFilter::Not(Box::new(invalid_filter));
         }
@@ -561,11 +558,11 @@ mod tests {
         // Create a complex but valid nested structure
         let complex_filter = TransactionFilter::All(vec![
             TransactionFilter::Any(vec![
-                TransactionFilter::Sender(IotaAddress::random()),
-                TransactionFilter::Receiver(IotaAddress::random()),
+                TransactionFilter::Sender(Address::random()),
+                TransactionFilter::Receiver(Address::random()),
             ]),
             TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
-                TransactionFilter::Sender(IotaAddress::random()),
+                TransactionFilter::Sender(Address::random()),
                 TransactionFilter::AffectedObject(ObjectId::random()),
             ]))),
         ]);

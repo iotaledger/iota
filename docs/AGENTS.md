@@ -235,7 +235,8 @@ gen-api                     # OpenAPI / REST API docs (local)
 - `content/developer/iota-sdk/references/`
 - `content/developer/iota-evm/references/`
 - `content/developer/iota-identity/references/`
-- `content/developer/iota-notarization/references/`
+- `content/developer/iota-notarization/single-notarization/references/`
+- `content/developer/iota-notarization/audit-trails/references/`
 - `content/developer/iota-hierarchies/references/`
 
 If a generated reference is wrong, fix the source (the relevant SDK repo or script in `site/scripts/`) rather than the output file.

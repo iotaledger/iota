@@ -4,7 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::object::{Data, MoveObject as NativeMoveObject};
+use iota_sdk_types::ObjectData;
+use iota_types::object::MoveObject as NativeMoveObject;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -47,7 +48,6 @@ pub(crate) struct MoveObject {
 pub(crate) struct MoveObjectImpl<'o>(pub &'o MoveObject);
 
 pub(crate) enum MoveObjectDowncastError {
-    WrappedOrDeleted,
     NotAMoveObject,
 }
 
@@ -230,8 +230,6 @@ impl MoveObject {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -457,7 +455,6 @@ impl MoveObject {
 
         match MoveObject::try_from(&object) {
             Ok(object) => Ok(Some(object)),
-            Err(MoveObjectDowncastError::WrappedOrDeleted) => Ok(None),
             Err(MoveObjectDowncastError::NotAMoveObject) => {
                 Err(Error::Internal(format!("{address} is not a Move object")))?
             }
@@ -499,11 +496,9 @@ impl TryFrom<&Object> for MoveObject {
     type Error = MoveObjectDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        let Some(native) = object.native_impl() else {
-            return Err(MoveObjectDowncastError::WrappedOrDeleted);
-        };
+        let native = object.native_impl();
 
-        if let Data::Struct(move_object) = &native.data {
+        if let ObjectData::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

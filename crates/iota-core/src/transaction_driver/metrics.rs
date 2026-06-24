@@ -1,0 +1,177 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use iota_metrics::COUNT_BUCKETS;
+use prometheus::{
+    Histogram, HistogramVec, IntCounter, IntCounterVec, Registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+};
+
+const SUBMIT_TRANSACTION_RETRIES_BUCKETS: &[f64] = &[
+    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 15.0, 20.0, 30.0,
+];
+
+#[derive(Clone)]
+pub struct TransactionDriverMetrics {
+    pub(crate) settlement_finality_latency: HistogramVec,
+    pub(crate) drive_transaction_errors: IntCounterVec,
+    pub(crate) total_transactions_submitted: IntCounterVec,
+    pub(crate) submit_transaction_retries: Histogram,
+    pub(crate) submit_transaction_latency: HistogramVec,
+    pub(crate) validator_submit_transaction_errors: IntCounterVec,
+    pub(crate) validator_submit_transaction_successes: IntCounterVec,
+    pub(crate) executed_transactions: IntCounter,
+    pub(crate) rejection_acks: IntCounterVec,
+    pub(crate) expiration_acks: IntCounterVec,
+    pub(crate) effects_digest_mismatches: IntCounter,
+    pub(crate) transaction_retries: HistogramVec,
+    pub(crate) certified_effects_ack_latency: HistogramVec,
+    pub(crate) certified_effects_ack_attempts: IntCounterVec,
+    pub(crate) certified_effects_ack_successes: IntCounterVec,
+    pub(crate) validator_selections: IntCounterVec,
+    pub(crate) submit_amplification_factor: Histogram,
+    pub(crate) latency_check_runs: IntCounter,
+}
+
+impl TransactionDriverMetrics {
+    pub fn new(registry: &Registry) -> Self {
+        Self {
+            settlement_finality_latency: register_histogram_vec_with_registry!(
+                "transaction_driver_settlement_finality_latency",
+                "Settlement finality latency observed from transaction driver",
+                &["ping"],
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            drive_transaction_errors: register_int_counter_vec_with_registry!(
+                "transaction_driver_drive_transaction_errors",
+                "Number of errors observed from drive_transaction() attempts.",
+                &["error_type", "ping"],
+                registry,
+            )
+            .unwrap(),
+            total_transactions_submitted: register_int_counter_vec_with_registry!(
+                "transaction_driver_total_transactions_submitted",
+                "Total number of transactions submitted through the transaction driver",
+                &["ping"],
+                registry,
+            )
+            .unwrap(),
+            submit_transaction_retries: register_histogram_with_registry!(
+                "transaction_driver_submit_transaction_retries",
+                "Number of retries needed for successful transaction submission",
+                SUBMIT_TRANSACTION_RETRIES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            submit_transaction_latency: register_histogram_vec_with_registry!(
+                "transaction_driver_submit_transaction_latency",
+                "Time in seconds to successfully submit a transaction to a validator.\n\
+                Includes all retries and measures from the start of submission\n\
+                until a validator accepts the transaction.",
+                &["ping"],
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            validator_submit_transaction_errors: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_submit_transaction_errors",
+                "Number of submit transaction errors by validator",
+                &["validator", "error_type", "ping"],
+                registry,
+            )
+            .unwrap(),
+            validator_submit_transaction_successes: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_submit_transaction_successes",
+                "Number of successful submit transactions by validator",
+                &["validator", "ping"],
+                registry,
+            )
+            .unwrap(),
+            executed_transactions: register_int_counter_with_registry!(
+                "transaction_driver_executed_transactions",
+                "Number of transactions executed observed by the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            rejection_acks: register_int_counter_vec_with_registry!(
+                "transaction_driver_rejected_acks",
+                "Number of rejection acknowledgments observed by the transaction driver",
+                &["ping"],
+                registry,
+            )
+            .unwrap(),
+            expiration_acks: register_int_counter_vec_with_registry!(
+                "transaction_driver_expiration_acks",
+                "Number of expiration acknowledgments observed by the transaction driver",
+                &["ping"],
+                registry,
+            )
+            .unwrap(),
+            effects_digest_mismatches: register_int_counter_with_registry!(
+                "transaction_driver_effects_digest_mismatches",
+                "Number of effects digest mismatches detected by the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            transaction_retries: register_histogram_vec_with_registry!(
+                "transaction_driver_transaction_retries",
+                "Number of retries per transaction attempt in drive_transaction",
+                &["result", "ping"],
+                SUBMIT_TRANSACTION_RETRIES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_latency: register_histogram_vec_with_registry!(
+                "transaction_driver_certified_effects_ack_latency",
+                "Latency in seconds for getting certified effects acknowledgment",
+                &["ping"],
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_attempts: register_int_counter_vec_with_registry!(
+                "transaction_driver_certified_effects_ack_attempts",
+                "Total number of transactions that went through certified effects ack process",
+                &["ping"],
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_successes: register_int_counter_vec_with_registry!(
+                "transaction_driver_certified_effects_ack_successes",
+                "Number of successful certified effects acknowledgments",
+                &["ping"],
+                registry,
+            )
+            .unwrap(),
+            validator_selections: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_selections",
+                "Number of times each validator was selected for transaction submission",
+                &["validator", "ping"],
+                registry,
+            )
+            .unwrap(),
+            submit_amplification_factor: register_histogram_with_registry!(
+                "transaction_driver_submit_amplification_factor",
+                "The amplification factor used by transaction driver to submit to validators",
+                COUNT_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            latency_check_runs: register_int_counter_with_registry!(
+                "transaction_driver_latency_check_runs",
+                "Number of times the latency check runs",
+                registry,
+            )
+            .unwrap(),
+        }
+    }
+
+    pub fn new_for_tests() -> Self {
+        let registry = Registry::new();
+        Self::new(&registry)
+    }
+}

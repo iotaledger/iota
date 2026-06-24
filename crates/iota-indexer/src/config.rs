@@ -7,8 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tracing::warn;
@@ -18,10 +17,6 @@ use crate::{
     backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
     types::IndexerResult,
 };
-
-/// The primary purpose of objects_history is to serve consistency query.
-/// A short retention is sufficient.
-const OBJECTS_HISTORY_EPOCHS_TO_KEEP: u64 = 2;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -46,13 +41,13 @@ pub struct IndexerConfig {
 pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().package_address)]
     #[arg(long = "iota-names-package-address")]
-    pub package_address: IotaAddress,
+    pub package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
     pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
-    pub payments_package_address: IotaAddress,
+    pub payments_package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
     pub registry_id: ObjectId,
@@ -304,7 +299,10 @@ pub enum Command {
     },
 }
 
-#[derive(Args, Default, Debug, Clone)]
+pub const DEFAULT_PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours
+pub const DEFAULT_PRUNING_BATCH_SIZE: u64 = 1000;
+
+#[derive(Args, Debug, Clone)]
 pub struct PruningOptions {
     /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
     /// pointing at a TOML retention config instead.
@@ -313,10 +311,37 @@ pub struct PruningOptions {
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
-    /// DEPRECATED: This parameter is no longer used. Optimistic transactions
-    /// are now pruned by the unified pruner with the same batching strategy.
+    /// Delay in milliseconds between a watermark's lower bound being advanced
+    /// and the pruner acting on it. Lets in-flight reads complete or timeout
+    /// before their data is pruned.
+    #[arg(long, env = "PRUNING_DELAY_MS", default_value_t = DEFAULT_PRUNING_DELAY_MS)]
+    pub pruning_delay_ms: u64,
+    /// Upper bound on units (checkpoints, transactions, or global sequence
+    /// numbers) pruned per chunk, and on rows deleted per statement for the
+    /// `WithLimit` strategies. Must be > 0.
+    #[arg(
+        long,
+        env = "PRUNING_BATCH_SIZE",
+        default_value_t = DEFAULT_PRUNING_BATCH_SIZE,
+        value_parser = clap::value_parser!(u64).range(1..),
+    )]
+    pub pruning_batch_size: u64,
+    /// DEPRECATED: will be removed in v1.29.0. This parameter is no longer
+    /// used. Optimistic transactions are now pruned by the unified pruner.
     #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
     pub optimistic_pruner_batch_size: Option<u64>,
+}
+
+impl Default for PruningOptions {
+    fn default() -> Self {
+        Self {
+            epochs_to_keep: None,
+            pruning_config_path: None,
+            pruning_delay_ms: DEFAULT_PRUNING_DELAY_MS,
+            pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
+            optimistic_pruner_batch_size: None,
+        }
+    }
 }
 
 /// Represents the default retention policy and overrides for prunable tables.
@@ -394,23 +419,11 @@ impl RetentionConfig {
         }
     }
 
-    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        let mut overrides = HashMap::new();
-        overrides.insert(
-            PrunableTable::ObjectsHistory,
-            OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-        );
-
-        Self::new(epochs_to_keep, HashMap::new())
-    }
-
     /// Consumes the struct and produces a mapping of every prunable table
     /// and its retention policy.
     ///
     /// By default, every prunable table will have the default retention policy
-    /// from `epochs_to_keep`. Some tables like `objects_history` will
-    /// observe a different default retention policy. These default values
-    /// are overridden by any entries in `overrides`.
+    /// from `epochs_to_keep`, overridden by any entries in `overrides`.
     pub fn retention_policies(self) -> HashMap<PrunableTable, u64> {
         let RetentionConfig {
             epochs_to_keep,
@@ -418,28 +431,25 @@ impl RetentionConfig {
         } = self;
 
         for table in PrunableTable::iter() {
-            let default_retention = match table {
-                PrunableTable::ObjectsHistory => OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-                _ => epochs_to_keep,
-            };
-
-            overrides.entry(table).or_insert(default_retention);
+            overrides.entry(table).or_insert(epochs_to_keep);
         }
 
         overrides
     }
 }
 
-/// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline has
-/// been removed; these flags are now no-ops.
 #[derive(Args, Default, Debug, Clone)]
 pub struct SnapshotLagConfig {
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
     #[arg(
         long = "objects-snapshot-min-checkpoint-lag",
         env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
     )]
     pub snapshot_min_lag: Option<usize>,
 
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
     #[arg(long = "objects-snapshot-sleep-duration")]
     pub sleep_duration: Option<u64>,
 }
@@ -536,58 +546,7 @@ mod test {
     }
 
     #[test]
-    fn pruning_options_with_objects_history_override() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let toml_content = r#"
-        epochs_to_keep = 5
-        [overrides]
-        objects_history = 10
-        transactions = 20
-        "#;
-        temp_file.write_all(toml_content.as_bytes()).unwrap();
-        let temp_path: PathBuf = temp_file.path().to_path_buf();
-        let pruning_options = PruningOptions {
-            epochs_to_keep: None,
-            pruning_config_path: Some(temp_path),
-            optimistic_pruner_batch_size: None,
-        };
-        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
-
-        // Assert the parsed values
-        assert_eq!(retention_config.epochs_to_keep, 5);
-        assert_eq!(
-            retention_config
-                .overrides
-                .get(&PrunableTable::ObjectsHistory)
-                .copied(),
-            Some(10)
-        );
-        assert_eq!(
-            retention_config
-                .overrides
-                .get(&PrunableTable::Transactions)
-                .copied(),
-            Some(20)
-        );
-        assert_eq!(retention_config.overrides.len(), 2);
-
-        let retention_policies = retention_config.retention_policies();
-
-        for table in PrunableTable::iter() {
-            let Some(retention) = retention_policies.get(&table).copied() else {
-                panic!("expected a retention policy for table {table:?}");
-            };
-
-            match table {
-                PrunableTable::ObjectsHistory => assert_eq!(retention, 10),
-                PrunableTable::Transactions => assert_eq!(retention, 20),
-                _ => assert_eq!(retention, 5),
-            };
-        }
-    }
-
-    #[test]
-    fn pruning_options_no_objects_history_override() {
+    fn pruning_options_with_overrides() {
         let mut temp_file = NamedTempFile::new().unwrap();
         let toml_content = r#"
         epochs_to_keep = 5
@@ -598,9 +557,8 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
-            epochs_to_keep: None,
             pruning_config_path: Some(temp_path),
-            optimistic_pruner_batch_size: None,
+            ..Default::default()
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 
@@ -630,9 +588,6 @@ mod test {
             };
 
             match table {
-                PrunableTable::ObjectsHistory => {
-                    assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
-                }
                 PrunableTable::TxSenders => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
@@ -645,7 +600,7 @@ mod test {
         let toml_str = r#"
         epochs_to_keep = 5
         [overrides]
-        objects_history = 10
+        tx_senders = 10
         transactions = 20
         invalid_table = 30
         "#;

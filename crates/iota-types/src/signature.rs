@@ -7,17 +7,17 @@ use std::hash::Hash;
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
-    error::FastCryptoError,
+    encoding::{Base64, Encoding},
+    error::{FastCryptoError, FastCryptoResult},
     secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 use tracing::instrument;
 
 use crate::{
-    base_types::IotaAddress,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
         SignatureScheme,
@@ -48,7 +48,7 @@ pub trait AuthenticatorTrait {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -68,7 +68,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
-        _author: IotaAddress,
+        _author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -121,7 +121,7 @@ impl GenericSignature {
     pub fn verify_authenticator<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         verify_params: &VerifyParams,
     ) -> IotaResult
     where
@@ -176,7 +176,7 @@ impl GenericSignature {
                 })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
-                PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
+                PasskeyAuthenticatorAsBytes(s.to_bytes()),
             )),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
@@ -221,7 +221,13 @@ impl GenericSignature {
                     error: "zkLogin is not supported".to_string(),
                 })
             }
-            GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+            GenericSignature::PasskeyAuthenticator(passkey) => {
+                let pk = Secp256r1PublicKey::from_bytes(passkey.public_key().inner().as_ref())
+                    .map_err(|e| {
+                        IotaError::KeyConversion(format!("Cannot parse secp256r1 pk: {e}"))
+                    })?;
+                Ok(PublicKey::Passkey((&pk).into()))
+            }
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
             }),
@@ -230,14 +236,19 @@ impl GenericSignature {
             }),
         }
     }
-}
 
-/// GenericSignature encodes a single signature [enum Signature] as is `flag ||
-/// signature || pubkey`. [struct Multisig] is encoded as
-/// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
-/// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
-impl ToFromBytes for GenericSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            GenericSignature::MultiSig(s) => s.to_bytes(),
+            GenericSignature::Signature(s) => s.as_ref().to_vec(),
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
+            GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),
+            GenericSignature::MoveAuthenticator(s) => s.to_bytes(),
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match SignatureScheme::from_flag_byte(
             bytes.first().ok_or(FastCryptoError::InputTooShort(0))?,
         ) {
@@ -259,7 +270,8 @@ impl ToFromBytes for GenericSignature {
                     ))
                 }
                 SignatureScheme::PasskeyAuthenticator => {
-                    let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
+                    let passkey = PasskeyAuthenticator::from_bytes(bytes)
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))?;
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
                 SignatureScheme::MoveAuthenticator => {
@@ -273,17 +285,14 @@ impl ToFromBytes for GenericSignature {
     }
 }
 
-/// Trait useful to get the bytes reference for [enum GenericSignature].
-impl AsRef<[u8]> for GenericSignature {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            GenericSignature::MultiSig(s) => s.as_ref(),
-            GenericSignature::Signature(s) => s.as_ref(),
-            #[allow(deprecated)]
-            GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref(),
-            GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
-            GenericSignature::MoveAuthenticator(s) => s.as_ref(),
-        }
+impl EncodeDecodeBase64 for GenericSignature {
+    fn encode_base64(&self) -> String {
+        Base64::encode(self.to_bytes())
+    }
+
+    fn decode_base64(value: &str) -> FastCryptoResult<Self> {
+        let bytes = Base64::decode(value)?;
+        Self::from_bytes(&bytes)
     }
 }
 
@@ -296,7 +305,7 @@ impl ::serde::Serialize for GenericSignature {
         } else {
             #[derive(serde::Serialize)]
             struct GenericSignature<'a>(&'a [u8]);
-            GenericSignature(self.as_ref()).serialize(serializer)
+            GenericSignature(self.to_bytes().as_ref()).serialize(serializer)
         }
     }
 }
@@ -327,7 +336,7 @@ impl AuthenticatorTrait for Signature {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

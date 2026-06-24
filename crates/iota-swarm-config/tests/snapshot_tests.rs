@@ -28,9 +28,10 @@ use iota_config::{
 use iota_genesis_builder::{
     Builder, genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
 };
+use iota_sdk_types::Address;
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
-    base_types::{IotaAddress, address_from_iota_pub_key},
+    base_types::address_from_iota_pub_key,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair_from_rng,
@@ -44,7 +45,7 @@ use rand::{SeedableRng, rngs::StdRng};
 fn genesis_config_snapshot_matches() {
     let ed_kp1: IotaKeyPair =
         IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let fake_addr: IotaAddress = (&ed_kp1.public()).into();
+    let fake_addr: Address = (&ed_kp1.public()).into();
 
     let mut genesis_config = GenesisConfig::for_local_testing();
     genesis_config.parameters.chain_start_timestamp_ms = 0;

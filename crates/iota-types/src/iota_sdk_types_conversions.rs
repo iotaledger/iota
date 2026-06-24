@@ -26,8 +26,6 @@ use iota_sdk_types::{
 };
 use tap::Pipe;
 
-use crate::object::ObjectInner;
-
 #[derive(Debug)]
 pub struct SdkTypeConversionError(pub String);
 
@@ -67,20 +65,6 @@ impl TryFrom<crate::object::Object> for Object {
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<Object> for crate::object::Object {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
-        Self::from(ObjectInner {
-            data: value.data,
-            owner: value.owner,
-            previous_transaction: value.previous_transaction,
-            storage_rebate: value.storage_rebate,
-        })
         .pipe(Ok)
     }
 }
@@ -215,24 +199,21 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
         let input_objects = value
             .input_objects
             .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<_, _>>();
+            .map(crate::object::Object::from)
+            .collect();
         let output_objects = value
             .output_objects
             .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<_, _>>();
+            .map(crate::object::Object::from)
+            .collect();
 
-        match (input_objects, output_objects) {
-            (Ok(input_objects), Ok(output_objects)) => Ok(Self {
-                transaction: value.transaction.try_into()?,
-                effects: value.effects,
-                events: value.events,
-                input_objects,
-                output_objects,
-            }),
-            (Err(e), _) | (_, Err(e)) => Err(e),
-        }
+        Ok(Self {
+            transaction: value.transaction.try_into()?,
+            effects: value.effects,
+            events: value.events,
+            input_objects,
+            output_objects,
+        })
     }
 }
 

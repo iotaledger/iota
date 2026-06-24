@@ -7,10 +7,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_types::{ObjectId, RandomnessRound, VersionAssignment};
 use iota_types::{
-    base_types::{AuthorityName, SequenceNumber, TransactionDigest},
-    crypto::RandomnessRound,
+    base_types::{AuthorityName, ObjectRef, SequenceNumber, TransactionDigest},
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
@@ -24,7 +23,9 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
-        authority_per_epoch_store::report_aggregator::DBReceivedReportsStatePerAuthority,
+        authority_per_epoch_store::{
+            LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
+        },
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -71,7 +72,11 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+    // DKG state, the inner Option value persisted to `dkg_output_v2`:
+    // - `Some(Some(out))` -- DKG success
+    // - `Some(None)` -- terminal DKG failure
+    // - `None` -- DKG pending (default value)
+    dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
     // misbehavior report state — per-authority post-merge snapshot captured
     // at `process_report` time. The on-disk row for commit N is exactly the
@@ -79,6 +84,9 @@ pub(crate) struct ConsensusCommitOutput {
     // last-writer-wins handles multiple reports from the same authority
     // within one commit.
     report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
+
+    // P-COOL owned object locks acquired in this commit
+    owned_object_locks: HashMap<ObjectRef, LockDetails>,
 }
 
 impl ConsensusCommitOutput {
@@ -203,7 +211,7 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: Option<dkg_v1::Output<PkG, EncG>>) {
         self.dkg_output = Some(output);
     }
 
@@ -216,6 +224,10 @@ impl ConsensusCommitOutput {
         object_debts: Vec<(ObjectId, u64)>,
     ) {
         self.congestion_control_randomness_object_debts = object_debts;
+    }
+
+    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectRef, LockDetails>) {
+        self.owned_object_locks = locks;
     }
 
     pub fn write_to_batch(
@@ -300,7 +312,7 @@ impl ConsensusCommitOutput {
                 .map(|used_msgs| (SINGLETON_KEY, used_msgs)),
         )?;
         if let Some(output) = self.dkg_output {
-            batch.insert_batch(&tables.dkg_output, [(SINGLETON_KEY, output)])?;
+            batch.insert_batch(&tables.dkg_output_v2, [(SINGLETON_KEY, output)])?;
         }
 
         batch.insert_batch(
@@ -330,6 +342,15 @@ impl ConsensusCommitOutput {
             batch.insert_batch(
                 &tables.received_reports_state,
                 self.report_state_snapshots.iter(),
+            )?;
+        }
+
+        if !self.owned_object_locks.is_empty() {
+            batch.insert_batch(
+                &tables.owned_object_locked_transactions,
+                self.owned_object_locks
+                    .into_iter()
+                    .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
 
@@ -527,6 +548,9 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
+    // P-COOL owned object locks (aggregate across all quarantined commits)
+    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -545,6 +569,7 @@ impl ConsensusOutputQuarantine {
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
+            owned_object_locks: HashMap::new(),
             metrics: authority_metrics,
         }
     }
@@ -562,6 +587,7 @@ impl ConsensusOutputQuarantine {
         self.insert_shared_object_next_versions(&output);
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
+        self.insert_owned_object_locks(&output);
         self.output_queue.push_back(output);
 
         self.metrics
@@ -699,6 +725,7 @@ impl ConsensusOutputQuarantine {
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
+                self.remove_owned_object_locks(&output);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -785,6 +812,22 @@ impl ConsensusOutputQuarantine {
                 }
             }
         }
+    }
+
+    fn insert_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for (obj_ref, lock_details) in &output.owned_object_locks {
+            self.owned_object_locks.insert(*obj_ref, *lock_details);
+        }
+    }
+
+    fn remove_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for obj_ref in output.owned_object_locks.keys() {
+            self.owned_object_locks.remove(obj_ref);
+        }
+    }
+
+    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+        self.owned_object_locks.get(obj_ref).copied()
     }
 
     // Read methods - all methods in this block return data from the quarantine
@@ -915,20 +958,26 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
-            .filter_map(|tx| {
-                if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            .filter_map(|tx| match &tx.0.transaction {
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
                     kind: ConsensusTransactionKind::CertifiedTransaction(tx),
                     ..
-                }) = &tx.0.transaction
-                {
-                    Some(
-                        tx.shared_input_objects()
-                            .into_iter()
-                            .map(|obj| obj.object_id),
-                    )
-                } else {
-                    None
-                }
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
+                    ..
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
             })
             .flatten()
             .collect();

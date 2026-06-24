@@ -11,7 +11,8 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Identifier,
+    Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
+    Identifier, TransactionKind,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
@@ -19,7 +20,7 @@ use iota_types::{
     crypto::{AccountKeyPair, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
-    transaction::{GenesisTransaction, TransactionDataAPI, TransactionKind},
+    transaction::TransactionDataAPI,
     utils::to_sender_signed_transaction,
 };
 use starfish_core::{BlockRef, BlockStatus};
@@ -30,6 +31,7 @@ use crate::{
         authority_tests::{call_move_, create_gas_objects, publish_object_basics},
         test_authority_builder::TestAuthorityBuilder,
     },
+    authority_client::validator::ValidatorAPI,
     consensus_adapter::consensus_tests::make_consensus_adapter_for_test,
     mock_consensus::with_block_status,
 };
@@ -56,7 +58,7 @@ use iota_types::{
 use super::*;
 pub use crate::authority::authority_test_utils::init_state_with_ids;
 use crate::{
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::NetworkAuthorityClient,
     authority_server::AuthorityServer,
     stake_aggregator::{InsertResult, StakeAggregator},
 };
@@ -258,9 +260,9 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 
 pub fn init_transfer_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     object_ref: ObjectRef,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -280,7 +282,7 @@ pub fn init_transfer_transaction(
 
 pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -367,8 +369,8 @@ async fn do_transaction_test_impl(
         sender1,
         &sender_key1,
         recipient,
-        object.compute_object_reference(),
-        gas_object1.compute_object_reference(),
+        object.object_ref(),
+        gas_object1.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -377,7 +379,7 @@ async fn do_transaction_test_impl(
         &pre_sign_mutations,
         sender2,
         &sender_key2,
-        gas_object2.compute_object_reference(),
+        gas_object2.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -388,13 +390,11 @@ async fn do_transaction_test_impl(
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(
-            authority_state
-                .config
-                .network_key_pair()
-                .public()
-                .to_owned(),
-        ),
+        authority_state
+            .config
+            .network_key_pair()
+            .public()
+            .to_owned(),
     )
     .await
     .unwrap();
@@ -485,7 +485,7 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
         assert!(
             authority_state
                 .get_transaction_lock(
-                    &object.compute_object_reference(),
+                    &object.object_ref(),
                     &authority_state.epoch_store_for_testing()
                 )
                 .await
@@ -511,7 +511,7 @@ async fn test_oversized_txn() {
         .protocol_config()
         .max_tx_size_bytes() as usize;
     let object = authority_state.get_object(&object_id).await.unwrap();
-    let obj_ref = object.compute_object_reference();
+    let obj_ref = object.object_ref();
 
     // Construct an oversized txn.
     let pt = {
@@ -537,13 +537,11 @@ async fn test_oversized_txn() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(
-            authority_state
-                .config
-                .network_key_pair()
-                .public()
-                .to_owned(),
-        ),
+        authority_state
+            .config
+            .network_key_pair()
+            .public()
+            .to_owned(),
     )
     .await
     .unwrap();
@@ -578,8 +576,8 @@ async fn test_very_large_certificate() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -590,13 +588,11 @@ async fn test_very_large_certificate() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(
-            authority_state
-                .config
-                .network_key_pair()
-                .public()
-                .to_owned(),
-        ),
+        authority_state
+            .config
+            .network_key_pair()
+            .public()
+            .to_owned(),
     )
     .await
     .unwrap();
@@ -669,8 +665,8 @@ async fn test_handle_certificate_errors() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -681,13 +677,11 @@ async fn test_handle_certificate_errors() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(
-            authority_state
-                .config
-                .network_key_pair()
-                .public()
-                .to_owned(),
-        ),
+        authority_state
+            .config
+            .network_key_pair()
+            .public()
+            .to_owned(),
     )
     .await
     .unwrap();
@@ -880,7 +874,7 @@ async fn test_handle_soft_bundle_certificates() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(authority.config.network_key_pair().public().to_owned()),
+        authority.config.network_key_pair().public().to_owned(),
     )
     .await
     .unwrap();
@@ -915,7 +909,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .get_object(&gas_object_ids[i])
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[i].0,
                 package.object_id,
@@ -1038,7 +1032,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let server_handle = server.spawn_for_test().await.unwrap();
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(authority.config.network_key_pair().public().to_owned()),
+        authority.config.network_key_pair().public().to_owned(),
     )
     .await
     .unwrap();
@@ -1097,12 +1091,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_transfer(
                 senders[i + 1].0,
                 owned_object_ref,
@@ -1144,12 +1138,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .get_object(&owned_objects[5].id())
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         let gas_object_ref = authority
             .get_object(&gas_objects[5].id())
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         let data = TransactionData::new_transfer(
             senders[6].0,
             owned_object_ref,
@@ -1190,7 +1184,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[6].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[6].0,
                 package.object_id,
@@ -1220,7 +1214,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[7].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[7].0,
                 package.object_id,
@@ -1276,7 +1270,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[8].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[8].0,
                 package.object_id,
@@ -1306,7 +1300,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[9].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[9].0,
                 package.object_id,
@@ -1365,12 +1359,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let sender = &senders[i];
             let recipient = &senders[i + 1].0;
 
@@ -1428,9 +1422,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             0,
             0,

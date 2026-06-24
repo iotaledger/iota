@@ -4,20 +4,21 @@
 
 use std::net::SocketAddr;
 
-use iota_core::authority_client::AuthorityAPI;
+use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
-use iota_sdk_types::crypto::{
-    Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey, Secp256r1PublicKey,
-    Secp256r1Signature, SimpleSignature,
+use iota_sdk_types::{
+    Address,
+    crypto::{
+        Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey,
+        Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
+    },
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    passkey_authenticator::to_signing_message,
     signature::GenericSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
@@ -57,7 +58,7 @@ async fn do_upgraded_multisig_test() -> IotaResult {
 
 async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     test_cluster: &TestCluster,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
 ) -> Transaction {
@@ -137,7 +138,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     // Compute iota address as sender, fund gas and make a test transaction.
     let sender = match sender {
         Some(s) => s,
-        None => IotaAddress::from(&multisig_pk),
+        None => Address::from(&multisig_pk),
     };
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -145,7 +146,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
         .await;
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
 
@@ -153,15 +154,13 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     // request. If change_intent, mangle the intent bytes. If change_tx, mangle the
     // hashed tx bytes.
     let passkey_challenge = if change_intent {
-        to_signing_message(&IntentMessage::new(
-            Intent::personal_message(),
-            intent_msg.value.clone(),
-        ))
-        .to_vec()
+        IntentMessage::new(Intent::personal_message(), intent_msg.value.clone())
+            .signing_digest()
+            .to_vec()
     } else if change_tx {
         random_vec(32)
     } else {
-        to_signing_message(&intent_msg).to_vec()
+        intent_msg.signing_digest().to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.
@@ -266,7 +265,7 @@ async fn test_multisig_e2e() {
     );
 
     let keys: [SimpleKeypair; 3] = [kp1.into(), kp2.into(), kp3.into()];
-    let multisig_addr = IotaAddress::from(&multisig_pk);
+    let multisig_addr = Address::from(&multisig_pk);
 
     // fund wallet and get a gas object to use later.
     let gas = test_cluster
@@ -275,7 +274,7 @@ async fn test_multisig_e2e() {
 
     // 1. sign with key 0 and 1 executes successfully.
     let tx1 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
     let res = context.execute_transaction_must_succeed(tx1).await;
     assert!(res.status_ok().unwrap());
@@ -285,7 +284,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx2 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[1], &keys[2]], 0b110);
     let res = context.execute_transaction_must_succeed(tx2).await;
     assert!(res.status_ok().unwrap());
@@ -295,7 +294,7 @@ async fn test_multisig_e2e() {
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
         .await;
     let tx3 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[2], &keys[1]], 0b110);
     let res = context.execute_transaction_may_fail(tx3).await;
     assert!(
@@ -306,7 +305,7 @@ async fn test_multisig_e2e() {
 
     // 4. sign with key 0 only is below threshold, fails to execute.
     let tx4 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0]], 0b001);
     let res = context.execute_transaction_may_fail(tx4).await;
     assert!(
@@ -320,7 +319,7 @@ async fn test_multisig_e2e() {
     // `InvalidSignatureNumber`), which surfaces as a generic invalid-signature
     // error rather than the detailed multisig message.
     let tx5 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[], 0b001);
     let res = context.execute_transaction_may_fail(tx5).await;
     assert!(
@@ -331,7 +330,7 @@ async fn test_multisig_e2e() {
 
     // 6. multisig two dup sigs fails to execute.
     let tx6 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[0]], 0b011);
     let res = context.execute_transaction_may_fail(tx6).await;
     assert!(
@@ -359,12 +358,12 @@ async fn test_multisig_e2e() {
         ],
         2,
     );
-    let wrong_sender = IotaAddress::from(&wrong_multisig_pk);
+    let wrong_sender = Address::from(&wrong_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), wrong_sender)
         .await;
     let tx7 = TestTransactionBuilder::new(wrong_sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(wrong_multisig_pk.clone(), &[&keys[0], &keys[2]], 0b101);
     let res = context.execute_transaction_may_fail(tx7).await;
     assert!(
@@ -416,7 +415,7 @@ async fn test_multisig_passkey_scenarios() {
     // wrong sender fails to verify
     let tx2 = create_credential_and_sign_test_tx_with_passkey_multisig(
         &test_cluster,
-        Some(IotaAddress::ZERO),
+        Some(Address::ZERO),
         false,
         false,
     )

@@ -7,43 +7,63 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use iota_authority_aggregation::quorum_map_then_reduce_with_timeout;
+use iota_authority_aggregation::{ReduceOutput, quorum_map_then_reduce_with_timeout};
 use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, Identifier,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, StakeUnit,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
-    base_types::{AuthorityName, EpochId},
+    base_types::{AuthorityName, EpochId, random_object_ref},
+    committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
+        IotaAuthoritySignature, KeypairTraits, Signature, Signer, get_key_pair,
+        get_key_pair_from_rng,
     },
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsExt, TransactionEvents},
+    digests::TransactionDigest,
+    effects::{
+        SignedTransactionEffects, TestEffectsBuilder, TransactionEffects,
+        TransactionEffectsExtForTesting, TransactionEvents,
+    },
+    error::{IotaError, UserInputError},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        HandleTransactionResponse, TransactionStatus, VerifiedObjectInfoResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, HandleTransactionResponse,
+        LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest, TransactionStatus,
+        VerifiedObjectInfoResponse,
     },
+    messages_safe_client::PlainTransactionInfoResponse,
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::*,
+    transaction::{
+        CallArg, CertifiedTransaction, SenderSignedData, SignedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction,
+    },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use move_core_types::account_address::AccountAddress;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::time::Instant;
 
-use super::*;
 use crate::{
+    authority_aggregator::{
+        AggregatorProcessCertificateError, AggregatorProcessTransactionError,
+        AggregatorSendCapabilityNotificationError, AuthorityAggregator, AuthorityAggregatorBuilder,
+        ProcessTransactionResult, RetryableOverloadInfo, TimeoutConfig,
+    },
     authority_client::AuthorityAPI,
+    safe_client::SafeClient,
     test_authority_clients::{
         HandleTransactionTestAuthorityClient, LocalAuthorityClient,
         LocalAuthorityClientFaultConfig, MockAuthorityApi,
@@ -88,12 +108,12 @@ pub fn set_local_client_config(
 }
 
 pub fn create_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     secret: &dyn Signer<Signature>,
-    dest: IotaAddress,
+    dest: Address,
     value: u64,
     package_id: ObjectId,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_price: u64,
 ) -> Transaction {
     // When creating an object_basics object, we provide the value (u64) and address
@@ -121,11 +141,11 @@ pub fn create_object_move_transaction(
 }
 
 pub fn delete_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     secret: &dyn Signer<Signature>,
-    object_ref: ObjectRef,
+    object_ref: ObjectReference,
     framework_obj_id: ObjectId,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_price: u64,
 ) -> Transaction {
     to_sender_signed_transaction(
@@ -146,12 +166,12 @@ pub fn delete_object_move_transaction(
 }
 
 pub fn set_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     secret: &dyn Signer<Signature>,
-    object_ref: ObjectRef,
+    object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_price: u64,
 ) -> Transaction {
     let args = vec![CallArg::ImmutableOrOwned(object_ref), CallArg::pure(&value)];
@@ -258,7 +278,10 @@ where
     }
 }
 
-pub async fn get_latest_ref<A>(authority: Arc<SafeClient<A>>, object_id: ObjectId) -> ObjectRef
+pub async fn get_latest_ref<A>(
+    authority: Arc<SafeClient<A>>,
+    object_id: ObjectId,
+) -> ObjectReference
 where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
@@ -269,7 +292,7 @@ where
         ))
         .await
     {
-        return object.compute_object_reference();
+        return object.object_ref();
     }
     panic!("Object not found!");
 }
@@ -293,8 +316,8 @@ async fn execute_transaction_with_fault_configs(
     }
     let rgp = reference_gas_price(&authorities);
     let tx = make_transfer_object_transaction(
-        gas_object1.compute_object_reference(),
-        gas_object2.compute_object_reference(),
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
         addr1,
         &key1,
         addr2,
@@ -345,7 +368,7 @@ fn reference_gas_price(authorities: &AuthorityAggregator<LocalAuthorityClient>) 
 }
 
 fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
-    TransactionEffects::new_empty_v1(digest)
+    TransactionEffects::new_empty_v1_for_testing(digest)
 }
 
 /// The intent of this is to test whether client side timeouts
@@ -378,7 +401,7 @@ async fn test_quorum_map_and_reduce_timeout() {
     let rgp = reference_gas_price(&authorities);
     let pkg = genesis.object(pkg.id()).unwrap();
     let gas_object1 = genesis.object(gas_object1.id()).unwrap();
-    let gas_ref_1 = gas_object1.compute_object_reference();
+    let gas_ref_1 = gas_object1.object_ref();
     let tx = create_object_move_transaction(addr1, &key1, addr1, 100, pkg.id(), gas_ref_1, rgp);
     let certified_tx = authorities
         .process_transaction(tx.clone(), Some(client_ip))
@@ -748,7 +771,7 @@ async fn test_handle_transaction_fork() {
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -820,7 +843,7 @@ async fn test_handle_certificate_response() {
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -889,7 +912,7 @@ async fn test_handle_transaction_response() {
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -897,7 +920,7 @@ async fn test_handle_transaction_response() {
     ));
     let tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         Some(1),
         sender,
         &sender_kp,
@@ -1501,7 +1524,7 @@ async fn test_handle_conflicting_transaction_response() {
     let conflicting_object = random_object_ref();
     let tx1 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         Some(1),
         sender,
         &sender_kp,
@@ -1509,7 +1532,7 @@ async fn test_handle_conflicting_transaction_response() {
     ));
     let conflicting_tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         Some(2),
         sender,
         &sender_kp,
@@ -1648,7 +1671,7 @@ async fn test_handle_conflicting_transaction_response() {
     // Validator 3 returns a conflicting tx3
     let conflicting_tx3 = make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         Some(3),
         sender,
         &sender_kp,
@@ -1704,7 +1727,7 @@ async fn test_handle_conflicting_transaction_response() {
     // Validator 3 returns a conflicting tx3
     let conflicting_tx3 = make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         Some(3),
         sender,
         &sender_kp,
@@ -1928,7 +1951,7 @@ async fn test_handle_overload_response() {
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2007,7 +2030,7 @@ async fn test_handle_overload_retry_response() {
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2113,7 +2136,7 @@ async fn test_early_exit_with_too_many_conflicts() {
     let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
     let txn = make_transfer_iota_transaction(
         random_object_ref(),
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2241,7 +2264,7 @@ async fn test_process_transaction_again() {
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::ZERO,
+        Address::ZERO,
         None,
         sender,
         &sender_kp,

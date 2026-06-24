@@ -4,14 +4,13 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk_types::{ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Address, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
-    address::Address,
+    address::Address as StardustAddress,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
     balance::Balance,
-    base_types::IotaAddress,
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
@@ -201,7 +200,7 @@ pub(super) fn verify_timelock_unlock_condition(
 pub(super) fn verify_expiration_unlock_condition(
     original: Option<&sdk_output::unlock_condition::ExpirationUnlockCondition>,
     created: Option<&unlock_conditions::ExpirationUnlockCondition>,
-    address: &Address,
+    address: &StardustAddress,
 ) -> Result<()> {
     // Expiration Unlock Condition
     if let Some(expiration) = original {
@@ -279,7 +278,7 @@ pub(super) fn verify_tag_feature(
 
 pub(super) fn verify_sender_feature(
     original: Option<&sdk_output::feature::SenderFeature>,
-    created: Option<IotaAddress>,
+    created: Option<Address>,
 ) -> Result<()> {
     if let Some(sender) = original {
         let iota_sender_address = stardust_to_iota_address(sender.address())?;
@@ -301,7 +300,7 @@ pub(super) fn verify_sender_feature(
 
 pub(super) fn verify_issuer_feature(
     original: Option<&sdk_output::feature::IssuerFeature>,
-    created: Option<IotaAddress>,
+    created: Option<Address>,
 ) -> Result<()> {
     if let Some(issuer) = original {
         let iota_issuer_address = stardust_to_iota_address(issuer.address())?;
@@ -322,7 +321,7 @@ pub(super) fn verify_issuer_feature(
 }
 
 pub(super) fn verify_address_owner(
-    owning_address: &Address,
+    owning_address: &StardustAddress,
     obj: &Object,
     name: &str,
     address_swap_map: &AddressSwapMap,
@@ -354,13 +353,13 @@ pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
 // addresses.
 pub(super) fn verify_parent(
     output_id: &OutputId,
-    address: &Address,
+    address: &StardustAddress,
     storage: &InMemoryStorage,
 ) -> Result<()> {
     let object_id = ObjectId::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
-        Address::Alias(address) => {
+        StardustAddress::Alias(address) => {
             if let Some(parent_obj) = parent {
                 if let Err(e) = parent_obj.to_rust::<Alias>() {
                     warn!(
@@ -369,7 +368,7 @@ pub(super) fn verify_parent(
                 }
             }
         }
-        Address::Nft(address) => {
+        StardustAddress::Nft(address) => {
             if let Some(parent_obj) = parent {
                 if let Err(e) = parent_obj.to_rust::<Nft>() {
                     warn!(
@@ -378,7 +377,7 @@ pub(super) fn verify_parent(
                 }
             }
         }
-        Address::Ed25519(address) => {
+        StardustAddress::Ed25519(address) => {
             if parent.is_some() {
                 warn!(
                     "verification failed for output id {output_id}: unexpected parent found for ed25519 address {address}"

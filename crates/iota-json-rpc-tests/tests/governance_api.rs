@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };
@@ -25,7 +25,7 @@ use iota_types::{
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
-    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
@@ -531,7 +531,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     };
     let timelock_iota = ObjectInner {
         owner: Owner::Address(address),
-        data: Data::Struct(timelock_iota),
+        data: ObjectData::Struct(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
@@ -688,7 +688,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     };
     let timelock_iota = ObjectInner {
         owner: Owner::Address(address),
-        data: Data::Struct(timelock_iota),
+        data: ObjectData::Struct(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };

@@ -25,7 +25,7 @@ use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{ConsensusHandlerInitializer, StarfishConsensusHandler},
     consensus_manager::{
-        ConsensusManagerMetrics, ConsensusManagerTrait, Running, RunningLockGuard,
+        ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
     starfish_adapter::LazyStarfishClient,
@@ -127,6 +127,25 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
+        // Allow DAG visualizer port to be set via environment variable.
+        // The port is used as-is (no offset) — in Docker each validator has its
+        // own container so port collisions aren't a concern.
+        // Note: the bind address (host part) is separately controlled by the
+        // `DAG_VISUALIZER_GRPC_ADDRESS` env var in `grpc_streamer.rs`.
+        #[cfg(feature = "dag-visualizer")]
+        let parameters = {
+            let mut p = parameters;
+            if let Ok(port_str) = std::env::var("DAG_VISUALIZER_PORT") {
+                if let Ok(port) = port_str.parse::<u16>() {
+                    info!(
+                        "DAG visualizer enabled on port {port} for validator {own_index} (from DAG_VISUALIZER_PORT env var)"
+                    );
+                    p.dag_visualizer_port = Some(port);
+                }
+            }
+            p
+        };
+
         let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
 
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
@@ -204,11 +223,6 @@ impl ConsensusManagerTrait for StarfishManager {
 
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
-
-        // Wait until all locally available commits have been processed
-        info!("replaying commits at startup");
-        registered_authority.0.replay_complete().await;
-        info!("Startup commit replay complete");
     }
 
     async fn shutdown(&self) {
@@ -242,5 +256,10 @@ impl ConsensusManagerTrait for StarfishManager {
 
     async fn is_running(&self) -> bool {
         Running::False != *self.running.lock().await
+    }
+
+    fn replay_waiter(&self) -> Option<ReplayWaiter> {
+        let authority = self.authority.load_full()?;
+        Some(ReplayWaiter::new(authority))
     }
 }

@@ -41,8 +41,10 @@ use std::{
 
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
-use iota_sdk_types::{Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version,
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
@@ -51,7 +53,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IotaAddress,
+    Address,
     base_types::SequenceNumber,
     collection_types::{Entry, VecMap},
     derived_object,
@@ -82,7 +84,7 @@ pub struct FnInfo {
 pub struct FnInfoKey {
     pub fn_name: String,
     pub mod_name: String,
-    pub mod_addr: IotaAddress,
+    pub mod_addr: Address,
 }
 
 /// A map from function info keys to function info
@@ -448,7 +450,7 @@ impl UpgradeReceipt {
 /// Checks if a function is annotated with one of the test-related annotations
 pub fn is_test_fun(name: &str, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let mod_handle = module.self_handle();
-    let mod_addr = IotaAddress::new(
+    let mod_addr = Address::new(
         module
             .address_identifier_at(mod_handle.address)
             .into_bytes(),
@@ -471,7 +473,7 @@ pub fn get_authenticator_version_from_fun(
     fn_info_map: &FnInfoMap,
 ) -> Option<u8> {
     let mod_handle = module.self_handle();
-    let mod_addr = IotaAddress::from(
+    let mod_addr = Address::from(
         module
             .address_identifier_at(mod_handle.address)
             .into_bytes(),
@@ -874,7 +876,7 @@ pub struct PackageMetadataKey {
 impl PackageMetadataKey {
     pub fn tag() -> StructTag {
         StructTag::new(
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             PACKAGE_METADATA_MODULE_NAME,
             PACKAGE_METADATA_KEY_STRUCT_NAME,
             Vec::new(),
@@ -953,7 +955,7 @@ impl PackageMetadataV1 {
 
     pub fn type_() -> StructTag {
         StructTag::new(
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             PACKAGE_METADATA_MODULE_NAME,
             PACKAGE_METADATA_V1_STRUCT_NAME,
             vec![],

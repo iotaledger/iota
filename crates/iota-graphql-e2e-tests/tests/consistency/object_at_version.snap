@@ -1,6 +1,5 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
-assertion_line: 818
 ---
 processed 33 tasks
 
@@ -97,11 +96,7 @@ task 10, lines 112-138:
 //# run-graphql
 Response: {
   "data": {
-    "latest_wrapped": {
-      "asMoveObject": null,
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5
-    },
+    "latest_wrapped": null,
     "previous_version": {
       "asMoveObject": {
         "contents": {
@@ -156,11 +151,7 @@ Response: {
       "status": "INDEXED",
       "version": 6
     },
-    "previous_version": {
-      "asMoveObject": null,
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5
-    }
+    "previous_version": null
   }
 }
 
@@ -174,88 +165,79 @@ task 15, line 186:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 16, lines 188-214:
+task 16, lines 188-202:
 //# run-graphql
 Response: {
   "data": {
-    "latest_deleted": {
-      "asMoveObject": null,
-      "status": "WRAPPED_OR_DELETED",
-      "version": 7
-    },
-    "version_specified": {
-      "asMoveObject": null,
-      "status": "WRAPPED_OR_DELETED",
-      "version": 7
-    }
+    "latest_deleted": null
   }
 }
 
-task 17, line 216:
+task 17, line 204:
 //# run Test::M1::create --args 0 @A
 created: object(17,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 18, line 218:
+task 18, line 206:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 19, line 220:
+task 19, line 208:
 //# run Test::M1::create --args 0 @A
 created: object(19,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 20, line 222:
+task 20, line 210:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 21, line 224:
+task 21, line 212:
 //# run Test::M1::create --args 0 @A
 created: object(21,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 22, line 226:
+task 22, line 214:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 23, line 228:
+task 23, line 216:
 //# run Test::M1::create --args 0 @A
 created: object(23,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 24, line 230:
+task 24, line 218:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 25, line 232:
+task 25, line 220:
 //# run Test::M1::create --args 0 @A
 created: object(25,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 26, line 234:
+task 26, line 222:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 27, line 236:
+task 27, line 224:
 //# run Test::M1::create --args 0 @A
 created: object(27,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 28, line 238:
+task 28, line 226:
 //# create-checkpoint
 Checkpoint created: 11
 
-task 30, line 242:
+task 30, line 230:
 //# create-checkpoint
 Checkpoint created: 12
 
-task 31, lines 244-291:
+task 31, lines 232-278:
 //# run-graphql
 Response: {
   "data": {
@@ -266,6 +248,18 @@ Response: {
       "last": {
         "sequenceNumber": 12
       }
+    },
+    "earlier_object": {
+      "asMoveObject": {
+        "contents": {
+          "json": {
+            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
+            "value": "0"
+          }
+        }
+      },
+      "status": "INDEXED",
+      "version": 3
     },
     "indexed_object": {
       "asMoveObject": {
@@ -279,27 +273,11 @@ Response: {
       "status": "INDEXED",
       "version": 6
     },
-    "object_not_in_snapshot": {
-      "asMoveObject": {
-        "contents": {
-          "json": {
-            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
-            "value": "0"
-          }
-        }
-      },
-      "status": "INDEXED",
-      "version": 3
-    },
-    "wrapped_or_deleted_object": {
-      "asMoveObject": null,
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5
-    }
+    "wrapped_or_deleted_object": null
   }
 }
 
-task 32, lines 293-313:
+task 32, lines 280-299:
 //# run-graphql --cursors bcs(@{obj_1_0},6)
 Response: {
   "data": {
@@ -334,9 +312,6 @@ Response: {
               }
             }
           }
-        },
-        {
-          "asMoveObject": null
         },
         {
           "asMoveObject": {
@@ -393,9 +368,6 @@ Response: {
               }
             }
           }
-        },
-        {
-          "asMoveObject": null
         },
         {
           "asMoveObject": {

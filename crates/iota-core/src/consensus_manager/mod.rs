@@ -12,10 +12,11 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair as _;
 use iota_config::{ConsensusConfig, NodeConfig};
-use iota_metrics::RegistryService;
+use iota_metrics::{RegistryID, RegistryService};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use starfish_core::ConsensusAuthority;
 use tokio::{
     sync::{Mutex, MutexGuard},
     time::{sleep, timeout},
@@ -52,6 +53,8 @@ pub trait ConsensusManagerTrait {
     async fn shutdown(&self);
 
     async fn is_running(&self) -> bool;
+
+    fn replay_waiter(&self) -> Option<ReplayWaiter>;
 }
 
 /// Used by IOTA validator to start consensus protocol for each epoch.
@@ -118,6 +121,10 @@ impl ConsensusManagerTrait for ConsensusManager {
     async fn is_running(&self) -> bool {
         self.starfish_manager.is_running().await
     }
+
+    fn replay_waiter(&self) -> Option<ReplayWaiter> {
+        self.starfish_manager.replay_waiter()
+    }
 }
 
 /// A ConsensusClient that can be updated internally at any time. This usually
@@ -174,6 +181,21 @@ impl ConsensusClient for UpdatableConsensusClient {
     ) -> IotaResult<BlockStatusReceiver> {
         let client = self.get().await;
         client.submit(transactions, epoch_store).await
+    }
+}
+
+#[derive(Clone)]
+pub struct ReplayWaiter {
+    authority: Arc<(ConsensusAuthority, RegistryID)>,
+}
+
+impl ReplayWaiter {
+    pub(crate) fn new(authority: Arc<(ConsensusAuthority, RegistryID)>) -> Self {
+        Self { authority }
+    }
+
+    pub(crate) async fn wait_for_replay(&self) {
+        self.authority.0.replay_complete().await;
     }
 }
 
