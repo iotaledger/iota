@@ -326,10 +326,6 @@ pub struct PruningOptions {
         value_parser = clap::value_parser!(u64).range(1..),
     )]
     pub pruning_batch_size: u64,
-    /// DEPRECATED: will be removed in v1.29.0. This parameter is no longer
-    /// used. Optimistic transactions are now pruned by the unified pruner.
-    #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
-    pub optimistic_pruner_batch_size: Option<u64>,
 }
 
 impl Default for PruningOptions {
@@ -339,7 +335,6 @@ impl Default for PruningOptions {
             pruning_config_path: None,
             pruning_delay_ms: DEFAULT_PRUNING_DELAY_MS,
             pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
-            optimistic_pruner_batch_size: None,
         }
     }
 }
