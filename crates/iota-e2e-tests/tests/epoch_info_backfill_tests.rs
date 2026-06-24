@@ -615,3 +615,94 @@ fn stage_closing_checkpoints(
         .unwrap();
     staged
 }
+
+/// The from-genesis local rebuild (the upgrade path): a checkpoint store with
+/// the executed history but no `epoch_info` rows rebuilds the whole chain by
+/// replaying genesis and each closed epoch's closing checkpoint from local
+/// data, closing the gap entirely. Unlike
+/// `missing_epochs_above_snapshot_prefix_are_indexed_locally`, no prefix is
+/// seeded first, so this exercises the genesis-seeding branch.
+#[sim_test]
+async fn epoch_info_rebuilds_from_local_history() {
+    // Pruning disabled so the closing checkpoints' data is still available
+    // locally — the precondition for the local replay.
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .disable_fullnode_pruning()
+        .build()
+        .await;
+    test_cluster.force_new_epoch().await;
+    test_cluster.force_new_epoch().await;
+
+    let state = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state());
+    let authority_store = state.database_for_testing();
+    let node_checkpoint_store = state.get_checkpoint_store().clone();
+    let current_epoch = state.current_epoch_for_testing();
+    assert!(current_epoch >= 2, "need at least two closed epochs");
+    wait_until_executed_open_epoch(&node_checkpoint_store, current_epoch).await;
+
+    // Build a fresh store holding only the checkpoint history the rebuild reads
+    // — genesis, each closed epoch's closing checkpoint, and the current
+    // highest-executed checkpoint — but no `epoch_info` rows. This is the state
+    // an existing node lands in the first time it upgrades to this feature.
+    // Genesis (sequence 0) must be staged: the rebuild seeds epoch 0's row from
+    // it before any close can be finalized.
+    let tmp = tempfile::tempdir().unwrap();
+    let target = CheckpointStore::new(&tmp.path().join("checkpoints"));
+    let highest = node_checkpoint_store
+        .get_highest_executed_checkpoint()
+        .unwrap()
+        .unwrap();
+
+    let mut seqs = vec![0u64, *highest.sequence_number()];
+    for epoch in 0..current_epoch {
+        let closing = node_checkpoint_store
+            .get_epoch_last_checkpoint(epoch)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing closing checkpoint for closed epoch {epoch}"));
+        target
+            .insert_epoch_last_checkpoint(epoch, &closing)
+            .unwrap();
+        seqs.push(*closing.sequence_number());
+    }
+    for seq in seqs {
+        let summary = node_checkpoint_store
+            .get_checkpoint_by_sequence_number(seq)
+            .unwrap()
+            .unwrap();
+        let contents = node_checkpoint_store
+            .get_checkpoint_contents(&summary.content_digest)
+            .unwrap()
+            .unwrap();
+        target.insert_verified_checkpoint(&summary).unwrap();
+        target.insert_checkpoint_contents(contents).unwrap();
+    }
+    target.update_highest_executed_checkpoint(&highest).unwrap();
+
+    // No rows yet → a gap past genesis.
+    assert!(
+        target.epoch_info_gap().unwrap().is_some(),
+        "an empty epoch_info table past genesis must report a gap"
+    );
+
+    // The transactions/effects/objects of the closing checkpoints come from the
+    // (unpruned) live authority store.
+    target
+        .backfill_epoch_info_from_local_history(&authority_store)
+        .unwrap();
+
+    assert_eq!(
+        target.epoch_info_gap().unwrap(),
+        None,
+        "the from-genesis local rebuild must close the gap"
+    );
+    for epoch in 0..current_epoch {
+        assert!(
+            target.get_epoch_info(epoch).unwrap().is_some(),
+            "epoch {epoch} must be rebuilt from local history"
+        );
+    }
+}
