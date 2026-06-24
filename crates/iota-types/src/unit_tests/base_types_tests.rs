@@ -96,7 +96,7 @@ fn test_signatures_serde() {
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
     let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), s.as_ref());
+    assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 
 #[test]

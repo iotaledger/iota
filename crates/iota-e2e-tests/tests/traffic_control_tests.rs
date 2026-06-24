@@ -25,7 +25,6 @@ use iota_network::default_iota_network_config;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::Ed25519IotaSignature,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     traffic_control::{
@@ -264,7 +263,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::empty_signature(),
     ));
 
     // it should take no more than 4 requests to be added to the blocklist
@@ -315,7 +314,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::empty_signature(),
     ));
 
     // Before reconfiguring the policy, we should not block any requests due to dry
@@ -536,7 +535,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::empty_signature(),
     ));
 
     // start test firewall server

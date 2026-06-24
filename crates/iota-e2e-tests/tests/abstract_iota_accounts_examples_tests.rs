@@ -2065,8 +2065,8 @@ impl TestEnvironment {
             .keystore()
             .sign_hashed(&self.owner, digest)
             .expect("ed25519 sign should not fail");
-        // `Signature::as_ref()` yields `flag || sig || pk`.
-        let bytes = sig.as_ref();
+        // `Signature::to_bytes()` yields `flag || sig || pk`.
+        let bytes = sig.to_bytes();
         assert!(bytes.len() > Ed25519Signature::LENGTH);
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     }

@@ -41,7 +41,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signature, Signer, ToFromBytes,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature, Signer,
         empty_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
