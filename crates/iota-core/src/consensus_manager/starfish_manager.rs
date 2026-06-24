@@ -203,6 +203,22 @@ impl ConsensusManagerTrait for StarfishManager {
             );
         }
 
+        // Spin up the starfish consensus handler to listen for committed sub dags
+        // before starting the consensus authority: commit observer recovery paces
+        // itself on consumer progress, so the consumer must already be draining
+        // the channel while the authority starts.
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor,
+        );
+
+        {
+            let mut consensus_handler = self.consensus_handler.lock().await;
+            *consensus_handler = Some(handler);
+        }
+
         let authority = ConsensusAuthority::start(
             epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
@@ -223,21 +239,10 @@ impl ConsensusManagerTrait for StarfishManager {
         let registry_id = self.registry_service.add(registry.clone());
 
         let registered_authority = Arc::new((authority, registry_id));
-        self.authority.swap(Some(registered_authority.clone()));
+        self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
-
-        // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(
-            last_processed_commit,
-            consensus_handler,
-            commit_receiver,
-            monitor,
-        );
-
-        let mut consensus_handler = self.consensus_handler.lock().await;
-        *consensus_handler = Some(handler);
     }
 
     async fn shutdown(&self) {

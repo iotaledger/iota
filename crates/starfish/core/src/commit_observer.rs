@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    CommitConsumer, CommittedSubDag,
+    CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
     block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     commit::{
         CommitAPI, CommitIndex, CommitMetastate, PendingSubDag, TrustedCommit,
@@ -56,8 +56,11 @@ impl CommittedSubDagSource {
 /// - The committed subdags are sent as consensus output via an unbounded tokio
 ///   channel.
 ///
-/// No back pressure mechanism is needed as backpressure is handled as input
-/// into consensus.
+/// During normal operation no backpressure mechanism is needed as backpressure
+/// is handled as input into consensus. During recovery, resending the
+/// unprocessed backlog is paced on consumer progress so the channel stays
+/// bounded; the consumer must therefore already be draining the channel when
+/// the observer is created.
 ///
 /// - Commit metadata including index is persisted in store, before the
 ///   CommittedSubDag is sent to the consumer.
@@ -72,6 +75,8 @@ pub(crate) struct CommitObserver {
     /// An unbounded channel to send committed sub-dags to the consumer of
     /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
+    /// Tracks the consumer's progress, used to pace recovery resends.
+    commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
     /// Dag state for direct access to block headers
@@ -100,6 +105,7 @@ impl CommitObserver {
             ),
             commit_solidifier: CommitSolidifier::new(dag_state.clone()),
             context,
+            commit_consumer_monitor: commit_consumer.monitor(),
             sender: commit_consumer.sender,
             store,
             dag_state,
@@ -494,11 +500,20 @@ impl CommitObserver {
         // in bounded batches.
         const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
 
+        let unhandled_commits_threshold = self.context.parameters.unhandled_commits_threshold();
         let mut any_sent = false;
         let mut expected_commit_index = last_processed_commit_index;
         for start_index in (last_processed_commit_index + 1..=last_commit_index)
             .step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
         {
+            // Pace on consumer progress like the commit syncers do: don't run
+            // more than unhandled_commits_threshold commits ahead of the
+            // consumer, so the consensus output channel stays bounded by the
+            // threshold instead of buffering the entire unprocessed backlog.
+            self.commit_consumer_monitor
+                .wait_until_handled_within(self.last_sent_commit_index, unhandled_commits_threshold)
+                .await;
+
             let end_index = start_index
                 .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
                 .min(last_commit_index);
@@ -1264,6 +1279,130 @@ mod tests {
 
         // Verify no additional subdags were sent
         verify_channel_empty(&mut receiver);
+    }
+
+    /// Recovery resend must pace itself on consumer progress: once the
+    /// last sent commit runs `unhandled_commits_threshold` ahead of the
+    /// consumer's highest handled commit, the next batch is sent only
+    /// after the consumer catches up.
+    #[tokio::test]
+    async fn test_recovery_resend_paced_by_consumer_progress() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+
+        // unhandled_commits_threshold = commit_sync_batch_size *
+        // commit_sync_batches_ahead = 3, matching the recovery batch size in
+        // tests, so recovery must wait for consumer progress between batches.
+        let (committee, _keypairs) =
+            starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
+        let metrics = crate::metrics::test_metrics();
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let clock = Arc::new(crate::context::Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            committee,
+            starfish_config::Parameters {
+                db_path: temp_dir.keep(),
+                commit_sync_batch_size: 3,
+                commit_sync_batches_ahead: 1,
+                ..Default::default()
+            },
+            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
+            metrics,
+            clock,
+        ));
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        // Produce 10 commits that the consumer never processes.
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+
+        let num_rounds = 10;
+        let mut builder = DagBuilder::new(context.clone());
+        builder
+            .layers(1..=num_rounds)
+            .build()
+            .persist_layers(dag_state.clone());
+        let leaders = builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+        observer
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .unwrap();
+        while receiver.try_recv().is_ok() {}
+        drop(observer);
+
+        // Restart with last processed index 0; recovery must resend all 10
+        // commits, paced on the consumer monitor.
+        let commit_consumer = CommitConsumer::new(sender, 0);
+        let monitor = commit_consumer.monitor();
+        let recovery = tokio::spawn(CommitObserver::new(
+            context,
+            commit_consumer,
+            dag_state,
+            mem_store,
+            leader_schedule,
+        ));
+
+        // Without consumer progress, only the first batch is sent before the
+        // producer runs threshold commits ahead of the consumer.
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![1, 2, 3]
+        );
+
+        monitor.set_highest_handled_commit(3);
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![4, 5, 6]
+        );
+
+        monitor.set_highest_handled_commit(6);
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![7, 8, 9]
+        );
+
+        monitor.set_highest_handled_commit(9);
+        assert_eq!(drain_resent_commit_indices(&mut receiver).await, vec![10]);
+
+        let _observer = recovery.await.unwrap();
+        verify_channel_empty(&mut receiver);
+    }
+
+    /// Lets the recovery task run until it parks (waiting on consumer
+    /// progress) or completes, then returns the commit indices sent in the
+    /// meantime.
+    async fn drain_resent_commit_indices(
+        receiver: &mut UnboundedReceiver<CommittedSubDag>,
+    ) -> Vec<CommitIndex> {
+        let mut indices = Vec::new();
+        for _ in 0..64 {
+            tokio::task::yield_now().await;
+            while let Ok(subdag) = receiver.try_recv() {
+                indices.push(subdag.commit_ref.index);
+            }
+        }
+        indices
     }
 
     /// After receiving all expected subdags, ensure channel is empty

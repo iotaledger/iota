@@ -200,15 +200,6 @@ pub(crate) struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
-    /// Calculates the threshold for unhandled commits to apply backpressure.
-    /// When the gap between synced and scheduled commits exceeds this
-    /// threshold, scheduling new fetches should pause to let the handler
-    /// catch up.
-    pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.context.parameters.commit_sync_batch_size
-            * (self.context.parameters.commit_sync_batches_ahead as u32)
-    }
-
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the verified voting block headers.
