@@ -213,7 +213,9 @@ get_metrics "${CONFIGS[0]}" "$METRICS_DIR/node-0-before-node3.txt"
 INITIAL_COMMIT_INDEX=$(get_metric_value "$METRICS_DIR/node-0-before-node3.txt" "consensus_last_commit_index")
 echo "Initial commit index on node-0: $INITIAL_COMMIT_INDEX (after ${WARMUP_SECS}s)"
 if [ "$INITIAL_COMMIT_INDEX" -le 0 ]; then
-  FAILURES+=("FAIL: initial quorum produced no commits in ${WARMUP_SECS}s")
+  echo "ERROR: initial quorum produced no commits in ${WARMUP_SECS}s; cannot validate catch-up against a zero baseline"
+  dump_log_tails
+  exit 1
 fi
 
 echo "Consensus protocol: Starfish"
