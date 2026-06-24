@@ -280,21 +280,18 @@ impl LeaderSchedule {
             .with_label_values(&["LeaderSchedule::update_leader_schedule"])
             .start_timer();
 
-        if let Some(sliding_window) = &self.sliding_window {
-            // commit_range is the committed interval this update closes: the last
-            // `num_commits_per_schedule` commits, ending at the boundary L — the
-            // same shape the V2 path tags. Its end (L) is the recovery anchor; a
-            // restarted node resumes the scoring subdag from L+1, the commit a
-            // never-restarted node would. The scores are aggregated over a deeper
-            // window (window_size) whose scored frontier lags L by
-            // MAX_PENDING_COMMITS; that depth and lag are the scorer's concern,
-            // rebuilt on restart by replaying window_size + MAX_PENDING_COMMITS
-            // commits (see recover_sliding_window / replay_start), not encoded in
-            // this range.
-            //
-            // Skip `range_validation` (it requires contiguous, equal-length
-            // ranges): after fast-sync the committed range can jump, so the strict
-            // check would panic — as the fast-sync path also skips it.
+        // Both paths feed the same swap table and go through range_validation and
+        // persist below; they differ only in where the scores and commit_range
+        // come from.
+        //
+        // Sliding-window: scores are the running-window aggregate; commit_range is
+        // the committed interval ending at the boundary L — the same shape V2
+        // produces, so it satisfies the shared range_validation. Its end (L) is
+        // the recovery anchor (a restarted node resumes the scoring subdag from
+        // L+1). The window's scored frontier lags L by MAX_PENDING_COMMITS.
+        //
+        // V2: scores and commit_range both come from the ScoringSubdag snapshot.
+        let (reputation_scores, boundary) = if let Some(sliding_window) = &self.sliding_window {
             let scores = sliding_window
                 .lock()
                 .reputation_scores()
@@ -302,30 +299,19 @@ impl LeaderSchedule {
             let boundary = dag_state_write_lock.last_commit_index();
             let interval = self.num_commits_per_schedule as u32;
             let start = boundary.saturating_sub(interval).saturating_add(1);
-            let reputation_scores =
-                ReputationScores::new(CommitRange::new(start..=boundary), scores);
-            let table =
-                LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
-            self.persist_scores(dag_state_write_lock, reputation_scores);
-            self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
-            return;
-        }
-
-        let (reputation_scores, last_commit_index) = {
+            (
+                ReputationScores::new(CommitRange::new(start..=boundary), scores),
+                boundary,
+            )
+        } else {
             let reputation_scores = dag_state_write_lock.calculate_scoring_subdag_scores();
-            let last_commit_index = dag_state_write_lock.scoring_subdag_commit_range();
-            (reputation_scores, last_commit_index)
+            let boundary = dag_state_write_lock.scoring_subdag_commit_range();
+            (reputation_scores, boundary)
         };
-        let table = LeaderSwapTable::new(
-            self.context.clone(),
-            last_commit_index,
-            reputation_scores.clone(),
-        );
+        let table = LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
         self.persist_scores(dag_state_write_lock, reputation_scores);
-        {
-            self.range_validation(&table, &self.leader_swap_table.read());
-            self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
-        }
+        self.range_validation(&table, &self.leader_swap_table.read());
+        self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
     }
 
     /// Updates the leader schedule from reputation scores stored in a commit.
@@ -1116,7 +1102,8 @@ mod tests {
             .protocol_config
             .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
         let context = Arc::new(context);
-        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
+            .with_num_commits_per_schedule(3);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),
@@ -1131,8 +1118,9 @@ mod tests {
 
         // Feed the first 6 commits, then rebuild: scores come from the sliding
         // window (commits 1..=3 are scored, given the 3-commit lookback), not a
-        // ScoringSubdag snapshot. The range is tagged to the rotation boundary
-        // (last committed index = 6), not the last scored commit.
+        // ScoringSubdag snapshot. commit_range is the committed interval ending at
+        // the boundary — with num_commits_per_schedule = 3 and last committed
+        // index 6, that is 4..=6.
         leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
         {
             let mut ds = dag_state.write();
@@ -1145,11 +1133,11 @@ mod tests {
             .reputation_scores
             .commit_range
             .clone();
-        assert_eq!(range, (1..=6).into());
+        assert_eq!(range, (4..=6).into());
 
-        // Feed 3 more and rebuild again. The new range (1..=9) overlaps the
-        // previous one (1..=6) — V2's range_validation would reject that, so this
-        // not panicking confirms the sliding-window path skips it.
+        // Feed 3 more and rebuild again. The committed-interval ranges are
+        // contiguous and equal-size (4..=6 then 7..=9), so range_validation — now
+        // shared with the V2 path — accepts them.
         leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
         {
             let mut ds = dag_state.write();
@@ -1162,7 +1150,7 @@ mod tests {
             .reputation_scores
             .commit_range
             .clone();
-        assert_eq!(range, (1..=9).into());
+        assert_eq!(range, (7..=9).into());
     }
 
     #[tokio::test]
