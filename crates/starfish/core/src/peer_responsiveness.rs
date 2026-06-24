@@ -85,29 +85,41 @@ const ALPHA_FAILURE: f64 = 0.5;
 const _: () = assert!(FAILURE_PENALTY_MS > MEDIUM_BUCKET_RATIO * NEUTRAL_LATENCY_MS);
 
 /// The kind of fetch a responsiveness signal/ranking is about. Latency is
-/// tracked separately per kind because transaction fetches (millisecond scale)
-/// and commit fetches (second scale) are not comparable; ranking only ever
-/// compares candidates within a single kind.
+/// tracked separately per kind, one per call site, because the fetches are not
+/// comparable across kinds — transaction fetches are millisecond scale, commit
+/// fetches second scale, and fast commit sync transfers more data per fetch
+/// than regular commit sync. Ranking only ever compares candidates within a
+/// single kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FetchKind {
+    /// Transactions synchronizer.
     Transactions,
-    Commits,
+    /// Regular commit syncer.
+    CommitSync,
+    /// Fast commit syncer.
+    FastCommitSync,
+    /// Block header synchronizer.
+    HeaderSync,
 }
 
 impl FetchKind {
-    const COUNT: usize = 2;
+    const COUNT: usize = 4;
 
     fn index(self) -> usize {
         match self {
             FetchKind::Transactions => 0,
-            FetchKind::Commits => 1,
+            FetchKind::CommitSync => 1,
+            FetchKind::FastCommitSync => 2,
+            FetchKind::HeaderSync => 3,
         }
     }
 
     fn as_str(self) -> &'static str {
         match self {
             FetchKind::Transactions => "transactions",
-            FetchKind::Commits => "commits",
+            FetchKind::CommitSync => "commit_sync",
+            FetchKind::FastCommitSync => "fast_commit_sync",
+            FetchKind::HeaderSync => "header_sync",
         }
     }
 }
@@ -334,16 +346,16 @@ mod tests {
     fn prioritize_preserves_membership() {
         let pr = responsiveness(7);
         // Give peers a spread of scores, including a failure and untried peers.
-        pr.record_success(FetchKind::Commits, idx(1), ms(10));
-        pr.record_success(FetchKind::Commits, idx(2), ms(900));
-        pr.record_failure(FetchKind::Commits, idx(3));
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(10));
+        pr.record_success(FetchKind::CommitSync, idx(2), ms(900));
+        pr.record_failure(FetchKind::CommitSync, idx(3));
         // idx(4), idx(5), idx(6) remain untried.
 
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5), idx(6)];
         for seed in 0..200u64 {
             let mut c = candidates.clone();
             let mut rng = StdRng::seed_from_u64(seed);
-            pr.prioritize(FetchKind::Commits, &mut c, &mut rng);
+            pr.prioritize(FetchKind::CommitSync, &mut c, &mut rng);
             let mut sorted = c.clone();
             sorted.sort();
             let mut expected = candidates.clone();
@@ -390,10 +402,14 @@ mod tests {
     #[test]
     fn failure_makes_a_fast_peer_slow() {
         let pr = responsiveness(4);
-        pr.record_success(FetchKind::Commits, idx(1), ms(10));
-        let before = pr.effective_latency_ms(FetchKind::Commits, idx(1)).unwrap();
-        pr.record_failure(FetchKind::Commits, idx(1));
-        let after = pr.effective_latency_ms(FetchKind::Commits, idx(1)).unwrap();
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(10));
+        let before = pr
+            .effective_latency_ms(FetchKind::CommitSync, idx(1))
+            .unwrap();
+        pr.record_failure(FetchKind::CommitSync, idx(1));
+        let after = pr
+            .effective_latency_ms(FetchKind::CommitSync, idx(1))
+            .unwrap();
         // 0.5*10 + 0.5*1500 = 755.
         assert!(after > before);
         assert!((after - 755.0).abs() < 1e-6, "got {after}");
@@ -418,16 +434,29 @@ mod tests {
 
     #[test]
     fn per_kind_isolation() {
+        // Each call site tracks the same peer independently, so the
+        // millisecond-scale transaction track is never polluted by the
+        // second-scale commit tracks (regular vs fast are also distinct).
         let pr = responsiveness(4);
         pr.record_success(FetchKind::Transactions, idx(1), ms(5));
-        pr.record_success(FetchKind::Commits, idx(1), ms(5_000));
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(5_000));
+        pr.record_success(FetchKind::FastCommitSync, idx(1), ms(9_000));
+        pr.record_success(FetchKind::HeaderSync, idx(1), ms(50));
         assert_eq!(
             pr.effective_latency_ms(FetchKind::Transactions, idx(1)),
             Some(5.0)
         );
         assert_eq!(
-            pr.effective_latency_ms(FetchKind::Commits, idx(1)),
+            pr.effective_latency_ms(FetchKind::CommitSync, idx(1)),
             Some(5_000.0)
+        );
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::FastCommitSync, idx(1)),
+            Some(9_000.0)
+        );
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::HeaderSync, idx(1)),
+            Some(50.0)
         );
     }
 
@@ -435,13 +464,13 @@ mod tests {
     fn fast_peer_leads_most_but_is_bounded() {
         let pr = responsiveness(5);
         // idx(1) clearly fastest; the rest are slow.
-        pr.record_success(FetchKind::Commits, idx(1), ms(10));
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(10));
         for p in [2u8, 3, 4] {
-            pr.record_success(FetchKind::Commits, idx(p), ms(1_000));
+            pr.record_success(FetchKind::CommitSync, idx(p), ms(1_000));
         }
         let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
         let trials = 10_000;
-        let counts = lead_counts(&pr, FetchKind::Commits, &candidates, trials, 42);
+        let counts = lead_counts(&pr, FetchKind::CommitSync, &candidates, trials, 42);
         let fast_leads = *counts.get(&idx(1)).unwrap_or(&0);
         let fast_fraction = fast_leads as f64 / trials as f64;
         // The fast peer leads far more than uniform (0.25)...
@@ -475,14 +504,18 @@ mod tests {
     #[test]
     fn transient_failure_recovers_within_bounded_successes() {
         let pr = responsiveness(4);
-        pr.record_success(FetchKind::Commits, idx(1), ms(20));
-        pr.record_failure(FetchKind::Commits, idx(1));
-        let penalized = pr.effective_latency_ms(FetchKind::Commits, idx(1)).unwrap();
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(20));
+        pr.record_failure(FetchKind::CommitSync, idx(1));
+        let penalized = pr
+            .effective_latency_ms(FetchKind::CommitSync, idx(1))
+            .unwrap();
         // A bounded number of good samples brings it back near its fast latency.
         for _ in 0..10 {
-            pr.record_success(FetchKind::Commits, idx(1), ms(20));
+            pr.record_success(FetchKind::CommitSync, idx(1), ms(20));
         }
-        let recovered = pr.effective_latency_ms(FetchKind::Commits, idx(1)).unwrap();
+        let recovered = pr
+            .effective_latency_ms(FetchKind::CommitSync, idx(1))
+            .unwrap();
         assert!(recovered < penalized);
         assert!(recovered < NEUTRAL_LATENCY_MS, "recovered to {recovered}");
     }

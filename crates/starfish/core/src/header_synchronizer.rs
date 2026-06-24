@@ -20,6 +20,7 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
+use rand::thread_rng;
 #[cfg(not(test))]
 use rand::{
     SeedableRng,
@@ -51,6 +52,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
+    peer_responsiveness::FetchKind,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -640,9 +642,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     ))
 
                 },
-                Some((response, blocks_guard, retries, _peer, highest_rounds)) = requests.next() => {
+                Some((response, blocks_guard, retries, _peer, highest_rounds, latency)) = requests.next() => {
                     match response {
                         Ok(blocks) => {
+                            Self::record_header_fetch_responsiveness(&context, peer_index, blocks_guard.block_refs.len(), blocks.len(), latency);
                             if let Err(err) = Self::process_fetched_headers_from_authority(blocks,
                                 peer_index,
                                 blocks_guard,
@@ -662,6 +665,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             }
                         },
                         Err(_) => {
+                            context.peer_responsiveness.record_failure(FetchKind::HeaderSync, peer_index);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             if retries <= MAX_RETRIES {
                                 requests.push(Self::fetch_block_headers_request(network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, retries))
@@ -938,6 +942,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         u32,
         AuthorityIndex,
         Vec<Round>,
+        Duration,
     ) {
         let start = Instant::now();
         let resp = timeout(
@@ -957,6 +962,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         fail_point_async!("consensus-delay");
 
+        // Network latency of this attempt, captured before the retry back-off
+        // sleep below so the responsiveness signal reflects the fetch itself.
+        let latency = start.elapsed();
+
         let resp = match resp {
             Ok(Err(err)) => {
                 // Add a delay before retrying - if that is needed. If request has timed out
@@ -973,7 +982,32 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
             Ok(result) => result,
         };
-        (resp, blocks_guard, retries, peer, highest_rounds)
+        (resp, blocks_guard, retries, peer, highest_rounds, latency)
+    }
+
+    /// Feeds a header fetch outcome into the per-peer responsiveness signal. A
+    /// response that delivered no headers is recorded as a failure; a partial
+    /// response scales the recorded latency by the shortfall so a peer cannot
+    /// look fast by returning fewer headers than requested.
+    fn record_header_fetch_responsiveness(
+        context: &Context,
+        peer: AuthorityIndex,
+        requested: usize,
+        delivered: usize,
+        latency: Duration,
+    ) {
+        if delivered == 0 {
+            context
+                .peer_responsiveness
+                .record_failure(FetchKind::HeaderSync, peer);
+        } else {
+            let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
+            context.peer_responsiveness.record_success(
+                FetchKind::HeaderSync,
+                peer,
+                latency.mul_f64(shortfall_factor),
+            );
+        }
     }
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     fn start_fetch_own_last_block_header_task(&mut self) {
@@ -1320,62 +1354,45 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
         }
 
-        // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
-        // aware of some missing block headers
+        // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who
+        // are aware of some missing block headers, preferring more responsive
+        // peers when ranking is enabled. Steps 3+ below still draw random and
+        // fallback peers, so exploration is preserved.
 
         #[cfg(not(test))]
         let mut rng = StdRng::from_entropy();
 
-        // Randomly pick up MAX_PEERS - MAX_RANDOM_PEERS authorities that are aware of
-        // missing block headers
-        #[cfg(not(test))]
-        let mut chosen_peers_with_block_headers: Vec<(
-            AuthorityIndex,
-            Vec<BlockRef>,
-            &str,
-        )> = authority_to_block_headers_refs
-            .iter()
-            .choose_multiple(
-                &mut rng,
-                MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS,
-            )
-            .into_iter()
-            .map(|(&peer, block_refs)| {
-                let limited_block_refs = block_refs
-                    .iter()
-                    .copied()
-                    .take(context.parameters.max_headers_per_header_sync_fetch)
-                    .collect();
-                (peer, limited_block_refs, "periodic_known")
-            })
-            .collect();
-        #[cfg(test)]
-        // Deterministically pick the smallest (MAX_PEERS - MAX_RANDOM_PEERS) authority indices
-        let mut chosen_peers_with_block_headers: Vec<(
-            AuthorityIndex,
-            Vec<BlockRef>,
-            &str,
-        )> = {
-            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
-                authority_to_block_headers_refs
-                    .iter()
-                    .map(|(&peer, block_refs)| {
-                        let limited_block_refs = block_refs
-                            .iter()
-                            .copied()
-                            .take(context.parameters.max_headers_per_header_sync_fetch)
-                            .collect();
-                        (peer, limited_block_refs, "periodic_known")
-                    })
-                    .collect();
-            // Sort by AuthorityIndex (natural order), then take the first MAX_PEERS -
-            // MAX_RANDOM_PEERS
-            items.sort_by_key(|(peer, _, _)| *peer);
-            items
+        let mut aware_peers: Vec<AuthorityIndex> =
+            authority_to_block_headers_refs.keys().copied().collect();
+        if context.parameters.enable_peer_responsiveness_ranking {
+            // `thread_rng` keeps the ordering deterministic under the consensus
+            // simulator (entropy-seeded RNGs are not virtualized there).
+            let mut ranking_rng = thread_rng();
+            context.peer_responsiveness.prioritize(
+                FetchKind::HeaderSync,
+                &mut aware_peers,
+                &mut ranking_rng,
+            );
+        } else {
+            // Without ranking: random order in production, stable order in tests.
+            #[cfg(not(test))]
+            aware_peers.shuffle(&mut rng);
+            #[cfg(test)]
+            aware_peers.sort();
+        }
+        let mut chosen_peers_with_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
+            aware_peers
                 .into_iter()
                 .take(MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS)
-                .collect()
-        };
+                .map(|peer| {
+                    let limited_block_refs = authority_to_block_headers_refs[&peer]
+                        .iter()
+                        .copied()
+                        .take(context.parameters.max_headers_per_header_sync_fetch)
+                        .collect();
+                    (peer, limited_block_refs, "periodic_known")
+                })
+                .collect();
 
         // Step 3: Choose at most MAX_PERIODIC_SYNC_RANDOM_PEERS random peers not known
         // to be aware of the missing block headers
@@ -1524,11 +1541,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         loop {
             tokio::select! {
-                Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
+                Some((response, blocks_guard, _retries, peer_index, highest_rounds, latency)) = request_futures.next() => {
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_block_headers) => {
                             info!("Fetched {} block headers from peer {}", fetched_block_headers.len(), peer_hostname);
+                            Self::record_header_fetch_responsiveness(&context, peer_index, blocks_guard.block_refs.len(), fetched_block_headers.len(), latency);
                             results.push((blocks_guard, fetched_block_headers, peer_index));
 
                             // no more pending requests are left, just break the loop
@@ -1537,6 +1555,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             }
                         },
                         Err(_) => {
+                            context.peer_responsiveness.record_failure(FetchKind::HeaderSync, peer_index);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "periodic"]).inc();
                             // try again if there is any peer left
                             if let Some(next_peer) = remaining_peers.next() {
