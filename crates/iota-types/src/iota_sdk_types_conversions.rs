@@ -14,11 +14,10 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
     checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
-        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+        CheckpointContents, CheckpointData, CheckpointSummary, CheckpointTransaction,
+        CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
     },
     crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
-    digest::Digest,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -245,11 +244,7 @@ impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
                 })
                 .collect(),
             next_epoch_protocol_version: value.next_epoch_protocol_version.as_u64(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            epoch_commitments: value.epoch_commitments,
             epoch_supply_change: value.epoch_supply_change,
         }
     }
@@ -264,37 +259,8 @@ impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
                 .map(|v| (v.public_key.into(), v.stake))
                 .collect(),
             next_epoch_protocol_version: value.next_epoch_protocol_version.into(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            epoch_commitments: value.epoch_commitments,
             epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<crate::messages_checkpoint::CheckpointCommitment> for CheckpointCommitment {
-    fn from(value: crate::messages_checkpoint::CheckpointCommitment) -> Self {
-        let crate::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest(digest) =
-            value;
-        Self::EcmhLiveObjectSet {
-            digest: Digest::new(digest.digest.into_inner()),
-        }
-    }
-}
-
-impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommitment {
-    fn from(value: CheckpointCommitment) -> Self {
-        match value {
-            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
-                Self::ECMHLiveObjectSetDigest(crate::messages_checkpoint::ECMHLiveObjectSetDigest {
-                    digest: crate::digests::Digest::new(digest.into_inner()),
-                })
-            }
-            _ => unimplemented!(
-                "a new CheckpointCommitment enum variant was added and needs to be handled"
-            ),
         }
     }
 }
@@ -311,11 +277,7 @@ impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummar
             previous_digest: value.previous_digest,
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            checkpoint_commitments: value.checkpoint_commitments,
             end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
             version_specific_data: value.version_specific_data,
         }
@@ -335,11 +297,7 @@ impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummar
             previous_digest: value.previous_digest,
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            checkpoint_commitments: value.checkpoint_commitments,
             end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
             version_specific_data: value.version_specific_data,
         }
