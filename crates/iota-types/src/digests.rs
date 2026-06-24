@@ -129,7 +129,7 @@ pub fn get_testnet_chain_identifier() -> ChainIdentifier {
 /// after it ships. A stale value simply stops matching, degrading to
 /// best-effort rather than causing any error.
 ///
-/// TODO: https://github.com/iotaledger/iota/issues/12028
+/// TODO: <https://github.com/iotaledger/iota/issues/12028>
 const DEVNET_CHAIN_IDENTIFIER_BASE58: &str = "Fjn7QQx49eH2kafFSfD1dPehZ89ps36wZpMPeALrByay";
 static DEVNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 

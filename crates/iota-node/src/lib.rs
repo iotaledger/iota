@@ -859,7 +859,7 @@ impl IotaNode {
     /// unfilled — acceptable since such a node is not expected to produce
     /// snapshots or serve the epoch gRPC API for those epochs.
     ///
-    /// TODO: https://github.com/iotaledger/iota/issues/12028 — once every node
+    /// TODO: <https://github.com/iotaledger/iota/issues/12028> — once every node
     /// holds the chain this startup backfill is no longer needed; it reduces to
     /// seeding the open epoch, or is removed entirely.
     async fn seed_epoch_info(
@@ -940,7 +940,7 @@ impl IotaNode {
     /// lag this node's executed history, so the caller replays local
     /// checkpoints for the residual tail.
     ///
-    /// TODO: https://github.com/iotaledger/iota/issues/12028 — one-time
+    /// TODO: <https://github.com/iotaledger/iota/issues/12028> — one-time
     /// migration aid; remove once every node has backfilled the chain.
     async fn backfill_epoch_info_from_snapshot(
         checkpoint_store: &CheckpointStore,
@@ -2364,7 +2364,7 @@ impl SpawnOnce {
 /// is verified against the genesis committee, so the URL is only a source hint,
 /// not a trust root.
 ///
-/// TODO: https://github.com/iotaledger/iota/issues/12028
+/// TODO: <https://github.com/iotaledger/iota/issues/12028>
 fn formal_snapshot_read_config(chain_id: ChainIdentifier) -> Option<ObjectStoreConfig> {
     let (bucket, endpoint) = match chain_id.chain() {
         Chain::Mainnet => (
