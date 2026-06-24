@@ -43,6 +43,58 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
 
+/// BCS-serialized size of a [`BlockRef`]: `round` (u32, 4) + `author`
+/// (`AuthorityIndex`, 1) + `digest` (32). Pinned by
+/// `max_signed_block_header_bytes_bounds_maximal_header`.
+pub(crate) const SERIALIZED_BLOCK_REF_BYTES: usize = 37;
+
+/// ULEB128 byte length of `value`, matching how BCS frames sequence and
+/// variant lengths.
+pub(crate) const fn uleb128_len(mut value: usize) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+/// Upper bound on the BCS-serialized size of a [`SignedBlockHeader`] for a
+/// committee of `committee_size` authorities.
+///
+/// `BlockHeaderV2` is the largest header variant; its size is dominated by two
+/// committee-sized vectors. Layout:
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
+///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
+///   plus the sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
+///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
+///   + `AuthoritySet` bitmask (32).
+///
+/// The [`SignedBlockHeader`] wrapper adds the `BlockHeader` enum tag (1), the
+/// signature length prefix (1), and the 64-byte signature.
+pub(crate) fn max_signed_block_header_bytes(committee_size: usize) -> usize {
+    const FIXED_HEADER_BYTES: usize = 55;
+    const STRONG_VOTE_BYTES: usize = 34;
+    const COMMIT_VOTE_BYTES: usize = 36;
+    // BlockHeader enum tag (1) + signature length prefix (1) + signature (64).
+    const SIGNATURE_FRAME_BYTES: usize = 1 + 1 + 64;
+
+    let max_refs = committee_size.saturating_mul(3);
+    let references =
+        uleb128_len(max_refs).saturating_add(max_refs.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let commit_votes = uleb128_len(committee_size)
+        .saturating_add(committee_size.saturating_mul(COMMIT_VOTE_BYTES));
+
+    FIXED_HEADER_BYTES
+        .saturating_add(references)
+        .saturating_add(commit_votes)
+        .saturating_add(STRONG_VOTE_BYTES)
+        .saturating_add(SIGNATURE_FRAME_BYTES)
+}
+
 /// IOTA transaction is considered as serialised bytes inside consensus
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct Transaction {
@@ -1649,11 +1701,37 @@ mod tests {
     use crate::{
         BlockHeaderAPI,
         block_header::{
-            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+            BlockHeader, BlockHeaderDigest, BlockHeaderV2, BlockRef, SignedBlockHeader, StrongVote,
+            TestBlockHeader, genesis_block_headers, max_signed_block_header_bytes,
         },
+        commit::{CommitDigest, CommitRef},
         context::Context,
         error::ConsensusError,
     };
+
+    /// Pins the `BlockHeaderV2` wire layout that
+    /// `max_signed_block_header_bytes` is derived from: a header carrying
+    /// the maximal `3 * committee_size` references, one commit vote per
+    /// authority, and a strong vote must serialize to exactly the computed
+    /// bound. Fails if the BCS framing or any of `BlockRef` / `CommitVote`
+    /// / `StrongVote` / `SignedBlockHeader` layout changes.
+    #[tokio::test]
+    async fn max_signed_block_header_bytes_bounds_maximal_header() {
+        let (context, key_pairs) = Context::new_for_test(4);
+        let n = context.committee.size();
+
+        let header = BlockHeader::V2(BlockHeaderV2 {
+            references: vec![BlockRef::MAX; 3 * n],
+            commit_votes: vec![CommitRef::new(u32::MAX, CommitDigest::MIN); n],
+            strong_vote: Some(StrongVote::default()),
+            ..Default::default()
+        });
+        let signed =
+            SignedBlockHeader::new(header, &key_pairs[0].1).expect("signing should succeed");
+        let serialized = bcs::to_bytes(&signed).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_signed_block_header_bytes(n));
+    }
 
     #[tokio::test]
     async fn test_sign_and_verify() {
