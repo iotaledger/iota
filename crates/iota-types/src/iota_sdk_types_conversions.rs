@@ -15,7 +15,7 @@ use iota_sdk_types::{
     address::Address,
     checkpoint::{
         CheckpointContents, CheckpointData, CheckpointSummary, CheckpointTransaction,
-        CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+        CheckpointTransactionInfo, SignedCheckpointSummary,
     },
     crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
@@ -232,39 +232,6 @@ impl TryFrom<UserSignature> for crate::signature::GenericSignature {
     }
 }
 
-impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
-    fn from(value: crate::messages_checkpoint::EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|(public_key, stake)| ValidatorCommitteeMember {
-                    public_key: Bls12381PublicKey::new(public_key.0),
-                    stake,
-                })
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.as_u64(),
-            epoch_commitments: value.epoch_commitments,
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
-    fn from(value: EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|v| (v.public_key.into(), v.stake))
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.into(),
-            epoch_commitments: value.epoch_commitments,
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
 impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummary {
     type Error = SdkTypeConversionError;
 
@@ -278,7 +245,7 @@ impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummar
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
             checkpoint_commitments: value.checkpoint_commitments,
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            end_of_epoch_data: value.end_of_epoch_data,
             version_specific_data: value.version_specific_data,
         }
         .pipe(Ok)
@@ -298,7 +265,7 @@ impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummar
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
             checkpoint_commitments: value.checkpoint_commitments,
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            end_of_epoch_data: value.end_of_epoch_data,
             version_specific_data: value.version_specific_data,
         }
         .pipe(Ok)

@@ -608,8 +608,8 @@ impl TestCheckpointDataBuilder {
         // checkpoint with additional end of epoch data.
         let mut checkpoint = self.build_checkpoint();
         let end_of_epoch_data = EndOfEpochData {
-            next_epoch_committee: committee.voting_rights,
-            next_epoch_protocol_version: protocol_config.version,
+            next_epoch_committee: committee.committee_members(),
+            next_epoch_protocol_version: protocol_config.version.as_u64(),
             epoch_commitments: vec![],
             // Do not simulate supply changes in tests.
             epoch_supply_change: 0,

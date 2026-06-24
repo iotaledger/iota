@@ -454,8 +454,8 @@ async fn sync_end_of_epoch_checkpoint(
     let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
         previous_checkpoint,
         Some(EndOfEpochData {
-            next_epoch_committee: new_committee.committee().voting_rights.clone(),
-            next_epoch_protocol_version: ProtocolVersion::MIN,
+            next_epoch_committee: new_committee.committee().committee_members(),
+            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
             epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
                 digest: ECMHLiveObjectSetDigest::default().digest,
             }],

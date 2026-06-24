@@ -15,12 +15,12 @@ use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
+    validator::ValidatorCommitteeMember,
 };
 use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 #[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;
 use tracing::instrument;
@@ -29,10 +29,8 @@ use tracing::warn;
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
-    base_types::{
-        AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref,
-    },
-    committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
+    base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
+    committee::{Committee, EpochId},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
@@ -41,7 +39,6 @@ use crate::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     global_state_hash::GlobalStateHash,
-    iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     signature::GenericSignature,
     storage::ReadStore,
@@ -112,33 +109,7 @@ impl Default for ECMHLiveObjectSetDigest {
     }
 }
 
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct EndOfEpochData {
-    /// next_epoch_committee is `Some` if and only if the current checkpoint is
-    /// the last checkpoint of an epoch.
-    /// Therefore next_epoch_committee can be used to pick the last checkpoint
-    /// of an epoch, which is often useful to get epoch level summary stats
-    /// like total gas cost of an epoch, or the total number of transactions
-    /// from genesis to the end of an epoch. The committee is stored as a
-    /// vector of validator pub key and stake pairs. The vector
-    /// should be sorted based on the Committee data structure.
-    #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub next_epoch_committee: Vec<(AuthorityName, StakeUnit)>,
-
-    /// The protocol version that is in effect during the epoch that starts
-    /// immediately after this checkpoint.
-    #[serde_as(as = "Readable<AsProtocolVersion, _>")]
-    pub next_epoch_protocol_version: ProtocolVersion,
-
-    /// Commitments to epoch specific state (e.g. live object set)
-    pub epoch_commitments: Vec<CheckpointCommitment>,
-
-    /// The number of tokens that were minted (if positive) or burnt (if
-    /// negative) in this epoch.
-    pub epoch_supply_change: i64,
-}
+pub use iota_sdk_types::checkpoint::EndOfEpochData;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CheckpointSummary {
@@ -244,7 +215,7 @@ impl CheckpointSummary {
         UNIX_EPOCH + Duration::from_millis(self.timestamp_ms)
     }
 
-    pub fn next_epoch_committee(&self) -> Option<&[(AuthorityName, StakeUnit)]> {
+    pub fn next_epoch_committee(&self) -> Option<&[ValidatorCommitteeMember]> {
         self.end_of_epoch_data
             .as_ref()
             .map(|e| e.next_epoch_committee.as_slice())
