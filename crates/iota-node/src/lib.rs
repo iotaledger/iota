@@ -849,12 +849,15 @@ impl IotaNode {
     }
 
     /// Seeds the open epoch's `epoch_info` row and backfills any historical gap
-    /// before live execution resumes: first from local checkpoint history, then
-    /// — on a recognized chain — from that chain's formal-snapshot
-    /// `EPOCH_INFO`. On a recognized chain an unfillable gap is a fatal
-    /// startup error, since every node must hold the verified chain since
-    /// genesis; on an unrecognized network (no published snapshot) it is
-    /// only a warning, as the chain still extends going forward.
+    /// before live execution resumes. A recognized chain (mainnet, testnet, or
+    /// the current devnet) fills from its formal-snapshot `EPOCH_INFO` first —
+    /// cheap and bulk — then replays local checkpoints for whatever the
+    /// snapshot still lags; an unfillable gap there is a fatal startup
+    /// error, since every node must hold the verified chain since genesis.
+    /// An unrecognized network (no published snapshot) rebuilds from local
+    /// state alone; a residual gap there is only a warning and is left
+    /// unfilled — acceptable since such a node is not expected to produce
+    /// snapshots or serve the epoch gRPC API for those epochs.
     ///
     /// TODO: https://github.com/iotaledger/iota/issues/12028 — once every node
     /// holds the chain this startup backfill is no longer needed; it reduces to
@@ -865,88 +868,89 @@ impl IotaNode {
         genesis: &iota_config::genesis::Genesis,
         expected_chain_id: ChainIdentifier,
     ) -> anyhow::Result<()> {
-        // On a node with unpruned history back to genesis (e.g. freshly
-        // upgraded onto this feature), rebuild the whole closed-epoch chain
-        // from local checkpoints, so a snapshot backfill is only needed when
-        // history is actually pruned.
-        checkpoint_store
-            .backfill_epoch_info_from_local_history(authority_store)
-            .map_err(|e| anyhow::anyhow!("rebuilding epoch_info from local history: {e}"))?;
+        let chain = expected_chain_id.chain();
+        let recognized_source = formal_snapshot_read_config(expected_chain_id);
 
-        // No-op if present. Without the open row, the next executed boundary
-        // can't finalize it and the completeness watermark wedges below it.
+        // Fill any historical gap before live execution resumes; skip the work
+        // entirely when the chain is already complete (the common restart).
+        if checkpoint_store
+            .epoch_info_gap()
+            .map_err(|e| anyhow::anyhow!("checking epoch_info completeness: {e}"))?
+            .is_some()
+        {
+            // A recognized network pulls the formal snapshot's `EPOCH_INFO`
+            // first — cheap and bulk. Unrecognized networks have no published
+            // snapshot and skip straight to local replay.
+            if let Some(remote_store_config) = &recognized_source {
+                Self::backfill_epoch_info_from_snapshot(
+                    checkpoint_store,
+                    remote_store_config,
+                    genesis.committee()?,
+                    genesis.iota_system_object(),
+                    expected_chain_id,
+                )
+                .await?;
+            }
+
+            // Replay local checkpoints for whatever the snapshot didn't cover
+            // (its published epoch can lag this node's history), or for the
+            // whole chain on an unrecognized network.
+            checkpoint_store
+                .backfill_epoch_info_from_local_history(authority_store)
+                .map_err(|e| anyhow::anyhow!("rebuilding epoch_info from local history: {e}"))?;
+        }
+
+        // Seed the open epoch's row (no-op if already present). Without it the
+        // next executed boundary can't finalize it and the watermark wedges.
         checkpoint_store
             .ensure_current_epoch_info(authority_store)
             .map_err(|e| anyhow::anyhow!("seeding the current epoch_info row: {e}"))?;
 
-        let Some((highest_indexed, last_executed)) = checkpoint_store
-            .epoch_info_gap()
-            .map_err(|e| anyhow::anyhow!("checking epoch_info completeness: {e}"))?
-        else {
-            return Ok(());
-        };
-
-        // Pruned history: fill the gap from the chain's public formal-snapshot
-        // `EPOCH_INFO`. A recognized chain (mainnet, testnet, or the current
-        // devnet — see `formal_snapshot_read_config`) must end up complete and
-        // refuses to start otherwise. Unrecognized networks (custom/local, or a
-        // devnet that has since reset) have no published source, so there the
-        // gap is best-effort and the chain simply extends forward.
-        let chain = expected_chain_id.chain();
-        let Some(remote_store_config) = formal_snapshot_read_config(expected_chain_id) else {
-            warn!(
-                "the epoch_info chain is incomplete (finalized through {highest_indexed:?}, \
-                 executed through epoch {last_executed}) and {chain:?} has no public \
-                 formal-snapshot source to backfill from; the chain will still extend as new \
-                 epochs close"
-            );
-            return Ok(());
-        };
-
-        let snapshot_epoch = Self::backfill_epoch_info_from_snapshot(
-            checkpoint_store,
-            authority_store,
-            &remote_store_config,
-            genesis.committee()?,
-            genesis.iota_system_object(),
-            expected_chain_id,
-        )
-        .await?;
-
-        // The published snapshot can lag this node's history; a residual gap on
-        // a recognized chain is fatal — the node must hold the verified chain
-        // since genesis — and clears once a newer snapshot is published.
+        // A residual gap is fatal on a recognized chain — every node must hold
+        // the verified chain since genesis — and only a warning elsewhere.
         if let Some((highest_indexed, last_executed)) = checkpoint_store
             .epoch_info_gap()
             .map_err(|e| anyhow::anyhow!("re-checking epoch_info completeness: {e}"))?
         {
-            anyhow::bail!(
-                "the epoch_info chain is still incomplete after backfilling (finalized through \
-                 {highest_indexed:?}, executed through epoch {last_executed}): the latest \
-                 published snapshot (epoch {snapshot_epoch}) is older than this node's history \
-                 and the missing epochs' checkpoint data is already pruned locally; retry once a \
-                 newer snapshot is published"
+            let detail = format!(
+                "the epoch_info chain is incomplete after backfilling (finalized through \
+                 {highest_indexed:?}, executed through epoch {last_executed})"
+            );
+            if recognized_source.is_some() {
+                anyhow::bail!(
+                    "{detail}: the latest published snapshot is older than this node's history \
+                     and the missing epochs' checkpoint data is already pruned locally; retry \
+                     once a newer snapshot is published"
+                );
+            }
+            warn!(
+                "{detail} and {chain:?} has no public formal-snapshot source to backfill from; \
+                 the missing epochs are left unfilled (live indexing only extends the chain \
+                 forward), so this node cannot produce snapshots or serve the epoch gRPC API for \
+                 those epochs"
             );
         }
         Ok(())
     }
 
-    /// Backfills the CheckpointStore's `epoch_info` chain from the given
-    /// formal-snapshot bucket's EPOCH_INFO, verifying it against this node's
-    /// trust roots. A wrong-network snapshot is rejected before any write.
+    /// Restores the CheckpointStore's `epoch_info` rows from the given
+    /// formal-snapshot bucket's EPOCH_INFO, verifying the chain against this
+    /// node's trust roots. A wrong-network snapshot is rejected before any
+    /// write. Only seeds what the snapshot covers — the published snapshot can
+    /// lag this node's executed history, so the caller replays local
+    /// checkpoints for the residual tail.
     ///
     /// TODO: https://github.com/iotaledger/iota/issues/12028 — one-time
     /// migration aid; remove once every node has backfilled the chain.
     async fn backfill_epoch_info_from_snapshot(
         checkpoint_store: &CheckpointStore,
-        authority_store: &AuthorityStore,
         remote_store_config: &ObjectStoreConfig,
         genesis_committee: Committee,
         genesis_system_state: IotaSystemState,
         expected_chain_id: ChainIdentifier,
     ) -> anyhow::Result<u64> {
         let epoch = latest_available_epoch(remote_store_config).await?;
-        info!("backfilling epoch_info from snapshot EPOCH_INFO up to epoch {epoch}");
+        info!("restoring epoch_info from snapshot EPOCH_INFO up to epoch {epoch}");
         let (snapshot_chain_id, epoch_info) =
             StateSnapshotReaderV1::read_epoch_info_only(epoch, remote_store_config).await?;
         let verified = iota_snapshot::verify_epoch_info_chain(
@@ -957,19 +961,7 @@ impl IotaNode {
             expected_chain_id,
         )?;
         verified.restore_epoch_info(checkpoint_store).await?;
-        // The published snapshot can lag local execution; close as much of the
-        // residual gap as pruning allows by replaying the missing epochs'
-        // closing checkpoints.
-        checkpoint_store
-            .backfill_epoch_info_from_local_history(authority_store)
-            .map_err(|e| anyhow::anyhow!("indexing missing epochs locally: {e}"))?;
-
-        // With the closed-epoch rows seeded, re-seed the current (open) epoch
-        // row that couldn't be derived before the previous epoch landed.
-        checkpoint_store
-            .ensure_current_epoch_info(authority_store)
-            .map_err(|e| anyhow::anyhow!("seeding current epoch after backfill: {e}"))?;
-        info!("epoch_info backfill complete up to epoch {epoch}");
+        info!("restored epoch_info from snapshot up to epoch {epoch}");
         Ok(epoch)
     }
 
