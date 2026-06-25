@@ -646,6 +646,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     match response {
                         Ok(blocks) => {
                             let requested = blocks_guard.block_refs.len();
+                            let returned = blocks.len();
                             match Self::process_fetched_headers_from_authority(blocks,
                                 peer_index,
                                 blocks_guard,
@@ -661,7 +662,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 misbehavior_store.clone(),
                             ).await {
                                 Ok(delivered) => {
-                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, delivered, latency);
+                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, returned, delivered, latency);
                                 }
                                 Err(err) => {
                                     context.peer_responsiveness.record_failure_with_timeout(
@@ -1000,23 +1001,30 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         (resp, blocks_guard, retries, peer, highest_rounds, latency)
     }
 
-    /// Feeds a header fetch outcome into the per-peer responsiveness signal. A
-    /// response that delivered no headers is recorded as a failure; a partial
-    /// response scales the recorded latency by the shortfall so a peer cannot
-    /// look fast by returning fewer headers than requested.
+    /// Feeds a header fetch outcome into the per-peer responsiveness signal.
+    /// `returned` is what the peer sent, `delivered` what survived dedup
+    /// against the verified cache and the far-future drop. A peer that
+    /// returned nothing is a goodput failure; a response whose headers were
+    /// all already known still did its job and is credited with its raw
+    /// latency; a partial response scales the recorded latency by the
+    /// shortfall so a peer cannot look fast by returning fewer headers than
+    /// requested.
     fn record_header_fetch_responsiveness(
         context: &Context,
         peer: AuthorityIndex,
         requested: usize,
+        returned: usize,
         delivered: usize,
         latency: Duration,
     ) {
-        if delivered == 0 {
-            context.peer_responsiveness.record_failure_with_timeout(
-                FetchKind::HeaderSync,
-                peer,
-                FETCH_REQUEST_TIMEOUT,
-            );
+        if returned == 0 {
+            context
+                .peer_responsiveness
+                .record_failure(FetchKind::HeaderSync, peer);
+        } else if delivered == 0 {
+            context
+                .peer_responsiveness
+                .record_success(FetchKind::HeaderSync, peer, latency);
         } else {
             let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
             context.peer_responsiveness.record_success(
@@ -1346,7 +1354,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let mut total_fetched = 0;
                 for (blocks_guard, serialized_fetched_block_headers, peer, latency) in results {
                     let requested = blocks_guard.block_refs.len();
-                    total_fetched += serialized_fetched_block_headers.len();
+                    let returned = serialized_fetched_block_headers.len();
+                    total_fetched += returned;
 
                     match Self::process_fetched_headers_from_authority(
                         serialized_fetched_block_headers,
@@ -1366,7 +1375,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .await
                     {
                         Ok(delivered) => {
-                            Self::record_header_fetch_responsiveness(&context, peer, requested, delivered, latency);
+                            Self::record_header_fetch_responsiveness(&context, peer, requested, returned, delivered, latency);
                         }
                         Err(err) => {
                             context.peer_responsiveness.record_failure_with_timeout(

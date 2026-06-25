@@ -84,12 +84,14 @@ impl SyncMethod {
 }
 
 /// Outcome of a successful fetch from one authority, used to feed the
-/// per-peer responsiveness signal. `delivered` may be smaller than `requested`
-/// (a peer can return only some of the locked transactions); `latency` is the
+/// per-peer responsiveness signal. `received` is what the peer returned;
+/// `delivered` is what survived local processing (dedup / already-locked) and
+/// may be smaller than both `received` and `requested`; `latency` is the
 /// network fetch time of the request.
 struct FetchStats {
     latency: Duration,
     requested: usize,
+    received: usize,
     delivered: usize,
 }
 
@@ -814,27 +816,36 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         }
 
         // Await all authority requests to complete, feeding the per-peer
-        // responsiveness signal. A successful fetch records its latency scaled
-        // by the fraction actually delivered, so a peer cannot look fast by
-        // replying quickly with little or nothing; a delivery of nothing and any
-        // error/timeout are recorded as failures (the latter additionally drives
-        // the existing f+1 exclusion via `last_failure_by_peer`).
+        // responsiveness signal. A delivering fetch records its latency scaled
+        // up by the inverse of the delivered fraction (a shortfall penalty), so
+        // a peer cannot look fast by replying quickly with little. A peer that
+        // returned transactions which were all locally deduped/already-locked
+        // still did its job and is credited with its raw latency. A peer that
+        // returned nothing is a goodput failure; an error/timeout is a failure
+        // that additionally drives the existing f+1 exclusion via
+        // `last_failure_by_peer`.
         while let Some((peer, result)) = request_futures.next().await {
             match result {
                 Ok(stats) if stats.delivered > 0 => {
-                    let shortfall_factor = stats.requested as f64 / stats.delivered as f64;
+                    let shortfall_factor =
+                        (stats.requested as f64 / stats.delivered as f64).max(1.0);
                     context.peer_responsiveness.record_success(
                         FetchKind::Transactions,
                         peer,
                         stats.latency.mul_f64(shortfall_factor),
                     );
                 }
-                Ok(_) => {
-                    context.peer_responsiveness.record_failure_with_timeout(
+                Ok(stats) if stats.received > 0 => {
+                    context.peer_responsiveness.record_success(
                         FetchKind::Transactions,
                         peer,
-                        FETCH_REQUEST_TIMEOUT,
+                        stats.latency,
                     );
+                }
+                Ok(_) => {
+                    context
+                        .peer_responsiveness
+                        .record_failure(FetchKind::Transactions, peer);
                 }
                 Err(err) => {
                     last_failure_by_peer.update_with_new_instant(peer, Instant::now());
@@ -900,6 +911,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         Ok(FetchStats {
             latency,
             requested: total_requested,
+            received: total_fetched,
             delivered,
         })
     }
