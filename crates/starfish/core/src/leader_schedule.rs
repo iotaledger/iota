@@ -222,9 +222,8 @@ impl LeaderSchedule {
         let new_commit_range = &new_table.reputation_scores.commit_range;
 
         // Unless LeaderSchedule is brand new and using the default commit range
-        // of CommitRange(0..0) all future LeaderSwapTables should be calculated
-        // from a CommitRange of equal length and immediately following the
-        // preceding commit range of the old swap table.
+        // of CommitRange(0..0), every LeaderSwapTable should carry a CommitRange
+        // of equal length, immediately following the old table's range.
         if *old_commit_range != CommitRange::default() {
             assert!(
                 old_commit_range.is_next_range(new_commit_range)
@@ -287,8 +286,8 @@ impl LeaderSchedule {
         // Sliding-window: scores are the running-window aggregate; commit_range is
         // the committed interval ending at the boundary L — the same shape V2
         // produces, so it satisfies the shared range_validation. Its end (L) is
-        // the recovery anchor (a restarted node resumes the scoring subdag from
-        // L+1). The window's scored frontier lags L by MAX_PENDING_COMMITS.
+        // where a restarted node resumes the scoring subdag (from L+1). The
+        // window's scored frontier lags L by MAX_PENDING_COMMITS.
         //
         // V2: scores and commit_range both come from the ScoringSubdag snapshot.
         let (reputation_scores, boundary) = if let Some(sliding_window) = &self.sliding_window {
@@ -331,10 +330,11 @@ impl LeaderSchedule {
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
-        // Determine the commit range for these scores.
-        // Reputation scores are attached to the *first* commit after a schedule
-        // update, so the scores correspond to the previous window ending at
-        // commit_index - 1.
+        // Determine the commit range for these scores. Reputation scores are
+        // attached to the *first* commit after a schedule update, so commit_index
+        // - 1 is the boundary of the window that just closed; the commit_range
+        // below is the committed interval ending there, though on the
+        // sliding-window path the scores summarize a deeper window.
         let range_end = commit_index.saturating_sub(1);
         if range_end == GENESIS_COMMIT_INDEX {
             return;

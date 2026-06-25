@@ -267,9 +267,8 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
-    /// The index in CommitRef correspond to the first index of the next
-    /// scheduler window, while the reputation scores in CommitInfoare for
-    /// the previous window.
+    /// The `CommitRef` is the boundary commit — the last commit of the window
+    /// that just closed — so recovery resumes from its index + 1.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).

@@ -23,7 +23,11 @@ use crate::{
 pub(crate) struct ReputationScores {
     /// Score per authority. Vec index is the `AuthorityIndex`.
     pub(crate) scores_per_authority: Vec<u64>,
-    // The range of commits these scores were calculated from.
+    /// The range of commits these scores were calculated from. Exception: on
+    /// the sliding-window path the *persisted* range is the committed
+    /// interval ending at the rotation boundary,
+    /// whereas the scores are aggregated over a deeper window ending
+    /// `MAX_PENDING_COMMITS` commits earlier.
     pub(crate) commit_range: CommitRange,
 }
 
