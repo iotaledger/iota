@@ -90,7 +90,7 @@ pub async fn overload_monitor(
 /// metric so it tracks the current consensus queue depth even when no
 /// gRPC traffic is arriving (which would otherwise be the only path that
 /// updates the metric, via `check_consensus_queue_graduated_limits` on
-/// `AuthorityState`). Used only in the certificate-less (pcool / white-flag)
+/// `AuthorityState`). Used only in the certificate-less (P-COOL)
 /// mode.
 pub async fn consensus_queue_overload_monitor(
     authority_state: Weak<AuthorityState>,

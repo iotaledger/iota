@@ -163,7 +163,7 @@ pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     /// Handle for the consensus queue overload monitor task, present only
-    /// when the certificate-less (pcool / white-flag) flow is enabled. The
+    /// when the certificate-less (P-COOL) flow is enabled. The
     /// task self-terminates via `Weak` references; this handle exists purely
     /// for ownership clarity.
     consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
@@ -1299,7 +1299,7 @@ impl IotaNode {
         // `consensus_queue_load_shedding_percentage` metric. Without this, the
         // metric goes stale once gRPC traffic stops (the only other update
         // path is `AuthorityState::check_consensus_queue_graduated_limits`, called on
-        // each inbound tx). Used in the certificate-less (pcool / white-flag)
+        // each inbound tx). Used in the certificate-less (P-COOL)
         // mode.
         let consensus_queue_overload_monitor_handle =
             if epoch_store.protocol_config().enable_pcool_flow() {

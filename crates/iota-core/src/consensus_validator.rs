@@ -430,7 +430,7 @@ mod tests {
                 // compatibility.
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
 
-                // Gated behind `enable_white_flag_flow`.
+                // Gated behind `enable_pcool_flow`.
                 ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
                     Some(config.enable_pcool_flow())
                 }

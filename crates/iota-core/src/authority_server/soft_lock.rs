@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Pre-consensus soft locking for the pcool (white-flag) transaction flow.
+//! Pre-consensus soft locking for the P-COOL transaction flow.
 //!
 //! This module provides an in-memory, defense-in-depth mechanism that prevents
 //! a validator from accepting two transactions that conflict on the same owned

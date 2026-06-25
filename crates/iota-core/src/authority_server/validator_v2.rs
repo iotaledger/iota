@@ -167,7 +167,7 @@ impl ValidatorService {
             consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            // `true` means white-flag flow is enabled - ensured by `fp_ensure!` in the caller
+            // `true` means P-COOL flow is enabled - ensured by `fp_ensure!` in the caller
             true,
         ) {
             metrics

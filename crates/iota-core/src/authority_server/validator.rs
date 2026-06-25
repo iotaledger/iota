@@ -105,7 +105,7 @@ impl ValidatorService {
             &consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            // `false` means white-flag flow is disabled - ensured by `fp_ensure!` above
+            // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` above
             false,
         );
         if let Err(error) = overload_check_res {
@@ -272,7 +272,7 @@ impl ValidatorService {
                 &self.consensus_adapter,
                 certificate.data(),
                 self.state.check_system_overload_at_execution(),
-                // `false` means white-flag flow is disabled - ensured by `fp_ensure!` in callers
+                // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` in callers
                 false,
             );
             if let Err(error) = overload_check_res {
