@@ -830,15 +830,19 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     );
                 }
                 Ok(_) => {
-                    context
-                        .peer_responsiveness
-                        .record_failure(FetchKind::Transactions, peer);
+                    context.peer_responsiveness.record_failure_with_timeout(
+                        FetchKind::Transactions,
+                        peer,
+                        FETCH_REQUEST_TIMEOUT,
+                    );
                 }
                 Err(err) => {
                     last_failure_by_peer.update_with_new_instant(peer, Instant::now());
-                    context
-                        .peer_responsiveness
-                        .record_failure(FetchKind::Transactions, peer);
+                    context.peer_responsiveness.record_failure_with_timeout(
+                        FetchKind::Transactions,
+                        peer,
+                        FETCH_REQUEST_TIMEOUT,
+                    );
                     warn!(
                         "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
                         sync_method.get_string(),

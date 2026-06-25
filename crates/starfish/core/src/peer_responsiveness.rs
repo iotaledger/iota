@@ -21,10 +21,10 @@
 //! deliver.
 //!
 //! Ranking is resistant to gaming: an exploration fraction of selections is a
-//! plain uniform shuffle, equally-ranked peers are shuffled, and failures
-//! demote a peer faster than successes promote it — so no peer can monopolize
-//! selection and a peer that stalls or returns nothing after looking fast is
-//! quickly demoted and rotated past.
+//! plain uniform shuffle, equally-ranked peers are shuffled, and failures set a
+//! timeout-scale score while successes recover through EWMA, so no peer can
+//! monopolize selection and a peer that stalls or returns nothing after looking
+//! fast is quickly demoted and rotated past.
 
 use std::{sync::Arc, time::Duration};
 
@@ -34,12 +34,21 @@ use starfish_config::{AuthorityIndex, Committee};
 
 use crate::metrics::Metrics;
 
-/// Probability that a single `prioritize` call ignores ranking and returns a
-/// uniform shuffle. Guarantees every eligible peer keeps a floor probability of
-/// being tried early regardless of its rank — this is what bounds
-/// monopolization and prevents starvation of the latency tail (and keeps every
-/// peer's measurement fresh).
-const EXPLORE_PROBABILITY: f64 = 0.2;
+/// Probability that a non-transaction `prioritize` call ignores ranking and
+/// returns a uniform shuffle. Guarantees every eligible peer keeps a floor
+/// probability of being tried early regardless of its rank. This is what
+/// bounds monopolization and prevents starvation of the latency tail (and keeps
+/// every peer's measurement fresh).
+const DEFAULT_EXPLORE_PROBABILITY: f64 = 0.2;
+
+/// Transaction fetches sit directly on the commit-to-execution latency path, so
+/// they bias harder toward measured low-latency peers than commit/header sync.
+const TRANSACTIONS_EXPLORE_PROBABILITY: f64 = 0.05;
+
+/// Transaction peers above this effective latency are known-slow for the
+/// commit-to-execution path; unknown peers rank ahead of them to keep discovery
+/// alive.
+const TRANSACTIONS_UNKNOWN_BEATS_LATENCY_MS: f64 = 750.0;
 
 /// A candidate is "fast" when its effective latency is within this multiple of
 /// the fastest candidate's.
@@ -59,25 +68,21 @@ const MIN_LATENCY_MS: f64 = 1.0;
 /// known-slow peers but do not outrank peers with a proven-fast track record.
 const NEUTRAL_LATENCY_MS: f64 = 250.0;
 
-/// Effective latency (ms) a failure/timeout drives the EWMA toward. Moderate (a
-/// few multiples of neutral) on purpose: large enough to demote a failing peer
-/// below the responsive ones, small enough that a peer recovering at the
-/// network layer climbs back within a bounded number of successful fetches
-/// rather than being stuck in a penalty box.
+/// Minimum effective latency (ms) assigned to a failure when the caller does
+/// not have a request timeout to use. Moderate (a few multiples of neutral) on
+/// purpose: large enough to demote a failing peer below the responsive ones,
+/// small enough that a peer recovering at the network layer climbs back within
+/// a bounded number of successful fetches rather than being stuck in a penalty
+/// box.
 ///
 /// Must stay above `MEDIUM_BUCKET_RATIO * NEUTRAL_LATENCY_MS` so that a single
 /// failure lands a peer in the "slow" bucket even when every other candidate is
 /// untried (neutral); keep these three constants tuned together.
 const FAILURE_PENALTY_MS: f64 = 1_500.0;
 
-/// EWMA weight for a successful sample — small, so the score is "slow to
+/// EWMA weight for a successful sample. Small, so the score is "slow to
 /// trust".
 const ALPHA_SUCCESS: f64 = 0.3;
-
-/// EWMA weight for a failure sample — larger than [`ALPHA_SUCCESS`], so the
-/// score is "quick to distrust" and a peer that alternates fast successes with
-/// failures cannot keep a fast rank.
-const ALPHA_FAILURE: f64 = 0.5;
 
 // A single failure must demote a peer to the "slow" bucket even against an
 // all-untried (neutral) field. Enforced at compile time so the coupled
@@ -86,7 +91,7 @@ const _: () = assert!(FAILURE_PENALTY_MS > MEDIUM_BUCKET_RATIO * NEUTRAL_LATENCY
 
 /// The kind of fetch a responsiveness signal/ranking is about. Latency is
 /// tracked separately per kind, one per call site, because the fetches are not
-/// comparable across kinds — transaction fetches are millisecond scale, commit
+/// comparable across kinds: transaction fetches are millisecond scale, commit
 /// fetches second scale, and fast commit sync transfers more data per fetch
 /// than regular commit sync. Ranking only ever compares candidates within a
 /// single kind.
@@ -122,6 +127,15 @@ impl FetchKind {
             FetchKind::HeaderSync => "header_sync",
         }
     }
+
+    fn explore_probability(self) -> f64 {
+        match self {
+            FetchKind::Transactions => TRANSACTIONS_EXPLORE_PROBABILITY,
+            FetchKind::CommitSync | FetchKind::FastCommitSync | FetchKind::HeaderSync => {
+                DEFAULT_EXPLORE_PROBABILITY
+            }
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -129,6 +143,13 @@ struct PeerStat {
     /// Smoothed effective latency in milliseconds; `None` until the first
     /// sample.
     effective_latency_ms: Option<f64>,
+    sample_origin: Option<SampleOrigin>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SampleOrigin {
+    Bootstrap,
+    Observed,
 }
 
 /// Per-[`FetchKind`] per-peer statistics. Each inner vector is indexed by
@@ -177,9 +198,50 @@ impl PeerResponsiveness {
         self.update(kind, peer, sample, ALPHA_SUCCESS);
     }
 
-    /// Records a failed or timed-out fetch of `kind` from `peer`, demoting it.
+    /// Records a failed fetch of `kind` from `peer`, demoting it to at least
+    /// the default failure penalty.
     pub(crate) fn record_failure(&self, kind: FetchKind, peer: AuthorityIndex) {
-        self.update(kind, peer, FAILURE_PENALTY_MS, ALPHA_FAILURE);
+        self.update_failure(kind, peer, FAILURE_PENALTY_MS);
+    }
+
+    /// Records a failed or timed-out fetch of `kind` from `peer`, demoting it
+    /// to at least the operation's timeout.
+    pub(crate) fn record_failure_with_timeout(
+        &self,
+        kind: FetchKind,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) {
+        let sample = (timeout.as_secs_f64() * 1_000.0)
+            .max(MIN_LATENCY_MS)
+            .max(FAILURE_PENALTY_MS);
+        self.update_failure(kind, peer, sample);
+    }
+
+    /// Seeds an initial prior from a startup peer probe. A later observed fetch
+    /// for the same kind replaces this value rather than blending against it.
+    pub(crate) fn record_bootstrap_success(
+        &self,
+        kind: FetchKind,
+        peer: AuthorityIndex,
+        latency: Duration,
+    ) {
+        let sample = (latency.as_secs_f64() * 1_000.0).max(MIN_LATENCY_MS);
+        self.update_bootstrap(kind, peer, sample);
+    }
+
+    /// Seeds an initial failure prior from a startup peer probe. Bootstrap
+    /// values may be overwritten by later bootstrap or observed fetches.
+    pub(crate) fn record_bootstrap_failure_with_timeout(
+        &self,
+        kind: FetchKind,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) {
+        let sample = (timeout.as_secs_f64() * 1_000.0)
+            .max(MIN_LATENCY_MS)
+            .max(FAILURE_PENALTY_MS);
+        self.update_bootstrap(kind, peer, sample);
     }
 
     fn update(&self, kind: FetchKind, peer: AuthorityIndex, sample: f64, alpha: f64) {
@@ -190,10 +252,59 @@ impl PeerResponsiveness {
             };
             let new = match stat.effective_latency_ms {
                 None => sample,
+                Some(_) if stat.sample_origin == Some(SampleOrigin::Bootstrap) => sample,
                 Some(prev) => (1.0 - alpha) * prev + alpha * sample,
             };
             stat.effective_latency_ms = Some(new);
+            stat.sample_origin = Some(SampleOrigin::Observed);
             new
+        };
+
+        if let Some(hostname) = self.hostnames.get(peer.value()) {
+            self.metrics
+                .node_metrics
+                .peer_responsiveness_effective_latency
+                .with_label_values(&[hostname.as_str(), kind.as_str()])
+                .set(updated as i64);
+        }
+    }
+
+    fn update_failure(&self, kind: FetchKind, peer: AuthorityIndex, sample: f64) {
+        let updated = {
+            let mut tracks = self.inner.lock();
+            let Some(stat) = tracks.per_kind[kind.index()].get_mut(peer.value()) else {
+                return;
+            };
+            let new = match stat.effective_latency_ms {
+                None => sample,
+                Some(prev) => prev.max(sample),
+            };
+            stat.effective_latency_ms = Some(new);
+            stat.sample_origin = Some(SampleOrigin::Observed);
+            new
+        };
+
+        if let Some(hostname) = self.hostnames.get(peer.value()) {
+            self.metrics
+                .node_metrics
+                .peer_responsiveness_effective_latency
+                .with_label_values(&[hostname.as_str(), kind.as_str()])
+                .set(updated as i64);
+        }
+    }
+
+    fn update_bootstrap(&self, kind: FetchKind, peer: AuthorityIndex, sample: f64) {
+        let updated = {
+            let mut tracks = self.inner.lock();
+            let Some(stat) = tracks.per_kind[kind.index()].get_mut(peer.value()) else {
+                return;
+            };
+            if stat.sample_origin == Some(SampleOrigin::Observed) {
+                return;
+            }
+            stat.effective_latency_ms = Some(sample);
+            stat.sample_origin = Some(SampleOrigin::Bootstrap);
+            sample
         };
 
         if let Some(hostname) = self.hostnames.get(peer.value()) {
@@ -207,7 +318,7 @@ impl PeerResponsiveness {
 
     /// Reorders `candidates` in place to prefer peers that have been more
     /// responsive for `kind`, keeping the set itself unchanged (the output is a
-    /// permutation of the input — never adds or drops a peer).
+    /// permutation of the input: never adds or drops a peer).
     ///
     /// Ordering is a preference, not a guarantee: a fraction of calls return a
     /// uniform shuffle, equally-ranked peers are shuffled, and `rng` is
@@ -226,14 +337,14 @@ impl PeerResponsiveness {
         // Exploration round: ignore ranking entirely. This is the floor that
         // keeps every peer reachable early and prevents any peer from
         // monopolizing the head of the list across rounds.
-        if rng.gen::<f64>() < EXPLORE_PROBABILITY {
+        if rng.gen::<f64>() < kind.explore_probability() {
             candidates.shuffle(rng);
             return;
         }
 
         // Snapshot the effective latencies under the lock, then release it
         // before sorting (parking_lot::Mutex must not be held across the work).
-        let latencies: Vec<f64> = {
+        let scores: Vec<Option<f64>> = {
             let tracks = self.inner.lock();
             let track = &tracks.per_kind[kind.index()];
             candidates
@@ -242,32 +353,15 @@ impl PeerResponsiveness {
                     track
                         .get(peer.value())
                         .and_then(|stat| stat.effective_latency_ms)
-                        .unwrap_or(NEUTRAL_LATENCY_MS)
                 })
                 .collect()
         };
 
-        let best = latencies
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min)
-            .max(MIN_LATENCY_MS);
-
-        // Bucket every candidate relative to the fastest. Comparisons multiply
-        // (never divide), so there is no division-by-zero or NaN path.
-        let bucket = |latency: f64| -> u8 {
-            if latency <= FAST_BUCKET_RATIO * best {
-                0
-            } else if latency <= MEDIUM_BUCKET_RATIO * best {
-                1
-            } else {
-                2
-            }
-        };
+        let buckets_by_position = Self::buckets(kind, &scores);
         let mut buckets: std::collections::BTreeMap<AuthorityIndex, u8> =
             std::collections::BTreeMap::new();
-        for (peer, latency) in candidates.iter().zip(latencies.iter()) {
-            buckets.insert(*peer, bucket(*latency));
+        for (peer, bucket) in candidates.iter().zip(buckets_by_position.iter()) {
+            buckets.insert(*peer, *bucket);
         }
 
         // Shuffle first so the order within each bucket is uniformly random
@@ -275,6 +369,71 @@ impl PeerResponsiveness {
         // buckets come first while preserving the shuffled intra-bucket order.
         candidates.shuffle(rng);
         candidates.sort_by_key(|peer| buckets.get(peer).copied().unwrap_or(1));
+    }
+
+    fn buckets(kind: FetchKind, scores: &[Option<f64>]) -> Vec<u8> {
+        match kind {
+            FetchKind::Transactions => Self::transaction_buckets(scores),
+            FetchKind::CommitSync | FetchKind::FastCommitSync | FetchKind::HeaderSync => {
+                Self::default_buckets(scores)
+            }
+        }
+    }
+
+    fn default_buckets(scores: &[Option<f64>]) -> Vec<u8> {
+        let latencies: Vec<f64> = scores
+            .iter()
+            .map(|score| score.unwrap_or(NEUTRAL_LATENCY_MS))
+            .collect();
+        let best = latencies
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min)
+            .max(MIN_LATENCY_MS);
+
+        latencies
+            .into_iter()
+            .map(|latency| Self::relative_latency_bucket(latency, best))
+            .collect()
+    }
+
+    fn transaction_buckets(scores: &[Option<f64>]) -> Vec<u8> {
+        let Some(best) = scores
+            .iter()
+            .filter_map(|score| *score)
+            .reduce(f64::min)
+            .map(|latency| latency.max(MIN_LATENCY_MS))
+        else {
+            return vec![0; scores.len()];
+        };
+
+        scores
+            .iter()
+            .map(|score| match score {
+                Some(latency) => {
+                    let relative_bucket = Self::relative_latency_bucket(*latency, best);
+                    if relative_bucket <= 1 && *latency <= TRANSACTIONS_UNKNOWN_BEATS_LATENCY_MS {
+                        relative_bucket
+                    } else {
+                        3
+                    }
+                }
+                // Unknown transaction peers rank after measured fast/medium
+                // peers, but before measured slow peers so they keep a recovery
+                // and discovery path.
+                None => 2,
+            })
+            .collect()
+    }
+
+    fn relative_latency_bucket(latency: f64, best: f64) -> u8 {
+        if latency <= FAST_BUCKET_RATIO * best {
+            0
+        } else if latency <= MEDIUM_BUCKET_RATIO * best {
+            1
+        } else {
+            3
+        }
     }
 
     #[cfg(test)]
@@ -410,9 +569,63 @@ mod tests {
         let after = pr
             .effective_latency_ms(FetchKind::CommitSync, idx(1))
             .unwrap();
-        // 0.5*10 + 0.5*1500 = 755.
         assert!(after > before);
-        assert!((after - 755.0).abs() < 1e-6, "got {after}");
+        assert_eq!(after, FAILURE_PENALTY_MS);
+    }
+
+    #[test]
+    fn timeout_failure_sets_timeout_penalty() {
+        let pr = responsiveness(4);
+        pr.record_success(FetchKind::HeaderSync, idx(1), ms(10));
+        pr.record_failure_with_timeout(FetchKind::HeaderSync, idx(1), ms(2_000));
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::HeaderSync, idx(1)),
+            Some(2_000.0)
+        );
+    }
+
+    #[test]
+    fn failure_never_improves_a_slow_peer() {
+        let pr = responsiveness(4);
+        pr.record_success(FetchKind::CommitSync, idx(1), ms(10_000));
+        pr.record_failure(FetchKind::CommitSync, idx(1));
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::CommitSync, idx(1)),
+            Some(10_000.0)
+        );
+    }
+
+    #[test]
+    fn bootstrap_success_replaces_bootstrap_failure() {
+        let pr = responsiveness(4);
+        pr.record_bootstrap_failure_with_timeout(FetchKind::Transactions, idx(1), ms(5_000));
+        pr.record_bootstrap_success(FetchKind::Transactions, idx(1), ms(150));
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::Transactions, idx(1)),
+            Some(150.0)
+        );
+    }
+
+    #[test]
+    fn observed_success_replaces_bootstrap_prior() {
+        let pr = responsiveness(4);
+        pr.record_bootstrap_failure_with_timeout(FetchKind::Transactions, idx(1), ms(5_000));
+        pr.record_success(FetchKind::Transactions, idx(1), ms(200));
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::Transactions, idx(1)),
+            Some(200.0)
+        );
+    }
+
+    #[test]
+    fn bootstrap_does_not_override_observed_sample() {
+        let pr = responsiveness(4);
+        pr.record_success(FetchKind::Transactions, idx(1), ms(200));
+        pr.record_bootstrap_failure_with_timeout(FetchKind::Transactions, idx(1), ms(5_000));
+        assert_eq!(
+            pr.effective_latency_ms(FetchKind::Transactions, idx(1)),
+            Some(200.0)
+        );
     }
 
     #[test]
@@ -488,7 +701,7 @@ mod tests {
     #[test]
     fn cold_start_is_uniform() {
         let pr = responsiveness(5);
-        // All untried → all neutral → all one bucket → uniform shuffle.
+        // All untried, all neutral, all one bucket, uniform shuffle.
         let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
         let counts = lead_counts(&pr, FetchKind::Transactions, &candidates, 10_000, 7);
         for p in [1u8, 2, 3, 4] {
@@ -499,6 +712,81 @@ mod tests {
                 "peer {p} fraction {fraction}"
             );
         }
+    }
+
+    #[test]
+    fn transactions_prioritize_low_latency_peers_ahead_of_known_slow_tail() {
+        let pr = responsiveness(50);
+        for (peer, latency) in [(1, 150), (2, 250), (3, 300), (4, 450)] {
+            pr.record_success(FetchKind::Transactions, idx(peer), ms(latency));
+        }
+        for peer in 5..50 {
+            pr.record_success(FetchKind::Transactions, idx(peer), ms(1_200));
+        }
+
+        assert_transactions_top_four_are_low_latency_most_of_the_time(&pr);
+    }
+
+    #[test]
+    fn transactions_prioritize_low_latency_peers_ahead_of_unknown_tail() {
+        let pr = responsiveness(50);
+        for (peer, latency) in [(1, 150), (2, 250), (3, 300), (4, 450)] {
+            pr.record_success(FetchKind::Transactions, idx(peer), ms(latency));
+        }
+
+        assert_transactions_top_four_are_low_latency_most_of_the_time(&pr);
+    }
+
+    #[test]
+    fn transactions_rank_unknown_peers_ahead_of_known_slow_peers() {
+        let pr = responsiveness(6);
+        pr.record_success(FetchKind::Transactions, idx(1), ms(1_200));
+        pr.record_success(FetchKind::Transactions, idx(2), ms(1_500));
+        // idx(3), idx(4), idx(5) are unknown.
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5)];
+        let mut unknowns_before_known_slow = 0;
+        for seed in 0..1_000u64 {
+            let mut c = candidates.clone();
+            let mut rng = StdRng::seed_from_u64(seed);
+            pr.prioritize(FetchKind::Transactions, &mut c, &mut rng);
+            if c[..3]
+                .iter()
+                .all(|peer| [idx(3), idx(4), idx(5)].contains(peer))
+            {
+                unknowns_before_known_slow += 1;
+            }
+        }
+
+        assert!(
+            unknowns_before_known_slow > 900,
+            "unknowns should fill the first three slots in most ranked transaction rounds: {unknowns_before_known_slow}"
+        );
+    }
+
+    fn assert_transactions_top_four_are_low_latency_most_of_the_time(pr: &PeerResponsiveness) {
+        let candidates: Vec<_> = (1..50).map(idx).collect();
+        let low_latency = [idx(1), idx(2), idx(3), idx(4)];
+        let mut top_four_are_low_latency = 0;
+
+        for seed in 0..1_000u64 {
+            let mut c = candidates.clone();
+            let mut rng = StdRng::seed_from_u64(seed);
+            pr.prioritize(FetchKind::Transactions, &mut c, &mut rng);
+
+            let mut sorted = c.clone();
+            sorted.sort();
+            assert_eq!(sorted, candidates);
+
+            if c[..4].iter().all(|peer| low_latency.contains(peer)) {
+                top_four_are_low_latency += 1;
+            }
+        }
+
+        assert!(
+            top_four_are_low_latency > 900,
+            "low-latency peers should fill the first four slots in most transaction rounds: {top_four_are_low_latency}"
+        );
     }
 
     #[test]
