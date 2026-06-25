@@ -1403,9 +1403,8 @@ pub struct ProtocolConfig {
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
 
-    /// Number of committed subdags between leader-schedule recomputations
-    /// (formerly the `CONSENSUS_COMMITS_PER_SCHEDULE` const). When unset,
-    /// defaults to 300.
+    /// Number of committed subdags between leader-schedule recomputations.
+    /// When unset, defaults to 300.
     consensus_commits_per_schedule: Option<u32>,
 
     /// Number of committed subdags the sliding-window leader scorer aggregates

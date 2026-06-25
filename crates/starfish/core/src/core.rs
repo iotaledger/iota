@@ -2931,10 +2931,11 @@ mod test {
     }
 
     /// Drives the gossip network until `cores[0]` has performed at least one
-    /// leader-schedule rotation and then sits mid-interval (its scoring-subdag
-    /// count is in `1..num_commits_per_schedule`). This avoids hard-coding a
-    /// round count, which would be brittle to the network's exact commit rate.
-    /// `num_commits_per_schedule` is 10 here (pinned by `CoreTextFixture`).
+    /// leader-schedule rotation and then sits mid-interval: its scoring-subdag
+    /// count is strictly between 0 and `num_commits_per_schedule` (10 here,
+    /// matching `CoreTextFixture`'s `with_num_commits_per_schedule(10)`). It
+    /// loops until that state holds rather than running a fixed number of
+    /// gossip rounds, because the number of commits per round is not fixed.
     async fn drive_to_post_rotation_mid_interval(
         cores: &mut [CoreTextFixture],
         min_block_delay: Duration,
