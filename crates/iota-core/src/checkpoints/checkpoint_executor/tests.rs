@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::gas::GasCostSummary;
+use iota_sdk_types::{CheckpointCommitment, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
@@ -456,7 +456,9 @@ async fn sync_end_of_epoch_checkpoint(
         Some(EndOfEpochData {
             next_epoch_committee: new_committee.committee().voting_rights.clone(),
             next_epoch_protocol_version: ProtocolVersion::MIN,
-            epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
+            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
+                digest: ECMHLiveObjectSetDigest::default().digest,
+            }],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
             // obtain this number from the SystemEpochInfoEvent.

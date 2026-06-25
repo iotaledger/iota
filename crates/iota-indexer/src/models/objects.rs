@@ -173,7 +173,7 @@ impl StoredHistoryObject {
                 let object: Object = self.try_into()?;
                 let object_ref = object.object_ref();
 
-                let Some(move_object) = object.data.as_struct_opt().cloned() else {
+                let Some(move_object) = object.data.as_opt_struct().cloned() else {
                     return Ok(PastObjectRead::VersionFound(object_ref, object, None));
                 };
 
@@ -411,7 +411,7 @@ impl StoredObject {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.try_into()?;
 
-        let Some(move_object) = object.data.as_struct_opt().cloned() else {
+        let Some(move_object) = object.data.as_opt_struct().cloned() else {
             return Ok(ObjectRead::Exists(oref, object, None));
         };
 
@@ -461,7 +461,7 @@ impl StoredObject {
     {
         let object: Object = bcs::from_bytes(&self.serialized_object).ok()?;
 
-        let object = object.data.as_struct_opt()?;
+        let object = object.data.as_opt_struct()?;
         let ty = object.struct_tag();
 
         if !ty.is_dynamic_field() {

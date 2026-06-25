@@ -50,7 +50,7 @@ fn publish_coin_factory(
                 .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
-                .struct_tag()
+                .opt_struct_tag()
             {
                 stag.name().as_str().eq("TreasuryCap")
             } else {
@@ -107,7 +107,7 @@ pub fn run_pt_success(
                 .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
-                .struct_tag()
+                .opt_struct_tag()
             {
                 stag.name().as_str().eq("TreasuryCap")
             } else {

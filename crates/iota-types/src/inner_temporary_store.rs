@@ -122,7 +122,7 @@ where
             .written
             .get(&ObjectId::new(id.address().into_bytes()));
         if let Some(o) = obj {
-            if let Some(p) = o.data.as_package_opt() {
+            if let Some(p) = o.data.as_opt_package() {
                 return Ok(Some(Arc::new(p.deserialize_module(
                     &identifier_core_to_sdk(id.name()),
                     &self.temp_store.binary_config,

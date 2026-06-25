@@ -71,7 +71,7 @@ use crate::{
 /// fetch-commits response.
 // TODO: Reduce to 1 once all networks serve certifier votes deduplicated by
 // author, so a response never needs more than one header per authority.
-const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
+pub(crate) const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
 
 pub(crate) enum CommitSyncType {
     Fast,
@@ -83,6 +83,19 @@ impl CommitSyncType {
         match self {
             CommitSyncType::Fast => context.parameters.fast_commit_sync_batch_size,
             CommitSyncType::Regular => context.parameters.commit_sync_batch_size,
+        }
+    }
+
+    /// Maximum number of commits a peer may return in a single fetch response.
+    /// This is the bound `verify_commits` enforces and the same bound the
+    /// streaming fetch loop applies before buffering. Fast sync extends past
+    /// the requested range end to reach a  certifiable commit, so it accepts up
+    /// to twice the batch size; regular sync stays within one batch.
+    pub(crate) fn max_commits_per_response(&self, context: &Context) -> usize {
+        let batch_size = self.commit_sync_batch_size(context) as usize;
+        match self {
+            CommitSyncType::Fast => 2 * batch_size,
+            CommitSyncType::Regular => batch_size,
         }
     }
 
@@ -187,15 +200,6 @@ pub(crate) struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
-    /// Calculates the threshold for unhandled commits to apply backpressure.
-    /// When the gap between synced and scheduled commits exceeds this
-    /// threshold, scheduling new fetches should pause to let the handler
-    /// catch up.
-    pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.context.parameters.commit_sync_batch_size
-            * (self.context.parameters.commit_sync_batches_ahead as u32)
-    }
-
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the verified voting block headers.

@@ -302,7 +302,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let last_solid_commit_index = self.inner.dag_state.read().last_solid_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
+        let unhandled_commits_threshold =
+            self.inner.context.parameters.unhandled_commits_threshold();
         let step = self
             .inner
             .sync_type
@@ -574,7 +575,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
         let (commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -584,7 +585,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_proof_for_last_commit,
-                        2 * batch_size,
+                        max_commits,
                     )
                 }
             })

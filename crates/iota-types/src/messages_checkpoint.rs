@@ -89,6 +89,8 @@ pub struct CheckpointResponse {
 
 // The constituent parts of checkpoints, signed and certified
 
+pub use iota_sdk_types::checkpoint::CheckpointCommitment;
+
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -107,18 +109,6 @@ impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
 impl Default for ECMHLiveObjectSetDigest {
     fn default() -> Self {
         GlobalStateHash::default().digest().into()
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CheckpointCommitment {
-    ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest),
-    // Other commitment types (e.g. merkle roots) go here.
-}
-
-impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
-    fn from(d: ECMHLiveObjectSetDigest) -> Self {
-        Self::ECMHLiveObjectSetDigest(d)
     }
 }
 

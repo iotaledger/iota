@@ -198,7 +198,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // Update synced_commit_index periodically to make sure it is not smaller than
         // local commit index.
         self.synced_commit_index = self.synced_commit_index.max(dag_state_commit_index);
-        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
+        let unhandled_commits_threshold =
+            self.inner.context.parameters.unhandled_commits_threshold();
 
         // TODO: cleanup inflight fetches that are no longer needed.
         let fetch_after_index = self
@@ -546,7 +547,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
         let (commits, _) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -556,7 +557,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_voting_block_headers,
-                        batch_size,
+                        max_commits,
                     )
                 }
             })
@@ -848,7 +849,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
     #[cfg(test)]
     fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.inner.unhandled_commits_threshold()
+        self.inner.context.parameters.unhandled_commits_threshold()
     }
 
     #[cfg(test)]
