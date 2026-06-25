@@ -946,4 +946,67 @@ mod tests {
         assert!(filter.is_enabled("certs_total", "iota_core::authority"));
         assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
     }
+
+    #[test]
+    fn no_filter_enables_everything() {
+        // an unset/empty filter must leave every metric registered (backward
+        // compatibility: filtering is purely opt-in).
+        assert!(super::Filter::parse("").is_enabled("anything", "any::module"));
+        assert!(super::Filter::default().is_enabled("anything", "any::module"));
+        // empty segments are ignored rather than treated as directives.
+        assert!(super::Filter::parse(",,").is_enabled("anything", "any::module"));
+    }
+
+    #[test]
+    fn accepts_on_off_value_aliases() {
+        for off in ["off", "false", "0"] {
+            let filter = super::Filter::parse(&format!("authority={off}"));
+            assert!(!filter.is_enabled("authority", "m"), "{off} should disable");
+        }
+        // start from a global `off` so the `on` alias has an observable effect.
+        for on in ["on", "true", "1"] {
+            let filter = super::Filter::parse(&format!("off,authority={on}"));
+            assert!(filter.is_enabled("authority", "m"), "{on} should enable");
+            assert!(!filter.is_enabled("other", "m"));
+        }
+    }
+
+    #[test]
+    fn invalid_directives_are_dropped() {
+        // an unrecognised value leaves the directive out, falling back to the
+        // default (enabled).
+        assert!(super::Filter::parse("authority=maybe").is_enabled("authority", "m"));
+        // a bare token without `=on|off` is parsed as a global value and, being
+        // invalid, dropped — it does NOT enable/disable the `authority` subsystem.
+        assert!(super::Filter::parse("authority").is_enabled("authority", "m"));
+        // a valid directive alongside an invalid one still takes effect.
+        let filter = super::Filter::parse("authority=off,bogus=nope");
+        assert!(!filter.is_enabled("authority", "m"));
+    }
+
+    #[test]
+    fn matches_module_path_prefix() {
+        // a pattern that is a prefix of the full module path (not only a `::`
+        // component) matches.
+        let filter = super::Filter::parse("iota_core=off");
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
+        assert!(filter.is_enabled("certs_total", "starfish::core"));
+    }
+
+    #[test]
+    fn global_on_default() {
+        // last-match-wins applies to bare global directives too.
+        assert!(super::Filter::parse("off,on").is_enabled("authority", "m"));
+        // an explicit `on` default with a targeted `off` override.
+        let filter = super::Filter::parse("on,authority=off");
+        assert!(filter.is_enabled("certs_total", "m"));
+        assert!(!filter.is_enabled("authority", "m"));
+    }
+
+    #[test]
+    fn whitespace_is_trimmed() {
+        let filter = super::Filter::parse("  authority = off ,  authority_aggregator = on  ");
+        assert!(!filter.is_enabled("authority", "m"));
+        assert!(filter.is_enabled("authority_aggregator", "m"));
+    }
 }
