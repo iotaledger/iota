@@ -271,6 +271,10 @@ pub struct IotaNode {
     // TODO: Eventually we can make this auth aggregator a shared reference so that this
     // update will automatically propagate to other uses.
     auth_agg: Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>>,
+
+    /// Runtime that hosts the client-facing servers and their per-request
+    /// handlers, isolating external request load from the node core.
+    serving_rt_handle: tokio::runtime::Handle,
 }
 
 impl fmt::Debug for IotaNode {
@@ -290,6 +294,7 @@ impl IotaNode {
             config,
             registry_service,
             ServerVersion::new("iota-node", "unknown"),
+            tokio::runtime::Handle::current(),
         )
         .await
     }
@@ -343,6 +348,7 @@ impl IotaNode {
         config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
@@ -760,13 +766,27 @@ impl IotaNode {
             None
         };
 
-        let http_server = build_http_server(
-            state.clone(),
-            &transaction_orchestrator.clone(),
-            &config,
-            &prometheus_registry,
-        )
-        .await?;
+        // Run the JSON-RPC server (and its per-request handlers) on the serving
+        // runtime. `iota_http::Builder::serve` spawns the accept loop via
+        // `Handle::current()`, so the builder must execute on the serving runtime.
+        let http_server = serving_rt_handle
+            .spawn({
+                let state = state.clone();
+                let transaction_orchestrator = transaction_orchestrator.clone();
+                let config = config.clone();
+                let prometheus_registry = prometheus_registry.clone();
+                async move {
+                    build_http_server(
+                        state,
+                        &transaction_orchestrator,
+                        &config,
+                        &prometheus_registry,
+                    )
+                    .await
+                }
+            })
+            .await
+            .expect("Failed to join JSON-RPC server startup task")?;
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             cache_traits.global_state_hash_store.clone(),
@@ -813,15 +833,28 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle = build_grpc_server(
-            &config,
-            state.clone(),
-            state_sync_store.clone(),
-            executor,
-            &prometheus_registry,
-            server_version,
-        )
-        .await?;
+        // Run the gRPC read API server (and its per-request handlers) on the
+        // serving runtime, for the same reason as the JSON-RPC server above.
+        let grpc_server_handle = serving_rt_handle
+            .spawn({
+                let config = config.clone();
+                let state = state.clone();
+                let state_sync_store = state_sync_store.clone();
+                let prometheus_registry = prometheus_registry.clone();
+                async move {
+                    build_grpc_server(
+                        &config,
+                        state,
+                        state_sync_store,
+                        executor,
+                        &prometheus_registry,
+                        server_version,
+                    )
+                    .await
+                }
+            })
+            .await
+            .expect("Failed to join gRPC server startup task")?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -837,6 +870,7 @@ impl IotaNode {
                     backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
+                    serving_rt_handle.clone(),
                 ),
                 Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
             );
@@ -887,6 +921,8 @@ impl IotaNode {
             grpc_server_handle: Mutex::new(grpc_server_handle),
 
             auth_agg,
+
+            serving_rt_handle,
         };
 
         info!("IotaNode started!");
@@ -1229,6 +1265,7 @@ impl IotaNode {
         backpressure_manager: Arc<BackpressureManager>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<ValidatorComponents> {
         let mut config_clone = config.clone();
         let consensus_config = config_clone
@@ -1298,6 +1335,7 @@ impl IotaNode {
             &validator_registry,
             soft_locks.clone(),
             validator_service_metrics.clone(),
+            serving_rt_handle,
         )
         .await?;
 
@@ -1580,6 +1618,7 @@ impl IotaNode {
         prometheus_registry: &Registry,
         soft_locks: Arc<PreConsensusSoftLocks>,
         validator_service_metrics: Arc<ValidatorServiceMetrics>,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
@@ -1617,7 +1656,7 @@ impl IotaNode {
             Ok(server)
         };
 
-        Ok(SpawnOnce::new(bind_future))
+        Ok(SpawnOnce::new(bind_future, serving_rt_handle))
     }
 
     /// Re-executes pending consensus certificates, which may not have been
@@ -2094,6 +2133,7 @@ impl IotaNode {
                         self.backpressure_manager.clone(),
                         self.connection_monitor_status.clone(),
                         &self.registry_service,
+                        self.serving_rt_handle.clone(),
                     )
                     .await?;
 
@@ -2356,7 +2396,10 @@ impl IotaNode {
 
 enum SpawnOnce {
     // Mutex is only needed to make SpawnOnce Sync
-    Unstarted(Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>),
+    Unstarted(
+        Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>,
+        tokio::runtime::Handle,
+    ),
     #[allow(unused)]
     Started(iota_http::ServerHandle),
 }
@@ -2364,19 +2407,22 @@ enum SpawnOnce {
 impl SpawnOnce {
     pub fn new(
         future: impl Future<Output = Result<iota_network_stack::server::Server>> + Send + 'static,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Self {
-        Self::Unstarted(Mutex::new(Box::pin(future)))
+        Self::Unstarted(Mutex::new(Box::pin(future)), serving_rt_handle)
     }
 
     pub async fn start(self) -> Self {
         match self {
-            Self::Unstarted(future) => {
+            Self::Unstarted(future, serving_rt_handle) => {
                 let server = future
                     .into_inner()
                     .await
                     .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
                 let handle = server.handle().clone();
-                tokio::spawn(async move {
+                // Serve client requests on the dedicated serving runtime so that
+                // request load never shares worker threads with the node core.
+                serving_rt_handle.spawn(async move {
                     if let Err(err) = server.serve().await {
                         info!("Server stopped: {err}");
                     }
