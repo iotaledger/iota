@@ -15,7 +15,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
-        RunWithRange, StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
+        RunWithRange, StateSnapshotConfig, default_enable_index_processing,
         default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },

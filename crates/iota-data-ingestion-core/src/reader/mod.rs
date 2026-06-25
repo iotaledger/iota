@@ -10,3 +10,4 @@ pub mod filters;
 pub mod v2;
 
 pub use common::ReaderOptions;
+pub use fetch::{CheckpointResult, fetch_from_object_store};

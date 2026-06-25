@@ -10,7 +10,7 @@ use std::sync::{
 use anemo::async_trait;
 use anyhow::{Result, anyhow};
 use futures::{StreamExt, TryStreamExt};
-use iota_data_ingestion_core::{reader::v2::CheckpointReader, Worker, create_remote_store_client};
+use iota_data_ingestion_core::{Worker, create_remote_store_client, reader::v2::CheckpointReader};
 use iota_types::{
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -23,11 +23,13 @@ pub(crate) struct FormalSnapshotWorker<S>(pub(crate) S, pub(crate) Arc<AtomicU64
 impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for FormalSnapshotWorker<S> {
     type Message = ();
     type Error = anyhow::Error;
-    async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<(), anyhow::Error> {
-        self.0
-            .insert_checkpoint(&VerifiedCheckpoint::new_unchecked(
-                checkpoint.checkpoint_summary.clone(),
-            ));
+    async fn process_checkpoint(
+        &self,
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<(), anyhow::Error> {
+        self.0.insert_checkpoint(&VerifiedCheckpoint::new_unchecked(
+            checkpoint.checkpoint_summary.clone(),
+        ));
         self.1.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
