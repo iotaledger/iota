@@ -2979,16 +2979,16 @@ mod test {
     /// mid-interval commit, flushes, then rebuilds authority 0 from the same
     /// store via the real recovery path (`DagState::new` +
     /// `LeaderSchedule::from_store`) and asserts the rotation count is
-    /// restart-invariant.
+    /// restart-invariant: a recovered node resumes with the same
+    /// commits-until-next-rotation as one that never restarted.
     ///
-    /// On the sliding-window path the scorer persists its last *scored* commit,
-    /// which lags the last *fed* commit by `MAX_PENDING_COMMITS = 3`; on
-    /// restart `DagState::new` rebuilds the rotation-counting scoring subdag
-    /// from `commit_range.end() + 1`, so a buggy node recovers 3 extra
-    /// scoring subdags and rotates 3 commits early. V2 persists the last
-    /// *fed* commit (no lag), so it stays restart-invariant. Both
-    /// assertions are live-vs-restarted equality (never a hard-coded
-    /// value), so the test is fix-agnostic.
+    /// On the sliding-window path the scorer's scored frontier lags the
+    /// rotation boundary by `MAX_PENDING_COMMITS = 3`, while recovery rebuilds
+    /// the rotation-counting scoring subdag from the persisted
+    /// `commit_range.end() + 1`. The count stays invariant because the
+    /// persisted end is the rotation boundary (the last committed index), not
+    /// the lagging frontier. The assertions compare live vs. restarted directly
+    /// (no hard-coded count) and run for both the sliding-window and V2 paths.
     #[rstest]
     #[case::sliding_window(true)]
     #[case::v2(false)]
