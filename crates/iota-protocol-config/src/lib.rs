@@ -1453,6 +1453,15 @@ pub struct ProtocolConfig {
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
 
+    /// Maximum number of transactions from a single consensus commit that may
+    /// be scheduled to execute concurrently (overlapping in time) by the
+    /// congestion tracker — i.e. the size of the execution-worker pool.
+    /// `Some(n)` activates execution-worker congestion control, capping
+    /// concurrency at `n` transactions so that owned-object-only transactions
+    /// are also scheduled, deferred and shed by the tracker; `None` disables it
+    /// and owned-object-only transactions bypass the tracker as before.
+    max_concurrent_execution_workers: Option<u16>,
+
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
     /// the MisbehaviorReports messages, where `version` determines the scoring
@@ -2563,6 +2572,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            max_concurrent_execution_workers: None,
 
             scorer_version: None,
 

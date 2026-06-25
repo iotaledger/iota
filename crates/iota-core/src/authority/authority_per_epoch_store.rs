@@ -227,6 +227,11 @@ pub(crate) struct CongestionControlParameters {
     /// congestion limit overshoot is disabled.
     max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
 
+    /// Maximum number of transactions from a commit that may execute
+    /// concurrently (the execution-worker pool size). `Some(n)` activates
+    /// execution-worker congestion control; `None` disables it.
+    max_concurrent_execution_workers: Option<u16>,
+
     /// Maximum gas price that can be set in transactions. This field
     /// is only used in `SuggestedGasPriceCalculator` to prevent
     /// suggesting feedback gas price larger this value.
@@ -253,6 +258,8 @@ impl CongestionControlParameters {
                 .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
+            max_concurrent_execution_workers: protocol_config
+                .max_concurrent_execution_workers_as_option(),
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
@@ -277,6 +284,10 @@ impl CongestionControlParameters {
             congestion_control_min_free_execution_slot,
             max_execution_duration_per_commit,
             max_congestion_limit_overshoot_per_commit,
+            // Defaults to disabled; tests that exercise execution-worker
+            // congestion control opt in via
+            // `set_max_concurrent_execution_workers_for_test`.
+            max_concurrent_execution_workers: None,
             max_gas_price,
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
             use_separate_gas_price_feedback_mechanism_for_randomness,
@@ -313,7 +324,7 @@ impl CongestionControlParameters {
         self.congestion_control_min_free_execution_slot
     }
 
-    /// Check whether shared-object congestion control is enabled.
+    /// Check whether congestion control is enabled
     fn is_congestion_control_enabled(&self) -> bool {
         self.max_execution_duration_per_commit.is_some()
     }
