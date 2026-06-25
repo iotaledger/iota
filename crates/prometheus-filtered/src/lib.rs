@@ -411,7 +411,7 @@ pub mod core {
         }
     }
 
-    pub struct HistogramVec(pub Option<prometheus::HistogramVec>);
+    pub struct HistogramVec(Option<prometheus::HistogramVec>);
 
     impl_metric_traits!(HistogramVec);
 
