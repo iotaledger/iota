@@ -920,10 +920,9 @@ impl IotaNode {
             );
             if recognized_source.is_some() {
                 anyhow::bail!(
-                    "{detail}: the formal snapshot couldn't complete the chain (older than this \
-                     node's history, or its source unreachable) and the missing epochs' \
-                     checkpoint data is already pruned locally; retry once the snapshot source \
-                     is reachable and current"
+                    "{detail}: the latest published snapshot is older than this node's history \
+                     and the missing epochs' checkpoint data is already pruned locally; retry \
+                     once a newer snapshot is available"
                 );
             }
             warn!(
