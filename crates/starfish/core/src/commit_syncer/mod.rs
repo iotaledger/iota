@@ -609,7 +609,7 @@ where
                     inner
                         .context
                         .peer_responsiveness
-                        .record_failure(fetch_kind, authority);
+                        .record_failure_with_timeout(fetch_kind, authority, fetch_timeout);
                     let hostname = inner
                         .context
                         .committee
@@ -634,7 +634,7 @@ where
                     inner
                         .context
                         .peer_responsiveness
-                        .record_failure(fetch_kind, authority);
+                        .record_failure_with_timeout(fetch_kind, authority, fetch_timeout);
                     let hostname = inner
                         .context
                         .committee
