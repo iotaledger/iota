@@ -424,9 +424,8 @@ impl LeaderSchedule {
 
     /// Rebuilds the sliding-window scorer (when enabled) by replaying the last
     /// `window_size` committed subdags from storage, so the running aggregate
-    /// is current after a restart or fast-sync. The in-effect swap table is
-    /// recovered separately from `CommitInfo`. Returns without effect on the V2
-    /// path (no scorer).
+    /// is current after a restart or fast-sync. Does not recover the in-effect
+    /// swap table. Returns without effect on the V2 path (no scorer).
     fn recover_sliding_window(&self, dag_state: &RwLock<DagState>) {
         let Some(sliding_window) = &self.sliding_window else {
             return;
