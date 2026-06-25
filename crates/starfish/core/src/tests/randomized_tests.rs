@@ -53,8 +53,8 @@ async fn test_randomized_dag_all_direct_commit() {
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
-        let last_decided = Slot::new(0, 0);
-        let sequence = authority.committer.try_decide(last_decided);
+        let last_finalized = Slot::new(0, 0);
+        let sequence = authority.committer.try_decide(last_finalized);
         tracing::debug!("Commit sequence: {sequence:#?}");
 
         assert_eq!(sequence.len(), (NUM_ROUNDS - 2) as usize);
@@ -79,7 +79,7 @@ async fn test_randomized_dag_all_direct_commit() {
 ///
 /// Blocks will randomly be fed through BlockManager and after each accepted
 /// block we will try_decide() and if there is a committed sequence we will
-/// update last_decided and continue. We do this from the perspective of two
+/// update last_finalized and continue. We do this from the perspective of two
 /// different authorities who receive the blocks in different orders and ensure
 /// the resulting sequence is the same for both authorities. The resulting
 /// sequence will include Commit & Skip decisions and potentially will stop
@@ -116,7 +116,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_1 = vec![];
-        let mut last_decided = Slot::new(0, 0);
+        let mut last_finalized = Slot::new(0, 0);
         let mut i = 0;
         let mut seen_so_far = vec![];
         while i < all_blocks.len() {
@@ -128,12 +128,12 @@ async fn test_randomized_dag_and_decision_sequence() {
             let _ = authority_1
                 .block_manager
                 .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_1.committer.try_decide(last_decided);
+            let sequence = authority_1.committer.try_decide(last_finalized);
 
             if !sequence.is_empty() {
                 sequenced_leaders_1.extend(sequence.clone());
                 let leader_status = sequence.last().unwrap();
-                last_decided = Slot::new(leader_status.round(), leader_status.authority());
+                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
             }
 
             i += chunk_size;
@@ -158,7 +158,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_2 = vec![];
-        let mut last_decided = Slot::new(0, 0);
+        let mut last_finalized = Slot::new(0, 0);
         let mut i = 0;
         let mut seen_so_far = vec![];
         while i < all_blocks.len() {
@@ -171,12 +171,12 @@ async fn test_randomized_dag_and_decision_sequence() {
             let _ = authority_2
                 .block_manager
                 .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_2.committer.try_decide(last_decided);
+            let sequence = authority_2.committer.try_decide(last_finalized);
 
             if !sequence.is_empty() {
                 sequenced_leaders_2.extend(sequence.clone());
                 let leader_status = sequence.last().unwrap();
-                last_decided = Slot::new(leader_status.round(), leader_status.authority());
+                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
             }
             // Evaluate the seen blocks so far
             let (suspended, missing) = evaluate_block_headers(&seen_so_far);

@@ -85,9 +85,9 @@ pub(crate) struct Core {
     /// to note that this does not signify that the leader has been
     /// persisted yet as it still has to go through CommitObserver and
     /// persist the commit in store. On recovery/restart
-    /// the last_decided_leader will be set to the last_commit leader in dag
+    /// the last_finalized_leader will be set to the last_commit leader in dag
     /// state.
-    last_decided_leader: Slot,
+    last_finalized_leader: Slot,
     /// The consensus leader schedule to be used to resolve the leader for a
     /// given round.
     leader_schedule: Arc<LeaderSchedule>,
@@ -209,7 +209,7 @@ impl Core {
         sync_last_known_own_block: bool,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
     ) -> Self {
-        let last_decided_leader = dag_state.read().last_commit_leader();
+        let last_finalized_leader = dag_state.read().last_commit_leader();
         let committer = UniversalCommitterBuilder::new(
             context.clone(),
             leader_schedule.clone(),
@@ -251,7 +251,7 @@ impl Core {
             context,
             last_signaled_round,
             last_included_ancestors,
-            last_decided_leader,
+            last_finalized_leader,
             leader_schedule,
             transaction_consumer,
             block_manager,
@@ -713,8 +713,8 @@ impl Core {
         // 6. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 7. Update last_decided_leader to match the new DAG state
-        self.last_decided_leader = last_commit_leader;
+        // 7. Update last_finalized_leader to match the new DAG state
+        self.last_finalized_leader = last_commit_leader;
 
         // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
         self.commit_observer.reinitialize(last_commit_index);
@@ -1253,19 +1253,21 @@ impl Core {
             // Always try to process the synced commits first. If there are certified
             // commits to process then the decided leaders and the commits will be returned.
 
-            let mut decided_leaders = self.committer.try_decide(self.last_decided_leader);
+            let mut decided_leaders = self.committer.try_decide(self.last_finalized_leader);
 
-            // Truncate the decided leaders to fit the commit schedule limit.
+            // Drop leaders past the next rotation boundary; they are re-decided next
+            // pass under the new schedule. This pins each committed leader to the
+            // schedule at its position — the dropped tail stays provisional.
             if decided_leaders.len() >= commits_until_update {
                 let _ = decided_leaders.split_off(commits_until_update);
             }
 
             // If the decided leaders list is empty then just break the loop.
-            let Some(last_decided) = decided_leaders.last().cloned() else {
+            let Some(last_finalized) = decided_leaders.last().cloned() else {
                 break;
             };
 
-            self.last_decided_leader = last_decided.slot();
+            self.last_finalized_leader = last_finalized.slot();
 
             let sequenced_leaders = decided_leaders
                 .into_iter()
@@ -1281,7 +1283,7 @@ impl Core {
                 .metrics
                 .node_metrics
                 .last_decided_leader_round
-                .set(self.last_decided_leader.round as i64);
+                .set(self.last_finalized_leader.round as i64);
 
             // It's possible to reach this point as the decided leaders might all of them be
             // "Skip" decisions. In this case there is no leader to commit and
