@@ -25,8 +25,8 @@ use iota_types::{
     base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        IotaKeyPair, KeypairTraits, Signature, Signer, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
+        KeypairTraits, Signature, Signer, get_key_pair,
     },
     digests::ConsensusCommitDigest,
     effects::{

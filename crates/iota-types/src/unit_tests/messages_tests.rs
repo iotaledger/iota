@@ -22,7 +22,8 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme, VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
+        VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },

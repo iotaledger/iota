@@ -721,8 +721,8 @@ pub trait IotaPublicKey: VerifyingKey {
 }
 
 /// Node-only behaviour layered on top of the SDK [`Signature`]
-/// (`iota_sdk_types::SimpleSignature`): byte/scheme accessors, construction from
-/// a signer, and intent-message verification.
+/// (`iota_sdk_types::SimpleSignature`): byte/scheme accessors, construction
+/// from a signer, and intent-message verification.
 pub trait IotaSignature: Sized {
     fn signature_bytes(&self) -> &[u8];
     fn public_key_bytes(&self) -> &[u8];
