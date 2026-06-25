@@ -390,6 +390,25 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
+        // Monitor the node-core and serving runtimes so that worker-thread
+        // starvation between them is observable. Gated out of simtests, where
+        // tokio runs under the deterministic simulator.
+        #[cfg(not(msim))]
+        {
+            let runtime_monitor_metrics =
+                iota_metrics::runtime_metrics::RuntimeMonitorMetrics::new(&prometheus_registry);
+            iota_metrics::runtime_metrics::start_runtime_monitor(
+                "iota_node",
+                &tokio::runtime::Handle::current(),
+                runtime_monitor_metrics.clone(),
+            );
+            iota_metrics::runtime_metrics::start_runtime_monitor(
+                "serving",
+                &serving_rt_handle,
+                runtime_monitor_metrics,
+            );
+        }
+
         // Register uptime metric
         prometheus_registry
             .register(iota_metrics::uptime_metric(
