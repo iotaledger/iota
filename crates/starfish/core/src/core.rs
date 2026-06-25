@@ -3049,6 +3049,21 @@ mod test {
                 .commits_until_leader_schedule_update(cores[0].core.dag_state.clone()),
             "commits_until_leader_schedule_update must be restart-invariant"
         );
+
+        // The recovered swap table must match the live one exactly, not just
+        // the rotation count. It is rebuilt with the rotation boundary as its
+        // seed, so equal-scoring authorities shuffle into the same good/bad
+        // split on both sides.
+        let restarted_table = restarted.core.leader_schedule.leader_swap_table.read();
+        let live_table = cores[0].core.leader_schedule.leader_swap_table.read();
+        assert_eq!(
+            restarted_table.good_nodes, live_table.good_nodes,
+            "recovered good_nodes must match the live node"
+        );
+        assert_eq!(
+            restarted_table.bad_nodes, live_table.bad_nodes,
+            "recovered bad_nodes must match the live node"
+        );
     }
 
     #[rstest]
