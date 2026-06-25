@@ -4706,7 +4706,7 @@ impl AuthorityPerEpochStore {
         let mut sequenced_randomness = Vec::new();
         // Per shared object, how many transactions are admitted (scheduled) to it
         // in this commit. Observed into a histogram once per object at the end.
-        let mut num_txs_per_obj_in_this_commit: HashMap<ObjectID, u64> = HashMap::new();
+        let mut num_txs_per_obj_in_this_commit: HashMap<ObjectId, u64> = HashMap::new();
 
         for entry in non_randomness_transactions
             .iter()
