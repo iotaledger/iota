@@ -330,11 +330,9 @@ impl LeaderSchedule {
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
-        // Determine the commit range for these scores. Reputation scores are
-        // attached to the *first* commit after a schedule update, so commit_index
-        // - 1 is the boundary of the window that just closed; the commit_range
-        // below is the committed interval ending there, though on the
-        // sliding-window path the scores summarize a deeper window.
+        // Reputation scores are attached to the *first* commit after a schedule
+        // update, so commit_index - 1 is the last commit of the window that just
+        // closed; the commit_range below is the committed interval ending there.
         let range_end = commit_index.saturating_sub(1);
         if range_end == GENESIS_COMMIT_INDEX {
             return;
