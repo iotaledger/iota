@@ -34,16 +34,12 @@ use starfish_config::{AuthorityIndex, Committee};
 
 use crate::metrics::Metrics;
 
-/// Probability that a non-transaction `prioritize` call ignores ranking and
-/// returns a uniform shuffle. Guarantees every eligible peer keeps a floor
-/// probability of being tried early regardless of its rank. This is what
-/// bounds monopolization and prevents starvation of the latency tail (and keeps
-/// every peer's measurement fresh).
-const DEFAULT_EXPLORE_PROBABILITY: f64 = 0.2;
-
-/// Transaction fetches sit directly on the commit-to-execution latency path, so
-/// they bias harder toward measured low-latency peers than commit/header sync.
-const TRANSACTIONS_EXPLORE_PROBABILITY: f64 = 0.05;
+/// Probability that a `prioritize` call ignores ranking and returns a uniform
+/// shuffle, applied uniformly to every fetch kind. Guarantees every eligible
+/// peer keeps a floor probability of being tried early regardless of its rank,
+/// which bounds monopolization, prevents starvation of the latency tail, and
+/// keeps every peer's measurement fresh.
+const EXPLORE_PROBABILITY: f64 = 0.05;
 
 /// Transaction peers above this effective latency are known-slow for the
 /// commit-to-execution path; unknown peers rank ahead of them to keep discovery
@@ -125,15 +121,6 @@ impl FetchKind {
             FetchKind::CommitSync => "commit_sync",
             FetchKind::FastCommitSync => "fast_commit_sync",
             FetchKind::HeaderSync => "header_sync",
-        }
-    }
-
-    fn explore_probability(self) -> f64 {
-        match self {
-            FetchKind::Transactions => TRANSACTIONS_EXPLORE_PROBABILITY,
-            FetchKind::CommitSync | FetchKind::FastCommitSync | FetchKind::HeaderSync => {
-                DEFAULT_EXPLORE_PROBABILITY
-            }
         }
     }
 }
@@ -337,7 +324,7 @@ impl PeerResponsiveness {
         // Exploration round: ignore ranking entirely. This is the floor that
         // keeps every peer reachable early and prevents any peer from
         // monopolizing the head of the list across rounds.
-        if rng.gen::<f64>() < kind.explore_probability() {
+        if rng.gen::<f64>() < EXPLORE_PROBABILITY {
             candidates.shuffle(rng);
             return;
         }
@@ -688,9 +675,9 @@ mod tests {
         let fast_fraction = fast_leads as f64 / trials as f64;
         // The fast peer leads far more than uniform (0.25)...
         assert!(fast_fraction > 0.5, "fast fraction {fast_fraction}");
-        // ...but cannot monopolize: the exploration floor guarantees the slow
-        // peers still lead a meaningful share.
-        assert!(fast_fraction < 0.95, "fast fraction {fast_fraction}");
+        // ...but cannot fully monopolize: the exploration floor keeps the slow
+        // peers reachable, so they still lead occasionally.
+        assert!(fast_fraction < 0.99, "fast fraction {fast_fraction}");
         let slow_leads: usize = [2u8, 3, 4]
             .iter()
             .map(|p| *counts.get(&idx(*p)).unwrap_or(&0))
