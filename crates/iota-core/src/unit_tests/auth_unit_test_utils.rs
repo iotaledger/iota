@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner};
 use iota_types::{
-    crypto::{Signature, Signer},
+    crypto::IotaKeyPair,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::IotaResult,
@@ -69,7 +69,7 @@ pub fn build_test_modules_with_dep_addr(
 pub async fn publish_package_on_single_authority(
     path: &Path,
     sender: Address,
-    sender_key: &dyn Signer<Signature>,
+    sender_key: impl Into<IotaKeyPair>,
     gas_payment: ObjectReference,
     dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
     dep_ids: Vec<ObjectId>,
@@ -122,7 +122,7 @@ pub async fn publish_package_on_single_authority(
 pub async fn upgrade_package_on_single_authority(
     path: &Path,
     sender: Address,
-    sender_key: &dyn Signer<Signature>,
+    sender_key: impl Into<IotaKeyPair>,
     gas_payment: ObjectReference,
     package_id: ObjectId,
     upgrade_cap: ObjectReference,

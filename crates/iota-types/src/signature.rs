@@ -137,7 +137,7 @@ impl GenericSignature {
         match self {
             GenericSignature::Signature(s) => {
                 let bytes = s.signature_bytes();
-                match s.scheme() {
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(CompressedSignature::Ed25519(
                         (&Ed25519Signature::from_bytes(bytes).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -191,7 +191,7 @@ impl GenericSignature {
         match self {
             GenericSignature::Signature(s) => {
                 let bytes = s.public_key_bytes();
-                match s.scheme() {
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
                             IotaError::KeyConversion("Cannot parse ed25519 pk".to_string())
@@ -343,6 +343,6 @@ impl AuthenticatorTrait for Signature {
     where
         T: Serialize,
     {
-        self.verify_secure(value, author, self.scheme())
+        self.verify_secure(value, author, self.signature_scheme())
     }
 }

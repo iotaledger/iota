@@ -243,7 +243,7 @@ impl TryFrom<&GenericSignature> for Address {
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
             GenericSignature::Signature(sig) => {
-                let scheme = sig.scheme();
+                let scheme = sig.signature_scheme();
                 let pub_key_bytes = sig.public_key_bytes();
                 let pub_key = PublicKey::try_from_bytes(scheme, pub_key_bytes).map_err(|_| {
                     IotaError::InvalidSignature {

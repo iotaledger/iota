@@ -41,8 +41,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature,
-        Signer, empty_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
+        Signature, Signer, empty_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -2441,9 +2441,9 @@ impl<S> Envelope<SenderSignedData, S> {
 }
 
 impl Transaction {
-    pub fn from_data_and_signer(
+    pub fn from_data_and_signer<K: Into<IotaKeyPair>>(
         data: TransactionData,
-        signers: Vec<&dyn Signer<Signature>>,
+        signers: Vec<K>,
     ) -> Self {
         let signatures = {
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
@@ -2460,10 +2460,10 @@ impl Transaction {
         Self::from_generic_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
     }
 
-    pub fn signature_from_signer(
+    pub fn signature_from_signer<K: Into<IotaKeyPair>>(
         data: TransactionData,
         intent: Intent,
-        signer: &dyn Signer<Signature>,
+        signer: K,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)

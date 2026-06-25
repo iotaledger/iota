@@ -2303,7 +2303,7 @@ impl TestEnvironment {
         aa_obj_ref: ObjectReference,
         signature: iota_types::crypto::Signature,
     ) -> anyhow::Result<GenericSignature> {
-        let hex_encoded_signature: String = Hex::encode(signature)
+        let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()
             .skip(2) // flag prefix length
             .take(Ed25519Signature::LENGTH * 2)

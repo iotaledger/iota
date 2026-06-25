@@ -14,7 +14,7 @@ use std::{
 };
 
 use anyhow::{Error, anyhow};
-use derive_more::{AsMut, AsRef, From};
+use derive_more::{AsRef, From};
 pub use enum_dispatch::enum_dispatch;
 use eyre::eyre;
 pub use fastcrypto::traits::{
@@ -206,6 +206,34 @@ impl Signer<Signature> for IotaKeyPair {
         }
         bytes.extend_from_slice(self.public().as_ref());
         Signature::from_bytes(&bytes).expect("Serialized signature did not have expected size")
+    }
+}
+
+// By-reference conversions into [`IotaKeyPair`], so the per-scheme keypairs
+// (and `IotaKeyPair` itself) can be passed to the signing helpers, which are
+// generic over `impl Into<IotaKeyPair>`. The orphan rule is satisfied because
+// `IotaKeyPair` is local.
+impl From<&Ed25519KeyPair> for IotaKeyPair {
+    fn from(kp: &Ed25519KeyPair) -> Self {
+        IotaKeyPair::Ed25519(kp.copy())
+    }
+}
+
+impl From<&Secp256k1KeyPair> for IotaKeyPair {
+    fn from(kp: &Secp256k1KeyPair) -> Self {
+        IotaKeyPair::Secp256k1(kp.copy())
+    }
+}
+
+impl From<&Secp256r1KeyPair> for IotaKeyPair {
+    fn from(kp: &Secp256r1KeyPair) -> Self {
+        IotaKeyPair::Secp256r1(kp.copy())
+    }
+}
+
+impl From<&IotaKeyPair> for IotaKeyPair {
+    fn from(kp: &IotaKeyPair) -> Self {
+        kp.clone()
     }
 }
 
@@ -726,16 +754,21 @@ pub trait IotaPublicKey: VerifyingKey {
 pub trait IotaSignature: Sized {
     fn signature_bytes(&self) -> &[u8];
     fn public_key_bytes(&self) -> &[u8];
-    fn scheme(&self) -> SignatureScheme;
+    /// The node [`SignatureScheme`] of this signature.
+    ///
+    /// Named distinctly from the SDK's inherent `SimpleSignature::scheme()`
+    /// (which returns `iota_sdk_types::SignatureScheme`) to avoid the inherent
+    /// method shadowing this trait method.
+    fn signature_scheme(&self) -> SignatureScheme;
 
     /// Signs a message that is already in hashed form.
-    fn new_hashed(hashed_msg: &[u8], secret: &dyn Signer<Signature>) -> Signature {
-        Signer::sign(secret, hashed_msg)
+    fn new_hashed(hashed_msg: &[u8], secret: impl Into<IotaKeyPair>) -> Signature {
+        Signer::sign(&secret.into(), hashed_msg)
     }
 
     /// Signs the BCS hash of the value wrapped in the intent message.
     #[instrument(level = "trace", skip_all)]
-    fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Signature>) -> Signature
+    fn new_secure<T>(value: &IntentMessage<T>, secret: impl Into<IotaKeyPair>) -> Signature
     where
         T: Serialize,
     {
@@ -747,7 +780,7 @@ pub trait IotaSignature: Sized {
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
 
-        Signer::sign(secret, &hasher.finalize().digest)
+        Signer::sign(&secret.into(), &hasher.finalize().digest)
     }
 
     fn verify_secure<T>(
@@ -779,7 +812,7 @@ impl IotaSignature for Signature {
         }
     }
 
-    fn scheme(&self) -> SignatureScheme {
+    fn signature_scheme(&self) -> SignatureScheme {
         match self {
             Signature::Ed25519 { .. } => SignatureScheme::ED25519,
             Signature::Secp256k1 { .. } => SignatureScheme::Secp256k1,
@@ -1523,13 +1556,6 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Passkey(sig) => &sig.0,
             CompressedSignature::Move(sig) => &sig.0,
         }
-    }
-}
-
-impl FromStr for Signature {
-    type Err = eyre::Report;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::decode_base64(s).map_err(|e| eyre!("Fail to decode base64 {}", e.to_string()))
     }
 }
 
