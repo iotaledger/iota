@@ -9,7 +9,7 @@ use iota_snapshot::{EpochInfo, verify_epoch_info_chain};
 use iota_types::{
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest, VerifiedCheckpoint},
+    messages_checkpoint::{ECMHLiveObjectSetDigest, VerifiedCheckpoint},
 };
 use tokio::sync::mpsc;
 
@@ -78,12 +78,12 @@ pub(super) async fn verify_state_hash(
                 "verified checkpoint has no end-of-epoch commitment".to_string(),
             ))
         })?;
-    let CheckpointCommitment::ECMHLiveObjectSetDigest(verified_digest) = commitment;
-    let local_digest = ECMHLiveObjectSetDigest::from(root_state_hash.digest());
-    if *verified_digest != local_digest {
+    let verified_digest = commitment.as_ecmh_live_object_set_digest();
+    let root_state_hash = ECMHLiveObjectSetDigest::from(root_state_hash.digest()).digest;
+    if *verified_digest != root_state_hash {
         return Err(IndexerError::Ingestion(IngestionError::Verification(
             format!(
-                "root state hash {local_digest:?} does not match the verified commitment \
+                "root state hash {root_state_hash:?} does not match the verified commitment \
              {verified_digest:?}"
             ),
         )));
