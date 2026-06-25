@@ -6,15 +6,19 @@ use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_core::authority::authority_store_tables::LiveObject as SnapshotObject;
 use iota_snapshot::{FileMetadata, VerifiedEpochInfo, reader::LiveObjectIter, restore::Restore};
 use iota_storage::SHA3_BYTES;
-use iota_types::iota_system_state::IotaSystemStateTrait;
+use iota_types::{digests::ChainIdentifier, iota_system_state::IotaSystemStateTrait};
 use itertools::Itertools;
 
 use crate::{
     chunk,
-    errors::IndexerError,
+    errors::{IndexerError, IndexerResult},
     ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
-    models::epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
-    store::PgIndexerStore,
+    models::{
+        checkpoints::StoredChainIdentifier,
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+    },
+    store::{IndexerStore, PgIndexerStore},
+    types::IndexedCheckpoint,
 };
 
 impl Restore for PgIndexerStore {
@@ -78,16 +82,18 @@ impl EpochToCommit {
     ///
     /// Returns one commit per epoch from 0 through `snapshot_epoch + 1`, in
     /// epoch order. Each entry closes its own epoch and opens the next, exactly
-    /// as live ingestion does at an end-of-epoch checkpoint; the leading commit
+    /// as live ingestion does at an end-of-epoch checkpoint. The leading commit
     /// opens the genesis epoch.
-    pub(crate) fn from_verified_epoch_info(verified_epoch_info: VerifiedEpochInfo) -> Vec<Self> {
+    pub(crate) fn batch_from_verified_epoch_info(
+        verified_epoch_info: VerifiedEpochInfo,
+    ) -> Vec<Self> {
         let (epoch_info, _committees, start_system_states) = verified_epoch_info.into_parts();
         let epoch_info_entries = epoch_info.into_entries();
 
-        // Genesis epoch: open epoch 0 from its start state; no prior epoch to
-        // close.
-        let genesis_system_state =
-            start_system_states[0].clone().into_iota_system_state_summary();
+        // Initialize with the genesis epoch to commit.
+        let genesis_system_state = start_system_states[0]
+            .clone()
+            .into_iota_system_state_summary();
         let mut epochs_to_commit = vec![EpochToCommit {
             last_epoch: None,
             new_epoch: StartOfEpochUpdate::new(&genesis_system_state, 0, 0, None),
@@ -97,8 +103,9 @@ impl EpochToCommit {
             let event = extract_epoch_info_event(&epoch_info_entry.end_of_epoch_tx_events)
                 .unwrap_or_default();
             let last_checkpoint_summary = &epoch_info_entry.last_checkpoint_summary;
-            let new_epoch_system_state =
-                start_system_states[epoch + 1].clone().into_iota_system_state_summary();
+            let new_epoch_system_state = start_system_states[epoch + 1]
+                .clone()
+                .into_iota_system_state_summary();
             let new_epoch_first_checkpoint_id = *last_checkpoint_summary.sequence_number() + 1;
             let new_epoch_first_tx_sequence_number =
                 last_checkpoint_summary.network_total_transactions;
@@ -114,4 +121,65 @@ impl EpochToCommit {
         }
         epochs_to_commit
     }
+}
+
+async fn populate_chain_id(store: &PgIndexerStore, chain_id: ChainIdentifier) -> IndexerResult<()> {
+    let checkpoint_digest = chain_id.digest().into_inner().to_vec();
+    store
+        .execute_in_blocking_worker(|this| {
+            this.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })
+        })
+        .await
+}
+
+async fn populate_procotol_and_feature_flags(
+    store: &PgIndexerStore,
+    chain_id: ChainIdentifier,
+) -> IndexerResult<()> {
+    let checkpoint_digest = chain_id.digest().into_inner().to_vec();
+    store
+        .execute_in_blocking_worker(move |this| {
+            this.persist_protocol_configs_and_feature_flags(checkpoint_digest)
+        })
+        .await
+}
+
+async fn populate_epochs(
+    store: &PgIndexerStore,
+    verified_epoch_info: VerifiedEpochInfo,
+) -> IndexerResult<()> {
+    let epochs_to_commit = EpochToCommit::batch_from_verified_epoch_info(verified_epoch_info);
+    store
+        .execute_in_blocking_worker(move |this| this.persist_epochs(epochs_to_commit))
+        .await
+}
+
+/// We populate the remaining tables after the objects.
+///
+/// This includes `epochs`, `chain_identifier` which we populate in parallel
+/// with setting the checkpoint watermark to the last checkpoint of the snapshot
+/// epoch.
+///
+/// Finally we populate `protocol_configs` and `feature_flags` up to the
+/// protocol version that the snapshot epoch corresponds to.
+pub(crate) async fn populate_remaining_tables(
+    store: &PgIndexerStore,
+    verified_epoch_info: VerifiedEpochInfo,
+    snapshot_chain_id: ChainIdentifier,
+) -> IndexerResult<()> {
+    let snapshot_epoch_boundary = &verified_epoch_info
+        .entries()
+        .last()
+        .expect("there should be an entry for the snapshot epoch");
+    let watermark = IndexedCheckpoint::from_iota_checkpoint(
+        &snapshot_epoch_boundary.last_checkpoint_summary,
+        &snapshot_epoch_boundary.last_checkpoint_contents,
+        Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
+    );
+    tokio::try_join!(
+        populate_epochs(store, verified_epoch_info),
+        populate_chain_id(store, snapshot_chain_id),
+        store.persist_checkpoints(vec![watermark])
+    )?;
+    populate_procotol_and_feature_flags(store, snapshot_chain_id).await
 }

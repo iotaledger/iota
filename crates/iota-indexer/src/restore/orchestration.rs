@@ -13,7 +13,12 @@ use super::{
     setup::{Network, setup_reader},
     verify::verify_state_hash,
 };
-use crate::{errors::IndexerError, store::PgIndexerStore, types::IndexerResult};
+use crate::{
+    errors::IndexerError,
+    restore::{persist::populate_remaining_tables, verify::verify_epoch_info},
+    store::PgIndexerStore,
+    types::IndexerResult,
+};
 
 /// Restores the indexer database from the formal snapshot for the given network
 /// and epoch.
@@ -52,12 +57,16 @@ pub async fn start(
     let (state_hash_tx, state_hash_rx) =
         mpsc::channel::<(GlobalStateHash, u64)>(num_parallel_downloads.get());
 
+    let verified_epoch_info = verify_epoch_info(epoch_info, genesis, snapshot_chain_id).await?;
     let ((), num_objects) = tokio::try_join!(
         reader
             .read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx))
             .map_err(IndexerError::from),
-        verify_state_hash(state_hash_rx, epoch_info, genesis, snapshot_chain_id),
+        verify_state_hash(state_hash_rx, &verified_epoch_info),
     )?;
+    // TODO: persist epochs, checkpoint, chain_identifier. This can be done in
+    // parallel. Small write operations.
+    populate_remaining_tables(&pg_indexer_store, verified_epoch_info, snapshot_chain_id).await?;
 
     info!(
         epoch,

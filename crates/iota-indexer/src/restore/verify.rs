@@ -2,28 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::hash::MultisetHash;
-use futures::FutureExt;
 use iota_config::genesis::Genesis;
-use iota_data_ingestion_core::IngestionError;
-use iota_snapshot::{EpochInfo, verify_epoch_info_chain};
+use iota_snapshot::{EpochInfo, VerifiedEpochInfo, verify_epoch_info_chain};
 use iota_types::{
-    digests::ChainIdentifier,
-    global_state_hash::GlobalStateHash,
-    messages_checkpoint::{ECMHLiveObjectSetDigest, VerifiedCheckpoint},
+    digests::ChainIdentifier, global_state_hash::GlobalStateHash,
+    messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use tokio::sync::mpsc;
 
 use crate::{errors::IndexerError, types::IndexerResult};
 
-async fn verify_last_checkpoint(
+pub(crate) async fn verify_epoch_info(
     epoch_info: EpochInfo,
     genesis: Genesis,
     snapshot_chain_id: ChainIdentifier,
-) -> IndexerResult<VerifiedCheckpoint> {
+) -> IndexerResult<VerifiedEpochInfo> {
     let genesis_committee = genesis.committee().expect("genesis committee");
     let genesis_system_state = genesis.iota_system_object();
     let genesis_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
-    let verified_epoch_info = tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         verify_epoch_info_chain(
             epoch_info,
             genesis_committee,
@@ -33,15 +30,7 @@ async fn verify_last_checkpoint(
         )
     })
     .await?
-    .map_err(|e| IndexerError::Restore(format!("snapshot verification failed: {e}")))?;
-    Ok(VerifiedCheckpoint::new_unchecked(
-        verified_epoch_info
-            .entries()
-            .last()
-            .expect("there should be an entry for the associated epoch")
-            .last_checkpoint_summary
-            .clone(),
-    ))
+    .map_err(|e| IndexerError::Restore(format!("snapshot verification failed: {e}")))
 }
 
 /// Verifies the root state hash evaluated from the formal snapshot.
@@ -58,34 +47,30 @@ async fn verify_last_checkpoint(
 /// - State hash verification fails.
 /// - The verified checkpoint carries no end-of-epoch commitment.
 /// - The accumulated root state hash does not match that commitment.
-pub(super) async fn verify_state_hash(
+pub(crate) async fn verify_state_hash(
     state_hash_rx: mpsc::Receiver<(GlobalStateHash, u64)>,
-    epoch_info: EpochInfo,
-    genesis: Genesis,
-    snapshot_chain_id: ChainIdentifier,
+    verified_epoch_info: &VerifiedEpochInfo,
 ) -> IndexerResult<u64> {
-    let ((root_state_hash, num_objects), verified_checkpoint) = tokio::try_join!(
-        accumulate_state_hash(state_hash_rx).map(Ok::<_, IndexerError>),
-        verify_last_checkpoint(epoch_info, genesis, snapshot_chain_id)
-    )?;
+    let (root_state_hash, num_objects) = accumulate_state_hash(state_hash_rx).await;
 
-    let commitment = verified_checkpoint
+    let last_checkpoint_summary = &verified_epoch_info
+        .entries()
+        .last()
+        .expect("there should be an entry for the associated epoch")
+        .last_checkpoint_summary;
+    let commitment = last_checkpoint_summary
         .end_of_epoch_data
         .as_ref()
         .and_then(|end_of_epoch| end_of_epoch.epoch_commitments.last())
         .ok_or_else(|| {
-            IndexerError::Ingestion(IngestionError::Verification(
-                "verified checkpoint has no end-of-epoch commitment".to_string(),
-            ))
+            IndexerError::Restore("verified checkpoint has no end-of-epoch commitment".to_string())
         })?;
     let verified_digest = commitment.as_ecmh_live_object_set_digest();
     let root_state_hash = ECMHLiveObjectSetDigest::from(root_state_hash.digest()).digest;
     if *verified_digest != root_state_hash {
-        return Err(IndexerError::Ingestion(IngestionError::Verification(
-            format!(
-                "root state hash {root_state_hash:?} does not match the verified commitment \
+        return Err(IndexerError::Restore(format!(
+            "root state hash {root_state_hash:?} does not match the verified commitment \
              {verified_digest:?}"
-            ),
         )));
     }
     Ok(num_objects)
