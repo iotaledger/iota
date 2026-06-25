@@ -2978,12 +2978,12 @@ mod test {
     /// Drives a real 4-core network past one leader-schedule rotation to a
     /// mid-interval commit, flushes, then rebuilds authority 0 from the same
     /// store via the real recovery path (`DagState::new` +
-    /// `LeaderSchedule::from_store`) and asserts the rotation cadence is
+    /// `LeaderSchedule::from_store`) and asserts the rotation count is
     /// restart-invariant.
     ///
     /// On the sliding-window path the scorer persists its last *scored* commit,
     /// which lags the last *fed* commit by `MAX_PENDING_COMMITS = 3`; on
-    /// restart `DagState::new` rebuilds the cadence-counting scoring subdag
+    /// restart `DagState::new` rebuilds the rotation-counting scoring subdag
     /// from `commit_range.end() + 1`, so a buggy node recovers 3 extra
     /// scoring subdags and rotates 3 commits early. V2 persists the last
     /// *fed* commit (no lag), so it stays restart-invariant. Both
@@ -2993,7 +2993,7 @@ mod test {
     #[case::sliding_window(true)]
     #[case::v2(false)]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_leader_schedule_restart_invariant_cadence(#[case] enable_sliding_window: bool) {
+    async fn test_leader_schedule_restart_invariant_rotation(#[case] enable_sliding_window: bool) {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
@@ -3002,8 +3002,9 @@ mod test {
             context
                 .protocol_config
                 .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-            // Pin the cadence small and keep `window_size >= commits_per_schedule`
-            // (a protocol-config invariant the flag getter asserts).
+            // Pin the rotation interval small and keep `window_size >=
+            // commits_per_schedule` (a protocol-config invariant the flag
+            // getter asserts).
             context
                 .protocol_config
                 .set_commits_per_schedule_for_testing(10);
@@ -3029,7 +3030,7 @@ mod test {
             Some(cores[0].store.clone()),
         );
 
-        // Root cause: the cadence count is restart-invariant.
+        // Root cause: the rotation count is restart-invariant.
         assert_eq!(
             restarted.core.dag_state.read().scoring_subdags_count(),
             cores[0].core.dag_state.read().scoring_subdags_count(),
