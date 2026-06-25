@@ -1786,12 +1786,12 @@ impl CoreSignalsReceivers {
 /// corresponding stakes. The method returns the cores and their respective
 /// signal receivers are returned in `AuthorityIndex` order asc.
 #[cfg(test)]
-pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<CoreTextFixture> {
+pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<CoreTestFixture> {
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
         let own_index = AuthorityIndex::new_for_test(index as u8);
-        let core = CoreTextFixture::new(
+        let core = CoreTestFixture::new(
             context.clone(),
             authorities.clone(),
             own_index,
@@ -1805,7 +1805,7 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
 }
 
 #[cfg(test)]
-pub(crate) struct CoreTextFixture {
+pub(crate) struct CoreTestFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
     pub block_receiver: broadcast::Receiver<VerifiedBlock>,
@@ -1814,7 +1814,7 @@ pub(crate) struct CoreTextFixture {
 }
 
 #[cfg(test)]
-impl CoreTextFixture {
+impl CoreTestFixture {
     fn new(
         context: Context,
         authorities: Vec<Stake>,
@@ -2461,7 +2461,7 @@ mod test {
             "test assumes consensus_fast_commit_sync is enabled at max version"
         );
 
-        let fixture = CoreTextFixture::new(
+        let fixture = CoreTestFixture::new(
             context.clone(),
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
@@ -2496,7 +2496,7 @@ mod test {
         context_off
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(false);
-        let fixture_off = CoreTextFixture::new(
+        let fixture_off = CoreTestFixture::new(
             context_off,
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
@@ -2881,7 +2881,7 @@ mod test {
     /// authorities, so the resulting leader schedule is independent of RNG
     /// seed and topology.
     async fn gossip_one_round(
-        cores: &mut [CoreTextFixture],
+        cores: &mut [CoreTestFixture],
         round: u32,
         last_round_block_headers: &[VerifiedBlockHeader],
         min_block_delay: Duration,
@@ -2933,11 +2933,11 @@ mod test {
     /// Drives the gossip network until `cores[0]` has performed at least one
     /// leader-schedule rotation and then sits mid-interval: its scoring-subdag
     /// count is strictly between 0 and `num_commits_per_schedule` (10 here,
-    /// matching `CoreTextFixture`'s `with_num_commits_per_schedule(10)`). It
+    /// matching `CoreTestFixture`'s `with_num_commits_per_schedule(10)`). It
     /// loops until that state holds rather than running a fixed number of
     /// gossip rounds, because the number of commits per round is not fixed.
     async fn drive_to_post_rotation_mid_interval(
-        cores: &mut [CoreTextFixture],
+        cores: &mut [CoreTestFixture],
         min_block_delay: Duration,
     ) {
         const NUM_COMMITS_PER_SCHEDULE: u64 = 10;
@@ -3022,7 +3022,7 @@ mod test {
         // Flush so the persisted `CommitInfo` reaches the store, then restart the
         // node by rebuilding it from the same store via the real recovery path.
         cores[0].core.dag_state.write().flush();
-        let restarted = CoreTextFixture::new(
+        let restarted = CoreTestFixture::new(
             context,
             vec![1, 1, 1, 1],
             AuthorityIndex::new_for_test(0),
@@ -3094,7 +3094,7 @@ mod test {
                 commit_only_for_traversed_headers,
             );
         let own_index = AuthorityIndex::new_for_test(0);
-        let core_fixture_own = CoreTextFixture::new(
+        let core_fixture_own = CoreTestFixture::new(
             context.clone(),
             vec![1; committee_size],
             own_index,
@@ -3112,7 +3112,7 @@ mod test {
             .dag_state_cached_rounds;
         // One authority will try to catch up, so it does not create any block
         let catch_up_index = AuthorityIndex::new_for_test((committee_size - 1) as u8);
-        let core_fixture_catch_up = CoreTextFixture::new(
+        let core_fixture_catch_up = CoreTestFixture::new(
             context.clone(),
             vec![1; committee_size],
             catch_up_index,
@@ -3317,7 +3317,7 @@ mod test {
         });
 
         let authority_index = AuthorityIndex::new_for_test(0);
-        let core = CoreTextFixture::new(
+        let core = CoreTestFixture::new(
             context,
             vec![1, 1, 1, 1],
             authority_index,
@@ -3956,7 +3956,7 @@ mod test {
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(true);
-        let fixture = CoreTextFixture::new(
+        let fixture = CoreTestFixture::new(
             context,
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
