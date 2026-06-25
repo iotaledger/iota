@@ -193,6 +193,9 @@ impl StateSnapshotReaderV1 {
                 .unwrap(),
             ),
         );
+        // Render the bar on a timer so it stays visible while the first files are
+        // still in flight, rather than only repainting on completion.
+        progress_bar.enable_steady_tick(Duration::from_millis(100));
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
         copy_files(
