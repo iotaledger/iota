@@ -326,6 +326,14 @@ pub struct VerifiedEpochInfo {
 
 impl VerifiedEpochInfo {
     /// Entries for epochs `[0, snapshot_epoch]`, in epoch order.
+    ///
+    /// These values represent data at the boundary of each epoch, including the
+    /// committee and start system state of the next epoch.
+    ///
+    /// The last entry represents the snapshot epoch boundary, which carries
+    /// information about the next epoch. Thus [`Self::committees`], and
+    /// [`Self::start_system_states`] have one more item for the committee and
+    /// the start system state of the epoch following the snapshot epoch.
     pub fn entries(&self) -> &[EpochInfoV1Entry] {
         self.epoch_info.entries()
     }
