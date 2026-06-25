@@ -109,7 +109,11 @@ PROM="${PROM:-http://localhost:9090}"
 TS_STEP="${TS_STEP:-1}" # query_range step (s) for the per-run raw timeseries dump
 ITERS="${ITERS:-1}"     # how many times to run the whole experiment; each adds one iter-NNN to results/<LABEL>/
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
-STRESS_BIN="$REPO_ROOT/target/release/stress"
+# iota-benchmark moved to the sibling repo `network-benchmark` (one level up
+# from the iota repo root). Override the repo dir with BENCH_REPO, or point
+# STRESS_BIN_PATH directly at a prebuilt stress binary.
+BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
+STRESS_BIN="${STRESS_BIN_PATH:-$BENCH_REPO/target/release/stress}"
 
 # --- Experiment label + config-gated results directory --------------------
 # LABEL names the EXPERIMENT (one config). Every run.sh iteration for the same
@@ -435,7 +439,15 @@ run_one_iteration() {
 sudo -v # cache sudo creds up front so prompts don't interrupt mid-run
 
 banner "== H1 [0/5] build stress binary =="
-(cd "$REPO_ROOT" && cargo build --release -p iota-benchmark --bin stress)
+if [[ -n "${STRESS_BIN_PATH:-}" ]]; then
+  echo "Using prebuilt stress binary: $STRESS_BIN"
+else
+  (cd "$BENCH_REPO" && cargo build --release --bin stress)
+fi
+[[ -x "$STRESS_BIN" ]] || {
+  echo "stress binary not found/executable at $STRESS_BIN (build network-benchmark, or set STRESS_BIN_PATH)" >&2
+  exit 1
+}
 
 for ((_iter = 1; _iter <= ITERS; _iter++)); do
   banner "########## experiment '$LABEL': iteration $_iter of $ITERS ##########"
