@@ -2955,7 +2955,8 @@ impl ProtocolConfig {
                     // read any numeric or boolean protocol parameter by name,
                     // returning T directly and aborting on error.
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
-                    // iota_system via a new iota_system::protocol_config module.
+                    // iota_system via a new iota_system::protocol_config
+                    // module.
                 }
                 // Use this template when making changes:
                 //
