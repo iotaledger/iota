@@ -168,7 +168,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             garbage collection in the block manager.
 // Version 30: Extend the protocol_config framework module with a generic
 //             `get_attr<T>` native that lets Move code read any numeric or
-//             boolean protocol parameter by name, returning Option<T>.
+//             boolean protocol parameter by name, returning T directly and
+//             aborting on error.
+//             Expose `is_feature_enabled` and `get_attr<T>` natives to the
+//             iota_system package via a new iota_system::protocol_config
+//             module.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2947,9 +2951,11 @@ impl ProtocolConfig {
                 }
                 30 => {
                     // Extend the protocol_config framework module with
-                    // `get_attr<T>`, a generic native that
-                    // lets Move code read any numeric or boolean
-                    // protocol parameter by name (returning Option<T>).
+                    // `get_attr<T>`, a generic native that lets Move code
+                    // read any numeric or boolean protocol parameter by name,
+                    // returning T directly and aborting on error.
+                    // Also expose `is_feature_enabled` and `get_attr<T>` to
+                    // iota_system via a new iota_system::protocol_config module.
                 }
                 // Use this template when making changes:
                 //
