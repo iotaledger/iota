@@ -319,7 +319,6 @@ prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
-prometheus = "0.14.0"
 proptest = "1.6.0"
 prost = "0.14"
 prost-build = "0.14"

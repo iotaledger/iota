@@ -7,7 +7,7 @@ publish = false
 description = "A drop-in prometheus wrapper with per-metric filtering"
 
 [dependencies]
-prometheus.workspace = true
+prometheus = "0.14.0"
 tracing.workspace = true
 
 [lints]
