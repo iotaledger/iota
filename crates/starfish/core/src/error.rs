@@ -249,6 +249,20 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
+    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
+    SerializedCommitTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
+
+    #[error("Peer {peer} sent a block header that is too large: {size} > {limit}")]
+    SerializedBlockHeaderTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
+
     #[error("Invalid commit range from peer {peer}: start {start} > end {end}")]
     InvalidCommitRange {
         peer: AuthorityIndex,

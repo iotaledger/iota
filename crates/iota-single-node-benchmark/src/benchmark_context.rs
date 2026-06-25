@@ -131,7 +131,7 @@ impl BenchmarkContext {
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| owner.as_address_opt().map(|owner| (*owner, oref)))
+                .filter_map(|(oref, owner)| owner.as_opt_address().map(|owner| (*owner, oref)))
                 .next()
                 .unwrap();
             root_objects.insert(owner, root_object);

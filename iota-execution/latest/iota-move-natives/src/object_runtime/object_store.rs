@@ -297,7 +297,7 @@ impl Inner<'_> {
             .as_ref()
             .map(|obj| {
                 obj.data
-                    .as_struct_opt()
+                    .as_opt_struct()
                     // unwrap safe because we only insert Move objects
                     .unwrap()
             }))
@@ -673,7 +673,7 @@ impl<'a> ChildObjectStore<'a> {
                 );
                 let Some(move_obj) = obj_opt
                     .as_ref()
-                    .map(|obj| obj.data.as_struct_opt().unwrap())
+                    .map(|obj| obj.data.as_opt_struct().unwrap())
                 else {
                     return Ok(ObjectResult::Loaded(None));
                 };

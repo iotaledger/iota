@@ -161,6 +161,13 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    /// Threshold for the number of commits sent to the consumer but not yet
+    /// handled, above which commit producers (commit syncers, commit observer
+    /// recovery) pause to let the consumer catch up.
+    pub fn unhandled_commits_threshold(&self) -> u32 {
+        self.commit_sync_batch_size * (self.commit_sync_batches_ahead as u32)
+    }
+
     pub(crate) fn default_leader_timeout() -> Duration {
         Duration::from_millis(200)
     }

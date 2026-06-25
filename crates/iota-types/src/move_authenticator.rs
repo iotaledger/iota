@@ -202,7 +202,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
     fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args()
             .iter()
-            .filter_map(|arg| arg.as_receiving_opt().copied())
+            .filter_map(|arg| arg.as_opt_receiving().copied())
             .collect()
     }
 
@@ -211,8 +211,8 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
     fn shared_objects(&self) -> Vec<SharedObjectRef> {
         self.call_args()
             .iter()
-            .filter_map(|arg| arg.as_shared_opt())
-            .chain(self.object_to_authenticate().as_shared_opt())
+            .filter_map(|arg| arg.as_opt_shared())
+            .chain(self.object_to_authenticate().as_opt_shared())
             .cloned()
             .collect()
     }

@@ -79,13 +79,17 @@ impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'_, K, V> {
                 .expect("Valid iterator failed to get value");
             self.bytes_scanned_counter += raw_key.len() + raw_value.len();
             self.keys_returned_counter += 1;
-            let key = config.deserialize(raw_key).ok();
-            let value = bcs::from_bytes(raw_value).ok();
+            let key = config.deserialize(raw_key);
+            let value = bcs::from_bytes(raw_value);
             match self.direction {
                 Direction::Forward => self.db_iter.next(),
                 Direction::Reverse => self.db_iter.prev(),
             }
-            key.and_then(|k| value.map(|v| Ok((k, v))))
+            match (key, value) {
+                (Ok(key), Ok(value)) => Some(Ok((key, value))),
+                (Err(e), _) => Some(Err(TypedStoreError::Serialization(e.to_string()))),
+                (_, Err(e)) => Some(Err(TypedStoreError::Serialization(e.to_string()))),
+            }
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
@@ -120,12 +124,22 @@ pub struct SafeRevIter<'a, K, V> {
 }
 
 impl<'a, K, V> SafeRevIter<'a, K, V> {
-    pub(crate) fn new(mut iter: SafeIter<'a, K, V>, upper_bound: Option<Vec<u8>>) -> Self {
+    pub(crate) fn new(
+        mut iter: SafeIter<'a, K, V>,
+        exclusive_upper_bound: Option<Vec<u8>>,
+    ) -> Self {
         iter.is_initialized = true;
         iter.direction = Direction::Reverse;
-        match upper_bound {
+        match exclusive_upper_bound {
             None => iter.db_iter.seek_to_last(),
-            Some(key) => iter.db_iter.seek_for_prev(&key),
+            Some(bound) => {
+                iter.db_iter.seek_for_prev(&bound);
+                // The bound is exclusive: move to the previous key if the
+                // excluded key actually exists in the db.
+                if iter.db_iter.valid() && iter.db_iter.key() == Some(bound.as_slice()) {
+                    iter.db_iter.prev();
+                }
+            }
         }
         Self { iter }
     }

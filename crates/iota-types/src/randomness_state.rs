@@ -30,7 +30,7 @@ pub fn get_randomness_state_obj_initial_shared_version(
         .try_get_object(&ObjectId::RANDOMNESS_STATE)?
         .map(|obj| {
             obj.owner
-                .into_shared_opt()
+                .into_opt_shared()
                 .expect("Randomness state object must be shared")
         })
         .ok_or(IotaError::Storage(
