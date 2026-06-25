@@ -188,6 +188,8 @@ impl LeaderSchedule {
         }
     }
 
+    /// Stake-weighted base election. `offset` selects among multiple leaders in
+    /// a round; with one leader per round today it is always 0.
     pub(crate) fn elect_leader_stake_based(&self, round: u32, offset: u32) -> AuthorityIndex {
         assert!((offset as usize) < self.context.committee.size());
 
@@ -391,8 +393,8 @@ impl LeaderSchedule {
 
     /// Uniform (non-stake-weighted) base election, used when the sliding-window
     /// leader schedule is enabled. Round-seeded so all authorities draw the
-    /// same candidate for a given round; `offset` selects within the
-    /// shuffle.
+    /// same candidate for a given round. `offset` selects among multiple
+    /// leaders in a round; with one leader per round today it is always 0.
     pub(crate) fn elect_leader_uniform(&self, round: u32, offset: u32) -> AuthorityIndex {
         assert!((offset as usize) < self.context.committee.size());
         let mut seed_bytes = [0u8; 32];
