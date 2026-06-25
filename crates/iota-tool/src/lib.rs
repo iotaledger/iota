@@ -5,7 +5,6 @@
 
 use std::{
     collections::BTreeMap,
-    env,
     fmt::Write,
     fs, io,
     num::NonZeroUsize,
@@ -41,7 +40,6 @@ use iota_core::{
     storage::RocksDbStore,
 };
 use iota_network::default_iota_network_config;
-use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
     CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
@@ -69,13 +67,11 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::MoveStructExt,
-    storage::ReadStore,
 };
 use itertools::Itertools;
 use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, time::Instant};
-use tracing::info;
 use typed_store::rocks::bulk_ingestion_options;
 
 pub mod commands;
@@ -84,7 +80,7 @@ pub mod fire_drill;
 mod formal_snapshot_util;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
-use crate::formal_snapshot_util::{FormalSnapshotWorker, read_summaries_for_list_no_verify};
+use crate::formal_snapshot_util::read_summaries_for_list_no_verify;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
@@ -618,17 +614,21 @@ fn set_restore_watermarks(
 }
 
 /// Backfill **every** checkpoint summary up to the node's highest synced
-/// checkpoint from the checkpoint archive, into an existing (stopped) node's
-/// checkpoint store at `node_db_path`.
+/// checkpoint from the checkpoints bucket at `ingestion_url`, into an existing
+/// (stopped) node's checkpoint store at `node_db_path`.
 ///
 /// A node restored from a formal snapshot holds only the end-of-epoch
 /// summaries; this fills in every intermediate one so the node holds the
 /// complete header chain from genesis (e.g. to serve historical checkpoint
-/// queries, or to be a full summary source for syncing peers). It only adds
-/// historical summaries below the node's existing watermarks — it never moves
-/// a watermark, so the node's synced/executed/pruned state is untouched.
+/// queries, or to be a full summary source for syncing peers). It only inserts
+/// summaries below the node's existing watermarks — it never moves a watermark,
+/// so the node's synced/executed/pruned state is untouched.
+///
+/// Summaries are taken as-is from `ingestion_url` without chain verification, so
+/// the bucket is trusted to serve this node's own chain.
 pub async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
+    ingestion_url: String,
     num_parallel_downloads: usize,
 ) -> Result<(), anyhow::Error> {
     let m = MultiProgress::new();
@@ -654,147 +654,34 @@ pub async fn backfill_checkpoint_summaries(
             anyhow!("checkpoint store at {node_db_path:?} is empty; restore the node first")
         })?;
 
-    // Derive the network — and hence the archive bucket — from the node's own
-    // genesis checkpoint.
-    let genesis_checkpoint = checkpoint_store
-        .get_checkpoint_by_sequence_number(0)?
-        .ok_or_else(|| anyhow!("node has no genesis checkpoint; restore the node first"))?;
-    let network = ChainIdentifier::from(*genesis_checkpoint.digest()).chain();
-
-    // let config = ArchiveReaderConfig {
-    //     remote_store_config: default_archive_store_config(network),
-    //     download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
-    //     ingestion_url: None,
-    // };
-    // let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    // let archive_reader = ArchiveReader::new(config, &metrics)?;
-    // archive_reader.sync_manifest_once().await?;
-
-    // // Fill the contiguous range `[1, target]`; genesis (0) is the chain root
-    // // and is already present. Cap `target` at the archive's latest: summaries
-    // // above the restore point the node already holds in full from p2p, and the
-    // // archive may not reach as far as the node has synced.
-    // let archive_latest = archive_reader
-    //     .get_manifest()
-    //     .await?
-    //     .next_checkpoint_seq_num()
-    //     .saturating_sub(1);
-    let archive_latest = todo!();
-    let target = highest_synced.min(archive_latest);
-    if target == 0 {
-        m.println("Nothing to backfill: no archived summaries below the node's state.")?;
+    if highest_synced == 0 {
+        m.println("Nothing to backfill: the node has only the genesis checkpoint.")?;
         return Ok(());
     }
-    if archive_latest < highest_synced {
-        m.println(format!(
-            "Note: the archive only reaches checkpoint {archive_latest}, below this node's \
-             highest synced checkpoint {highest_synced}. Summaries in \
-             ({archive_latest}, {highest_synced}] are left as the node already has them; re-run \
-             once the archive catches up to fill any remaining gaps."
-        ))?;
-    }
 
-    // Download and chain-verify summaries for `[1, target]` in one ordered
-    // pass. `read_summaries_for_range` leaves already-present summaries
-    // untouched and never persists an unverified one, so it adds only the
-    // missing historical summaries below the node's watermarks without moving
-    // any of them.
-    let bar = m.add(ProgressBar::new(target).with_style(
+    // Download summaries for the contiguous range `[1, highest_synced]`; genesis
+    // (0) is the chain root and is already present. `read_summaries_for_list_no_verify`
+    // only inserts checkpoints (it never touches a watermark), and re-inserting
+    // an already-present summary is a no-op, so this fills in the missing
+    // historical summaries below the node's watermarks without moving any of them.
+    let summaries: Vec<_> = (1..=highest_synced).collect();
+    let bar = m.add(ProgressBar::new(highest_synced).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
     ));
     let counter = Arc::new(AtomicU64::new(0));
     spawn_rate_ticker(bar.clone(), counter.clone(), "checkpoints per sec");
-    archive_reader
-        .read_summaries_for_range(state_sync_store, 1..target + 1, counter)
-        .await?;
+    read_summaries_for_list_no_verify(
+        ingestion_url,
+        num_parallel_downloads,
+        state_sync_store,
+        summaries,
+        counter,
+    )
+    .await?;
     bar.finish_with_message("Checkpoint summary backfill is complete");
 
-    println!("Backfilled checkpoint summaries up to checkpoint {target}");
+    println!("Backfilled checkpoint summaries up to checkpoint {highest_synced}");
     Ok(())
-}
-
-/// Build the checkpoint-archive `ObjectStoreConfig` for `network`: the
-/// permissionless public archive by default, or a custom bucket when the
-/// `CUSTOM_ARCHIVE_BUCKET` env vars are set.
-fn default_archive_store_config(network: Chain) -> ObjectStoreConfig {
-    let archive_bucket = Some(
-        env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET").unwrap_or_else(|_| match network {
-            Chain::Mainnet => "iota-mainnet-archive".to_string(),
-            Chain::Testnet => "iota-testnet-archive".to_string(),
-            Chain::Unknown => {
-                panic!("Cannot generate default archive bucket for unknown network");
-            }
-        }),
-    );
-
-    let custom_archive_enabled = env::var("CUSTOM_ARCHIVE_BUCKET").is_ok_and(|v| v == "true");
-    if custom_archive_enabled {
-        let aws_region =
-            Some(env::var("FORMAL_SNAPSHOT_ARCHIVE_REGION").unwrap_or("us-west-2".to_string()));
-        let archive_bucket_type = env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE").expect(
-            "If setting `CUSTOM_ARCHIVE_BUCKET=true` Must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE, and credentials",
-        );
-        match archive_bucket_type.to_ascii_lowercase().as_str() {
-            "s3" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::S3),
-                bucket: archive_bucket.filter(|s| !s.is_empty()),
-                aws_access_key_id: env::var("AWS_ARCHIVE_ACCESS_KEY_ID").ok(),
-                aws_secret_access_key: env::var("AWS_ARCHIVE_SECRET_ACCESS_KEY").ok(),
-                aws_region,
-                aws_endpoint: env::var("AWS_ARCHIVE_ENDPOINT").ok(),
-                aws_virtual_hosted_style_request: env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
-                    .ok()
-                    .and_then(|b| b.parse().ok())
-                    .unwrap_or(false),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            "gcs" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::GCS),
-                bucket: archive_bucket,
-                google_service_account: env::var("GCS_ARCHIVE_SERVICE_ACCOUNT_FILE_PATH").ok(),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            "azure" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::Azure),
-                bucket: archive_bucket,
-                azure_storage_account: env::var("AZURE_ARCHIVE_STORAGE_ACCOUNT").ok(),
-                azure_storage_access_key: env::var("AZURE_ARCHIVE_STORAGE_ACCESS_KEY").ok(),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            _ => panic!(
-                "If setting `CUSTOM_ARCHIVE_BUCKET=true` must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE to one of 'gcs', 'azure', or 's3' "
-            ),
-        }
-    } else {
-        // Default to the permissionless archive store.
-        let aws_endpoint = env::var("AWS_ARCHIVE_ENDPOINT")
-            .ok()
-            .or_else(|| match network {
-                Chain::Mainnet => Some("https://archive.mainnet.iota.cafe".to_string()),
-                Chain::Testnet => Some("https://archive.testnet.iota.cafe".to_string()),
-                Chain::Unknown => None,
-            });
-        let aws_virtual_hosted_style_request = env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
-            .ok()
-            .and_then(|b| b.parse().ok())
-            .unwrap_or(matches!(network, Chain::Mainnet | Chain::Testnet));
-        ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::S3),
-            bucket: archive_bucket.filter(|s| !s.is_empty()),
-            aws_region: Some("us-west-2".to_string()),
-            aws_endpoint,
-            aws_virtual_hosted_style_request,
-            object_store_connection_limit: 200,
-            no_sign_request: true,
-            ..Default::default()
-        }
-    }
 }
 
 /// Spawn a background task that, once per second until `bar` finishes, mirrors
