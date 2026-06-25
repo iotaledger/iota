@@ -12,7 +12,7 @@
 #   ./start.sh -n 10 faucet                      # args forwarded straight to run.sh
 #   MODE=TotalGasBudget ./start.sh               # baseline congestion mode
 #   ATTEST=false ./start.sh                      # disable validator attestation
-#   PCOOL=false ./start.sh                       # disable white-flag-flow
+#   PCOOL=false ./start.sh                       # disable P-COOL flow
 #   MAX_ACCUMULATED_TXN_COST=2999999 ./start.sh
 #   ATTESTOR_SKEW_PERCENT=50 ./start.sh          # W6: poison one attestor to under-report (50% of real cost)
 #   ATTESTOR_SKEW_PERCENT=200 ./start.sh         # W7: poison one attestor to over-report (200% of real cost)
@@ -31,9 +31,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PRIVNET_DIR="${PRIVNET_DIR:-$REPO_ROOT/dev-tools/iota-private-network}"
 
 # --- Protocol-config overrides (docker-compose forwards these to every node) --
-# Attestation + white-flag-flow ON; congestion mode = TotalComputationUnits.
+# Attestation + P-COOL flow ON; congestion mode = TotalComputationUnits.
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW="${PCOOL:-true}"
+export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW="${PCOOL:-true}"
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION="${ATTEST:-true}"
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE="${MODE:-TotalComputationUnits}"
 
@@ -110,7 +110,7 @@ else
 fi
 
 echo "${BLUE}iota-private-network @ $PRIVNET_DIR${RESET}"
-echo "${CYAN}  - enable_white_flag_flow             = $IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW${RESET}"
+echo "${CYAN}  - enable_pcool_flow                  = $IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW${RESET}"
 echo "${CYAN}  - enable_validator_attestation       = $IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION${RESET}"
 echo "${CYAN}  - per_object_congestion_control_mode = $IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE${RESET}"
 if [[ -n "${ATTESTOR_SKEW_PERCENT:-}" ]]; then

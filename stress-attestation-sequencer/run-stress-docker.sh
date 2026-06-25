@@ -3,7 +3,7 @@
 # run-stress-docker.sh — run the `stress` benchmark INSIDE the private-network
 # docker network so it can submit DIRECTLY to validators (bypassing the
 # fullnode). The proxy then auto-selects the driver the same way the fullnode
-# orchestrator does: TransactionDriver when white-flag flow is on, QuorumDriver
+# orchestrator does: TransactionDriver when P-COOL flow is on, QuorumDriver
 # when off (detected from the fullnode's protocol config over RPC).
 #
 # Why in-docker instead of exposing validator ports: validators publish no host
@@ -45,7 +45,7 @@ PRIMARY_GAS_OWNER="${PRIMARY_GAS_OWNER:-0xf479d29837d22943aba6afc401f518a36521b9
 # Runner: the network's own image (already contains `stress`).
 RUNNER_IMAGE="${RUNNER_IMAGE:-iotaledger/iota-tools:latest}"
 DOCKER_NETWORK="${DOCKER_NETWORK:-iota-private-network_iota-network}"
-# In-network DNS (NOT 127.0.0.1): used for reconfig + white-flag-flow detection.
+# In-network DNS (NOT 127.0.0.1): used for reconfig + P-COOL flow detection.
 FULLNODE_RPC="${FULLNODE_RPC:-http://fullnode-1:9000}"
 # false => direct-to-validator (the point of this runner); true => via fullnode.
 USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
