@@ -321,10 +321,6 @@ impl EpochInfo {
 pub struct VerifiedEpochInfo {
     epoch_info: EpochInfo,
     committees: Vec<Committee>,
-    /// Digest-verified start state per epoch: `[i]` is epoch `i`'s start state
-    /// — the genesis root for `i == 0`, else derived from epoch `i - 1`'s
-    /// boundary. Length `snapshot_epoch + 2`; the trailing entry has no epoch
-    /// info row.
     start_system_states: Vec<IotaSystemState>,
 }
 
@@ -340,13 +336,19 @@ impl VerifiedEpochInfo {
         &self.committees
     }
 
-    /// Consumes the verified info into its components: the epoch info, the
-    /// per-epoch committees, and the per-epoch start system states.
+    /// Digest-verified start system state per epochs `[0, snapshot_epoch + 1].
     ///
-    /// `start_system_states[i]` is epoch `i`'s digest-verified start state — the
-    /// genesis root for `i == 0`, else derived from epoch `i - 1`'s boundary.
-    /// Its length is `snapshot_epoch + 2`; the trailing entry has no epoch info
-    /// row.
+    /// Contains the genesis start system state, plus the ones derived by the
+    /// epoch boundaries represented by [`Self::entries`].
+    pub fn start_system_states(&self) -> &[IotaSystemState] {
+        &self.start_system_states
+    }
+
+    /// Consumes the verified info into its components: the epoch info entries,
+    /// the per-epoch committees, and the per-epoch start system states.
+    ///
+    /// See [`Self::entries`], [`Self::committees`], and
+    /// [`Self::start_system_states`].
     pub fn into_parts(self) -> (EpochInfo, Vec<Committee>, Vec<IotaSystemState>) {
         (self.epoch_info, self.committees, self.start_system_states)
     }
