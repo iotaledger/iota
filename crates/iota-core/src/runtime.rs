@@ -18,13 +18,22 @@ pub struct IotaRuntimes {
 }
 
 impl IotaRuntimes {
-    pub fn new(_config: &NodeConfig) -> Self {
+    pub fn new(config: &NodeConfig) -> Self {
         let available = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(8);
-        // Reserve half the cores for serving and keep the rest for the node core,
-        // so the two runtimes do not oversubscribe physical cores.
-        let serving_threads = (available / 2).max(2);
+        // Split worker threads between the node core and the serving runtime
+        // according to the node's role. A validator runs consensus and execution
+        // on the core and must protect it from client load, so it reserves most
+        // threads for the core. A fullnode has no consensus and exists primarily
+        // to serve reads, so it favors the serving runtime. The split is sized so
+        // the two runtimes together do not oversubscribe the available cores.
+        let is_validator = config.consensus_config().is_some();
+        let serving_threads = if is_validator {
+            (available / 4).max(2)
+        } else {
+            (available / 2).max(2)
+        };
         let node_threads = available.saturating_sub(serving_threads).max(4);
 
         let iota_node = tokio::runtime::Builder::new_multi_thread()
