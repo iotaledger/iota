@@ -88,7 +88,12 @@ impl ExecutionEnv {
 impl Drop for ExecutionEnv {
     fn drop(&mut self) {
         if let Some(capture) = self.profile_capture.take() {
-            let _ = std::fs::remove_dir_all(&capture.dir);
+            if let Err(e) = std::fs::remove_dir_all(&capture.dir) {
+                eprintln!(
+                    "iota-vm-sdk: failed to remove gas-profile temp dir {}: {e}",
+                    capture.dir.display()
+                );
+            }
         }
     }
 }
