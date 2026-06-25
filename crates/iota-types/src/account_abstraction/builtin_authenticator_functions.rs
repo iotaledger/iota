@@ -51,6 +51,61 @@ pub struct PreloadedBuiltinAuthenticatorData {
     pub public_key: MovePublicKey,
 }
 
+impl TryFrom<&GenericSignature> for PreloadedBuiltinAuthenticatorData {
+    type Error = IotaError;
+
+    /// Derives the data for a built-in authenticator from the signature
+    /// itself: the scheme from the signature flag and the public key from
+    /// the key material embedded in the signature.
+    ///
+    /// The resulting `public_key` mirrors the Move `public_key::PublicKey`
+    /// layout: raw key bytes without the scheme flag prefix for simple
+    /// schemes and Passkey, and the BCS-encoded `MultisigCommittee` for
+    /// MultiSig.
+    ///
+    /// Returns an error for signature types that are not valid for built-in
+    /// authenticators (zkLogin, MoveAuthenticator) or if the embedded public
+    /// key bytes are invalid for the declared scheme.
+    fn try_from(signature: &GenericSignature) -> Result<Self, Self::Error> {
+        let (expected_scheme, raw_bytes) = match signature {
+            GenericSignature::Signature(s) => (s.scheme(), s.public_key_bytes().to_vec()),
+            GenericSignature::MultiSig(multisig) => (
+                SignatureScheme::MultiSig,
+                bcs::to_bytes(multisig.committee())
+                    .expect("MultiSigPublicKey is always BCS-serializable"),
+            ),
+            GenericSignature::PasskeyAuthenticator(passkey) => (
+                SignatureScheme::PasskeyAuthenticator,
+                passkey.public_key().as_ref().to_vec(),
+            ),
+            _ => {
+                return Err(IotaError::InvalidSignature {
+                    error: "Unsupported signature type for built-in authenticator".into(),
+                });
+            }
+        };
+
+        let public_key = MovePublicKey::new(expected_scheme, raw_bytes).map_err(|e| {
+            IotaError::InvalidSignature {
+                error: format!("Invalid public key in signature: {e}"),
+            }
+        })?;
+
+        Ok(Self {
+            expected_scheme,
+            public_key,
+        })
+    }
+}
+
+impl TryFrom<GenericSignature> for PreloadedBuiltinAuthenticatorData {
+    type Error = IotaError;
+
+    fn try_from(signature: GenericSignature) -> Result<Self, Self::Error> {
+        Self::try_from(&signature)
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct PublicKeyFieldName {
     // This field is required to make a Rust struct compatible with an empty Move one.
@@ -182,6 +237,22 @@ pub fn resolve_builtin_signature_scheme(
         SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Secp256r1),
         MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::MultiSig),
         PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::PasskeyAuthenticator),
+        _ => None,
+    }
+}
+
+/// Returns the built-in authenticator function reference for `scheme`, or
+/// `None` if the scheme has no built-in authenticator. Inverse of
+/// [`resolve_builtin_signature_scheme`].
+pub fn builtin_authenticator_function_ref_for_scheme(
+    scheme: SignatureScheme,
+) -> Option<AuthenticatorFunctionRefV1> {
+    match scheme {
+        SignatureScheme::ED25519 => Some(ed25519_authenticator_function_ref_v1()),
+        SignatureScheme::Secp256k1 => Some(secp256k1_authenticator_function_ref_v1()),
+        SignatureScheme::Secp256r1 => Some(secp256r1_authenticator_function_ref_v1()),
+        SignatureScheme::MultiSig => Some(multisig_authenticator_function_ref_v1()),
+        SignatureScheme::PasskeyAuthenticator => Some(passkey_authenticator_function_ref_v1()),
         _ => None,
     }
 }

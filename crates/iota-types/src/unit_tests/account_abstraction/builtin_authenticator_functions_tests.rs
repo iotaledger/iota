@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::{
+    encoding::{Encoding as _, Hex},
     hash::{HashFunction, Sha256},
     rsa::{Base64UrlUnpadded, Encoding as _},
+    traits::ToFromBytes as _,
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
@@ -507,6 +509,175 @@ fn verify_builtin_signature_error_invalid_public_key_bytes() {
         verify_builtin_signature(&config, &authenticator, &data, &tx_data_bytes).unwrap_err(),
         IotaError::InvalidSignature { error }
             if error.contains("Invalid public key bytes in built-in authenticator")
+    ));
+}
+
+// === PreloadedBuiltinAuthenticatorData::try_from(&GenericSignature) ===
+
+// Key vectors and expected addresses copied from the Move test
+// `iota-framework/tests/claim_registry_tests.move`, which exercises the Move
+// `public_key::PublicKey` that `MovePublicKey` mirrors. Layout is the
+// flag-prefixed wire format: `flag || raw_key_bytes` (for MultiSig, raw bytes
+// are the BCS-encoded `MultiSigPublicKey`).
+const MOVE_TEST_ED25519_PK: &str =
+    "00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+const MOVE_TEST_SECP256K1_PK: &str =
+    "0102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+const MOVE_TEST_SECP256R1_PK: &str =
+    "020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+const MOVE_TEST_MULTISIG_PK: &str =
+    "030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
+const MOVE_TEST_PASSKEY_PK: &str =
+    "060227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+
+const MOVE_TEST_ED25519_ADDR: &str =
+    "0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03";
+const MOVE_TEST_SECP256K1_ADDR: &str =
+    "0x2fecbdf2652b089c64d127158d388621fdbbd156533fbcca5a0082aa0d2939fa";
+const MOVE_TEST_SECP256R1_ADDR: &str =
+    "0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0";
+const MOVE_TEST_MULTISIG_ADDR: &str =
+    "0x1cc23b51b2e3c8641eea35b29114a53ad7a76643dcb2763d12290a7b83cac525";
+const MOVE_TEST_PASSKEY_ADDR: &str =
+    "0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8";
+
+/// Builds a `GenericSignature::Signature` carrying the flag-prefixed public
+/// key `prefixed_pk_hex` and a dummy (unverified) 64-byte signature.
+fn signature_with_pk(prefixed_pk_hex: &str) -> GenericSignature {
+    let prefixed = Hex::decode(prefixed_pk_hex).unwrap();
+    let mut wire = vec![prefixed[0]];
+    wire.extend([1u8; 64]);
+    wire.extend_from_slice(&prefixed[1..]);
+    GenericSignature::Signature(Signature::from_bytes(&wire).unwrap())
+}
+
+fn assert_matches_move_vector(
+    signature: &GenericSignature,
+    expected_scheme: SignatureScheme,
+    prefixed_pk_hex: &str,
+    expected_addr: &str,
+) {
+    let data = PreloadedBuiltinAuthenticatorData::try_from(signature).unwrap();
+    assert_eq!(data.expected_scheme, expected_scheme);
+    let prefixed = Hex::decode(prefixed_pk_hex).unwrap();
+    assert_eq!(
+        data.public_key,
+        MovePublicKey::new(expected_scheme, prefixed[1..].to_vec()).unwrap()
+    );
+    assert_eq!(
+        data.public_key.address().unwrap(),
+        expected_addr.parse::<Address>().unwrap()
+    );
+}
+
+#[test]
+fn preloaded_data_from_ed25519_signature_matches_move_vector() {
+    assert_matches_move_vector(
+        &signature_with_pk(MOVE_TEST_ED25519_PK),
+        SignatureScheme::ED25519,
+        MOVE_TEST_ED25519_PK,
+        MOVE_TEST_ED25519_ADDR,
+    );
+}
+
+#[test]
+fn preloaded_data_from_secp256k1_signature_matches_move_vector() {
+    assert_matches_move_vector(
+        &signature_with_pk(MOVE_TEST_SECP256K1_PK),
+        SignatureScheme::Secp256k1,
+        MOVE_TEST_SECP256K1_PK,
+        MOVE_TEST_SECP256K1_ADDR,
+    );
+}
+
+#[test]
+fn preloaded_data_from_secp256r1_signature_matches_move_vector() {
+    assert_matches_move_vector(
+        &signature_with_pk(MOVE_TEST_SECP256R1_PK),
+        SignatureScheme::Secp256r1,
+        MOVE_TEST_SECP256R1_PK,
+        MOVE_TEST_SECP256R1_ADDR,
+    );
+}
+
+#[test]
+fn preloaded_data_from_multisig_matches_move_vector() {
+    let prefixed = Hex::decode(MOVE_TEST_MULTISIG_PK).unwrap();
+    assert_eq!(prefixed[0], SignatureScheme::MultiSig.flag());
+    let multisig_pk: MultiSigPublicKey = bcs::from_bytes(&prefixed[1..]).unwrap();
+
+    // The single committee member is the Ed25519 test-vector key.
+    let prefixed_member = Hex::decode(MOVE_TEST_ED25519_PK).unwrap();
+    let mut member_wire = vec![prefixed_member[0]];
+    member_wire.extend([1u8; 64]);
+    member_wire.extend_from_slice(&prefixed_member[1..]);
+    let member_sig = SimpleSignature::from_bytes(&member_wire).unwrap();
+    let multisig =
+        GenericSignature::MultiSig(MultiSig::new(vec![member_sig.into()], multisig_pk).unwrap());
+
+    assert_matches_move_vector(
+        &multisig,
+        SignatureScheme::MultiSig,
+        MOVE_TEST_MULTISIG_PK,
+        MOVE_TEST_MULTISIG_ADDR,
+    );
+}
+
+#[test]
+fn preloaded_data_from_passkey_matches_move_vector() {
+    let prefixed = Hex::decode(MOVE_TEST_PASSKEY_PK).unwrap();
+    assert_eq!(prefixed[0], SignatureScheme::PasskeyAuthenticator.flag());
+
+    // The user signature carries the same compressed P-256 key under the
+    // Secp256r1 flag with a dummy (unverified) signature.
+    let mut wire = vec![SignatureScheme::Secp256r1.flag()];
+    wire.extend([1u8; 64]);
+    wire.extend_from_slice(&prefixed[1..]);
+    let user_sig = SimpleSignature::from_bytes(&wire).unwrap();
+
+    let challenge_b64 = Base64UrlUnpadded::encode_string(&[0u8; 32]);
+    let client_data_json = format!(
+        r#"{{"type":"webauthn.get","challenge":"{challenge_b64}","origin":"https://iota.org","crossOrigin":false}}"#
+    );
+    let passkey = GenericSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(vec![0xAB], client_data_json, user_sig).unwrap(),
+    );
+
+    assert_matches_move_vector(
+        &passkey,
+        SignatureScheme::PasskeyAuthenticator,
+        MOVE_TEST_PASSKEY_PK,
+        MOVE_TEST_PASSKEY_ADDR,
+    );
+}
+
+#[test]
+fn preloaded_data_from_signed_keypairs() {
+    let mut rng = seeded_rng();
+    for key_pair in [
+        IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1),
+        IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1),
+        IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1),
+    ] {
+        let sender = Address::from(&key_pair.public());
+        let intent_msg = IntentMessage::new(Intent::iota_transaction(), dummy_tx_data(sender));
+        let signature = GenericSignature::Signature(Signature::new_secure(&intent_msg, &key_pair));
+
+        // Exercises the owned `TryFrom<GenericSignature>` variant.
+        let data = PreloadedBuiltinAuthenticatorData::try_from(signature).unwrap();
+        assert_eq!(data.expected_scheme, key_pair.public().scheme());
+        assert_eq!(data.public_key, MovePublicKey::from(&key_pair));
+        assert_eq!(data.public_key.address().unwrap(), sender);
+    }
+}
+
+#[test]
+fn preloaded_data_from_move_authenticator_fails() {
+    let signature = GenericSignature::MoveAuthenticator(make_authenticator(vec![]));
+    assert!(matches!(
+        PreloadedBuiltinAuthenticatorData::try_from(&signature).unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Unsupported signature type")
     ));
 }
 
