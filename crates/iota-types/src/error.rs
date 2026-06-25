@@ -312,6 +312,11 @@ pub enum UserInputError {
     #[error("Account object {object_id} is not a shared or immutable object that is unsupported")]
     AccountObjectNotSupported { object_id: ObjectId },
     #[error(
+        "Account {object_id} is claimed (has an on-chain object) and can only be authenticated \
+         via a `MoveAuthenticator`; plain signatures are not accepted"
+    )]
+    PlainSignatureOnClaimedAccount { object_id: ObjectId },
+    #[error(
         "The fetched account object version {actual_version} does not match the expected version {expected_version}, object id: {object_id}"
     )]
     AccountObjectVersionMismatch {

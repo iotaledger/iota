@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -113,6 +113,10 @@ pub struct TestCluster {
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
     faucet: Option<Faucet>,
+    /// Keeps a protocol-config override (e.g. from
+    /// [`TestClusterBuilder::with_pcool_enabled`]) alive for the lifetime of
+    /// the cluster, so it stays in effect across epoch changes.
+    _protocol_config_override_guard: Option<OverrideGuard>,
 }
 
 impl TestCluster {
@@ -1002,7 +1006,14 @@ pub struct TestClusterBuilder {
     validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
+    protocol_config_override: Option<ProtocolConfigOverrideFn>,
 }
+
+/// A protocol-config override closure, applied to every version during the
+/// cluster's lifetime (see
+/// [`TestClusterBuilder::with_protocol_config_override`]).
+type ProtocolConfigOverrideFn =
+    Box<dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync>;
 
 impl TestClusterBuilder {
     pub fn new() -> Self {
@@ -1010,6 +1021,7 @@ impl TestClusterBuilder {
             genesis_config: None,
             network_config: None,
             chain_override: None,
+            protocol_config_override: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
@@ -1159,6 +1171,33 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Applies a protocol-config override to every protocol version for the
+    /// lifetime of the cluster. The override is installed before the nodes
+    /// start (so genesis and every epoch read it) and is held alive by the
+    /// resulting [`TestCluster`].
+    ///
+    /// Only one override can be active per thread; this must not be combined
+    /// with a separate [`ProtocolConfig::apply_overrides_for_testing`] guard.
+    pub fn with_protocol_config_override(
+        mut self,
+        f: impl Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync + 'static,
+    ) -> Self {
+        self.protocol_config_override = Some(Box::new(f));
+        self
+    }
+
+    /// Builds a cluster running the P-COOL (post-consensus owned-object
+    /// locking) flow: transactions are submitted certificate-less and sequenced
+    /// through consensus before execution. This is the flow under which
+    /// built-in account objects participate in shared-object version
+    /// assignment.
+    pub fn with_pcool_enabled(self) -> Self {
+        self.with_protocol_config_override(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        })
+    }
+
     pub fn with_supported_protocol_version_callback(
         mut self,
         func: SupportedProtocolVersionsCallback,
@@ -1264,6 +1303,14 @@ impl TestClusterBuilder {
     }
 
     pub async fn build(mut self) -> TestCluster {
+        // Install any protocol-config override before the nodes start, so that
+        // genesis and every epoch observe it. The guard is moved into the
+        // returned `TestCluster` to keep it in effect for the cluster lifetime.
+        let protocol_config_override_guard = self
+            .protocol_config_override
+            .take()
+            .map(ProtocolConfig::apply_overrides_for_testing);
+
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
@@ -1309,6 +1356,7 @@ impl TestClusterBuilder {
             wallet,
             fullnode_handle,
             faucet,
+            _protocol_config_override_guard: protocol_config_override_guard,
         }
     }
 

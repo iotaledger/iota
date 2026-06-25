@@ -826,7 +826,15 @@ impl CheckpointExecutor {
             );
 
         for ((tx, _), effects) in itertools::izip!(unexecuted_txns.iter(), unexecuted_effects) {
-            if tx.contains_shared_object() {
+            // A transaction from an (unclaimed) implicit account can have declared inputs
+            // that are owned objects only (`contains_shared_object()` is false), yet it
+            // still records the synthetic implicit account object as a read-only shared
+            // input in its effects (pinned at `OBJECT_START_VERSION`).
+            // Reconstruct those assignments so the scheduler edge and the pinned account
+            // read match the consensus execution path on state-sync nodes.
+            // A claimed (explicit) account is instead a declared `MoveAuthenticator`
+            // shared input, so it is already covered by `contains_shared_object()`.
+            if tx.contains_shared_object() || !effects.input_shared_objects().is_empty() {
                 self.epoch_store
                     .acquire_shared_version_assignments_from_effects(
                         tx,

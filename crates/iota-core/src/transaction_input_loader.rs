@@ -5,6 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
+use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::{EpochId, ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
@@ -46,6 +47,7 @@ impl TransactionInputLoader {
         _tx_digest_for_caching: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
         receiving_objects: &[ObjectRef],
+        implicit_account_objects: &[ObjectId],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         // Length of input_object_kinds have been checked via validity_check() for
@@ -108,6 +110,10 @@ impl TransactionInputLoader {
 
         let receiving_results =
             self.read_receiving_objects_for_signing(receiving_objects, epoch_id)?;
+
+        // Reject early if any implicit account already has an on-chain object (read at
+        // latest).
+        self.read_implicit_account_objects(implicit_account_objects)?;
 
         Ok((
             input_results
@@ -255,6 +261,9 @@ impl TransactionInputLoader {
             });
         }
 
+        // Implicit accounts are not read here: a claimed account is rejected at signing
+        // and deterministically at post-consensus validation.
+
         Ok(results
             .into_iter()
             .map(Option::unwrap)
@@ -299,5 +308,20 @@ impl TransactionInputLoader {
             receiving_results.push(ReceivingObjectReadResult::new(*objref, object.into()));
         }
         Ok(receiving_results.into())
+    }
+
+    /// Rejects the transaction if any implicit account already has an on-chain
+    /// object: only an implicit (object-less) account may authenticate with a
+    /// plain (non-MoveAuthenticator) signature.
+    fn read_implicit_account_objects(
+        &self,
+        implicit_account_objects: &[ObjectId],
+    ) -> IotaResult<()> {
+        for &object_id in implicit_account_objects.iter() {
+            if self.cache.try_get_object(&object_id)?.is_some() {
+                return Err(UserInputError::PlainSignatureOnClaimedAccount { object_id }.into());
+            }
+        }
+        Ok(())
     }
 }

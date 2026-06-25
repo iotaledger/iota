@@ -48,7 +48,7 @@ use iota_common::fatal;
 use iota_sdk_types::Address;
 use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, TransactionDataAPI, VerifiedTransaction},
 };
@@ -308,6 +308,44 @@ async fn transaction_validation_logic(
             ));
             state.keep[i] = false;
             return Ok(());
+        }
+    }
+
+    // Check Plain-signature-on-claimed-account: a claimed account (one that already
+    // has an on-chain object) may only be authenticated via a `MoveAuthenticator`;
+    // a plain signature is rejected. `implicit_account_objects()` yields
+    // exactly the plain-signature (non-`MoveAuthenticator`) signer/sponsor
+    // accounts, so `MoveAuthenticator` transactions are unaffected. "Claimed"
+    // is decided deterministically — anchored this epoch by an earlier-commit
+    // claim (the consensus quarantine) or settled in a prior epoch (the object
+    // store); the same-commit case is covered by the `claim_senders` check
+    // above. The store read is only consulted when the account is not anchored,
+    // where it is epoch-stable.
+    if !is_claim_tx && epoch_store.protocol_config().enable_implicit_accounts() {
+        let account_ids = transaction.data().implicit_account_objects()?;
+        if !account_ids.is_empty() {
+            let anchored = epoch_store.get_existing_next_shared_object_versions(&account_ids)?;
+            let object_cache = authority_state.get_object_cache_reader();
+            for (account_id, anchor) in account_ids.iter().zip(anchored) {
+                let claimed =
+                    anchor.is_some() || object_cache.try_get_object(account_id)?.is_some();
+                if claimed {
+                    debug!(
+                        ?digest,
+                        ?account_id,
+                        "Plain-signature transaction on a claimed account, dropping"
+                    );
+                    state.dropped.push((
+                        digest,
+                        UserInputError::PlainSignatureOnClaimedAccount {
+                            object_id: *account_id,
+                        }
+                        .into(),
+                    ));
+                    state.keep[i] = false;
+                    return Ok(());
+                }
+            }
         }
     }
 

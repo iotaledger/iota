@@ -10,10 +10,11 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
+    object::OBJECT_START_VERSION,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedObjectRef, TransactionKey},
+    transaction::{SenderSignedData, SharedObjectRef, TransactionDataAPI, TransactionKey},
 };
 use tracing::trace;
 
@@ -48,8 +49,17 @@ impl SharedObjVerManager {
             cache_reader,
         )?;
         let mut assigned_versions = Vec::new();
+        let assign_implicit_accounts_flag =
+            epoch_store.protocol_config().enable_implicit_accounts();
         for transaction in transactions {
-            if !transaction.contains_shared_object() {
+            // A transaction carrying no declared shared object but a implicit
+            // account MUST still enter assignment so the account is pinned to
+            // `OBJECT_START_VERSION`. Pinning the implicit account
+            // keeps its read deterministic even when a claim of the same account
+            // executes concurrently in a later commit.
+            let has_account = assign_implicit_accounts_flag
+                && !transaction.data().implicit_account_objects()?.is_empty();
+            if !transaction.contains_shared_object() && !has_account {
                 continue;
             }
             let tx_assigned_versions = Self::assign_versions_for_transaction(
@@ -59,6 +69,7 @@ impl SharedObjVerManager {
                 epoch_store
                     .protocol_config()
                     .congestion_control_gas_price_feedback_mechanism(),
+                assign_implicit_accounts_flag,
             );
             assigned_versions.push((transaction.key(), tx_assigned_versions));
         }
@@ -114,6 +125,7 @@ impl SharedObjVerManager {
         shared_input_next_versions: &mut HashMap<ObjectId, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
+        assign_implicit_accounts_flag: bool,
     ) -> Vec<VersionAssignment> {
         let tx_digest = transaction.digest();
 
@@ -206,6 +218,36 @@ impl SharedObjVerManager {
                 input_object_keys.push(ObjectKey(*id, assigned_version));
                 is_mutable_input.push(*mutable);
             }
+
+            // Pin each implicit account to `OBJECT_START_VERSION` as a read-only
+            // input, so its execution read is deterministic.
+            // This only covers implicit accounts: a claimed account is created at its
+            // claim's Lamport version (>= 2), so reading `A@OBJECT_START_VERSION` always
+            // misses → the account resolves to the implicit account, even if a
+            // claim of it executes concurrently in a later commit. Accounts
+            // already declared as shared inputs are skipped (handled above with
+            // their real mutability). `mutable: false` keeps accounts out of
+            // the Lamport bump below, and this pin is per-transaction only
+            // (never written back to `shared_input_next_versions`).
+            if assign_implicit_accounts_flag {
+                let declared_shared_ids: HashSet<ObjectId> = shared_input_objects
+                    .iter()
+                    .map(|obj| obj.object_id)
+                    .collect();
+                for account_id in transaction
+                    .data()
+                    .implicit_account_objects()
+                    .expect("implicit account ids derive for a verified transaction")
+                {
+                    if declared_shared_ids.contains(&account_id) {
+                        continue;
+                    }
+                    assigned_versions
+                        .push(VersionAssignment::new(account_id, OBJECT_START_VERSION));
+                    input_object_keys.push(ObjectKey(account_id, OBJECT_START_VERSION));
+                    is_mutable_input.push(false);
+                }
+            }
         }
 
         let next_version =
@@ -236,6 +278,29 @@ impl SharedObjVerManager {
                         .insert(object_id, version)
                         .expect("Object must exist in shared_input_next_versions.");
                 });
+        }
+
+        // This is a special case for transactions that are claiming an account.
+        // Record the freshly-claimed account in `shared_input_next_versions` so that,
+        // for the rest of the epoch, it is a consensus-deterministic marker that the
+        // account has been claimed. A plain-signature use of the account in a LATER
+        // consensus commit reads this marker in post-consensus validation
+        // (`get_existing_next_shared_object_versions`) and is rejected,
+        // deterministically, without depending on whether the claim's effects
+        // have executed yet. Only the presence of the entry matters; the value
+        // (the claim's Lamport version) is not read. Same-commit transfers are
+        // dropped by the claim-conflict whiteflag before reaching version
+        // assignment. Claims cannot be sponsored, so only the sender's
+        // account is recorded.
+        if assign_implicit_accounts_flag
+            && !txn_cancelled
+            && transaction
+                .data()
+                .transaction_data()
+                .calls_smart_account_build_v1()
+        {
+            let account_id = ObjectId::from(transaction.data().transaction_data().sender());
+            shared_input_next_versions.insert(account_id, next_version);
         }
 
         trace!(
@@ -273,9 +338,11 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{Address, RandomnessRound};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Address, Identifier, RandomnessRound};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
+        IOTA_FRAMEWORK_PACKAGE_ID,
         base_types::{ObjectRef, SequenceNumber},
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
@@ -731,5 +798,100 @@ mod tests {
             tx,
             CertificateProof::new_system(0),
         ))
+    }
+
+    fn generate_claim_tx(
+        shared_objects: &[(ObjectId, SequenceNumber, bool)],
+        sender: Address,
+        gas_object_version: u64,
+    ) -> VerifiedExecutableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for (id, init, mutable) in shared_objects {
+            builder
+                .obj(CallArg::Shared(SharedObjectRef::new(*id, *init, *mutable)))
+                .unwrap();
+        }
+        // A MoveCall to `0x2::smart_account::build_v1` is what marks the transaction
+        // as a claim (matched by `calls_smart_account_build_v1`); the arguments are
+        // irrelevant to version assignment.
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::new("smart_account").unwrap(),
+            Identifier::new("build_v1").unwrap(),
+            vec![],
+            vec![],
+        );
+        let tx_data = TestTransactionBuilder::new(
+            sender,
+            ObjectRef::new(
+                ObjectId::random(),
+                SequenceNumber::from_u64(gas_object_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .programmable(builder.finish())
+        .build();
+        let tx = SenderSignedData::new(tx_data, vec![]);
+        VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
+            tx,
+            CertificateProof::new_system(0),
+        ))
+    }
+
+    /// A `build_v1` claim anchors its sender's account id at the claim's
+    /// Lamport version into `shared_input_next_versions`, so that a plain
+    /// transfer from that account in a later consensus commit resolves it
+    /// deterministically (without an execution-lag-dependent store read).
+    #[tokio::test]
+    async fn test_assign_versions_anchors_claimed_account() {
+        let registry = Object::shared_for_testing();
+        let registry_id = registry.id();
+        let registry_init_version = registry
+            .owner
+            .into_shared_opt()
+            .expect("expected shared object");
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_enable_move_authentication_for_testing(true);
+        protocol_config.set_enable_builtin_move_authenticators_for_testing(true);
+        protocol_config.set_enable_implicit_accounts_for_testing(true);
+        let authority = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .with_starting_objects(std::slice::from_ref(&registry))
+            .build()
+            .await;
+
+        let gas_version = 7;
+        let sender = Address::ZERO;
+        let claim = generate_claim_tx(
+            &[(registry_id, registry_init_version, true)],
+            sender,
+            gas_version,
+        );
+
+        let epoch_store = authority.epoch_store_for_testing();
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            ..
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            std::slice::from_ref(&claim).iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        // The account is anchored at the claim's Lamport version, computed from the
+        // claim's input object versions (the registry and the gas coin).
+        let expected_account_version = SequenceNumber::lamport_increment(
+            [registry_init_version, SequenceNumber::from_u64(gas_version)].into_iter(),
+        )
+        .unwrap();
+        let account_id = ObjectId::from(sender);
+        assert_eq!(
+            shared_input_next_versions.get(&account_id),
+            Some(&expected_account_version),
+            "claim must anchor its account at the claim's Lamport version"
+        );
     }
 }

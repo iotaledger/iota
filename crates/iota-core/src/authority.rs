@@ -937,8 +937,14 @@ impl AuthorityState {
         // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
         // reference — missing object, wrong version, inaccessible object — causes a
         // pre-consensus rejection.
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
+        // For all non-MoveAuthenticator signatures, it tries to read the related
+        // account object.
+        let (
+            tx_input_objects,
+            tx_receiving_objects,
+            _tx_implicit_account_objects,
+            per_authenticator_inputs,
+        ) = self.read_objects_for_validation(transaction, protocol_config, epoch)?;
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -1328,7 +1334,7 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        let (tx_input_objects, per_authenticator_inputs) =
+        let (tx_input_objects, tx_implicit_account_objects, per_authenticator_inputs) =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), transaction, epoch_store)?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
@@ -1343,6 +1349,7 @@ impl AuthorityState {
             tx_guard,
             transaction,
             tx_input_objects,
+            tx_implicit_account_objects,
             per_authenticator_inputs,
             expected_effects_digest,
             epoch_store,
@@ -1353,19 +1360,32 @@ impl AuthorityState {
         )
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn read_objects_for_execution(
         &self,
         tx_lock: &TxLockGuard,
         transaction: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)> {
+    ) -> IotaResult<(
+        InputObjects,
+        Vec<ObjectId>,
+        Vec<(InputObjects, ObjectReadResult)>,
+    )> {
         let _scope = monitored_scope("Execution::load_input_objects");
         let _metrics_guard = self
             .metrics
             .execution_load_input_objects_latency
             .start_timer();
 
+        let protocol_config = epoch_store.protocol_config();
+
         let input_objects = transaction.collect_all_input_object_kind_for_reading()?;
+
+        let implicit_account_objects = if protocol_config.enable_implicit_accounts() {
+            transaction.implicit_account_objects()?
+        } else {
+            vec![]
+        };
 
         let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
@@ -1375,7 +1395,13 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        transaction.split_input_objects_into_groups_for_reading(input_objects)
+        let (input_objects, per_authenticator_inputs) =
+            transaction.split_input_objects_into_groups_for_reading(input_objects)?;
+        Ok((
+            input_objects,
+            implicit_account_objects,
+            per_authenticator_inputs,
+        ))
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -1460,6 +1486,7 @@ impl AuthorityState {
         tx_guard: TxGuard,
         transaction: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
+        tx_implicit_account_objects: Vec<ObjectId>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1509,6 +1536,7 @@ impl AuthorityState {
             &execution_guard,
             transaction,
             tx_input_objects,
+            tx_implicit_account_objects,
             per_authenticator_inputs,
             epoch_store,
         ) {
@@ -1711,6 +1739,7 @@ impl AuthorityState {
         _execution_guard: &ExecutionLockReadGuard<'_>,
         transaction: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
+        _tx_implicit_account_objects: Vec<ObjectId>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
@@ -1958,6 +1987,7 @@ impl AuthorityState {
             transaction,
             input_objects,
             vec![],
+            vec![],
             epoch_store,
         )
     }
@@ -2040,6 +2070,7 @@ impl AuthorityState {
             None,
             &input_object_kinds,
             &receiving_object_refs,
+            &[], // TODO
             epoch_store.epoch(),
         )?;
 
@@ -2244,6 +2275,7 @@ impl AuthorityState {
             None,
             &input_object_kinds,
             &receiving_object_refs,
+            &[], // TODO
             epoch_store.epoch(),
         )?;
 
@@ -2428,6 +2460,7 @@ impl AuthorityState {
             None,
             &input_object_kinds,
             &receiving_object_refs,
+            &[], // TODO
             epoch_store.epoch(),
         )?;
 
@@ -5422,13 +5455,14 @@ impl AuthorityState {
             std::slice::from_ref(&executable_tx),
         )?;
 
-        let (input_objects, _) =
+        let (input_objects, _, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
         let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
+            vec![],
             vec![],
             epoch_store,
         )?;
@@ -5726,16 +5760,25 @@ impl AuthorityState {
     fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
+        protocol_config: &ProtocolConfig,
         epoch: u64,
     ) -> IotaResult<(
         InputObjects,
         ReceivingObjects,
+        Vec<ObjectId>,
         Vec<(InputObjects, ObjectReadResult)>,
     )> {
+        let implicit_account_objects = if protocol_config.enable_implicit_accounts() {
+            transaction.implicit_account_objects()?
+        } else {
+            vec![]
+        };
+
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
             &transaction.collect_all_input_object_kind_for_reading()?,
             &transaction.data().transaction_data().receiving_objects(),
+            &implicit_account_objects,
             epoch,
         )?;
 
@@ -5745,6 +5788,7 @@ impl AuthorityState {
                 (
                     tx_input_objects,
                     tx_receiving_objects,
+                    implicit_account_objects,
                     per_authenticator_inputs,
                 )
             })

@@ -556,6 +556,10 @@ struct FeatureFlags {
     // non-deterministic within the commit.
     #[serde(skip_serializing_if = "is_false")]
     enable_account_claim_conflict_invalidation: bool,
+
+    // If true, allows pinning implicit accounts objects.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_implicit_accounts: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1841,6 +1845,15 @@ impl ProtocolConfig {
         self.feature_flags
             .enable_account_claim_conflict_invalidation
     }
+
+    pub fn enable_implicit_accounts(&self) -> bool {
+        let enable = self.feature_flags.enable_implicit_accounts;
+        assert!(
+            !enable || self.enable_move_authentication(),
+            "enable_implicit_accounts requires enable_move_authentication to be set"
+        );
+        enable
+    }
 }
 
 #[cfg(not(msim))]
@@ -3007,6 +3020,8 @@ impl ProtocolConfig {
                         // Invalidate transactions conflicting with a concurrent
                         // account-claim transaction in the same commit.
                         cfg.feature_flags.enable_account_claim_conflict_invalidation = true;
+                        // Enable implicit Move authentication in devnet.
+                        cfg.feature_flags.enable_implicit_accounts = true;
                     }
                 }
                 // Use this template when making changes:
@@ -3123,10 +3138,6 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
-    }
-
-    pub fn set_enable_claim_registry_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_claim_registry = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
@@ -3268,9 +3279,17 @@ impl ProtocolConfig {
         self.feature_flags.enable_builtin_move_authenticators = val;
     }
 
+    pub fn set_enable_claim_registry_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_registry = val;
+    }
+
     pub fn set_enable_account_claim_conflict_invalidation_for_testing(&mut self, val: bool) {
         self.feature_flags
             .enable_account_claim_conflict_invalidation = val;
+    }
+
+    pub fn set_enable_implicit_accounts_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_implicit_accounts = val;
     }
 }
 

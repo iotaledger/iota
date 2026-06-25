@@ -61,6 +61,7 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
         VersionedDkgConfirmation,
     },
+    object::OBJECT_START_VERSION,
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
@@ -1933,6 +1934,26 @@ impl AuthorityPerEpochStore {
             .multi_get(digests)?)
     }
 
+    // Read-only lookup of the next shared-object version already recorded for each
+    // id (consensus quarantine first, then the table), WITHOUT initializing missing
+    // entries. Returns `None` for an id that has not been seen yet this epoch. Used
+    // to detect whether an implicit account has already been anchored by an
+    // earlier claim in the epoch, without the side effects (or store fallback) of
+    // `get_or_init_next_object_versions`.
+    pub(crate) fn get_existing_next_shared_object_versions(
+        &self,
+        object_ids: &[ObjectId],
+    ) -> IotaResult<Vec<Option<SequenceNumber>>> {
+        let tables = self.tables()?;
+        let objects_to_init: Vec<(ObjectId, SequenceNumber)> = object_ids
+            .iter()
+            .map(|id| (*id, OBJECT_START_VERSION))
+            .collect();
+        self.consensus_quarantine
+            .read()
+            .get_next_shared_object_versions(&tables, &objects_to_init)
+    }
+
     // For each id in objects_to_init, return the next version for that id as
     // recorded in the next_shared_object_versions table.
     //
@@ -3634,6 +3655,7 @@ impl AuthorityPerEpochStore {
                         cancelled_txns,
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
+                        self.protocol_config.enable_implicit_accounts(),
                     );
                     cancelled_transactions.push(CancelledTransaction {
                         digest: *txn.digest(),

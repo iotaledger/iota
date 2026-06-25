@@ -2197,6 +2197,21 @@ impl SenderSignedData {
         Ok(input_objects_set.into_iter().collect::<Vec<_>>())
     }
 
+    pub fn implicit_account_objects(&self) -> IotaResult<Vec<ObjectId>> {
+        // System transactions carry a dummy signature and no real signer, so
+        // they can never authenticate an implicit account.
+        if self.transaction_data().is_system_tx() {
+            return Ok(vec![]);
+        }
+        self.tx_signatures()
+            .iter()
+            .filter_map(|sig| match sig {
+                GenericSignature::MoveAuthenticator(_) => None,
+                _ => Some(sig.try_into().map(|signer: Address| ObjectId::from(signer))),
+            })
+            .collect::<IotaResult<Vec<_>>>()
+    }
+
     /// Splits the provided input objects into groups:
     /// 1. Input objects required by the transaction itself; may contain
     ///    duplicates if an IOTA coin is used both as an input and a gas coin.
