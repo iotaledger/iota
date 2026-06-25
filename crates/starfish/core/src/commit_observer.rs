@@ -115,7 +115,8 @@ impl CommitObserver {
 
         observer
             .recover_and_send_commits(last_processed_commit_index, CommittedSubDagSource::Recover)
-            .await;
+            .await
+            .unwrap_or_else(|e| panic!("Failed to recover commits at startup: {e:?}"));
         observer
     }
 
@@ -124,7 +125,10 @@ impl CommitObserver {
     /// - Recovering linearizer state (transaction ack tracker, traversed
     ///   headers)
     /// - Only re-sends commits that are > last_commit_index (none in this case)
-    pub(crate) async fn reinitialize(&mut self, last_commit_index: CommitIndex) {
+    pub(crate) async fn reinitialize(
+        &mut self,
+        last_commit_index: CommitIndex,
+    ) -> ConsensusResult<()> {
         let now = Instant::now();
 
         // Clear linearizer state
@@ -134,13 +138,14 @@ impl CommitObserver {
         // Reuse existing recovery logic - it won't resend commits since
         // they're all <= last_commit_index
         self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer)
-            .await;
+            .await?;
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
             last_commit_index,
             now.elapsed()
         );
+        Ok(())
     }
 
     /// Handles the creation of commits from a set of passed leaders.
@@ -233,26 +238,34 @@ impl CommitObserver {
         &self,
         commit: &TrustedCommit,
         reputation_scores: Vec<(AuthorityIndex, u64)>,
-    ) -> Option<CommittedSubDag> {
+    ) -> ConsensusResult<Option<CommittedSubDag>> {
         let tx_refs = commit.committed_transactions();
-        let transactions = match self
+        let transaction_results = self
             .dag_state
             .read()
-            .try_get_all_verified_transactions(&tx_refs)
-        {
-            Ok(transactions) => transactions,
-            Err(missing_refs) => {
-                warn!(
-                    "Missing {} transactions for commit {}: {:?}",
-                    missing_refs.len(),
-                    commit.index(),
-                    missing_refs,
-                );
-                return None;
-            }
-        };
+            .try_get_verified_transactions(&tx_refs)?;
+        let missing_refs: Vec<_> = tx_refs
+            .iter()
+            .zip(&transaction_results)
+            .filter_map(|(transaction_ref, transaction)| {
+                transaction.is_none().then_some(*transaction_ref)
+            })
+            .collect();
+        if !missing_refs.is_empty() {
+            warn!(
+                "Missing {} transactions for commit {}: {:?}",
+                missing_refs.len(),
+                commit.index(),
+                missing_refs,
+            );
+            return Ok(None);
+        }
+        let transactions = transaction_results
+            .into_iter()
+            .map(|transaction| transaction.expect("missing transactions checked above"))
+            .collect();
 
-        Some(CommittedSubDag::new(
+        Ok(Some(CommittedSubDag::new(
             commit.leader(),
             vec![], // Empty headers for recovery
             commit.block_headers().to_vec(),
@@ -261,18 +274,15 @@ impl CommitObserver {
             commit.reference(),
             reputation_scores,
             self.dag_state.read().misbehavior_store().snapshot_totals(),
-        ))
+        )))
     }
 
     async fn recover_and_send_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
-        let last_commit = self
-            .store
-            .read_last_commit()
-            .expect("Reading the last commit should not fail");
+    ) -> ConsensusResult<()> {
+        let last_commit = self.store.read_last_commit()?;
         let last_commit_index = last_commit
             .as_ref()
             .map(|commit| commit.index())
@@ -283,7 +293,7 @@ impl CommitObserver {
         );
         if last_commit_index == 0 {
             info!("No commits to recover in commit observer");
-            return;
+            return Ok(());
         }
 
         // Phase 1: Resend all solid committed sub-dags that haven't been processed
@@ -292,17 +302,18 @@ impl CommitObserver {
             last_commit_index,
             source,
         )
-        .await;
+        .await?;
 
         // Phase 2: Recover linearizer and solidifier state
         // Skip if fast sync is ongoing - block data may not be available and
         // this will be reinitialized by fast commit syncer anyway
-        if self.store.read_fast_sync_ongoing() {
+        if self.store.read_fast_sync_ongoing()? {
             info!("Skipping linearizer/solidifier recovery - fast sync ongoing");
-            return;
+            return Ok(());
         }
         self.recover_linearizer_and_solidifier_state(last_commit_index, source)
-            .await;
+            .await?;
+        Ok(())
     }
 
     /// Recovers linearizer trackers from recent commits and seeds the
@@ -311,7 +322,7 @@ impl CommitObserver {
         &mut self,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
+    ) -> ConsensusResult<()> {
         let linearizer_recovery_start = last_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
@@ -320,8 +331,7 @@ impl CommitObserver {
 
         let recovery_commits = self
             .store
-            .scan_commits((recovery_start..=last_commit_index).into())
-            .expect("Scanning commits should not fail");
+            .scan_commits((recovery_start..=last_commit_index).into())?;
 
         info!(
             "Recovering linearizer/solidifier state from {} commits (indices {}..={})",
@@ -339,7 +349,7 @@ impl CommitObserver {
             let commit_index = commit.index();
             let is_optimistic = commit.is_optimistic();
             let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
 
             if commit_index >= linearizer_recovery_start {
                 // Rebuild traversed headers tracker
@@ -392,9 +402,9 @@ impl CommitObserver {
             let (solid_sub_dags, _missing) = self
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
-            self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)
-                .expect("We should successfully send solid commits during recovery");
+            self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)?;
         }
+        Ok(())
     }
 
     /// Sends committed sub-dags through the channel.
@@ -463,7 +473,7 @@ impl CommitObserver {
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
+    ) -> ConsensusResult<()> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
 
@@ -471,23 +481,23 @@ impl CommitObserver {
             // last solid subdag in dag state so that fast sync knows where to start
             // fetching.
             if last_processed_commit_index > 0 {
-                if let Some(commit) = self
+                let commit = self
                     .store
                     .scan_commits(
                         (last_processed_commit_index..=last_processed_commit_index).into(),
-                    )
-                    .ok()
-                    .and_then(|commits| commits.into_iter().next())
-                {
+                    )?
+                    .into_iter()
+                    .next();
+                if let Some(commit) = commit {
                     if let Some(committed_subdag) =
-                        self.build_committed_subdag_from_commit(&commit, vec![])
+                        self.build_committed_subdag_from_commit(&commit, vec![])?
                     {
                         self.update_with_solid_subdags_and_flush(&[committed_subdag]);
                     }
                 }
             }
 
-            return;
+            return Ok(());
         }
 
         info!(
@@ -518,10 +528,7 @@ impl CommitObserver {
                 .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
                 .min(last_commit_index);
 
-            let batch_commits = self
-                .store
-                .scan_commits((start_index..=end_index).into())
-                .expect("Scanning commits should not fail");
+            let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
 
             if batch_commits.is_empty() {
                 break;
@@ -551,7 +558,7 @@ impl CommitObserver {
                 };
 
                 let Some(committed_subdag) =
-                    self.build_committed_subdag_from_commit(&commit, reputation_scores)
+                    self.build_committed_subdag_from_commit(&commit, reputation_scores)?
                 else {
                     info!(
                         "Stopping resend at commit {} due to missing transactions",
@@ -566,8 +573,7 @@ impl CommitObserver {
 
             if !committed_subdags.is_empty() {
                 any_sent = true;
-                self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
-                    .expect("We should successfully send committed subdags during resend");
+                self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)?;
 
                 if let Some(last) = committed_subdags.last() {
                     self.context
@@ -591,17 +597,18 @@ impl CommitObserver {
         // last_solid_subdag_base from last_processed so fast sync
         // starts from the right position instead of index 0.
         if !any_sent && last_processed_commit_index > 0 {
-            if let Some(commit) = self
+            let commit = self
                 .store
-                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())
-                .ok()
-                .and_then(|commits| commits.into_iter().next())
-            {
-                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![]) {
+                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())?
+                .into_iter()
+                .next();
+            if let Some(commit) = commit {
+                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![])? {
                     self.update_with_solid_subdags_and_flush(&[subdag]);
                 }
             }
         }
+        Ok(())
     }
 
     /// Get all missing transactions from pending subdags along with authorities

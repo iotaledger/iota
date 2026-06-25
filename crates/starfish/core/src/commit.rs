@@ -24,6 +24,7 @@ use crate::{
         VerifiedBlockHeader, VerifiedTransactions, uleb128_len,
     },
     context::Context,
+    error::{ConsensusError, ConsensusResult},
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
@@ -890,32 +891,32 @@ pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
 }
 
 // Recovers PendingSubDAG from block store, based on Commit.
-pub fn load_pending_subdag_from_store(
+pub(crate) fn load_pending_subdag_from_store(
     store: &dyn Store,
     commit: TrustedCommit,
     reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-) -> PendingSubDag {
+) -> ConsensusResult<PendingSubDag> {
     let mut leader_block_idx = None;
-    let commit_block_headers = store
-        .read_verified_block_headers(commit.block_headers())
-        .expect("Block headers referenced in commit data should exist");
+    let commit_block_headers = store.read_verified_block_headers(commit.block_headers())?;
     let block_headers = commit_block_headers
         .into_iter()
+        .zip(commit.block_headers())
         .enumerate()
-        .map(|(idx, commit_block_opt)| {
-            let commit_block = commit_block_opt.expect(
-                "Block header referenced in commit data should exist. \
-                 This could be due to unfinished fast syncing.",
-            );
+        .map(|(idx, (commit_block, block_ref))| {
+            let commit_block = commit_block.ok_or(ConsensusError::MissingBlockHeader {
+                block_ref: *block_ref,
+            })?;
             if commit_block.reference() == commit.leader() {
                 leader_block_idx = Some(idx);
             }
-            commit_block
+            Ok(commit_block)
         })
-        .collect::<Vec<_>>();
-    let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
+        .collect::<ConsensusResult<Vec<_>>>()?;
+    let leader_block_idx = leader_block_idx.ok_or(ConsensusError::MissingBlockHeader {
+        block_ref: commit.leader(),
+    })?;
     let leader_block_ref = block_headers[leader_block_idx].reference();
-    PendingSubDag::new(
+    Ok(PendingSubDag::new(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
@@ -923,7 +924,7 @@ pub fn load_pending_subdag_from_store(
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
-    )
+    ))
 }
 
 fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
@@ -1372,7 +1373,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(subdag.leader, leader_ref);
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
@@ -1474,7 +1476,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let pending_subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(pending_subdag.leader, leader_ref);
         assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(

@@ -74,7 +74,7 @@ impl ThresholdClock {
                     .add(block_header.author, &self.context.committee);
             }
         }
-        self.try_advance_round(block_header.round + 1);
+        self.try_advance_round(block_header.round.saturating_add(1));
     }
 
     /// Add the block references that have been successfully processed and
@@ -158,6 +158,21 @@ mod tests {
             BlockHeaderDigest::default(),
         ));
         assert_eq!(aggregator.get_round(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_threshold_clock_max_round_does_not_overflow() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut aggregator = ThresholdClock::new(0, context);
+
+        for authority in 0..3 {
+            aggregator.add_block_header(BlockRef::new(
+                Round::MAX,
+                AuthorityIndex::new_for_test(authority),
+                BlockHeaderDigest::default(),
+            ));
+        }
+        assert_eq!(aggregator.get_round(), Round::MAX);
     }
 
     #[tokio::test]
