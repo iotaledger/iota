@@ -85,6 +85,9 @@ pub struct PreConsensusSoftLocks {
     /// value is always consistent with the map at the moment the lock is
     /// released.
     lock_count: AtomicUsize,
+    /// When `false`, every operation is a no-op: `try_acquire` never reports a
+    /// conflict and nothing is ever stored.
+    enabled: bool,
 }
 
 impl Default for PreConsensusSoftLocks {
@@ -94,17 +97,29 @@ impl Default for PreConsensusSoftLocks {
 }
 
 impl PreConsensusSoftLocks {
-    /// Creates a new instance with the default TTL.
+    /// Creates a new enabled instance with the default TTL.
     pub fn new() -> Self {
         Self::with_ttl(DEFAULT_SOFT_LOCK_TTL)
     }
 
-    /// Creates a new instance with a custom TTL (useful for tests).
+    /// Creates a new enabled instance with a custom TTL (useful for tests).
     pub fn with_ttl(lock_ttl: Duration) -> Self {
+        Self::new_inner(lock_ttl, true)
+    }
+
+    /// Creates a disabled instance: every operation is a no-op and
+    /// `try_acquire` never reports a conflict, so post-consensus validation is
+    /// the sole conflict resolver.
+    pub fn disabled() -> Self {
+        Self::new_inner(DEFAULT_SOFT_LOCK_TTL, false)
+    }
+
+    fn new_inner(lock_ttl: Duration, enabled: bool) -> Self {
         Self {
             inner: Mutex::new(Inner::default()),
             lock_ttl,
             lock_count: AtomicUsize::new(0),
+            enabled,
         }
     }
 
@@ -124,7 +139,7 @@ impl PreConsensusSoftLocks {
         tx_digest: TransactionDigest,
         owned_objects: &[ObjectRef],
     ) -> Result<(), IotaError> {
-        if owned_objects.is_empty() {
+        if !self.enabled || owned_objects.is_empty() {
             return Ok(());
         }
 
@@ -186,6 +201,9 @@ impl PreConsensusSoftLocks {
     /// Called by active GC hooks (consensus processed / tx dropped) and on
     /// consensus submission failure.
     pub fn release(&self, tx_digest: &TransactionDigest) {
+        if !self.enabled {
+            return;
+        }
         let mut inner = self.inner.lock();
         Self::release_one(&mut inner, tx_digest);
         self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
@@ -195,7 +213,7 @@ impl PreConsensusSoftLocks {
     /// single mutex acquisition. Equivalent to calling `release` for each
     /// digest, but avoids `N` lock/unlock cycles per consensus commit.
     pub fn release_for_batch(&self, tx_digests: &[TransactionDigest]) {
-        if tx_digests.is_empty() {
+        if !self.enabled || tx_digests.is_empty() {
             return;
         }
         let mut inner = self.inner.lock();
@@ -222,6 +240,9 @@ impl PreConsensusSoftLocks {
 
     /// Removes all entries whose timestamp is older than `lock_ttl`.
     pub fn sweep_expired(&self) {
+        if !self.enabled {
+            return;
+        }
         let now = Instant::now();
         let ttl = self.lock_ttl;
         let mut inner = self.inner.lock();
@@ -261,6 +282,9 @@ impl PreConsensusSoftLocks {
 
     /// Drops all entries.  Called at epoch boundary.
     pub fn clear(&self) {
+        if !self.enabled {
+            return;
+        }
         let mut inner = self.inner.lock();
         inner.locks.clear();
         inner.tx_to_objects.clear();
@@ -752,5 +776,37 @@ mod tests {
         let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
         // Should not panic.
         table.release(&digest(42));
+    }
+
+    #[test]
+    fn test_disabled_never_conflicts() {
+        let table = PreConsensusSoftLocks::disabled();
+        let obj = obj_ref(1, 1);
+        let tx_a = digest(1);
+        let tx_b = digest(2);
+
+        // Two different transactions on the same object both succeed: a
+        // disabled table never reports a conflict and never stores a lock.
+        table.try_acquire(tx_a, &[obj]).unwrap();
+        table.try_acquire(tx_b, &[obj]).unwrap();
+        assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    fn test_disabled_release_sweep_and_clear_are_noops() {
+        let table = PreConsensusSoftLocks::disabled();
+        let tx = digest(1);
+
+        table
+            .try_acquire(tx, &[obj_ref(1, 1), obj_ref(2, 1)])
+            .unwrap();
+        assert_eq!(table.lock_count(), 0);
+
+        // None of these touch any state, but they must not panic.
+        table.release(&tx);
+        table.release_for_batch(&[tx]);
+        table.sweep_expired();
+        table.clear();
+        assert_eq!(table.lock_count(), 0);
     }
 }

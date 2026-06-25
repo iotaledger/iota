@@ -230,6 +230,14 @@ pub struct NodeConfig {
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
 
+    /// Enables the pre-consensus soft-locking mechanism used by the
+    /// certificate-less (pcool) transaction flow (default: enabled).
+    ///
+    /// When disabled, post-consensus validation alone resolves owned-object
+    /// conflicts. Has no effect unless the pcool flow is enabled.
+    #[serde(default = "bool_true")]
+    pub enable_soft_locking: bool,
+
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
 
@@ -1550,6 +1558,16 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
         let _template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+    }
+
+    #[test]
+    fn enable_soft_locking_defaults_to_enabled() {
+        // The template omits `enable-soft-locking`, so this exercises the serde
+        // default and pins the documented "default: enabled" contract.
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.enable_soft_locking);
     }
 
     #[test]
