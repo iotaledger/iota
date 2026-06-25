@@ -106,6 +106,12 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_commit_sync_batches_ahead")]
     pub commit_sync_batches_ahead: usize,
 
+    /// Maximum number of commits scanned and replayed per batch during
+    /// recovery, bounding peak memory when a large unprocessed range is
+    /// replayed at startup.
+    #[serde(default = "Parameters::default_commit_recovery_batch_size")]
+    pub commit_recovery_batch_size: u32,
+
     /// Maximum number of headers to be included in a bundle. Headers exceeding
     /// the max allowed limit will be truncated.
     #[serde(default = "Parameters::default_max_headers_per_bundle")]
@@ -257,6 +263,10 @@ impl Parameters {
                 self.commit_sync_batch_size as u128,
             ),
             (
+                "commit_recovery_batch_size",
+                self.commit_recovery_batch_size as u128,
+            ),
+            (
                 "commit_sync_batches_ahead",
                 self.commit_sync_batches_ahead as u128,
             ),
@@ -368,6 +378,10 @@ impl Parameters {
         }
     }
 
+    pub(crate) fn default_commit_recovery_batch_size() -> u32 {
+        if cfg!(msim) { 3 } else { 250 }
+    }
+
     pub(crate) fn default_commit_sync_batches_ahead() -> usize {
         // This is set to be a multiple of default commit_sync_parallel_fetches to allow
         // fetching ahead, while keeping the total number of inflight fetches
@@ -439,6 +453,7 @@ impl Default for Parameters {
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
+            commit_recovery_batch_size: Parameters::default_commit_recovery_batch_size(),
             max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),

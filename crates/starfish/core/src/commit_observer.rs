@@ -48,10 +48,6 @@ impl CommittedSubDagSource {
     }
 }
 
-/// Maximum number of commits scanned and processed per batch during recovery,
-/// to bound peak memory when a large unprocessed range must be replayed.
-const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
-
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
 /// - The newly committed leaders are sent to commit observer and then commit
@@ -347,11 +343,10 @@ impl CommitObserver {
         // data lagged behind commits for a long period) is never materialized at
         // once. Disjoint, ascending, contiguous batches feed the solidifier
         // exactly as a single pass would.
-        for start_index in
-            (recovery_start..=last_commit_index).step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
-        {
+        let batch_size = self.context.parameters.commit_recovery_batch_size;
+        for start_index in (recovery_start..=last_commit_index).step_by(batch_size as usize) {
             let end_index = start_index
-                .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
+                .saturating_add(batch_size - 1)
                 .min(last_commit_index);
 
             let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
@@ -534,10 +529,11 @@ impl CommitObserver {
         // (e.g. when an authority quarantines commits for a long period), process
         // in bounded batches.
         let unhandled_commits_threshold = self.context.parameters.unhandled_commits_threshold();
+        let batch_size = self.context.parameters.commit_recovery_batch_size;
         let mut any_sent = false;
         let mut expected_commit_index = last_processed_commit_index;
-        for start_index in (last_processed_commit_index + 1..=last_commit_index)
-            .step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
+        for start_index in
+            (last_processed_commit_index + 1..=last_commit_index).step_by(batch_size as usize)
         {
             // Pace on consumer progress like the commit syncers do: don't run
             // more than unhandled_commits_threshold commits ahead of the
@@ -548,7 +544,7 @@ impl CommitObserver {
                 .await;
 
             let end_index = start_index
-                .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
+                .saturating_add(batch_size - 1)
                 .min(last_commit_index);
 
             let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
@@ -1336,6 +1332,7 @@ mod tests {
                 db_path: temp_dir.keep(),
                 commit_sync_batch_size: 3,
                 commit_sync_batches_ahead: 1,
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
@@ -1479,6 +1476,7 @@ mod tests {
             committee,
             starfish_config::Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             protocol_config,
@@ -1614,6 +1612,7 @@ mod tests {
             committee,
             starfish_config::Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             protocol_config,
