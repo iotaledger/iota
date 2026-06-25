@@ -988,7 +988,7 @@ impl GrpcIndexesStore {
                 tables
                     .meta
                     .flush()
-                    .expect("failed to flush gRPC index tables to disk");
+                    .expect("gRPC index DB should be flushable after bulk ingestion");
 
                 let weak_db = Arc::downgrade(&tables.meta.db);
                 drop(tables);
@@ -1012,8 +1012,8 @@ impl GrpcIndexesStore {
                 let stored_version = reopened_tables
                     .meta
                     .get(&())
-                    .expect("failed to read metadata from reopened database")
-                    .expect("metadata not found in reopened database");
+                    .expect("reopened gRPC index DB should expose readable metadata")
+                    .expect("metadata should have been written before flush and reopen");
                 assert_eq!(
                     stored_version.version, CURRENT_DB_VERSION,
                     "database version mismatch after flush and reopen: expected {}, found {}",
