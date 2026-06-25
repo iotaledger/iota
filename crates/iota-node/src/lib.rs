@@ -880,14 +880,20 @@ impl IotaNode {
         {
             // snapshot pull (recognized chains only)
             if let Some(remote_store_config) = &recognized_source {
-                Self::backfill_epoch_info_from_snapshot(
+                if let Err(e) = Self::backfill_epoch_info_from_snapshot(
                     checkpoint_store,
                     remote_store_config,
                     genesis.committee()?,
                     genesis.iota_system_object(),
                     expected_chain_id,
                 )
-                .await?;
+                .await
+                {
+                    warn!(
+                        "epoch_info snapshot backfill failed ({e:#}); falling back to \
+                         rebuilding from local checkpoint history"
+                    );
+                }
             }
 
             // local replay
@@ -914,9 +920,10 @@ impl IotaNode {
             );
             if recognized_source.is_some() {
                 anyhow::bail!(
-                    "{detail}: the latest published snapshot is older than this node's history \
-                     and the missing epochs' checkpoint data is already pruned locally; retry \
-                     once a newer snapshot is published"
+                    "{detail}: the formal snapshot couldn't complete the chain (older than this \
+                     node's history, or its source unreachable) and the missing epochs' \
+                     checkpoint data is already pruned locally; retry once the snapshot source \
+                     is reachable and current"
                 );
             }
             warn!(
