@@ -122,4 +122,16 @@ fn validate_rejects_zero_values() {
     };
     let error = parameters.validate().unwrap_err();
     assert!(error.contains("keepalive_interval"));
+
+    // `excessive_message_size` is a pure metrics threshold with no "0 disables
+    // it" meaning, so a zero would flag every message as excessive.
+    let parameters = starfish_config::Parameters {
+        tonic: starfish_config::TonicParameters {
+            excessive_message_size: 0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("excessive_message_size"));
 }

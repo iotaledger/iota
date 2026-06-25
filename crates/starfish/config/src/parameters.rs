@@ -274,6 +274,10 @@ impl Parameters {
                 self.tonic.connection_buffer_size as u128,
             ),
             (
+                "tonic.excessive_message_size",
+                self.tonic.excessive_message_size as u128,
+            ),
+            (
                 "tonic.message_size_limit",
                 self.tonic.message_size_limit as u128,
             ),
