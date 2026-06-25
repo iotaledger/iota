@@ -624,8 +624,8 @@ fn set_restore_watermarks(
 /// summaries below the node's existing watermarks — it never moves a watermark,
 /// so the node's synced/executed/pruned state is untouched.
 ///
-/// Summaries are taken as-is from `ingestion_url` without chain verification, so
-/// the bucket is trusted to serve this node's own chain.
+/// Summaries are taken as-is from `ingestion_url` without chain verification,
+/// so the bucket is trusted to serve this node's own chain.
 pub async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,
@@ -660,10 +660,11 @@ pub async fn backfill_checkpoint_summaries(
     }
 
     // Download summaries for the contiguous range `[1, highest_synced]`; genesis
-    // (0) is the chain root and is already present. `read_summaries_for_list_no_verify`
-    // only inserts checkpoints (it never touches a watermark), and re-inserting
-    // an already-present summary is a no-op, so this fills in the missing
-    // historical summaries below the node's watermarks without moving any of them.
+    // (0) is the chain root and is already present.
+    // `read_summaries_for_list_no_verify` only inserts checkpoints (it never
+    // touches a watermark), and re-inserting an already-present summary is a
+    // no-op, so this fills in the missing historical summaries below the node's
+    // watermarks without moving any of them.
     let summaries: Vec<_> = (1..=highest_synced).collect();
     let bar = m.add(ProgressBar::new(highest_synced).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),

@@ -47,7 +47,7 @@ tonic-prost-build = "0.14"
 
 [dev-dependencies]
 # external dependencies
-ed25519-consensus.workspace = true
+ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 

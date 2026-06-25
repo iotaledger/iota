@@ -329,9 +329,9 @@ pub enum ToolCommand {
     /// summary source for syncing peers). Only historical summaries are added;
     /// no watermark is moved.
     ///
-    /// Summaries are downloaded from the checkpoints bucket at `--ingestion-url`
-    /// and inserted without chain verification, so the bucket is trusted to
-    /// serve this node's own chain.
+    /// Summaries are downloaded from the checkpoints bucket at
+    /// `--ingestion-url` and inserted without chain verification, so the
+    /// bucket is trusted to serve this node's own chain.
     BackfillCheckpointSummaries {
         /// Path to the node's live database directory (the one containing
         /// `checkpoints/`, `store/`, and `epochs/`). The node must be stopped.
