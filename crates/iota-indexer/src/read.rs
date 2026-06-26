@@ -208,6 +208,13 @@ impl IndexerReader {
         self.fallback.as_ref()
     }
 
+    /// Returns `true` if a historical fallback reader is configured on this
+    /// `IndexerReader`. Callers can use this to decide whether pruned-range
+    /// reads will be served by the fallback.
+    pub fn is_fallback_enabled(&self) -> bool {
+        self.fallback.is_some()
+    }
+
     /// Accesses the watermark cache.
     pub fn watermark_cache(&self) -> &WatermarkCache {
         &self.watermark_cache

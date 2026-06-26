@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
@@ -11,7 +11,9 @@ use async_graphql::{
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
+use iota_indexer::{
+    models::checkpoints::StoredCheckpoint, pruning::CommitterTables, schema::checkpoints,
+};
 use iota_types::messages_checkpoint::CheckpointDigest;
 use serde::{Deserialize, Serialize};
 
@@ -373,6 +375,9 @@ impl Checkpoint {
     ///
     /// If the `Page<Cursor>` is set, then this function will defer to the
     /// `checkpoint_viewed_at` in the cursor if they are consistent.
+    ///
+    /// Specifying cursor or requesting epoch from the pruned range will result
+    /// in an error.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -386,37 +391,73 @@ impl Checkpoint {
             return Ok(Connection::new(false, false));
         }
 
-        let Some((absolute_lo_incl, absolute_hi_incl)) =
+        let Some((mut absolute_lo_incl, absolute_hi_incl)) =
             Self::pagination_range(db, filter, checkpoint_viewed_at).await?
         else {
             return Ok(Connection::new(false, false));
         };
 
-        // Narrow by the page's cursors, keeping in mind cursors are exclusive.
-        let page_lo_incl = match page.after() {
-            Some(cursor) => absolute_lo_incl.max(cursor.sequence_number.saturating_add(1)),
-            None => absolute_lo_incl,
-        };
-        let page_hi_incl = match page.before() {
-            Some(cursor) => absolute_hi_incl.min(cursor.sequence_number.saturating_sub(1)),
-            None => absolute_hi_incl,
-        };
+        // Without a fallback, anything below the pruning watermark is unreachable
+        if !db.inner.is_fallback_enabled() {
+            if let Some(lowest_unpruned_cp) = db
+                .inner
+                .watermark_cache()
+                .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
+                .map(|w| w as u64)
+            {
+                absolute_lo_incl = absolute_lo_incl.max(lowest_unpruned_cp);
+            }
+        }
 
-        if page_lo_incl > page_hi_incl {
+        let available_range = absolute_lo_incl..=absolute_hi_incl;
+
+        if available_range.is_empty() {
+            return Err(Error::DataPruned(
+                "all checkpoints in the requested range have been pruned".into(),
+            ));
+        }
+
+        // Reject cursors outside the available range. Below the lower bound means data
+        // was pruned in the middle of pagination; above the upper bound means the
+        // cursor is malformed.
+        let validate_cursor = |name: &str, cursor: Option<&Cursor>| -> Result<Option<u64>, Error> {
+            let Some(cursor) = cursor else {
+                return Ok(None);
+            };
+            let seq = cursor.sequence_number;
+            if seq < absolute_lo_incl {
+                return Err(Error::DataPruned(format!(
+                    "`{name}` cursor (seq {seq}) is below the available range {available_range:?}"
+                )));
+            }
+            if seq > absolute_hi_incl {
+                return Err(Error::Client(format!(
+                    "`{name}` cursor (seq {seq}) is above the available range {available_range:?}"
+                )));
+            }
+            Ok(Some(seq))
+        };
+        // Narrow the range using cursors, keeping in mind cursors are exclusive.
+        let page_lo_incl = validate_cursor("after", page.after())?
+            .map_or(absolute_lo_incl, |s| s.saturating_add(1));
+        let page_hi_incl = validate_cursor("before", page.before())?
+            .map_or(absolute_hi_incl, |s| s.saturating_sub(1));
+
+        let page_range = page_lo_incl..=page_hi_incl;
+        if page_range.is_empty() {
             return Ok(Connection::new(false, false));
         }
 
-        // Take `limit` sequence numbers from the appropriate end of [lo, hi].
+        // Take `limit` sequence numbers from the appropriate end of the page range.
         let limit = page.limit();
         let picked_seqs: Vec<u64> = if page.is_from_front() {
-            (page_lo_incl..=page_hi_incl).take(limit).collect()
+            page_range.take(limit).collect()
         } else {
-            (page_lo_incl..=page_hi_incl).rev().take(limit).collect()
+            page_range.rev().take(limit).collect()
         };
-        let expected_count = picked_seqs.len();
         let mut all_rows: Vec<StoredCheckpoint> = db
             .inner
-            .get_stored_checkpoints_by_seqs_with_fallback(picked_seqs)
+            .get_stored_checkpoints_by_seqs_with_fallback(picked_seqs.clone())
             .await
             .map_err(|err| Error::Internal(format!("Failed to fetch checkpoints: {err}")))?
             .into_iter()
@@ -424,19 +465,22 @@ impl Checkpoint {
             .collect();
         all_rows.sort_by_key(|s| s.sequence_number);
 
-        if all_rows.is_empty() {
-            return Err(Error::Internal(
-                "checkpoints in the requested page have been pruned and are not available in fallback storage".into(),
-            ));
+        // We validated the available range earlier, unpruned range should be present in
+        // the DB, rest should be present in fallback KV if configured. In such case we
+        // expect all checkpoints to be returned.
+        if all_rows.len() < picked_seqs.len() {
+            let picked: BTreeSet<u64> = picked_seqs.iter().copied().collect();
+            let returned: BTreeSet<u64> =
+                all_rows.iter().map(|r| r.sequence_number as u64).collect();
+            let misses: Vec<u64> = picked.difference(&returned).copied().collect();
+            return Err(Error::Internal(format!(
+                "checkpoints {misses:?} expected to be available but not found"
+            )));
         }
 
         let fetched_lo = all_rows.first().expect("checked non-empty").sequence_number as u64;
         let fetched_hi = all_rows.last().expect("checked non-empty").sequence_number as u64;
-
-        // Pruning progresses from the `lo` side. Too few rows returned -> no usable
-        // previous page.
-        let fully_unpruned_page = all_rows.len() == expected_count;
-        let has_prev = fully_unpruned_page && fetched_lo > absolute_lo_incl;
+        let has_prev = fetched_lo > absolute_lo_incl;
         let has_next = fetched_hi < absolute_hi_incl;
 
         let mut conn = Connection::new(has_prev, has_next);
@@ -521,13 +565,7 @@ impl Loader<DigestKey> for Db {
     type Error = Error;
 
     async fn load(&self, keys: &[DigestKey]) -> Result<HashMap<DigestKey, Checkpoint>, Error> {
-        let digests: Vec<CheckpointDigest> = keys
-            .iter()
-            .map(|key| {
-                CheckpointDigest::from_bytes(key.digest.to_vec())
-                    .map_err(|e| Error::Internal(format!("Invalid CheckpointDigest: {e}")))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let digests: Vec<CheckpointDigest> = keys.iter().map(|key| key.digest.into()).collect();
 
         let rows = self
             .inner
