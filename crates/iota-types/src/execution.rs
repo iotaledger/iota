@@ -150,7 +150,7 @@ impl ExecutionResultsV1 {
                 // Update initial_shared_version for reshared objects
                 if let Some(previous_initial_shared_version) = input_objects
                     .get(id)
-                    .and_then(|obj| obj.owner.as_shared_opt())
+                    .and_then(|obj| obj.owner.as_opt_shared())
                 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));

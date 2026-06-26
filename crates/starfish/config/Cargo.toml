@@ -24,3 +24,4 @@ iota-sdk-ext = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 insta.workspace = true
+serde_yaml.workspace = true

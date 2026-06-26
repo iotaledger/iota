@@ -888,11 +888,9 @@ impl IndexStoreTables {
         cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
-        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectId::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectId::MAX);
         let iter = self
             .dynamic_field
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
+            .safe_iter_with_prefix_from(&parent, &cursor.unwrap_or(ObjectId::ZERO))
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -912,17 +910,9 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        let lower_bound = PackageVersionKey {
-            original_package_id,
-            version: cursor.unwrap_or(0),
-        };
-        let upper_bound = PackageVersionKey {
-            original_package_id,
-            version: u64::MAX,
-        };
         Ok(self
             .package_version
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
+            .safe_iter_with_prefix_from(&original_package_id, &cursor.unwrap_or(0)))
     }
 }
 
@@ -1202,7 +1192,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 fn should_index_dynamic_field(object: &Object) -> bool {
     object
         .data
-        .as_struct_opt()
+        .as_opt_struct()
         .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
@@ -1252,7 +1242,7 @@ fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, Obje
 fn try_create_package_version_info(
     object: &Object,
 ) -> Option<(PackageVersionKey, PackageVersionInfo)> {
-    let package = object.data.as_package_opt()?;
+    let package = object.data.as_opt_package()?;
     Some((
         PackageVersionKey {
             original_package_id: package.original_package_id(),

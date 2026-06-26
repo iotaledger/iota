@@ -250,7 +250,9 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
     fn from(iota_commitment: CheckpointCommitmentSchema) -> Self {
         match iota_commitment {
             CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitment::ECMHLiveObjectSetDigest(digest)
+                CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: digest.digest,
+                }
             }
         }
     }
@@ -259,9 +261,12 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
 impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
     fn from(commitment: CheckpointCommitment) -> Self {
         match commitment {
-            CheckpointCommitment::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest)
+            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
+                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest {
+                    digest,
+                })
             }
+            _ => unimplemented!("a new CheckpointCommitment variant was added and must be handled"),
         }
     }
 }

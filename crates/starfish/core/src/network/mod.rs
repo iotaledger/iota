@@ -43,6 +43,7 @@ mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
 }
 
+mod admission;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]

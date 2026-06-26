@@ -301,7 +301,7 @@ mod tests {
         let id = shared_object.id();
         let init_shared_version = shared_object
             .owner
-            .into_shared_opt()
+            .into_opt_shared()
             .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(std::slice::from_ref(&shared_object))
@@ -460,11 +460,11 @@ mod tests {
         let id2 = shared_object_2.id();
         let init_shared_version_1 = shared_object_1
             .owner
-            .into_shared_opt()
+            .into_opt_shared()
             .expect("expected shared object");
         let init_shared_version_2 = shared_object_2
             .owner
-            .into_shared_opt()
+            .into_opt_shared()
             .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(&[shared_object_1.clone(), shared_object_2.clone()])
@@ -633,7 +633,7 @@ mod tests {
         let id = shared_object.id();
         let init_shared_version = shared_object
             .owner
-            .into_shared_opt()
+            .into_opt_shared()
             .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(std::slice::from_ref(&shared_object))

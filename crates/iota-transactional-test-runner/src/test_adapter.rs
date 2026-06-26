@@ -33,9 +33,9 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_ext::types::{
-    Address, Argument, Command, Event, ExecutionStatus, Identifier, ObjectData, ObjectId,
-    ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag, gas::GasCostSummary,
-    move_package::MovePackage,
+    Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
+    ObjectData, ObjectId, ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -51,7 +51,6 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
-    move_authenticator::MoveAuthenticator,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -518,7 +517,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.as_package_opt()?;
+                let package = object.data.as_opt_package()?;
                 if package
                     .serialized_module_map()
                     .get(&Identifier::new_unchecked(first_module_name.clone()))
@@ -552,7 +551,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .get_object(&created_package, None)
             .unwrap()
             .data
-            .as_package_opt()
+            .as_opt_package()
             .unwrap()
             .serialized_module_map()
             .values()
@@ -1063,7 +1062,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
                         };
                         let obj = self.get_object(&id, version)?;
-                        let package = obj.data.as_package_opt().map(|package| {
+                        let package = obj.data.as_opt_package().map(|package| {
                             package
                                 .serialized_module_map()
                                 .values()
@@ -1412,25 +1411,35 @@ impl IotaTestAdapter {
             .next()
             .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
         let aa_call_arg = aa_arg.into_call_arg(self)?;
-        let aa_id = match &aa_call_arg {
-            CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
-            CallArg::Shared(shared) => shared.object_id,
-            CallArg::Pure(_) | CallArg::Receiving(_) => {
-                return Err(anyhow::anyhow!(
-                    "abstract: account must be an object representing the abstract account"
-                ));
-            }
-            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
-        };
 
-        Ok((
-            aa_id,
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-                auth_inputs,
-                vec![],
-                aa_call_arg,
+        match &aa_call_arg {
+            CallArg::ImmutableOrOwned(obj_ref) => Ok((
+                obj_ref.object_id,
+                GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_with_immutable_account_object(
+                        auth_inputs,
+                        vec![],
+                        *obj_ref,
+                    )
+                    .into(),
+                ),
             )),
-        ))
+            CallArg::Shared(shared) => Ok((
+                shared.object_id,
+                GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_with_shared_account_object(
+                        auth_inputs,
+                        vec![],
+                        *shared,
+                    )
+                    .into(),
+                ),
+            )),
+            CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(
+                "abstract: account must be an object representing the abstract account"
+            )),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+        }
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
@@ -1631,7 +1640,7 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.as_package_opt()?;
+                let package = object.data.as_opt_package()?;
                 Some(package.id())
             })
             .unwrap();

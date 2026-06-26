@@ -91,6 +91,9 @@ impl ConsensusAuthority {
             committee.is_valid_index(own_index),
             "Invalid own index {own_index}"
         );
+        parameters
+            .validate()
+            .unwrap_or_else(|e| panic!("Invalid consensus parameters: {e}"));
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
             "Starting consensus authority {} {}, {:?}, boot counter {}, last processed commit index {}",

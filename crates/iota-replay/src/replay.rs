@@ -41,7 +41,7 @@ use iota_types::{
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
@@ -871,7 +871,7 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -1187,7 +1187,7 @@ impl LocalExec {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -2192,7 +2192,7 @@ fn load_authenticator_function_ref(
 
     let field_move_object = field_obj
         .data
-        .as_struct_opt()
+        .as_opt_struct()
         .expect("dynamic field should never be a package object");
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object

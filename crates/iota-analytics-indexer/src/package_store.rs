@@ -81,7 +81,7 @@ impl LocalDBPackageStore {
     }
 
     pub fn update(&self, object: &Object) -> iota_package_resolver::Result<()> {
-        let Some(_package) = object.data.as_package_opt() else {
+        let Some(_package) = object.data.as_opt_package() else {
             return Ok(());
         };
         self.package_store_tables.update(object)?;

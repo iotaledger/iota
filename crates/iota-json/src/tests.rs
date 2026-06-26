@@ -433,7 +433,7 @@ fn test_basic_args_linter_top_level() {
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let package = example_package.data.as_package_opt().unwrap();
+    let package = example_package.data.as_opt_package().unwrap();
 
     let module = Identifier::from_static("resolve_args");
     let function = Identifier::from_static("foo");

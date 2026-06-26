@@ -163,10 +163,10 @@ impl ObjectHandler {
         object_status_tracker: &ObjectStatusTracker,
         state: &mut State,
     ) -> Result<()> {
-        let move_obj_opt = object.data.as_struct_opt();
+        let move_obj_opt = object.data.as_opt_struct();
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
-            .and_then(|tag| object.data.as_struct_opt().map(|mo| (tag, mo.contents())))
+            .and_then(|tag| object.data.as_opt_struct().map(|mo| (tag, mo.contents())))
         {
             let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
             Some(move_struct)

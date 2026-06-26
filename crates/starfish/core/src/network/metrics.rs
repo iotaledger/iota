@@ -17,6 +17,12 @@ pub(crate) struct NetworkMetrics {
     pub(crate) outbound: Arc<NetworkRouteMetrics>,
     #[cfg_attr(msim, allow(dead_code))]
     pub(crate) tcp_connection_metrics: Arc<TcpConnectionMetrics>,
+    /// Inbound requests rejected by per-peer admission control, by RPC group.
+    pub(crate) admission_rejected: IntCounterVec,
+    /// Inbound requests currently in flight under admission control, by RPC
+    /// group (summed across peers). Shows live concurrency vs the per-peer
+    /// caps.
+    pub(crate) admission_in_use: IntGaugeVec,
 }
 
 impl NetworkMetrics {
@@ -32,6 +38,20 @@ impl NetworkMetrics {
             inbound: Arc::new(NetworkRouteMetrics::new("inbound", registry)),
             outbound: Arc::new(NetworkRouteMetrics::new("outbound", registry)),
             tcp_connection_metrics: Arc::new(TcpConnectionMetrics::new(registry)),
+            admission_rejected: register_int_counter_vec_with_registry!(
+                "inbound_admission_rejected",
+                "Inbound consensus requests rejected by per-peer admission control, by RPC group",
+                &["group"],
+                registry
+            )
+            .unwrap(),
+            admission_in_use: register_int_gauge_vec_with_registry!(
+                "inbound_admission_in_use",
+                "Inbound consensus requests currently in flight under admission control, by RPC group",
+                &["group"],
+                registry
+            )
+            .unwrap(),
         }
     }
 }

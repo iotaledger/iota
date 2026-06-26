@@ -3036,7 +3036,7 @@ pub async fn collect_packages_and_upgrade_caps(
             continue;
         }
         let cap = authority.get_object(&obj_ref.object_id).await.unwrap();
-        let bcs = cap.data.as_struct_opt().unwrap().contents();
+        let bcs = cap.data.as_opt_struct().unwrap().contents();
         let obj: UpgradeCap = bcs::from_bytes(bcs).unwrap();
         let pkg = packages.get(&obj.package.bytes).unwrap();
         caps.insert(pkg.object_id, obj_ref);

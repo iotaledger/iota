@@ -65,7 +65,7 @@ impl<'chk> Extractor<'chk> {
 /// Field or a Dynamic Object Field based on its type.
 pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
-    let move_object = o.data.as_struct_opt()?;
+    let move_object = o.data.as_opt_struct()?;
 
     if !move_object.struct_tag().is_dynamic_field() {
         return None;

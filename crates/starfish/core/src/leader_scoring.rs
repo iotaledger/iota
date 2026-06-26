@@ -16,6 +16,7 @@ use crate::{
     block_header::{BlockHeaderAPI, BlockRef},
     commit::{CommitRange, SubDagBase},
     context::Context,
+    error::{ConsensusError, ConsensusResult},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -74,19 +75,28 @@ impl ReputationScores {
     /// commits). The reputation_scores_desc is Vec<(AuthorityIndex, u64)>
     /// sorted by score descending. This converts it to scores_per_authority
     /// indexed by authority.
+    ///
+    /// Returns `InvalidAuthorityIndex` if an authority index is out of range
+    /// for the committee; the scores originate from fetched commits.
     pub(crate) fn from_scores_desc(
         num_authorities: usize,
         commit_range: CommitRange,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
-    ) -> Self {
+    ) -> ConsensusResult<Self> {
         let mut scores_per_authority = vec![0u64; num_authorities];
         for (authority_index, score) in reputation_scores_desc {
-            scores_per_authority[*authority_index] = *score;
+            let slot = scores_per_authority
+                .get_mut(authority_index.value())
+                .ok_or(ConsensusError::InvalidAuthorityIndex {
+                    index: *authority_index,
+                    max: num_authorities,
+                })?;
+            *slot = *score;
         }
-        Self {
+        Ok(Self {
             scores_per_authority,
             commit_range,
-        }
+        })
     }
 }
 
@@ -247,6 +257,28 @@ mod tests {
 
     use super::*;
     use crate::test_dag_builder::DagBuilder;
+
+    #[test]
+    fn test_from_scores_desc_converts_to_per_authority_scores() {
+        let scores = vec![
+            (AuthorityIndex::new_for_test(1), 10),
+            (AuthorityIndex::new_for_test(3), 5),
+        ];
+        let reputation_scores =
+            ReputationScores::from_scores_desc(4, (1..=10).into(), &scores).unwrap();
+        assert_eq!(reputation_scores.scores_per_authority, vec![0, 10, 0, 5]);
+    }
+
+    #[test]
+    fn test_from_scores_desc_rejects_out_of_range_authority() {
+        let scores = vec![(AuthorityIndex::new_for_test(4), 10)];
+        let result = ReputationScores::from_scores_desc(4, (1..=10).into(), &scores);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndex { index, max })
+                if index == AuthorityIndex::new_for_test(4) && max == 4
+        ));
+    }
 
     #[tokio::test]
     async fn test_reputation_scores_authorities_by_score() {

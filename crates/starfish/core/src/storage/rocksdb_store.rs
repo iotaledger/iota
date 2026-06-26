@@ -630,10 +630,10 @@ impl Store for RocksDBStore {
         let mut refs = std::collections::VecDeque::new();
         for kv in self
             .digests_by_authorities
-            .reversed_safe_iter_with_bounds(
-                Some((author, Round::MIN, BlockHeaderDigest::MIN)),
-                Some((author, before_round, BlockHeaderDigest::MAX)),
-            )?
+            .safe_range_iter_reversed(
+                (author, Round::MIN, BlockHeaderDigest::MIN)
+                    ..=(author, before_round, BlockHeaderDigest::MAX),
+            )
             .take(num_of_rounds as usize)
         {
             let ((author, round, digest), _) = kv?;
@@ -663,11 +663,7 @@ impl Store for RocksDBStore {
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
-        let Some(result) = self
-            .commits
-            .reversed_safe_iter_with_bounds(None, None)?
-            .next()
-        else {
+        let Some(result) = self.commits.safe_range_iter_reversed(..).next() else {
             return Ok(None);
         };
         let ((_index, digest), serialized) = result?;
@@ -720,10 +716,10 @@ impl Store for RocksDBStore {
         // The commit_votes table is keyed by (CommitIndex, CommitDigest, BlockRef).
         let result = self
             .commit_votes
-            .reversed_safe_iter_with_bounds(
-                Some((CommitIndex::MIN, CommitDigest::MIN, BlockRef::MIN)),
-                Some((up_to_index, CommitDigest::MAX, BlockRef::MAX)),
-            )?
+            .safe_range_iter_reversed(
+                (CommitIndex::MIN, CommitDigest::MIN, BlockRef::MIN)
+                    ..=(up_to_index, CommitDigest::MAX, BlockRef::MAX),
+            )
             .next();
 
         match result {
@@ -753,11 +749,7 @@ impl Store for RocksDBStore {
     }
 
     fn read_last_commit_info(&self) -> ConsensusResult<Option<(CommitRef, CommitInfo)>> {
-        let Some(result) = self
-            .commit_info
-            .reversed_safe_iter_with_bounds(None, None)?
-            .next()
-        else {
+        let Some(result) = self.commit_info.safe_range_iter_reversed(..).next() else {
             return Ok(None);
         };
         let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
@@ -779,10 +771,10 @@ impl Store for RocksDBStore {
             .collect()
     }
 
-    fn read_fast_sync_ongoing(&self) -> bool {
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
         self.fast_commit_sync_flag
             .contains_key(&())
-            .unwrap_or(false)
+            .map_err(ConsensusError::RocksDBFailure)
     }
 }
 

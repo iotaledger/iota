@@ -332,7 +332,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v.into()))
@@ -344,7 +344,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v))
@@ -472,7 +472,7 @@ impl CheckpointStore {
         if let Some((last_local_summary, _)) = self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
         {
@@ -1659,7 +1659,9 @@ impl CheckpointBuilder {
                 self.metrics.highest_accumulated_epoch.set(epoch as i64);
                 info!("Epoch {epoch} root state hash digest: {root_state_digest:?}");
 
-                let epoch_commitments = vec![root_state_digest.into()];
+                let epoch_commitments = vec![CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: root_state_digest.digest,
+                }];
 
                 Some(EndOfEpochData {
                     next_epoch_committee: committee.voting_rights,
@@ -2092,7 +2094,7 @@ impl CheckpointAggregator {
             .store
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(seq, _)| seq + 1)

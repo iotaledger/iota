@@ -47,7 +47,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -603,7 +603,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(|arg| arg.as_receiving_opt().copied())
+            .filter_map(|arg| arg.as_opt_receiving().copied())
             .collect()
     }
 
@@ -2078,10 +2078,7 @@ impl SenderSignedData {
 
         self.move_authenticators()
             .into_iter()
-            .find(|a| match a.address() {
-                Ok(addr) => addr == sender,
-                Err(_) => false,
-            })
+            .find(|a| a.address() == sender)
     }
 
     /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
@@ -2094,10 +2091,7 @@ impl SenderSignedData {
 
             self.move_authenticators()
                 .into_iter()
-                .find(|a| match a.address() {
-                    Ok(addr) => addr == gas_owner,
-                    Err(_) => false,
-                })
+                .find(|a| a.address() == gas_owner)
         } else {
             None
         }
@@ -3203,7 +3197,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_struct_opt().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveObject::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,

@@ -175,7 +175,7 @@ impl Genesis {
             .find(|o| o.id() == ObjectId::CLOCK)
             .expect("clock must always exist")
             .data
-            .as_struct_opt()
+            .as_opt_struct()
             .expect("clock must be a Move object");
         bcs::from_bytes::<Clock>(clock.contents())
             .expect("clock object deserialization cannot fail")

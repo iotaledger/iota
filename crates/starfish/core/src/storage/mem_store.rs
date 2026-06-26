@@ -542,7 +542,7 @@ impl Store for MemStore {
         Ok(headers)
     }
 
-    fn read_fast_sync_ongoing(&self) -> bool {
-        self.inner.read().fast_sync_ongoing
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
+        Ok(self.inner.read().fast_sync_ongoing)
     }
 }

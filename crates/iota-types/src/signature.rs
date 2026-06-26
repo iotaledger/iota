@@ -23,7 +23,7 @@ use crate::{
         SignatureScheme,
     },
     error::{IotaError, IotaResult},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorInner, MoveAuthenticatorV1},
+    move_authenticator::MoveAuthenticator,
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
 };
@@ -275,7 +275,8 @@ impl GenericSignature {
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
                 SignatureScheme::MoveAuthenticator => {
-                    let move_auth = MoveAuthenticator::from_bytes(bytes)?;
+                    let move_auth = MoveAuthenticator::from_bytes(bytes)
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))?;
                     Ok(GenericSignature::MoveAuthenticator(move_auth))
                 }
                 _ => Err(FastCryptoError::InvalidInput),
