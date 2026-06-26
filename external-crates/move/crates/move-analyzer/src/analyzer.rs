@@ -243,7 +243,7 @@ pub fn run(implicit_deps: Dependencies) {
                                         .connection
                                         .sender
                                         .send(lsp_server::Message::Notification(notification)) {
-                                            eprintln!("could not send error notification: {:?}", err);
+                                            eprintln!("could not send compiler error response: {:?}", err);
                                         };
                                 },
                             }
