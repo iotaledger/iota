@@ -68,25 +68,6 @@ COPY --from=builder /iota/iota-faucet /usr/local/bin
 COPY --from=builder /iota/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/iota-tool /usr/local/bin
 
-# Move sources the `stress` benchmark publishes on the fly at runtime so its
-# shared-object workloads can run directly in this image (not just from a repo
-# checkout): `--shared-counter` publishes examples/move/basics; `--slow` and
-# `--adversarial` publish crates/iota-benchmark/src/workloads/data/*. Both depend
-# on the iota-framework Move sources (which pull in move-stdlib). The Move
-# compiler is already linked into the binaries; only the sources are needed.
-# Owned-object workloads (--transfer-object) publish nothing and need none of this.
-COPY --from=builder /iota/examples/move /iota/examples/move
-COPY --from=builder /iota/crates/iota-benchmark/src/workloads/data /iota/crates/iota-benchmark/src/workloads/data
-COPY --from=builder /iota/crates/iota-framework/packages /iota/crates/iota-framework/packages
-
-# Point the benchmark's runtime Move publishing at the sources baked in above.
-# Without these, it falls back to compile-time `CARGO_MANIFEST_DIR/../..` paths,
-# whose intermediate crate dirs don't exist in this slim image — so the `..`
-# traversal fails (e.g. examples/move/basics for --shared-counter) even though
-# the target sources are present. `slow` worked only because its path has no `..`.
-ENV MOVE_EXAMPLES_DIR=/iota/examples/move
-ENV BENCHMARK_MOVE_BASE_DIR=/iota/crates/iota-benchmark
-
 ARG BUILD_DATE
 ARG GIT_REVISION
 LABEL build-date=$BUILD_DATE
