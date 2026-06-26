@@ -52,14 +52,6 @@ fn recover_leader_swap_table(
     )
 }
 
-/// The window where the schedule change takes place in consensus. It
-/// represents number of committed sub dags.
-/// TODO: move this to protocol config
-#[cfg(not(msim))]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
-#[cfg(msim)]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
-
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -72,9 +64,10 @@ pub(crate) struct LeaderSchedule {
 
 impl LeaderSchedule {
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
+        let num_commits_per_schedule = context.protocol_config.commits_per_schedule();
         Self {
             context,
-            num_commits_per_schedule: CONSENSUS_COMMITS_PER_SCHEDULE,
+            num_commits_per_schedule,
             leader_swap_table: Arc::new(RwLock::new(leader_swap_table)),
         }
     }

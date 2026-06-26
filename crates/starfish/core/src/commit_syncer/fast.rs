@@ -718,7 +718,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
+        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule() as u32;
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
@@ -929,6 +929,7 @@ mod tests {
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_fast_commit_sync_for_testing(true);
         protocol_config.set_gc_depth_for_testing(5);
+        protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
