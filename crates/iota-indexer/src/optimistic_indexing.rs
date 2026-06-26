@@ -460,7 +460,7 @@ impl OptimisticTransactionExecutor {
             .persist_objects_in_existing_transaction(conn, vec![object_changes])?;
         self.store.persist_displays_in_existing_transaction(
             conn,
-            indexed_displays.values().collect::<Vec<_>>(),
+            indexed_displays.into_values().collect(),
         )?;
 
         self.store

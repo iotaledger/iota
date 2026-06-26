@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, collections::BTreeMap};
+use std::any::Any;
 
 use async_trait::async_trait;
 use diesel::PgConnection;
@@ -70,10 +70,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         event_indices: Vec<EventIndex>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_displays(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError>;
+    async fn persist_displays(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError>;
 
     async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError>;
 
@@ -93,7 +90,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     fn persist_displays_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
-        display_updates: Vec<&StoredDisplay>,
+        displays: Vec<StoredDisplay>,
     ) -> Result<(), IndexerError>;
 
     fn persist_objects_in_existing_transaction(

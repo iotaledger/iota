@@ -34,7 +34,7 @@ impl Restore for PgIndexerStore {
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> anyhow::Result<()> {
         let mut hasher = Sha3_256::default();
-        let mut display_updates = BTreeMap::new();
+        let mut displays = BTreeMap::new();
         let partition = LiveObjectIter::new(&file_metadata, bytes)?.scan(
             &mut hasher,
             |hasher,
@@ -44,7 +44,7 @@ impl Restore for PgIndexerStore {
              }| {
                 hasher.update(object.object_ref().digest.inner());
                 if let Some(display) = StoredDisplay::try_from_object(&object) {
-                    display_updates.insert(display.object_type.clone(), display);
+                    displays.insert(display.object_type.clone(), display);
                 }
                 let checkpoint_sequence_number =
                     previous_transaction_checkpoint.unwrap_or_default();
@@ -83,7 +83,8 @@ impl Restore for PgIndexerStore {
                 ))
             })?;
         // TODO: enable chunking
-        self.persist_displays(display_updates).await?;
+        self.persist_displays(displays.into_values().collect())
+            .await?;
         Ok(())
     }
 }
