@@ -90,14 +90,6 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
     // Allow CPU-intensive flushing to use all cores.
     db_options.set_max_background_jobs(num_cpus as i32);
 
-    // Disable the write backpressure that kicks in as L0 files build up: `-1`
-    // turns off the compaction and slowdown triggers, and the stop trigger is
-    // pushed out of reach. Compaction itself is disabled per column family via
-    // `disable_auto_compactions` below, so no L0 files are ever compacted away.
-    db_options.set_level_zero_file_num_compaction_trigger(-1);
-    db_options.set_level_zero_slowdown_writes_trigger(-1);
-    db_options.set_level_zero_stop_writes_trigger(i32::MAX);
-
     // Upper bound on memtable memory across all column families: 80% of RAM.
     // Large memtables give flushing threads enough buffer to keep up with the
     // writers so the CPUs stay busy.
@@ -111,6 +103,21 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
     column_family_options
         .options
         .set_disable_auto_compactions(true);
+
+    // Disable the write backpressure that kicks in as L0 files build up: `-1`
+    // turns off the compaction and slowdown triggers, and the stop trigger is
+    // pushed out of reach. These are per-column-family options, so they must be
+    // set here rather than on `db_options` to reach the index CFs. Compaction
+    // itself is disabled above, so no L0 files are ever compacted away.
+    column_family_options
+        .options
+        .set_level_zero_file_num_compaction_trigger(-1);
+    column_family_options
+        .options
+        .set_level_zero_slowdown_writes_trigger(-1);
+    column_family_options
+        .options
+        .set_level_zero_stop_writes_trigger(i32::MAX);
 
     let cf_memory_budget = (total_memory_bytes as f64 * 0.25) as usize;
     const MIN_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64 MiB
