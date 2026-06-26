@@ -79,7 +79,7 @@ impl ReadApi {
             ObjectRead::Exists(object_ref, o, layout) => {
                 let mut display_fields = None;
                 if options.show_display {
-                    match self.inner.get_display_fields(&o, &layout).await {
+                    match self.inner.get_rendered_display_fields(&o, &layout).await {
                         Ok(rendered_fields) => display_fields = Some(rendered_fields),
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
@@ -127,7 +127,7 @@ impl ReadApi {
                 let display_fields = if options.show_display {
                     let rendered_fields = self
                         .inner
-                        .get_display_fields(&object, &layout)
+                        .get_rendered_display_fields(&object, &layout)
                         .await
                         .map_err(internal_error)?;
 

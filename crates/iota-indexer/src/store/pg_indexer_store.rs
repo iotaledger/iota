@@ -1980,6 +1980,7 @@ impl IndexerStore for PgIndexerStore {
                 display::id.eq(excluded(display::id)),
                 display::version.eq(excluded(display::version)),
                 display::bcs.eq(excluded(display::bcs)),
+                display::bcs_kind.eq(excluded(display::bcs_kind)),
             ),
             excluded(display::version).gt(display::version),
             conn

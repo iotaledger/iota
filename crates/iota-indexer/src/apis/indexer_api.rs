@@ -172,7 +172,7 @@ async fn construct_object_response(
         )),
         ObjectRead::Exists(object_ref, o, layout) => {
             if options.show_display {
-                match reader.get_display_fields(&o, &layout).await {
+                match reader.get_rendered_display_fields(&o, &layout).await {
                     Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
                         IotaObjectData::new(object_ref, o, layout, &options, rendered_fields)?,
                     )),
