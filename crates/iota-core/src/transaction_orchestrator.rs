@@ -1470,6 +1470,19 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
             warn!("TransactionDriver submitted transaction but failed to fetch effects: {msg}");
             QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(msg))
         }
+        Congested { suggested_gas_price } => {
+            // Execution-worker congestion: the submitted bytes would be shed
+            // again at the same price, so this is non-recoverable as-is. The
+            // structured `ValidatorTransactionCongested` error carries the
+            // suggested gas price for the client to resubmit a new transaction.
+            QuorumDriverError::NonRecoverableTransactionError {
+                errors: vec![(
+                    IotaError::ValidatorTransactionCongested { suggested_gas_price },
+                    0,
+                    vec![],
+                )],
+            }
+        }
     }
 }
 

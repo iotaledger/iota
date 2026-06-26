@@ -87,6 +87,11 @@ pub enum TransactionDriverError {
         submission_non_retriable_errors: AggregatedRequestErrors,
         submission_retriable_errors: AggregatedRequestErrors,
     },
+    /// Transaction shed due to execution congestion. The client should resubmit
+    /// a new transaction with a gas price of at least `suggested_gas_price`.
+    /// Non-retriable by the driver itself (the same signed bytes would be
+    /// shed again at the same price).
+    Congested { suggested_gas_price: u64 },
     /// Transaction execution observed multiple effects digests, and it is no
     /// longer possible to certify any of them.
     /// Non-retriable.
@@ -157,6 +162,7 @@ impl TransactionDriverError {
                 ErrorCategory::Unavailable
             }
             TransactionDriverError::SubmittedButFetchFailed { .. } => ErrorCategory::Unavailable,
+            TransactionDriverError::Congested { .. } => ErrorCategory::TransactionCongested,
         }
     }
 
@@ -281,6 +287,15 @@ impl std::fmt::Display for TransactionDriverError {
                     validator.concise()
                 )
             }
+            TransactionDriverError::Congested {
+                suggested_gas_price,
+            } => {
+                write!(
+                    f,
+                    "Transaction shed due to execution congestion (non-retriable). Resubmit a new \
+                    transaction with a gas price of at least {suggested_gas_price}."
+                )
+            }
         }
     }
 }
@@ -326,6 +341,35 @@ fn format_transaction_request_error(error: &TransactionRequestError) -> String {
             _ => iota_error.to_string(),
         },
         _ => error.to_string(),
+    }
+}
+
+/// If transactions shed for execution congestion account for at least the
+/// validity threshold of the rejection stake, returns the suggested gas price
+/// to surface to the client as a [`TransactionDriverError::Congested`]. The
+/// price is the max reported across validators; in practice all report the same
+/// value since the shed decision is deterministic per consensus commit.
+pub(crate) fn congestion_suggested_gas_price(
+    errors: &[(AuthorityName, StakeUnit, TransactionRequestError)],
+    validity_threshold: StakeUnit,
+) -> Option<u64> {
+    let mut congested_stake: StakeUnit = 0;
+    let mut suggested_gas_price: Option<u64> = None;
+    for (_, stake, error) in errors {
+        if let TransactionRequestError::RejectedAtValidator(
+            IotaError::ValidatorTransactionCongested {
+                suggested_gas_price: price,
+            },
+        ) = error
+        {
+            congested_stake += *stake;
+            suggested_gas_price = Some(suggested_gas_price.map_or(*price, |s| s.max(*price)));
+        }
+    }
+    if congested_stake >= validity_threshold {
+        suggested_gas_price
+    } else {
+        None
     }
 }
 
