@@ -412,9 +412,8 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
         // attribute may actually be published is decided by the target network's
         // protocol at publish time, so accept it here.
         iota_bytecode_verifier::iota_verify_module_unmetered(
-            m,
-            fn_info,
-            /* view_function_metadata_enabled */ true,
+            m, fn_info, // view_function_metadata_enabled
+            true,
         )?;
     }
     // Don't change the link components to iota. It is correct as it is.

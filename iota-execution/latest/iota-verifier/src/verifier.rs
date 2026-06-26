@@ -15,8 +15,8 @@ use crate::{
 
 /// Helper for a "canonical" verification of a module.
 ///
-/// `view_function_metadata_enabled` is forwarded to the runtime metadata pass to
-/// gate acceptance of the `View` attribute behind the protocol feature that
+/// `view_function_metadata_enabled` is forwarded to the runtime metadata pass
+/// to gate acceptance of the `View` attribute behind the protocol feature that
 /// introduced it; see [`runtime_module_metadata::verify_module`].
 pub fn iota_verify_module_metered(
     module: &CompiledModule,

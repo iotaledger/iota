@@ -209,8 +209,7 @@ mod tests {
             Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
         );
 
-        let err =
-            verify_module(&module, /* view_function_metadata_enabled */ false).unwrap_err();
+        let err = verify_module(&module, /* view_function_metadata_enabled */ false).unwrap_err();
         let source = err.source().as_ref().unwrap().to_string();
         assert!(
             source.contains("is not supported by the current protocol version"),
