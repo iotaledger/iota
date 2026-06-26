@@ -646,7 +646,7 @@ impl Core {
                         &mut dag_state,
                         commit.index(),
                         reputation_scores,
-                    );
+                    )?;
                 }
 
                 dag_state.add_commit(commit.clone());
@@ -742,7 +742,7 @@ impl Core {
         self.last_decided_leader = last_commit_leader;
 
         // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
-        self.commit_observer.reinitialize(last_commit_index).await;
+        self.commit_observer.reinitialize(last_commit_index).await?;
 
         // 9. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
