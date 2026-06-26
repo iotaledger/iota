@@ -202,6 +202,101 @@ impl ObjectExecutionSlots {
     }
 }
 
+/// A contiguous interval `[start_time, end_time)` during which `worker_count`
+/// transactions are scheduled to occupy an execution worker concurrently.
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+struct WorkerSegment {
+    start_time: ExecutionTime,
+    end_time: ExecutionTime,
+    worker_count: u16,
+}
+
+/// `WorkerOccupancy` models the execution-worker pool as a concurrency profile
+/// over the per-commit timeline: a sparse, sorted list of contiguous busy
+/// segments (gaps between segments have occupancy `0`). It mirrors
+/// `ObjectExecutionSlots` but tracks a worker count (multiplicity) per segment
+/// instead of a single free/busy lane, so it can enforce "at most `N`
+/// transactions overlapping at any instant". The representation is sparse —
+/// at most two breakpoints per scheduled transaction — so it is suitable for
+/// `TotalGasBudget` mode where durations are large.
+#[derive(PartialEq, Eq, Clone, Debug)]
+struct WorkerOccupancy(Vec<WorkerSegment>);
+
+impl WorkerOccupancy {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// The worker occupancy at `point` (`0` if no segment covers it).
+    fn count_at(segments: &[WorkerSegment], point: ExecutionTime) -> u16 {
+        segments
+            .iter()
+            .find(|s| point >= s.start_time && point < s.end_time)
+            .map_or(0, |s| s.worker_count)
+    }
+
+    /// Returns the free execution slots in which a new transaction can be
+    /// scheduled without exceeding `n` concurrent workers, i.e. the intervals
+    /// of `[0, MAX)` where occupancy is strictly below `n`. The result is a
+    /// valid free-list (sorted, non-overlapping) and can be intersected with
+    /// object free-lists during scheduling.
+    fn free_slots_below(&self, n: u16) -> ObjectExecutionSlots {
+        let mut free = ObjectExecutionSlots::new();
+        for segment in &self.0 {
+            if segment.worker_count >= n {
+                free.remove(ExecutionSlot::new(segment.start_time, segment.end_time));
+            }
+        }
+        free
+    }
+
+    /// Adds one worker occupancy over `[start_time, start_time + duration)`,
+    /// splitting and merging segments as needed so that the invariant (sorted,
+    /// disjoint, adjacent-equal-count segments merged, no zero-count segments)
+    /// is maintained.
+    fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime) {
+        let end_time = start_time.saturating_add(duration);
+        if start_time >= end_time {
+            return;
+        }
+
+        // Sweep over every boundary so each output piece has a single count.
+        let mut boundaries = std::collections::BTreeSet::new();
+        boundaries.insert(start_time);
+        boundaries.insert(end_time);
+        for segment in &self.0 {
+            boundaries.insert(segment.start_time);
+            boundaries.insert(segment.end_time);
+        }
+        let boundaries: Vec<ExecutionTime> = boundaries.into_iter().collect();
+
+        let mut merged: Vec<WorkerSegment> = Vec::new();
+        for window in boundaries.windows(2) {
+            let (piece_start, piece_end) = (window[0], window[1]);
+            let mut count = Self::count_at(&self.0, piece_start);
+            if piece_start >= start_time && piece_end <= end_time {
+                count += 1;
+            }
+            if count == 0 {
+                continue;
+            }
+            // Coalesce with the previous segment if adjacent and equal count.
+            if let Some(last) = merged.last_mut() {
+                if last.end_time == piece_start && last.worker_count == count {
+                    last.end_time = piece_end;
+                    continue;
+                }
+            }
+            merged.push(WorkerSegment {
+                start_time: piece_start,
+                end_time: piece_end,
+                worker_count: count,
+            });
+        }
+        self.0 = merged;
+    }
+}
+
 /// `SharedObjectCongestionTracker` stores the available and occupied execution
 /// slots for the transactions within a consensus commit.
 ///
@@ -213,6 +308,12 @@ impl ObjectExecutionSlots {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectId, ObjectExecutionSlots>,
+    /// Concurrency profile of the execution-worker pool. `Some` only when
+    /// execution-worker congestion control is active (see
+    /// `CongestionControlParameters::max_concurrent_execution_workers`), in
+    /// which case every scheduled transaction — including owned-object-only
+    /// ones — occupies a worker over its execution interval.
+    worker_occupancy: Option<WorkerOccupancy>,
     congestion_control_parameters: CongestionControlParameters,
 }
 
@@ -238,8 +339,13 @@ impl SharedObjectCongestionTracker {
             })
             .collect::<HashMap<_, _>>();
 
+        let worker_occupancy = congestion_control_parameters
+            .max_concurrent_execution_workers()
+            .map(|_| WorkerOccupancy::new());
+
         Self {
             object_execution_slots,
+            worker_occupancy,
             congestion_control_parameters,
         }
     }
@@ -277,64 +383,83 @@ impl SharedObjectCongestionTracker {
         &self,
         shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
+        check_worker_limit: bool,
     ) -> Option<ExecutionTime> {
+        // Collect the free-list of every resource the transaction must fit in:
+        // one per shared input object, plus the execution-worker pool when
+        // worker congestion control is active and `check_worker_limit` is set.
+        let mut resources: Vec<&ObjectExecutionSlots> = shared_input_objects
+            .iter()
+            .map(|obj| {
+                self.object_execution_slots
+                    .get(&obj.object_id)
+                    .expect("object should have been inserted at the start of this function.")
+            })
+            .collect();
+        let worker_free_slots = if check_worker_limit {
+            self.worker_occupancy
+                .as_ref()
+                .zip(
+                    self.congestion_control_parameters
+                        .max_concurrent_execution_workers(),
+                )
+                .map(|(occupancy, n)| occupancy.free_slots_below(n))
+        } else {
+            None
+        };
+        if let Some(worker_free_slots) = &worker_free_slots {
+            resources.push(worker_free_slots);
+        }
+        if resources.is_empty() {
+            // No constraining resources (e.g. an owned-object-only transaction
+            // when worker congestion control is disabled): schedule at time 0.
+            return Some(0);
+        }
+
         if self
             .congestion_control_parameters
             .congestion_control_min_free_execution_slot()
         {
             // If `congestion_control_min_free_execution_slot` is true, we assign the
             // transaction start time based on the lowest free execution slot that
-            // can accommodate the transaction. We start the search from the full
-            // range of the slots available with no constraints from previous objects.
+            // can accommodate the transaction across all resources. We start the
+            // search from the full range with no constraints from previous resources.
             let _span = tracing::trace_span!("compute_min_free_execution_slot").entered();
             let initial_free_slot = ExecutionSlot::max_duration_slot();
-            self.compute_min_free_execution_slot(
-                shared_input_objects,
-                tx_duration,
-                initial_free_slot,
-            )
+            Self::compute_min_free_execution_slot(&resources, tx_duration, initial_free_slot)
         } else {
             // If `congestion_control_min_free_execution_slot` is false, we assign the
             // transaction start time based on the maximum start time of free execution
-            // slots for the transaction over all its shared objects.
+            // slots for the transaction over all its resources.
             let _span = tracing::trace_span!("max_object_free_slot_start_time").entered();
-            shared_input_objects
+            resources
                 .iter()
-                .map(|obj| {
-                    // `start_time`
-                    self.object_execution_slots
-                        .get(&obj.object_id)
-                        .expect("object should have been inserted at the start of this function.")
-                        .max_object_free_slot_start_time(tx_duration)
-                })
-                // If any `start_time` is `None` (i.e., the corresponding object
+                .map(|slots| slots.max_object_free_slot_start_time(tx_duration))
+                // If any `start_time` is `None` (i.e., the corresponding resource
                 // does not have a free slot), the collect will return `None`
                 .collect::<Option<Vec<_>>>()
-                .and_then(|object_start_times| object_start_times.into_iter().max())
+                .and_then(|resource_start_times| resource_start_times.into_iter().max())
         }
     }
 
     /// A recursive function that tries to find the lowest free slot for a
-    /// transaction. If a slot is found that fits the transaction, the function
-    /// returns the slot. Otherwise, it returns None.
+    /// transaction across all `resources`. If a slot is found that fits the
+    /// transaction in every resource simultaneously, returns its start time;
+    /// otherwise returns None.
     /// lookup_interval is the range of the slot that the transaction can fit in
-    /// given the objects that have been checked so far.
+    /// given the resources that have been checked so far.
     fn compute_min_free_execution_slot(
-        &self,
-        shared_input_objects: &[SharedObjectReference],
+        resources: &[&ObjectExecutionSlots],
         tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
-        // Take the first object from the shared input objects, and
-        // set aside the remaining objects for the next recursive call.
-        let (obj, remaining_objects) = shared_input_objects
+        // Take the first resource, and set aside the remaining ones for the
+        // next recursive call.
+        let (resource, remaining_resources) = resources
             .split_first()
-            .expect("shared_input_objects must not be empty.");
+            .expect("resources must not be empty.");
 
-        for intersection_slot in self
-            .object_execution_slots
-            .get(&obj.object_id)
-            .expect("object should have been inserted before.")
+        for intersection_slot in resource
             .0
             .iter()
             .filter_map(|slot| slot.intersection(&lookup_interval))
@@ -344,18 +469,18 @@ impl SharedObjectCongestionTracker {
             if intersection_slot.duration() < tx_duration {
                 continue;
             }
-            // if this is the last object to check, return this slot as it is the lowest
+            // if this is the last resource to check, return this slot as it is the lowest
             // slot available.
-            if remaining_objects.is_empty() {
+            if remaining_resources.is_empty() {
                 return Some(intersection_slot.start_time);
             }
-            // if there are more objects to check, recursively call the function with the
-            // remaining objects.
+            // if there are more resources to check, recursively call the function with the
+            // remaining resources.
             // If the recursive call returns a start time, that means the transaction fits
-            // in the slot for all remaining objects. Return the start time.
-            // Otherwise, continue to check the next free slot for the current object.
-            if let Some(lowest_overlap) = self.compute_min_free_execution_slot(
-                remaining_objects,
+            // in the slot for all remaining resources. Return the start time.
+            // Otherwise, continue to check the next free slot for the current resource.
+            if let Some(lowest_overlap) = Self::compute_min_free_execution_slot(
+                remaining_resources,
                 tx_duration,
                 intersection_slot,
             ) {
@@ -364,8 +489,8 @@ impl SharedObjectCongestionTracker {
                 continue;
             }
         }
-        // if no slot is found for the current object given the available range, return
-        // None.
+        // if no slot is found for the current resource given the available range,
+        // return None.
         None
     }
 
@@ -389,8 +514,9 @@ impl SharedObjectCongestionTracker {
         }
 
         let shared_input_objects = transaction.shared_input_objects();
-        if shared_input_objects.is_empty() {
-            // This is an owned object only transaction. No need to defer.
+        if shared_input_objects.is_empty() && self.worker_occupancy.is_none() {
+            // This is an owned-object-only transaction and execution-worker
+            // congestion control is disabled. No need to defer.
             return SequencingResult::Schedule(0);
         }
 
@@ -405,8 +531,11 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         };
 
-        // Try to compute a scheduling start time for the transaction.
-        if let Some(start_time) = self.compute_tx_start_time(&shared_input_objects, tx_duration) {
+        // Try to compute a scheduling start time that fits both the shared
+        // objects and (when active) the execution-worker pool.
+        if let Some(start_time) =
+            self.compute_tx_start_time(&shared_input_objects, tx_duration, true)
+        {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
             if start_time + tx_duration <= congestion_limit {
@@ -415,9 +544,20 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        // The transaction cannot be scheduled. We need to defer it and return a list
-        // of the IDs of shared input objects to explain the congestion reason.
-        let congested_objects: Vec<ObjectId> = if self
+        // The transaction cannot be scheduled. Determine whether the shared
+        // objects are the bottleneck (so we can report them as congested), or
+        // whether the transaction fits the objects but is shed by the
+        // execution-worker pool (reported with an empty object list).
+        let objects_fit = self
+            .compute_tx_start_time(&shared_input_objects, tx_duration, false)
+            .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
+
+        let congested_objects: Vec<ObjectId> = if objects_fit {
+            // The shared objects fit within the congestion limit; the
+            // execution-worker pool is the bottleneck. There is no specific
+            // congested object to report.
+            Vec::new()
+        } else if self
             .congestion_control_parameters
             .congestion_control_min_free_execution_slot()
         {
@@ -445,8 +585,6 @@ impl SharedObjectCongestionTracker {
                 .map(|obj| obj.object_id)
                 .collect()
         };
-
-        assert!(!congested_objects.is_empty());
 
         let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
             previously_deferred_tx_digests.get(transaction.digest())
@@ -505,6 +643,13 @@ impl SharedObjectCongestionTracker {
                 .expect("object execution slot should have been initialized before.")
                 .remove(occupied_slot);
         });
+
+        // Every scheduled transaction — including owned-object-only ones —
+        // occupies an execution worker over its execution interval when
+        // execution-worker congestion control is active.
+        if let Some(worker_occupancy) = self.worker_occupancy.as_mut() {
+            worker_occupancy.occupy(start_time, estimated_execution_duration);
+        }
 
         Some(BumpObjectExecutionSlotsResult::new(
             object_ids,
@@ -819,7 +964,11 @@ pub mod shared_object_test_utils {
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         shared_object_congestion_tracker.initialize_object_execution_slots(shared_input_objects);
-        shared_object_congestion_tracker.compute_tx_start_time(shared_input_objects, tx_duration)
+        shared_object_congestion_tracker.compute_tx_start_time(
+            shared_input_objects,
+            tx_duration,
+            false,
+        )
     }
 
     pub(super) fn initialize_tracker_and_try_schedule(
@@ -1905,6 +2054,81 @@ mod object_cost_tests {
             }
             PerObjectCongestionControlMode::TotalTxCount => {
                 assert_eq!(accumulated_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
+            }
+        }
+    }
+
+    #[test]
+    fn test_worker_occupancy_occupy_and_free_slots() {
+        let mut occupancy = WorkerOccupancy::new();
+
+        occupancy.occupy(0, 10); // [0, 10) -> count 1
+        // With a cap of 2 workers, occupancy 1 is below the cap everywhere.
+        assert_eq!(
+            occupancy.free_slots_below(2).0,
+            vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME)]
+        );
+        // With a cap of 1 worker, [0, 10) is saturated.
+        assert_eq!(
+            occupancy.free_slots_below(1).0,
+            vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
+        );
+
+        occupancy.occupy(0, 10); // [0, 10) -> count 2
+        assert_eq!(
+            occupancy.free_slots_below(2).0,
+            vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
+        );
+
+        // Overlapping occupancy: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
+        occupancy.occupy(5, 10);
+        assert_eq!(
+            occupancy.free_slots_below(3).0,
+            vec![
+                ExecutionSlot::new(0, 5),
+                ExecutionSlot::new(10, MAX_EXECUTION_TIME),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_execution_worker_congestion_schedules_then_sheds_ooo() {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,    // congestion_control_min_free_execution_slot
+            Some(1), // max_execution_duration_per_commit (also the congestion limit)
+            None,    // max_congestion_limit_overshoot_per_commit
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        // A single execution worker, which serializes execution.
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(Vec::new(), congestion_control_parameters);
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+
+        // First owned-object-only transaction: scheduled at time 0.
+        let tx0 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        assert!(matches!(
+            tracker.try_schedule(&tx0, &previously_deferred, 0),
+            SequencingResult::Schedule(0)
+        ));
+        tracker.bump_object_execution_slots(&tx0, 0);
+
+        // Second owned-object-only transaction: the single worker is occupied
+        // on [0, 1), so it cannot fit within the per-commit limit and is shed
+        // for execution-worker congestion (no specific congested object).
+        let tx1 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        match tracker.try_schedule(&tx1, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(
+                    congested_objects.is_empty(),
+                    "worker congestion should not report a congested object"
+                );
+            }
+            SequencingResult::Schedule(_) => {
+                panic!("expected the second owned-object-only tx to be shed")
             }
         }
     }

@@ -294,6 +294,12 @@ impl CongestionControlParameters {
         }
     }
 
+    /// Enable execution-worker congestion control in tests, with `n` workers.
+    #[cfg(test)]
+    pub(crate) fn set_max_concurrent_execution_workers_for_test(&mut self, n: u16) {
+        self.max_concurrent_execution_workers = Some(n);
+    }
+
     /// Get per-object congestion control mode.
     #[cfg(test)]
     pub(super) fn per_object_congestion_control_mode_for_test(
@@ -327,6 +333,18 @@ impl CongestionControlParameters {
     /// Check whether congestion control is enabled
     fn is_congestion_control_enabled(&self) -> bool {
         self.max_execution_duration_per_commit.is_some()
+    }
+
+    /// The execution-worker concurrency cap, or `None` when execution-worker
+    /// congestion control is not active. It is active when the worker cap is
+    /// set and per-object congestion control is enabled — independent of the
+    /// white-flag flow.
+    pub(super) fn max_concurrent_execution_workers(&self) -> Option<u16> {
+        if self.is_congestion_control_enabled() {
+            self.max_concurrent_execution_workers
+        } else {
+            None
+        }
     }
 
     /// Get maximum execution duration per shared object per commit.
@@ -5328,18 +5346,25 @@ impl AuthorityPerEpochStore {
                     )));
                 }
 
-                // This transaction will be scheduled. If it contains shared object(s),
-                // we have to update the following:
-                // - shared object execution slots (for congestion tracker);
-                // - shared object congestion info (for suggested gas price calculator).
-                if verified_executable_tx.contains_shared_object()
-                    && shared_object_congestion_tracker
-                        .congestion_control_parameters()
-                        .is_congestion_control_enabled()
+                // This transaction will be scheduled. We update the congestion
+                // tracker (execution slots / worker occupancy) and the suggested
+                // gas price calculator when it touches a shared object, or — when
+                // execution-worker congestion control is active — for every
+                // transaction (including owned-object-only ones, which still
+                // occupy an execution worker).
+                let worker_congestion_control_active = shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .max_concurrent_execution_workers()
+                    .is_some();
+                if shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .is_congestion_control_enabled()
+                    && (verified_executable_tx.contains_shared_object()
+                        || worker_congestion_control_active)
                 {
-                    // We only need to do this if shared-object congestion control is
-                    // enabled, since otherwise this bumping will panic as object
-                    // execution slots are only initialized if
+                    // We only need to do this if congestion control is enabled,
+                    // since otherwise this bumping will panic as object execution
+                    // slots are only initialized if
                     // `max_execution_duration_per_commit` is not `None`.
                     let bump_result = shared_object_congestion_tracker
                         .bump_object_execution_slots(&verified_executable_tx, start_time);

@@ -551,7 +551,9 @@ impl EffectsCertifier {
             if let Some(suggested_gas_price) =
                 congestion_suggested_gas_price(&non_retriable, validity_threshold)
             {
-                return TransactionDriverError::Congested { suggested_gas_price };
+                return TransactionDriverError::Congested {
+                    suggested_gas_price,
+                };
             }
             return TransactionDriverError::RejectedByValidators {
                 submission_non_retriable_errors: aggregate_request_errors(non_retriable),
@@ -620,7 +622,9 @@ impl EffectsCertifier {
                 if let Some(suggested_gas_price) =
                     congestion_suggested_gas_price(&non_retriable, validity_threshold)
                 {
-                    return TransactionDriverError::Congested { suggested_gas_price };
+                    return TransactionDriverError::Congested {
+                        suggested_gas_price,
+                    };
                 }
                 return TransactionDriverError::RejectedByValidators {
                     submission_non_retriable_errors: aggregate_request_errors(non_retriable),
@@ -834,7 +838,9 @@ impl EffectsCertifier {
                         &non_retriable,
                         committee.validity_threshold(),
                     ) {
-                        return Err(TransactionDriverError::Congested { suggested_gas_price });
+                        return Err(TransactionDriverError::Congested {
+                            suggested_gas_price,
+                        });
                     }
                     return Err(TransactionDriverError::RejectedByValidators {
                         submission_non_retriable_errors: aggregate_request_errors(non_retriable),
