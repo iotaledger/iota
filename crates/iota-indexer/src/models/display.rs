@@ -3,11 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_sdk_types::{Event, TypeTag};
-use iota_types::display::DisplayVersionUpdatedEvent;
+use iota_sdk_types::{Address, Event, Identifier, StructTag, TypeTag};
+use iota_types::{
+    collection_types::VecMap,
+    display::{DisplayObject, DisplayVersionUpdatedEvent},
+    object::Object,
+};
 
-use crate::schema::display;
 use crate::{errors::IndexerError, schema::display};
+
+const DISPLAY_STRUCT_NAME: Identifier = Identifier::from_static("Display");
 
 /// Identifies what type is encoded in [`StoredDisplay`]'s `bcs` column.
 #[derive(Debug, Copy, Clone)]
@@ -65,6 +70,29 @@ impl StoredDisplay {
         })
     }
 
+    /// Builds a display row from a live `0x2::display::Display<T>` object.
+    ///
+    /// Returns `None` when the object is not a `Display<T>`.
+    pub fn try_from_object(object: &Object) -> Option<Self> {
+        let move_object = object.data.as_opt_struct()?;
+        let struct_tag = move_object.struct_tag();
+        if !is_display(struct_tag) {
+            return None;
+        }
+        let [TypeTag::Struct(object_type)] = struct_tag.type_params() else {
+            return None;
+        };
+        let display: DisplayObject = bcs::from_bytes(move_object.contents()).ok()?;
+
+        Some(Self {
+            object_type: object_type.to_canonical_string(/* with_prefix */ true),
+            id: display.id.object_id().as_bytes().to_vec(),
+            version: display.version as i16,
+            bcs: bcs::to_bytes(&display.fields)
+                .expect("serializing a deserialized value should succeed"),
+            bcs_kind: DisplayBcsKind::Fields as i16,
+        })
+    }
 
     pub fn to_display_fields(&self) -> Result<VecMap<String, String>, IndexerError> {
         match DisplayBcsKind::try_from(self.bcs_kind)? {
@@ -79,4 +107,11 @@ impl StoredDisplay {
             ))
         })
     }
+}
+
+/// Returns whether `struct_tag` is of `0x2::display::Display` type.
+fn is_display(struct_tag: &StructTag) -> bool {
+    struct_tag.address() == Address::FRAMEWORK
+        && struct_tag.module() == &Identifier::DISPLAY_MODULE
+        && struct_tag.name() == &DISPLAY_STRUCT_NAME
 }
