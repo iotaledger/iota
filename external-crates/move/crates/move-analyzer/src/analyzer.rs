@@ -152,6 +152,7 @@ pub fn run(implicit_deps: Dependencies) {
         diag_sender,
         lint,
         implicit_deps.clone(),
+        initialize_params.process_id,
     );
 
     // If initialization information from the client contains a path to the
@@ -208,6 +209,27 @@ pub fn run(implicit_deps: Dependencies) {
         )
         .expect("could not finish connection initialization");
 
+    main_loop(context, ide_files_root, pkg_deps, diag_receiver, &symbolicator_runner, implicit_deps);
+    // context is owned by main_loop and dropped when it returns, before join() is called.
+    // This unblocks the LspServerWriter thread which waits for the sender to disconnect.
+    io_threads.join().expect("I/O threads could not finish");
+    symbolicator_runner.quit();
+    eprintln!("Shut down language server '{}'.", exe);
+    std::process::exit(0);
+}
+
+/// Runs the LSP event loop, consuming `context` by value so that
+/// `context.connection.sender` is dropped when this function returns —
+/// before the caller calls `io_threads.join()`. This matches the pattern
+/// shown in `lsp-server`'s own `examples/goto_def.rs`.
+fn main_loop(
+    context: Context,
+    ide_files_root: VfsPath,
+    pkg_deps: Arc<Mutex<BTreeMap<PathBuf, symbols::PrecomputedPkgInfo>>>,
+    diag_receiver: crossbeam::channel::Receiver<Result<BTreeMap<PathBuf, Vec<Diagnostic>>>>,
+    symbolicator_runner: &symbols::SymbolicatorRunner,
+    implicit_deps: Dependencies,
+) {
     let mut shutdown_req_received = false;
     loop {
         select! {
@@ -272,26 +294,19 @@ pub fn run(implicit_deps: Dependencies) {
                                 // It ought to, especially once it begins processing requests that may
                                 // take a long time to respond to.
                             }
-                            _ => on_notification(ide_files_root.clone(), &symbolicator_runner, &notification),
+                            _ => on_notification(ide_files_root.clone(), symbolicator_runner, &notification),
                         }
                     }
                     Err(error) => {
                         eprintln!("IDE message error: {:?}", error);
-                        break;
+                        // `error` is of type `RecvError`, which has only one meaning: the channel
+                        // is empty and disconnected. Exit the process in such case.
+                        std::process::exit(-1);
                     }
                 }
             }
         };
     }
-
-    // Drop context before joining to allow the LspServerWriter thread to terminate.
-    // The writer thread's channel stays connected as long as context.connection.sender is alive;
-    // dropping context causes into_iter() to return None and the thread to exit cleanly.
-    drop(context);
-
-    io_threads.join().expect("I/O threads could not finish");
-    symbolicator_runner.quit();
-    eprintln!("Shut down language server '{}'.", exe);
 }
 
 /// This function returns `true` if shutdown request has been received, and
