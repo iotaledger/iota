@@ -179,134 +179,124 @@ pub fn run(implicit_deps: Dependencies) {
         }
     }
 
-    let context = Context {
-        connection,
-        symbols: symbols_map.clone(),
-        inlay_type_hints: initialize_params
-            .initialization_options
-            .as_ref()
-            .and_then(|init_options| init_options.get("inlayHintsType"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or_default(),
-        inlay_param_hints: initialize_params
-            .initialization_options
-            .as_ref()
-            .and_then(|init_options| init_options.get("inlayHintsParam"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or_default(),
-    };
+    // main loop
+    {
+        let context = Context {
+            connection,
+            symbols: symbols_map.clone(),
+            inlay_type_hints: initialize_params
+                .initialization_options
+                .as_ref()
+                .and_then(|init_options| init_options.get("inlayHintsType"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or_default(),
+            inlay_param_hints: initialize_params
+                .initialization_options
+                .as_ref()
+                .and_then(|init_options| init_options.get("inlayHintsParam"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or_default(),
+        };
 
-    eprintln!("inlay type hints enabled: {}", context.inlay_type_hints);
-    eprintln!("inlay param hints enabled: {}", context.inlay_param_hints);
+        eprintln!("inlay type hints enabled: {}", context.inlay_type_hints);
+        eprintln!("inlay param hints enabled: {}", context.inlay_param_hints);
 
-    context
-        .connection
-        .initialize_finish(
-            id,
-            serde_json::json!({
-                "capabilities": capabilities,
-            }),
-        )
-        .expect("could not finish connection initialization");
+        context
+            .connection
+            .initialize_finish(
+                id,
+                serde_json::json!({
+                    "capabilities": capabilities,
+                }),
+            )
+            .expect("could not finish connection initialization");
 
-    main_loop(context, ide_files_root, pkg_deps, diag_receiver, &symbolicator_runner, implicit_deps);
-    // context is owned by main_loop and dropped when it returns, before join() is called.
-    // This unblocks the LspServerWriter thread which waits for the sender to disconnect.
-    io_threads.join().expect("I/O threads could not finish");
-    symbolicator_runner.quit();
-    eprintln!("Shut down language server '{}'.", exe);
-    std::process::exit(0);
-}
-
-/// Runs the LSP event loop, consuming `context` by value so that
-/// `context.connection.sender` is dropped when this function returns —
-/// before the caller calls `io_threads.join()`. This matches the pattern
-/// shown in `lsp-server`'s own `examples/goto_def.rs`.
-fn main_loop(
-    context: Context,
-    ide_files_root: VfsPath,
-    pkg_deps: Arc<Mutex<BTreeMap<PathBuf, symbols::PrecomputedPkgInfo>>>,
-    diag_receiver: crossbeam::channel::Receiver<Result<BTreeMap<PathBuf, Vec<Diagnostic>>>>,
-    symbolicator_runner: &symbols::SymbolicatorRunner,
-    implicit_deps: Dependencies,
-) {
-    let mut shutdown_req_received = false;
-    loop {
-        select! {
-            recv(diag_receiver) -> message => {
-                match message {
-                    Ok(result) => {
-                        match result {
-                            Ok(diags) => {
-                                for (k, v) in diags {
-                                    let url = Url::from_file_path(k).unwrap();
-                                    let params = lsp_types::PublishDiagnosticsParams::new(url, v, None);
-                                    let notification = Notification::new(lsp_types::notification::PublishDiagnostics::METHOD.to_string(), params);
+        let mut shutdown_req_received = false;
+        loop {
+            select! {
+                recv(diag_receiver) -> message => {
+                    match message {
+                        Ok(result) => {
+                            match result {
+                                Ok(diags) => {
+                                    for (k, v) in diags {
+                                        let url = Url::from_file_path(k).unwrap();
+                                        let params = lsp_types::PublishDiagnosticsParams::new(url, v, None);
+                                        let notification = Notification::new(lsp_types::notification::PublishDiagnostics::METHOD.to_string(), params);
+                                        if let Err(err) = context
+                                            .connection
+                                            .sender
+                                            .send(lsp_server::Message::Notification(notification)) {
+                                                eprintln!("could not send diagnostics response: {:?}", err);
+                                            };
+                                    }
+                                },
+                                Err(err) => {
+                                    let typ = lsp_types::MessageType::ERROR;
+                                    let message = format!("{err}");
+                                        // report missing manifest only once to avoid re-generating
+                                        // user-visible error in cases when the developer decides to
+                                        // keep editing a file that does not belong to a packages
+                                        let params = lsp_types::ShowMessageParams { typ, message };
+                                    let notification = Notification::new(lsp_types::notification::ShowMessage::METHOD.to_string(), params);
                                     if let Err(err) = context
                                         .connection
                                         .sender
                                         .send(lsp_server::Message::Notification(notification)) {
-                                            eprintln!("could not send diagnostics response: {:?}", err);
+                                            eprintln!("could not send compiler error response: {:?}", err);
                                         };
-                                }
-                            },
-                            Err(err) => {
-                                let typ = lsp_types::MessageType::ERROR;
-                                let message = format!("{err}");
-                                    // report missing manifest only once to avoid re-generating
-                                    // user-visible error in cases when the developer decides to
-                                    // keep editing a file that does not belong to a packages
-                                    let params = lsp_types::ShowMessageParams { typ, message };
-                                let notification = Notification::new(lsp_types::notification::ShowMessage::METHOD.to_string(), params);
-                                if let Err(err) = context
-                                    .connection
-                                    .sender
-                                    .send(lsp_server::Message::Notification(notification)) {
-                                        eprintln!("could not send compiler error response: {:?}", err);
-                                    };
-                            },
-                        }
-                    },
-                    Err(error) => {
-                        eprintln!("symbolicator message error: {:?}", error);
-                        // if the analyzer crashes in a separate thread, this error will keep
-                        // getting generated for a while unless we explicitly end the process
-                        // obscuring the real logged reason for the crash
-                        std::process::exit(-1);
-                    }
-                }
-            },
-            recv(context.connection.receiver) -> message => {
-                match message {
-                    Ok(Message::Request(request)) => {
-                        // the server should not quit after receiving the shutdown request to give itself
-                        // a chance of completing pending requests (but should not accept new requests
-                        // either which is handled inside on_request) - instead it quits after receiving
-                        // the exit notification from the client, which is handled below
-                        shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), pkg_deps.clone(), shutdown_req_received, implicit_deps.clone());
-                    }
-                    Ok(Message::Response(response)) => on_response(&context, &response),
-                    Ok(Message::Notification(notification)) => {
-                        match notification.method.as_str() {
-                            lsp_types::notification::Exit::METHOD => break,
-                            lsp_types::notification::Cancel::METHOD => {
-                                // TODO: Currently the server does not implement request cancellation.
-                                // It ought to, especially once it begins processing requests that may
-                                // take a long time to respond to.
+                                },
                             }
-                            _ => on_notification(ide_files_root.clone(), symbolicator_runner, &notification),
+                        },
+                        Err(error) => {
+                            eprintln!("symbolicator message error: {:?}", error);
+                            // if the analyzer crashes in a separate thread, this error will keep
+                            // getting generated for a while unless we explicitly end the process
+                            // obscuring the real logged reason for the crash
+                            std::process::exit(-1);
                         }
                     }
-                    Err(error) => {
-                        eprintln!("IDE message error: {:?}", error);
-                        // `error` is of type `RecvError`, which has only one meaning: the channel
-                        // is empty and disconnected. Exit the process in such case.
-                        std::process::exit(-1);
+                },
+                recv(context.connection.receiver) -> message => {
+                    match message {
+                        Ok(Message::Request(request)) => {
+                            // the server should not quit after receiving the shutdown request to give itself
+                            // a chance of completing pending requests (but should not accept new requests
+                            // either which is handled inside on_request) - instead it quits after receiving
+                            // the exit notification from the client, which is handled below
+                            shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), pkg_deps.clone(), shutdown_req_received, implicit_deps.clone());
+                        }
+                        Ok(Message::Response(response)) => on_response(&context, &response),
+                        Ok(Message::Notification(notification)) => {
+                            match notification.method.as_str() {
+                                lsp_types::notification::Exit::METHOD => break,
+                                lsp_types::notification::Cancel::METHOD => {
+                                    // TODO: Currently the server does not implement request cancellation.
+                                    // It ought to, especially once it begins processing requests that may
+                                    // take a long time to respond to.
+                                }
+                                _ => on_notification(ide_files_root.clone(), &symbolicator_runner, &notification),
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!("IDE message error: {:?}", error);
+                            // `error` is of type `RecvError`, which has only one meaning: the channel
+                            // is empty and disconnected. Exit the process in such case.
+                            std::process::exit(-1);
+                        }
                     }
                 }
-            }
-        };
+            };
+        }
     }
+
+    // `context` is declared inside the block above and dropped when it exits,
+    // before join() is called. This unblocks the LspServerWriter thread which
+    // waits for the sender to disconnect.
+    io_threads.join().expect("I/O threads could not finish");
+    symbolicator_runner.quit();
+    eprintln!("Shut down language server '{}'.", exe);
+    std::process::exit(0);
 }
 
 /// This function returns `true` if shutdown request has been received, and
