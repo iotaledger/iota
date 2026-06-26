@@ -87,7 +87,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     fn as_any(&self) -> &dyn Any;
 
-    fn persist_displays_in_existing_transaction(
+    fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
         displays: Vec<StoredDisplay>,

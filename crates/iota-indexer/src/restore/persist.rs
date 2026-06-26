@@ -82,7 +82,6 @@ impl Restore for PgIndexerStore {
                     "failed to persist all formal snapshot object chunks: {e:?}",
                 ))
             })?;
-        // TODO: enable chunking
         self.persist_displays(displays.into_values().collect())
             .await?;
         Ok(())

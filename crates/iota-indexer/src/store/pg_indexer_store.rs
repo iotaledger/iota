@@ -249,14 +249,14 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    fn persist_displays(&self, mut displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
+    fn persist_displays_chunk(&self, mut displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             {
                 // The parent uses an FnMut closure that mutably borrows the `displays`
                 // So we can't move the value. To avoid cloning we use `std::mem::take`.
                 let displays = std::mem::take(&mut displays);
-                |conn| self.persist_displays_in_existing_transaction(conn, displays)
+                |conn| self.persist_displays_chunk_in_existing_transaction(conn, displays)
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )?;
@@ -1951,11 +1951,32 @@ impl IndexerStore for PgIndexerStore {
             return Ok(());
         }
 
-        self.spawn_blocking_task(move |this| this.persist_displays(displays))
-            .await?
+        if displays.len() < self.config.parallel_objects_chunk_size {
+            self.spawn_blocking_task(move |this| this.persist_displays_chunk(displays))
+                .await??;
+            return Ok(());
+        }
+        let chunks = chunk!(displays, self.config.parallel_objects_chunk_size);
+        let persist_tasks = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_displays_chunk(c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join futures for persisting displays: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(
+                    format!("Failed to persist all displays chunks: {e:?}",),
+                )
+            })?;
+        Ok(())
     }
 
-    fn persist_displays_in_existing_transaction(
+    fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
         displays: Vec<StoredDisplay>,
