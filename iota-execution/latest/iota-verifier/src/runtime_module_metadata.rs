@@ -31,7 +31,16 @@ use crate::{
 ///    `RuntimeModuleMetadataWrapper`.
 /// 3. The deserialized metadata must satisfy any additional checks imposed by
 ///    the runtime metadata version.
-pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
+///
+/// `view_function_metadata_enabled` reflects the
+/// `package_metadata_with_dynamic_module_metadata` protocol feature. While it
+/// is disabled, a package carrying the `View` attribute is rejected: the
+/// variant did not exist in older binaries, so accepting it would let a package
+/// onto the chain that a not-yet-upgraded validator cannot even deserialize.
+pub fn verify_module(
+    module: &CompiledModule,
+    view_function_metadata_enabled: bool,
+) -> Result<(), ExecutionError> {
     if !module.metadata.is_empty() {
         if module.metadata.len() > 1 {
             return Err(verification_failure(
@@ -58,7 +67,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
                     "Failed to deserialize runtime IOTA module metadata from wrapper: {err}",
                 ))
             })?;
-        verify_runtime_metadata(module, &metadata)?;
+        verify_runtime_metadata(module, &metadata, view_function_metadata_enabled)?;
     }
 
     Ok(())
@@ -67,6 +76,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
 fn verify_runtime_metadata(
     module: &CompiledModule,
     metadata: &RuntimeModuleMetadata,
+    view_function_metadata_enabled: bool,
 ) -> Result<(), ExecutionError> {
     for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
         let mut seen = BTreeSet::new();
@@ -101,6 +111,11 @@ fn verify_runtime_metadata(
                     }
                 }
                 IotaAttribute::View => {
+                    if !view_function_metadata_enabled {
+                        return Err(verification_failure(format!(
+                            "View attribute for function {fn_name} is not supported by the current protocol version"
+                        )));
+                    }
                     verify_view_func(
                         module,
                         &Identifier::new(fn_name.clone()).map_err(|err| {
@@ -156,7 +171,7 @@ mod tests {
     }
 
     fn assert_error_contains(module: &CompiledModule, expected: &str) {
-        let err = verify_module(module).unwrap_err();
+        let err = verify_module(module, /* view_function_metadata_enabled */ true).unwrap_err();
         let source = err.source().as_ref().unwrap().to_string();
         assert!(
             source.contains(expected),
@@ -171,7 +186,7 @@ mod tests {
             Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
         );
 
-        verify_module(&module).unwrap();
+        verify_module(&module, /* view_function_metadata_enabled */ true).unwrap();
     }
 
     #[test]
@@ -182,5 +197,24 @@ mod tests {
         );
 
         assert_error_contains(&module, "View function 'view' must be public");
+    }
+
+    #[test]
+    fn rejects_view_attribute_when_metadata_disabled() {
+        // While `package_metadata_with_dynamic_module_metadata` is disabled, a
+        // package carrying the `View` attribute must be rejected so a new binary
+        // agrees with an old one that cannot deserialize the variant at all.
+        let module = module_with_view_metadata(
+            Visibility::Public,
+            Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
+        );
+
+        let err =
+            verify_module(&module, /* view_function_metadata_enabled */ false).unwrap_err();
+        let source = err.source().as_ref().unwrap().to_string();
+        assert!(
+            source.contains("is not supported by the current protocol version"),
+            "expected error about the unsupported View attribute, got {source:?}"
+        );
     }
 }

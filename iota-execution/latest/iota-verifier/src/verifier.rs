@@ -14,10 +14,15 @@ use crate::{
 };
 
 /// Helper for a "canonical" verification of a module.
+///
+/// `view_function_metadata_enabled` is forwarded to the runtime metadata pass to
+/// gate acceptance of the `View` attribute behind the protocol feature that
+/// introduced it; see [`runtime_module_metadata::verify_module`].
 pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
+    view_function_metadata_enabled: bool,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
@@ -25,7 +30,7 @@ pub fn iota_verify_module_metered(
     private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map)?;
     one_time_witness_verifier::verify_module(module, fn_info_map)?;
-    runtime_module_metadata::verify_module(module)
+    runtime_module_metadata::verify_module(module, view_function_metadata_enabled)
 }
 
 /// Runs the IOTA verifier and checks if the error counts as an IOTA verifier
@@ -36,8 +41,13 @@ pub fn iota_verify_module_metered_check_timeout_only(
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
 ) -> Result<(), ExecutionError> {
-    // Checks if the error counts as an IOTA verifier timeout
-    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
+    // This pass only reports verifier timeouts; every other error (including a
+    // rejected `View` attribute) is intentionally ignored here, so the feature
+    // gate is irrelevant and we pass it as enabled. The authoritative gate runs
+    // at publish time via `iota_verify_module_unmetered`.
+    if let Err(error) =
+        iota_verify_module_metered(module, fn_info_map, meter, /* view enabled */ true)
+    {
         if matches!(
             error.kind(),
             iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
@@ -52,8 +62,15 @@ pub fn iota_verify_module_metered_check_timeout_only(
 pub fn iota_verify_module_unmetered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
+    view_function_metadata_enabled: bool,
 ) -> Result<(), ExecutionError> {
-    iota_verify_module_metered(module, fn_info_map, &mut DummyMeter).inspect_err(|err| {
+    iota_verify_module_metered(
+        module,
+        fn_info_map,
+        &mut DummyMeter,
+        view_function_metadata_enabled,
+    )
+    .inspect_err(|err| {
         // We must never see timeout error in execution
         debug_assert!(
             !matches!(
