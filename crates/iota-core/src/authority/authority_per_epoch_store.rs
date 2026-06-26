@@ -72,7 +72,7 @@ use itertools::izip;
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use nonempty::NonEmpty;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use prometheus::IntCounter;
+use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};

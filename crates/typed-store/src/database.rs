@@ -13,7 +13,7 @@ use std::{
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
 use iota_macros::fail_point;
-use prometheus::{Histogram, HistogramTimer};
+use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
@@ -825,7 +825,7 @@ impl<K, V> DBMap<K, V> {
 /// use core::fmt::Error;
 /// use std::sync::Arc;
 ///
-/// use prometheus::Registry;
+/// use prometheus_filtered::Registry;
 /// use tempfile::tempdir;
 /// use typed_store::{Map, metrics::DBMetrics, rocks::*};
 ///

@@ -20,7 +20,7 @@ mod test {
         SimConfig,
         configs::{bimodal_latency_ms, env_config, uniform_latency_ms},
     };
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use rand::{Rng, SeedableRng as _, rngs::StdRng};
     use starfish_config::{
         Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,

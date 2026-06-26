@@ -16,7 +16,6 @@ futures.workspace = true
 indicatif.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -27,6 +26,7 @@ tracing.workspace = true
 iota-config.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 # external dependencies

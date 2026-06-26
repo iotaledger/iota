@@ -1080,7 +1080,7 @@ fn build_unsigned_genesis_data<'info>(
     );
 
     // Use a throwaway metrics registry for genesis transaction execution.
-    let registry = prometheus::Registry::new();
+    let registry = prometheus_filtered::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let mut txs_data: TransactionsData = BTreeMap::new();
 

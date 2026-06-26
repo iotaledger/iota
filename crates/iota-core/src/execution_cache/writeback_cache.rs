@@ -513,7 +513,7 @@ impl WritebackCache {
         Self::new(
             &Default::default(),
             store,
-            ExecutionCacheMetrics::new(&prometheus::Registry::new()).into(),
+            ExecutionCacheMetrics::new(&prometheus_filtered::Registry::new()).into(),
             BackpressureManager::new_for_tests(),
         )
     }

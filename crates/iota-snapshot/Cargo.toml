@@ -19,7 +19,6 @@ indicatif.workspace = true
 integer-encoding.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tokio-stream.workspace = true
@@ -32,6 +31,7 @@ iota-core.workspace = true
 iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -23,7 +23,7 @@ use axum::{
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
     core::{AtomicI64, GenericGauge},
     register_histogram_with_registry, register_int_counter_vec_with_registry,
@@ -605,7 +605,7 @@ impl RegistryService {
     }
 
     // Returns all the metric families from the registries that a service holds.
-    pub fn gather_all(&self) -> Vec<prometheus::proto::MetricFamily> {
+    pub fn gather_all(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
         self.get_all().iter().flat_map(|r| r.gather()).collect()
     }
 }
@@ -622,8 +622,8 @@ pub fn uptime_metric(
     process: &str,
     version: &'static str,
     chain_identifier: &str,
-) -> Box<dyn prometheus::core::Collector> {
-    let opts = prometheus::opts!("uptime", "uptime of the node service in seconds")
+) -> Box<dyn prometheus_filtered::core::Collector> {
+    let opts = prometheus_filtered::opts!("uptime", "uptime of the node service in seconds")
         .variable_label("process")
         .variable_label("version")
         .variable_label("chain_identifier")
@@ -710,7 +710,7 @@ pub async fn metrics(
 
 #[cfg(test)]
 mod tests {
-    use prometheus::{IntCounter, Registry};
+    use prometheus_filtered::{IntCounter, Registry};
 
     use crate::RegistryService;
 
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(metric_default.name(), "default_counter");
         assert_eq!(metric_default.help(), "counter_desc");
 
-        let metric_1: prometheus::proto::MetricFamily = metrics.remove(0);
+        let metric_1: prometheus_filtered::proto::MetricFamily = metrics.remove(0);
         assert_eq!(metric_1.name(), "iota_counter_1");
         assert_eq!(metric_1.help(), "counter_1_desc");
 

@@ -71,7 +71,7 @@ where
 
     #[cfg(test)]
     pub fn new_for_test(authority_aggregator: Arc<AuthorityAggregator<A>>) -> Arc<Self> {
-        use prometheus::Registry;
+        use prometheus_filtered::Registry;
 
         Self::new(
             ValidatorClientMonitorConfig::default(),

@@ -25,7 +25,7 @@ use iota_types::{
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
@@ -86,10 +86,13 @@ impl SafeClientMetricsBase {
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 #[derive(Clone)]
 pub struct SafeClientMetrics {
-    total_requests_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_requests_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
+    total_requests_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_requests_handle_object_info_request: GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_object_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
     handle_transaction_latency: Histogram,
     handle_certificate_latency: Histogram,
     handle_obj_info_latency: Histogram,

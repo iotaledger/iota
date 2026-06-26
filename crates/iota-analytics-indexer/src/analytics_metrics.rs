@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(dead_code)]
-use prometheus::{
+use prometheus_filtered::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };

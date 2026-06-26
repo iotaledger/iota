@@ -10,7 +10,7 @@ use std::{
 
 use futures::Future;
 use http::{Request, StatusCode};
-use prometheus::{HistogramTimer, Registry};
+use prometheus_filtered::{HistogramTimer, Registry};
 use tower::{BoxError, Layer, Service, ServiceExt, load_shed::error::Overloaded};
 use tracing::{error, info, warn};
 
