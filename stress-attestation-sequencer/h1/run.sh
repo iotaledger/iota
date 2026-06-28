@@ -177,14 +177,13 @@ slow)
 esac
 
 # `shared`/`slow` publish a Move package at runtime (basics / slow), compiled
-# from repo sources that depend on the iota-framework. On the host (fullnode
-# path) those sources are the repo. In DIRECT mode they must be baked into the
-# iota-tools image (docker/iota-tools/Dockerfile copies examples/move +
-# iota-benchmark workload data + iota-framework/packages) — so rebuild that
-# image after pulling those changes, or the in-docker publish will fail.
+# from sources that depend on the iota-framework. On the host (fullnode path)
+# those sources are the network-benchmark repo. In DIRECT mode they must be baked
+# into the stress image (network-benchmark docker/stress/Dockerfile) — so rebuild
+# that image after changing those, or the in-docker publish will fail.
 if [[ "$WORKLOAD" != owned && "$DIRECT" == true ]]; then
   echo "${YELLOW}NOTE: WORKLOAD=$WORKLOAD publishes a Move package in-container; this needs the" >&2
-  echo "      iota-tools image rebuilt with the Move sources baked in (Dockerfile).${RESET}" >&2
+  echo "      stress image rebuilt with the Move sources baked in (network-benchmark docker/stress).${RESET}" >&2
 fi
 
 RULE="$(printf '%80s' '' | tr ' ' '*')"

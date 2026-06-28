@@ -11,14 +11,13 @@
 # genesis, so a host-side client can't reach them. Running here needs ZERO
 # genesis/compose changes and leaves the faucet/fullnode paths intact.
 #
-# Runner image: the network's own `iotaledger/iota-tools`, which already ships
-# `/usr/local/bin/stress` (built from source by docker/iota-tools/Dockerfile).
-# Using the same image keeps the ABI consistent — no foreign image, no glibc
-# matching, no host binary to mount.
+# Runner image: `iotaledger/stress` from the network-benchmark repo
+# (docker/stress/Dockerfile), which ships `/usr/local/bin/stress` plus the Move
+# sources its publishing workloads compile at runtime. Override via RUNNER_IMAGE.
 #
 # IMPORTANT: the image's `stress` reflects whatever code was in the image build.
-# To exercise UNCOMMITTED changes (e.g. the direct-to-validator TD work), rebuild
-# the iota-tools image from this branch first, then run this script.
+# To exercise changes, rebuild the stress image (network-benchmark
+# docker/stress/build.sh) first, then run this script.
 #
 # Prereq: the network is up (start.sh) so the genesis files and docker network exist.
 #
@@ -43,7 +42,7 @@ IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"
 PRIMARY_GAS_OWNER="${PRIMARY_GAS_OWNER:-0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681}"
 
 # Runner: the network's own image (already contains `stress`).
-RUNNER_IMAGE="${RUNNER_IMAGE:-iotaledger/iota-tools:latest}"
+RUNNER_IMAGE="${RUNNER_IMAGE:-iotaledger/stress:latest}"
 DOCKER_NETWORK="${DOCKER_NETWORK:-iota-private-network_iota-network}"
 # In-network DNS (NOT 127.0.0.1): used for reconfig + P-COOL flow detection.
 FULLNODE_RPC="${FULLNODE_RPC:-http://fullnode-1:9000}"
@@ -53,10 +52,10 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 # direct TD path. Empty/unset => all validators. No effect via the fullnode.
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 # Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow).
-# NOTE: shared/slow publish a Move package at runtime (compiled from repo sources
-# that depend on the iota-framework). The iota-tools Dockerfile bakes those
-# sources in (examples/move + iota-benchmark workload data + iota-framework/
-# packages), so they work in this image — rebuild it after pulling that change.
+# NOTE: shared/slow publish a Move package at runtime (compiled from sources that
+# depend on the iota-framework). The network-benchmark stress image bakes those
+# in (move_packages + workloads/data + the framework checkout), so they work in
+# this image — rebuild it (docker/stress/build.sh) after changing those.
 WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
@@ -125,8 +124,6 @@ exec docker run --rm \
   --network "$DOCKER_NETWORK" \
   --ulimit nofile=524288:524288 \
   -v "$GENESIS_DIR":/genesis:ro \
-  -e MOVE_EXAMPLES_DIR=/iota/examples/move \
-  -e BENCHMARK_MOVE_BASE_DIR=/iota/crates/iota-benchmark \
   --entrypoint /usr/local/bin/stress \
   "$RUNNER_IMAGE" \
   --local false \
