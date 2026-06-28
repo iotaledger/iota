@@ -412,13 +412,13 @@
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\"}[$__rate_interval])))",
           "legendFormat": "p50" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\"}[$__rate_interval])))",
           "legendFormat": "p95" },
         { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\"}[$__rate_interval])))",
           "legendFormat": "p99" }
       ]
     },
@@ -431,10 +431,10 @@
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\"}[$__rate_interval])))",
           "legendFormat": "p50" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\"}[$__rate_interval])))",
           "legendFormat": "p95" }
       ]
     },
