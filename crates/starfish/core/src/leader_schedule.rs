@@ -17,6 +17,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX},
     context::Context,
     dag_state::DagState,
+    error::ConsensusResult,
     leader_scoring::ReputationScores,
 };
 
@@ -294,14 +295,14 @@ impl LeaderSchedule {
         dag_state_write_lock: &mut DagState,
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
-    ) {
+    ) -> ConsensusResult<()> {
         // Determine the commit range for these scores.
         // Reputation scores are attached to the *first* commit after a schedule
         // update, so the scores correspond to the previous window ending at
         // commit_index - 1.
         let range_end = commit_index.saturating_sub(1);
         if range_end == GENESIS_COMMIT_INDEX {
-            return;
+            return Ok(());
         }
 
         // Skip stale scores: if the incoming scores are for a range we've already
@@ -315,7 +316,7 @@ impl LeaderSchedule {
                 "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_commit_info_index={last_commit_info_index})",
                 self.context.own_index
             );
-            return;
+            return Ok(());
         }
 
         let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
@@ -325,7 +326,7 @@ impl LeaderSchedule {
             self.context.committee.size(),
             commit_range,
             reputation_scores_desc,
-        );
+        )?;
 
         tracing::info!(
             "[AUTH {}] Updating leader schedule from commit scores at index {commit_index}: {reputation_scores:?}",
@@ -346,6 +347,7 @@ impl LeaderSchedule {
         );
         self.persist_scores(dag_state_write_lock, reputation_scores);
         self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
+        Ok(())
     }
 
     #[cfg(test)]

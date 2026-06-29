@@ -152,6 +152,7 @@ members = [
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
+  "crates/prometheus-filtered",
   "crates/simulacrum",
   "crates/simulacrum-server",
   "crates/starfish/config",
@@ -318,7 +319,6 @@ prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
-prometheus = "0.14.0"
 proptest = "1.6.0"
 prost = "0.14"
 prost-build = "0.14"
@@ -487,6 +487,7 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
+prometheus-filtered = { path = "crates/prometheus-filtered" }
 simulacrum = { path = "crates/simulacrum" }
 simulacrum-server = { path = "crates/simulacrum-server" }
 starfish-config = { path = "crates/starfish/config" }

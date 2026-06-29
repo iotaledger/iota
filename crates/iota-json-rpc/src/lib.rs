@@ -22,7 +22,7 @@ use iota_open_rpc::{Module, Project};
 use iota_types::traffic_control::PolicyConfig;
 use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 use tower_http::{

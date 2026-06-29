@@ -6,7 +6,7 @@ use iota_indexer_builder::{
     Task,
     indexer_builder::{BackfillStrategy, IndexerBuilder, IndexerProgressStore},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use crate::indexer_test_utils::{InMemoryPersistent, NoopDataMapper, TestDatasource};
 

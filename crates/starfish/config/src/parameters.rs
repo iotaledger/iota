@@ -106,6 +106,12 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_commit_sync_batches_ahead")]
     pub commit_sync_batches_ahead: usize,
 
+    /// Maximum number of commits scanned and replayed per batch during
+    /// recovery, bounding peak memory when a large unprocessed range is
+    /// replayed at startup.
+    #[serde(default = "Parameters::default_commit_recovery_batch_size")]
+    pub commit_recovery_batch_size: u32,
+
     /// Maximum number of headers to be included in a bundle. Headers exceeding
     /// the max allowed limit will be truncated.
     #[serde(default = "Parameters::default_max_headers_per_bundle")]
@@ -161,6 +167,13 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    /// Threshold for the number of commits sent to the consumer but not yet
+    /// handled, above which commit producers (commit syncers, commit observer
+    /// recovery) pause to let the consumer catch up.
+    pub fn unhandled_commits_threshold(&self) -> u32 {
+        self.commit_sync_batch_size * (self.commit_sync_batches_ahead as u32)
+    }
+
     pub(crate) fn default_leader_timeout() -> Duration {
         Duration::from_millis(200)
     }
@@ -214,6 +227,81 @@ impl Parameters {
         } else {
             self.max_headers_per_header_sync_fetch
         }
+    }
+
+    /// Validates local consensus parameters, rejecting zero values that can
+    /// lead to synchronization problems. Returns a description of the first
+    /// offending field.
+    pub fn validate(&self) -> Result<(), String> {
+        let positive_fields = [
+            (
+                "max_headers_per_commit_sync_fetch",
+                self.max_headers_per_commit_sync_fetch as u128,
+            ),
+            (
+                "max_transactions_per_commit_sync_fetch",
+                self.max_transactions_per_commit_sync_fetch as u128,
+            ),
+            (
+                "max_headers_per_header_sync_fetch",
+                self.max_headers_per_header_sync_fetch as u128,
+            ),
+            (
+                "max_transactions_per_transaction_sync_fetch",
+                self.max_transactions_per_transaction_sync_fetch as u128,
+            ),
+            (
+                "dag_state_cached_rounds",
+                self.dag_state_cached_rounds as u128,
+            ),
+            (
+                "commit_sync_parallel_fetches",
+                self.commit_sync_parallel_fetches as u128,
+            ),
+            (
+                "commit_sync_batch_size",
+                self.commit_sync_batch_size as u128,
+            ),
+            (
+                "commit_recovery_batch_size",
+                self.commit_recovery_batch_size as u128,
+            ),
+            (
+                "commit_sync_batches_ahead",
+                self.commit_sync_batches_ahead as u128,
+            ),
+            (
+                "max_headers_per_bundle",
+                self.max_headers_per_bundle as u128,
+            ),
+            ("max_shards_per_bundle", self.max_shards_per_bundle as u128),
+            (
+                "fast_commit_sync_batch_size",
+                self.fast_commit_sync_batch_size as u128,
+            ),
+            (
+                "tonic.connection_buffer_size",
+                self.tonic.connection_buffer_size as u128,
+            ),
+            (
+                "tonic.excessive_message_size",
+                self.tonic.excessive_message_size as u128,
+            ),
+            (
+                "tonic.message_size_limit",
+                self.tonic.message_size_limit as u128,
+            ),
+            (
+                "tonic.keepalive_interval",
+                self.tonic.keepalive_interval.as_nanos(),
+            ),
+        ];
+        for (name, value) in positive_fields {
+            if value == 0 {
+                return Err(format!("{name} must be positive"));
+            }
+        }
+        Ok(())
     }
 
     // Maximum number of block headers to fetch per commit sync request.
@@ -290,6 +378,10 @@ impl Parameters {
         }
     }
 
+    pub(crate) fn default_commit_recovery_batch_size() -> u32 {
+        if cfg!(msim) { 3 } else { 250 }
+    }
+
     pub(crate) fn default_commit_sync_batches_ahead() -> usize {
         // This is set to be a multiple of default commit_sync_parallel_fetches to allow
         // fetching ahead, while keeping the total number of inflight fetches
@@ -361,6 +453,7 @@ impl Default for Parameters {
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
+            commit_recovery_batch_size: Parameters::default_commit_recovery_batch_size(),
             max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),

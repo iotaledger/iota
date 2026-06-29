@@ -90,10 +90,10 @@ pub(crate) enum ConsensusError {
     )]
     InvalidSizeOfHighestAcceptedRounds(usize, usize),
 
-    #[error("Invalid authority index: {index} > {max}")]
+    #[error("Invalid authority index: {index} >= {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
 
-    #[error("Invalid authority index: {index} > {max} from peer {peer}")]
+    #[error("Invalid authority index: {index} >= {max} from peer {peer}")]
     InvalidAuthorityIndexRequested {
         index: AuthorityIndex,
         max: usize,
@@ -246,6 +246,20 @@ pub(crate) enum ConsensusError {
     TooManyCommitVoteHeaders {
         peer: AuthorityIndex,
         count: usize,
+        limit: usize,
+    },
+
+    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
+    SerializedCommitTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
+
+    #[error("Peer {peer} sent a block header that is too large: {size} > {limit}")]
+    SerializedBlockHeaderTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
         limit: usize,
     },
 

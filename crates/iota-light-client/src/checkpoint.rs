@@ -21,7 +21,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 

@@ -7,7 +7,7 @@ use std::{env, time::Duration};
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 

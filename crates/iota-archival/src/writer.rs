@@ -32,7 +32,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use object_store::DynObjectStore;
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{
         mpsc,

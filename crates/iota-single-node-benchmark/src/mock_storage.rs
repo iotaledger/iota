@@ -24,7 +24,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 use once_cell::unsync::OnceCell;
-use prometheus::core::{Atomic, AtomicU64};
+use prometheus_filtered::core::{Atomic, AtomicU64};
 
 // TODO: We won't need a special purpose InMemoryObjectStore once the
 // InMemoryCache is ready.

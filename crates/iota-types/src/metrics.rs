@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(not(target_arch = "wasm32"))]
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounterVec, register_histogram_with_registry,
     register_int_counter_vec_with_registry,
 };
@@ -22,7 +22,7 @@ pub struct LimitsMetrics {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl LimitsMetrics {
-    pub fn new(registry: &prometheus::Registry) -> LimitsMetrics {
+    pub fn new(registry: &prometheus_filtered::Registry) -> LimitsMetrics {
         Self {
             excessive_estimated_effects_size: register_int_counter_vec_with_registry!(
                 "excessive_estimated_effects_size",
@@ -104,7 +104,7 @@ impl BytecodeVerifierMetrics {
         0.025_000, 0.050_000, 0.100_000, 0.250_000, 0.500_000, 1.000_000, // sub 1 s
         10.000_000, 20.000_000, 50.000_000, 100.0, // We should almost never get here
     ];
-    pub fn new(registry: &prometheus::Registry) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry) -> Self {
         Self {
             verifier_timeout_metrics: register_int_counter_vec_with_registry!(
                 "verifier_timeout_metrics",

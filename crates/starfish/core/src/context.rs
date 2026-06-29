@@ -87,6 +87,7 @@ impl Context {
             committee,
             Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),

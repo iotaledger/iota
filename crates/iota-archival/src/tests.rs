@@ -25,7 +25,7 @@ use iota_types::{
 };
 use more_asserts as ma;
 use object_store::DynObjectStore;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use crate::{
     Manifest, read_manifest,

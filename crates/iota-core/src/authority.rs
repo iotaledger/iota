@@ -132,7 +132,7 @@ use move_core_types::{
     account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::ModuleId,
 };
 use parking_lot::Mutex;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
@@ -374,7 +374,7 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
 pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
-    pub fn new(registry: &prometheus::Registry) -> AuthorityMetrics {
+    pub fn new(registry: &prometheus_filtered::Registry) -> AuthorityMetrics {
         let execute_certificate_latency = register_histogram_vec_with_registry!(
             "authority_state_execute_certificate_latency",
             "Latency of executing certificates, including waiting for inputs",

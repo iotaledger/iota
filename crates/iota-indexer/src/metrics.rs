@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::RegistryService;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, IntGauge, Registry, TextEncoder, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };

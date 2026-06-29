@@ -37,6 +37,47 @@ RE_NOTE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+RE_BREAKING = re.compile(
+    r"#+\s*Breaking Changes Rollout(.*)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+RE_BREAKING_CRATE = re.compile(
+    r"^\s*#####\s+([^\n#]+)$",
+    re.MULTILINE,
+)
+
+RE_BREAKING_NOTE = re.compile(
+    r"^\s*-\s*\[( |x)?\]\s*(devnet|testnet|mainnet):\s*(.*)$",
+    re.MULTILINE | re.IGNORECASE,
+) 
+
+RE_HTML_COMMENT = re.compile(
+    r"<!--.*?-->",
+    re.DOTALL,
+)
+
+RE_ROLLOUT_AFFECTED = re.compile(
+    r"^\s*Affected Crates\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_ACTIONS = re.compile(
+    r"^\s*Required User Actions\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_CRATE_LINE = re.compile(
+    r"^\s*[-*]\s*(.+)$",
+)
+
+RE_ROLLOUT_ACTION_LINE = re.compile(
+    r"^\s*(?:[-*]\s*)?(devnet|testnet|mainnet)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
+
+ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
+
 # Only commits that affect changes in these directories will be
 # considered when generating release notes.
 INTERESTING_DIRECTORIES = [
@@ -73,6 +114,47 @@ class Note(NamedTuple):
     note: str
 
 
+def strip_html_comments(text):
+    """Remove HTML comments to avoid parsing template hints as content."""
+    if not text:
+        return ""
+    return RE_HTML_COMMENT.sub("", text)
+
+
+def collect_crate_names(root):
+    """Collect local crate names by scanning Cargo.toml files."""
+
+    crate_names = set()
+    skip_dirs = {".git", "target", "node_modules"}
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+
+        if "Cargo.toml" not in filenames:
+            continue
+
+        cargo_path = os.path.join(dirpath, "Cargo.toml")
+
+        try:
+            with open(cargo_path, "r", encoding="utf-8") as f:
+                in_package = False
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith("[") and stripped.endswith("]"):
+                        in_package = stripped == "[package]"
+                        continue
+                    if in_package and stripped.startswith("name"):
+                        _, _, value = stripped.partition("=")
+                        name = value.strip().strip('"')
+                        if name:
+                            crate_names.add(name)
+                        break
+        except OSError:
+            continue
+
+    return crate_names
+
+
 def parse_args():
     """Parse command line arguments."""
 
@@ -96,6 +178,23 @@ def parse_args():
     )
 
     generate_p.add_argument(
+        "to",
+        nargs="?",
+        default="HEAD",
+        help="The commit to end at (inclusive), defaults to HEAD.",
+    )
+
+    test_p = sub_parser.add_parser(
+        "dry-run",
+        description="Generate release notes from local git commits without PR lookup.",
+    )
+
+    test_p.add_argument(
+        "from",
+        help="The commit to start from (exclusive)",
+    )
+
+    test_p.add_argument(
         "to",
         nargs="?",
         default="HEAD",
@@ -137,7 +236,6 @@ def git(*args):
     """Run a git command and return the output as a string."""
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
-
 def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
     url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
@@ -155,7 +253,6 @@ def extract_notes_from_commit(commit):
         pr_notes = data[0]["body"] if data[0]["body"] else ""
         return pr_number, pr_notes
 
-
 def extract_notes_from_pr(pr_number):
     url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
     headers = {
@@ -169,22 +266,141 @@ def extract_notes_from_pr(pr_number):
         pr_notes = data["body"] if data["body"] else ""
         return pr_notes
 
+def extract_notes_from_local_commit(commit):
+    message = git("show", "-s", "--format=%B", commit)
+    return message
 
-def extract_notes(commit_or_pr, seen, is_pr):
+def extract_rollout(notes, crate_names):
+    """Extract rollout entries under the Breaking Changes Rollout section."""
+    if not notes:
+        return {}
+
+    notes = strip_html_comments(notes)
+
+    match = RE_BREAKING.search(notes)
+    if not match:
+        return {}
+
+    section = match.group(1)
+    next_heading = re.search(r"^\s*####\s", section, re.MULTILINE)
+    if next_heading:
+        section = section[: next_heading.start()]
+
+    rollout = parse_rollout(section, crate_names)
+    if rollout is not None:
+        return rollout
+
+    if RE_BREAKING_CRATE.search(section) or RE_BREAKING_NOTE.search(section):
+        raise ValueError(
+            "Breaking Changes Rollout must use the Affected Crates / Required User Actions format."
+        )
+
+    return {}
+
+
+def parse_rollout(section, crate_names):
+    """Parse rollout information using the Affected Crates / Required User Actions format."""
+    crates = []
+    actions = {}
+    in_crates = False
+    in_actions = False
+    saw_crates_header = False
+
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if RE_ROLLOUT_AFFECTED.match(stripped):
+            in_crates = True
+            in_actions = False
+            saw_crates_header = True
+            continue
+
+        if RE_ROLLOUT_ACTIONS.match(stripped):
+            in_actions = True
+            in_crates = False
+            continue
+
+        if in_crates:
+            match = RE_ROLLOUT_CRATE_LINE.match(stripped)
+            if match:
+                crate = match.group(1).strip()
+                if crate:
+                    crates.append(crate)
+            continue
+
+        if in_actions:
+            match = RE_ROLLOUT_ACTION_LINE.match(stripped)
+            if match:
+                network = match.group(1).lower()
+                actions[network] = match.group(2).strip()
+            continue
+
+    if not saw_crates_header and not actions:
+        return None
+
+    if actions and not crates:
+        raise ValueError(
+            "Breaking Changes Rollout must list affected crates before user actions."
+        )
+
+    if not actions:
+        return {}
+
+    rollout = {}
+    has_any_content = False
+    seen_crates = set()
+
+    for crate in crates:
+        crate = crate.strip()
+        if not crate:
+            continue
+
+        if crate in seen_crates:
+            raise ValueError(
+                f"Crate '{crate}' appears multiple times in Breaking Changes Rollout."
+            )
+        seen_crates.add(crate)
+
+        if crate not in crate_names:
+            raise ValueError(
+                f"Crate '{crate}' referenced in Breaking Changes Rollout does not exist in this repository."
+            )
+
+        rollout[crate] = {}
+        for network, note_text in actions.items():
+            has_any_content = True
+            rollout[crate][network] = Note(
+                checked=True,
+                note=note_text,
+            )
+
+    if not has_any_content:
+        return {}
+
+    return rollout
+
+
+def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
     """Get release notes from a commit message or a PR description.
 
     Finds the 'Release notes' section in the message, and
     extracts the notes for each impacted area (area that has been
-    ticked).
+    ticked). Also gathers breaking rollout entries.
 
     Returns a tuple of the PR number and a dictionary of impacted
-    areas mapped to their release note. Each release note indicates
-    whether it has a note and whether it was checked (ticked).
+    areas mapped to their release note plus rollout entries keyed by
+    crate and network. Each release note indicates whether it has a
+    note and whether it was checked (ticked).
 
     """
     if is_pr:
         pr = commit_or_pr
         notes = extract_notes_from_pr(pr)
+    elif is_dry_run:
+        pr = None
+        notes = extract_notes_from_local_commit(commit_or_pr)
     else:
         # Try to get the PR number from the commit message or fallback to the
         # one returned from the Github API
@@ -195,18 +411,27 @@ def extract_notes(commit_or_pr, seen, is_pr):
         else:
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
+    notes = strip_html_comments(notes)
     result = {}
+    rollout = extract_rollout(notes, crate_names)
 
     # Otherwise, find the release notes section from the squashed commit message
     match = RE_HEADING.search(notes)
     if not match:
-        return pr, []
+        return pr, [], rollout
     notes = match.group(1)
 
-    if pr in seen:
+    # Stop release-notes parsing before the Breaking Changes Rollout section.
+    breaking_heading = re.search(
+        r"^\s*####\s+Breaking Changes Rollout\b", notes, re.MULTILINE | re.IGNORECASE
+    )
+    if breaking_heading:
+        notes = notes[: breaking_heading.start()]
+
+    if pr and pr in seen:
         # a PR can be in multiple commits if it's from a rebase,
         # so we only want to process it once
-        return pr, []
+        return pr, [], {}
 
     start = 0
     while True:
@@ -229,7 +454,7 @@ def extract_notes(commit_or_pr, seen, is_pr):
         )
         start = end
 
-    return pr, result.items()
+    return pr, result.items(), rollout
 
 
 def extract_protocol_version(commit):
@@ -253,9 +478,11 @@ def extract_protocol_version(commit):
         return match[0]
 
 
-def print_changelog(pr, log):
+def print_changelog(pr, log, commit=None, is_dry_run=False):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end="")
+        print(f"[#{pr}](https://github.com/iotaledger/iota/pull/{pr}): ", end="")
+    elif commit and is_dry_run:
+        print(f"https://github.com/iotaledger/iota/commit/{commit}: ", end="")
     print(log)
 
 
@@ -264,11 +491,18 @@ def do_check(commit_or_pr, is_pr):
 
     This means that every impacted component has a non-empty note,
     every note is attached to a checked checkbox, and every impact
-    area is known.
+    area is known. Also validates Breaking Changes Rollout entries.
 
     """
+    root = git("rev-parse", "--show-toplevel")
+    crate_names = collect_crate_names(root)
 
-    _, notes = extract_notes(commit_or_pr, set(), is_pr)
+    try:
+        _, notes, rollout = extract_notes(commit_or_pr, set(), is_pr, crate_names, False)
+    except ValueError as exc:
+        print(f"Found issues with release notes in {commit_or_pr}:")
+        print(f" - {exc}")
+        sys.exit(1)
 
     issues = []
     any_checked = False
@@ -289,6 +523,28 @@ def do_check(commit_or_pr, is_pr):
     if not any_checked and len(notes) > 0:
         issues.append(f" - No checked items in release notes")
 
+    rollout_checked = False
+    for crate, networks in rollout.items():
+        for network in ROLLOUT_NETWORKS:
+            entry = networks.get(network)
+            if not entry:
+                continue
+
+            rollout_checked |= entry.checked
+
+            if entry.checked and not entry.note:
+                issues.append(
+                    f" - Breaking rollout for crate '{crate}' on {network} is checked but missing details."
+                )
+
+            if not entry.checked and entry.note:
+                issues.append(
+                    f" - Breaking rollout for crate '{crate}' on {network} has text but is not checked: {entry.note}"
+                )
+
+    if rollout and not rollout_checked:
+        issues.append(" - No checked items in Breaking Changes Rollout")
+
     if not issues:
         return
 
@@ -298,7 +554,7 @@ def do_check(commit_or_pr, is_pr):
     sys.exit(1)
 
 
-def do_generate(from_, to):
+def do_generate(from_, to, is_dry_run):
     """Generate release notes from git commits.
 
     This will extract the release notes from all commits between
@@ -313,9 +569,11 @@ def do_generate(from_, to):
 
     """
     results = defaultdict(list)
+    rollout_entries = defaultdict(lambda: defaultdict(list))
 
     root = git("rev-parse", "--show-toplevel")
     os.chdir(root)
+    crate_names = collect_crate_names(root)
 
     protocol_version_from = extract_protocol_version(from_) or "XX"
     protocol_version_to = extract_protocol_version(to) or "XX"
@@ -333,11 +591,20 @@ def do_generate(from_, to):
 
     seen_prs = set()
     for commit in commits.split("\n"):
-        pr, notes = extract_notes(commit, seen_prs, False)
-        seen_prs.add(pr)
+        try:
+            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_dry_run)
+        except ValueError as exc:
+            print(f"Error while processing release notes in commit {commit}: {exc}")
+            sys.exit(1)
+        if pr:
+            seen_prs.add(pr)
         for impacted, note in notes:
             if note.checked:
                 results[impacted].append((pr, note.note))
+        for crate, networks in rollout.items():
+            for network, entry in networks.items():
+                if entry.checked:
+                    rollout_entries[crate][network].append((pr, commit, entry.note))
 
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
@@ -356,7 +623,7 @@ def do_generate(from_, to):
 
         if notes:
             for pr, note in reversed(notes):
-                print_changelog(pr, note)
+                print_changelog(pr, note, is_dry_run=is_dry_run)
                 print()
 
     # Print any remaining impact areas
@@ -366,10 +633,27 @@ def do_generate(from_, to):
             print_changelog(pr, note)
             print()
 
+    if rollout_entries:
+        print(f"## 🚨 Breaking Changes Rollout")
+        for network in ROLLOUT_NETWORKS:
+            has_entries = False
+            for crate, networks in rollout_entries.items():
+                entries = networks.get(network, [])
+                if not entries:
+                    continue
+                if not has_entries:
+                    print(f"\n### {network}\n")
+                    has_entries = True
+                for pr, commit, note in reversed(entries):
+                    print(f"- {crate}: ", end="")
+                    print_changelog(pr, note, commit, is_dry_run=is_dry_run)
+
 
 args = parse_args()
 if args["command"] == "generate":
-    do_generate(args["from"], args["to"])
+    do_generate(args["from"], args["to"], False)
+if args["command"] == "dry-run":
+    do_generate(args["from"], args["to"], True)
 elif args["command"] == "check":
     do_check(args["commit"], False)
 elif args["command"] == "check-pr":

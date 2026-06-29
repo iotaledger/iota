@@ -16,7 +16,7 @@ use iota_types::{
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use rand::{prelude::*, seq::SliceRandom};
 
 fn gen_certs(

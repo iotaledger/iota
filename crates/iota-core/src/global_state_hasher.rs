@@ -19,7 +19,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     storage::ObjectStore,
 };
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use serde::Serialize;
 use tracing::debug;
 

@@ -98,3 +98,40 @@ tonic:
         defaults.tonic.admission.max_commit_fetches_per_peer
     );
 }
+
+#[test]
+fn validate_accepts_defaults() {
+    starfish_config::Parameters::default().validate().unwrap();
+}
+
+#[test]
+fn validate_rejects_zero_values() {
+    let parameters = starfish_config::Parameters {
+        max_headers_per_bundle: 0,
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("max_headers_per_bundle"));
+
+    let parameters = starfish_config::Parameters {
+        tonic: starfish_config::TonicParameters {
+            keepalive_interval: std::time::Duration::ZERO,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("keepalive_interval"));
+
+    // `excessive_message_size` is a pure metrics threshold with no "0 disables
+    // it" meaning, so a zero would flag every message as excessive.
+    let parameters = starfish_config::Parameters {
+        tonic: starfish_config::TonicParameters {
+            excessive_message_size: 0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let error = parameters.validate().unwrap_err();
+    assert!(error.contains("excessive_message_size"));
+}

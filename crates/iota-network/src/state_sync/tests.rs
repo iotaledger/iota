@@ -21,7 +21,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointDigest, VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::time::{Instant, timeout};
 
 use crate::{

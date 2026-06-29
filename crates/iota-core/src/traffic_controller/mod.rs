@@ -31,7 +31,7 @@ use iota_types::{
     },
 };
 use parking_lot::Mutex as ParkingLotMutex;
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use rand::Rng;
 use tokio::{
     sync::{Mutex, RwLock, mpsc, mpsc::error::TrySendError},
@@ -160,7 +160,9 @@ impl TrafficController {
         policy_config: PolicyConfig,
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
-        let metrics = Arc::new(TrafficControllerMetrics::new(&prometheus::Registry::new()));
+        let metrics = Arc::new(TrafficControllerMetrics::new(
+            &prometheus_filtered::Registry::new(),
+        ));
         Self::init(policy_config, metrics, fw_config).await
     }
 
