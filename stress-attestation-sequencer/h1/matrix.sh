@@ -12,10 +12,13 @@
 # × 2 paths   {fullnode (DIRECT=false), pinned (DIRECT=true, 1 target validator)}
 # × 3 qps     {200, 1000, 2000}                                      = 30 configs.
 #
-# Each run.sh invocation does ITERS iterations (V1+V2 per iter), so this is
-# 30 * ITERS full experiments — HOURS of wall time at ITERS=5. Per-config console
-# output goes to logs/<LABEL>.log; redirecting it also makes run.sh non-interactive
-# (no monitoring prompt) and strips ANSI colors, so the matrix runs unattended.
+# Round-robin: each round runs 1 iteration (V1+V2) of every config; ITERS rounds
+# total, so each config ends with ITERS iters — interleaved, not config-major. So
+# an interrupted run leaves every config with ~equal iters. That's 30 * ITERS full
+# experiments — HOURS of wall time at ITERS=5. Per-config console output goes to
+# logs/<LABEL>.log (truncated on round 1, appended thereafter); redirecting it also
+# makes run.sh non-interactive (no monitoring prompt) and strips ANSI colors, so
+# the matrix runs unattended.
 #
 # Usage:
 #   ITERS=5 ./matrix.sh             # run all 30 configs
@@ -93,28 +96,47 @@ sudo -v || {
 done) &
 trap 'kill %1 2>/dev/null' EXIT
 
-total=${#configs[@]}
+# Count filter-matching configs up front so the progress display knows the total.
+nconf=0
+for row in "${configs[@]}"; do
+  l="${row%%|*}"
+  l="${l// /}"
+  [[ -n "$FILTER" && "$l" != *"$FILTER"* ]] && continue
+  nconf=$((nconf + 1))
+done
+total=$((nconf * ITERS))
 n=0
 ok=0
 fail=0
 start=$(date +%s)
-for row in "${configs[@]}"; do
-  label="${row%%|*}"
-  label="${label// /}" # strip alignment padding around |
-  envs="${row#*|}"
-  [[ -n "$FILTER" && "$label" != *"$FILTER"* ]] && continue
-  n=$((n + 1))
-  log="$LOGDIR/$label.log"
-  echo "[$(date +%H:%M:%S)] ($n) $label  ITERS=$ITERS  -> logs/$label.log"
-  # shellcheck disable=SC2086  # $envs is intentionally word-split into KEY=VAL args
-  if env LABEL="$label" ITERS="$ITERS" $envs "$SCRIPT_DIR/run.sh" >"$log" 2>&1; then
-    echo "    ✓ done"
-    ok=$((ok + 1))
-  else
-    rc=$?
-    echo "    ✗ FAILED (exit $rc) — tail $log"
-    fail=$((fail + 1))
-  fi
+# Round-robin: each round runs ONE iteration of every config; ITERS rounds total,
+# so each config ends with ITERS iters but they are interleaved. An interrupted
+# matrix then leaves every config with ~equal iterations, instead of the first
+# configs fully done and the last ones with none. (run.sh's config gate appends
+# each round's iter to results/<LABEL>/.)
+for ((round = 1; round <= ITERS; round++)); do
+  echo "########## round $round of $ITERS ##########"
+  for row in "${configs[@]}"; do
+    label="${row%%|*}"
+    label="${label// /}" # strip alignment padding around |
+    envs="${row#*|}"
+    [[ -n "$FILTER" && "$label" != *"$FILTER"* ]] && continue
+    n=$((n + 1))
+    log="$LOGDIR/$label.log"
+    # Fresh per-config log on this invocation's first round, then append rounds 2..N.
+    [[ $round -eq 1 ]] && : >"$log"
+    echo "[$(date +%H:%M:%S)] ($n/$total) round $round  $label  -> logs/$label.log"
+    echo "===== round $round =====" >>"$log"
+    # shellcheck disable=SC2086  # $envs is intentionally word-split into KEY=VAL args
+    if env LABEL="$label" ITERS=1 $envs "$SCRIPT_DIR/run.sh" >>"$log" 2>&1; then
+      echo "    ✓ done"
+      ok=$((ok + 1))
+    else
+      rc=$?
+      echo "    ✗ FAILED (exit $rc) — tail $log"
+      fail=$((fail + 1))
+    fi
+  done
 done
 
 mins=$((($(date +%s) - start) / 60))
