@@ -1282,7 +1282,7 @@ impl Core {
             self.context
                 .metrics
                 .node_metrics
-                .last_decided_leader_round
+                .last_finalized_leader_round
                 .set(self.last_finalized_leader.round as i64);
 
             // It's possible to reach this point as the decided leaders might all of them be
