@@ -29,9 +29,10 @@ use crate::{
         base64::Base64,
         cursor::{Page, Target},
         date_time::DateTime,
+        digest::Digest,
         move_module::MoveModule,
         move_value::MoveValue,
-        transaction_block::{SeqKey, TransactionBlock},
+        transaction_block::{DigestKey, TransactionBlock},
     },
 };
 
@@ -44,18 +45,22 @@ pub(crate) use filter::EventFilter;
 /// An event emitted in a transaction that has been checkpointed.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CheckpointedEventInfo {
-    /// The sequence number of the parent transaction.
-    tx_sequence_number: u64,
+    /// The digest of the parent transaction.
+    tx_digest: Digest,
     /// The timestamp of the parent transaction.
     timestamp_ms: i64,
 }
 
-impl From<&StoredEvent> for CheckpointedEventInfo {
-    fn from(value: &StoredEvent) -> Self {
-        Self {
-            tx_sequence_number: value.tx_sequence_number as u64,
+impl TryFrom<&StoredEvent> for CheckpointedEventInfo {
+    type Error = Error;
+
+    fn try_from(value: &StoredEvent) -> Result<Self, Self::Error> {
+        let tx_digest = Digest::try_from(value.transaction_digest.as_slice())
+            .map_err(|e| Error::Internal(format!("Bad transaction digest on event: {e}")))?;
+        Ok(Self {
+            tx_digest,
             timestamp_ms: value.timestamp_ms,
-        }
+        })
     }
 }
 
@@ -89,9 +94,9 @@ impl Event {
         let Some(checkpointed) = &self.checkpointed_info else {
             return Ok(None);
         };
-        let key = SeqKey::new(checkpointed.tx_sequence_number, self.checkpoint_viewed_at);
+        let key = DigestKey::new(checkpointed.tx_digest, self.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     /// The Move module containing some function that when called by
@@ -279,8 +284,10 @@ impl Event {
             ))
         })?;
 
+        let tx_digest = Digest::try_from(stored_tx.transaction_digest.as_slice())
+            .map_err(|e| Error::Internal(format!("Bad transaction digest on transaction: {e}")))?;
         let checkpointed = CheckpointedEventInfo {
-            tx_sequence_number: stored_tx.tx_sequence_number as u64,
+            tx_digest,
             timestamp_ms: stored_tx.timestamp_ms,
         };
         Ok(Self {
@@ -297,7 +304,7 @@ impl Event {
         let Some(Some(sender_bytes)) = stored.senders.first() else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
-        let checkpointed = CheckpointedEventInfo::from(&stored);
+        let checkpointed = CheckpointedEventInfo::try_from(&stored)?;
         let sender = NativeIotaAddress::from_bytes(sender_bytes)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =

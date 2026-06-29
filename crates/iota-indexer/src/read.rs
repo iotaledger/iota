@@ -295,6 +295,25 @@ impl IndexerReader {
     }
 }
 
+/// A transaction returned by [`IndexerReader::multi_get_transactions`] or
+/// [`IndexerReader::multi_get_transactions_with_fallback`]. Each row is
+/// either checkpointed (from Postgres or the historical fallback) or
+/// optimistic (from Postgres).
+pub enum TransactionRead {
+    Checkpointed(StoredTransaction),
+    Optimistic(OptimisticTransaction),
+}
+
+impl TransactionRead {
+    /// Raw transaction digest bytes, common to both variants.
+    pub fn transaction_digest(&self) -> &[u8] {
+        match self {
+            Self::Checkpointed(s) => &s.transaction_digest,
+            Self::Optimistic(o) => &o.transaction_digest,
+        }
+    }
+}
+
 // Impl for reading data from the DB
 impl IndexerReader {
     fn get_object_from_db(
@@ -888,101 +907,71 @@ impl IndexerReader {
             .collect())
     }
 
-    /// Fetches multiple transactions from the database.
+    /// Fetches multiple transactions from the database. Each row is returned
+    /// as [`TransactionRead::Checkpointed`] or [`TransactionRead::Optimistic`]
+    /// depending on which table it came from.
     ///
-    ///  Retrieval order:
+    /// Retrieval order per digest:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
     pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<StoredTransaction>> {
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
-        let checkpointed_txs = self
+    ) -> IndexerResult<Vec<TransactionRead>> {
+        let digest_bytes: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let mut found: Vec<TransactionRead> = self
             .db()
-            .get_checkpointed_transactions(digests.clone())
-            .await?;
-
-        if checkpointed_txs.len() == digests.len() {
-            return Ok(checkpointed_txs);
-        }
-
-        let missing_digests = Self::check_for_missing_tx_digests(&digests, &checkpointed_txs);
-        let optimistic_txs = self
-            .db()
-            .get_optimistic_transactions(missing_digests)
-            .await?;
-
-        Ok(checkpointed_txs
-            .into_iter()
-            .chain(optimistic_txs.into_iter().map(Into::into))
-            .collect::<Vec<StoredTransaction>>())
-    }
-
-    /// Fetches multiple transactions from the indexer storage.
-    ///
-    /// Retrieval order:
-    /// 1. Checkpointed data (finalized transactions)
-    /// 2. Optimistic data (pending transactions not yet checkpointed)
-    /// 3. Historical fallback storage (if enabled)
-    async fn multi_get_transactions_with_fallback(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<StoredTransaction>> {
-        let fetched_transactions = self.multi_get_transactions(digests).await?;
-
-        // fallback to historical storage
-        let Some(fallback) = self
-            .fallback_reader()
-            // As for now we don't have a way to identify if the user requested pruned or invalid
-            // transaction digests. As a measure, we check if the number of requested transactions
-            // matches the number of fetched transactions. In case of missing transactions,
-            // if fallback is enabled, we use it to fetch the missing ones.
-            .filter(|_| fetched_transactions.len() != digests.len())
-        else {
-            // return data from database.
-            return Ok(fetched_transactions);
-        };
-
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
-        let missing_digests = Self::check_for_missing_tx_digests(&digests, &fetched_transactions)
-            .iter()
-            .map(|digest| {
-                TransactionDigest::from_bytes(digest.as_slice()).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "can't convert {digest:?} as tx_digest. Error: {e}",
-                    ))
-                })
-            })
-            .collect::<IndexerResult<Vec<TransactionDigest>>>()?;
-
-        let historical_transactions = fallback
-            .transactions(&missing_digests)
+            .get_checkpointed_transactions(digest_bytes)
             .await?
             .into_iter()
-            .flatten()
-            .collect::<Vec<StoredTransaction>>();
+            .map(TransactionRead::Checkpointed)
+            .collect();
 
-        Ok(fetched_transactions
-            .into_iter()
-            .chain(historical_transactions)
-            .collect())
+        let missing = Self::check_for_missing_tx_digests(digests, &found);
+        if !missing.is_empty() {
+            let missing_bytes: Vec<Vec<u8>> = missing.iter().map(|d| d.inner().to_vec()).collect();
+            for opt in self.db().get_optimistic_transactions(missing_bytes).await? {
+                found.push(TransactionRead::Optimistic(opt));
+            }
+        }
+        Ok(found)
     }
 
-    /// Checks for missing transaction digests in the fetched transactions.
+    /// Same as [`Self::multi_get_transactions`], but also reads from the
+    /// historical fallback (when configured) for digests not found in
+    /// Postgres. Fallback rows are returned as
+    /// [`TransactionRead::Checkpointed`].
+    pub async fn multi_get_transactions_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IndexerResult<Vec<TransactionRead>> {
+        let mut found = self.multi_get_transactions(digests).await?;
+
+        if found.len() == digests.len() {
+            return Ok(found);
+        }
+        let Some(fallback) = self.fallback_reader() else {
+            return Ok(found);
+        };
+
+        let missing = Self::check_for_missing_tx_digests(digests, &found);
+        for stored in fallback.transactions(&missing).await?.into_iter().flatten() {
+            found.push(TransactionRead::Checkpointed(stored));
+        }
+        Ok(found)
+    }
+
+    /// Returns the `requested` digests that are not in `found`.
     fn check_for_missing_tx_digests(
-        requested_digests: &[Vec<u8>],
-        fetched_txs: &[StoredTransaction],
-    ) -> Vec<Vec<u8>> {
-        let fetched_txs_digests_set = fetched_txs
+        requested: &[TransactionDigest],
+        found: &[TransactionRead],
+    ) -> Vec<TransactionDigest> {
+        let found_set: HashSet<&[u8]> = found.iter().map(|t| t.transaction_digest()).collect();
+        requested
             .iter()
-            .map(|tx| &tx.transaction_digest)
-            .collect::<HashSet<&Vec<u8>>>();
-        requested_digests
-            .iter()
-            .filter(|digest| !fetched_txs_digests_set.contains(digest))
-            .cloned()
-            .collect::<Vec<Vec<u8>>>()
+            .filter(|d| !found_set.contains(d.inner().as_slice()))
+            .copied()
+            .collect()
     }
 
     /// This method tries to transform [`StoredTransaction`] values
@@ -1666,7 +1655,15 @@ impl IndexerReader {
         digests: &[TransactionDigest],
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        let stored_txes = self.multi_get_transactions_with_fallback(digests).await?;
+        let stored_txes: Vec<StoredTransaction> = self
+            .multi_get_transactions_with_fallback(digests)
+            .await?
+            .into_iter()
+            .map(|tx| match tx {
+                TransactionRead::Checkpointed(s) => s,
+                TransactionRead::Optimistic(o) => o.into(),
+            })
+            .collect();
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
     }

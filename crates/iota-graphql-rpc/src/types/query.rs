@@ -388,7 +388,7 @@ impl Query {
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         let key = transaction_block::DigestKey::new(digest, checkpoint);
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     /// Fetch multiple transaction blocks by their digests.
