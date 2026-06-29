@@ -293,7 +293,7 @@ pub async fn main() -> Result<()> {
                 }
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                committee.replace(Committee::new(epoch + 1, authorities.into_iter().collect()));
+                committee.replace(Committee::from_committee_members(epoch + 1, &authorities));
             }
 
             let targets = ProofTargets {
@@ -344,7 +344,7 @@ pub async fn main() -> Result<()> {
                 };
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                Committee::new(epoch, authorities.into_iter().collect())
+                Committee::from_committee_members(epoch, &authorities)
             };
 
             proof::verify_proof(&committee, &proof)?;

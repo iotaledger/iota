@@ -19,6 +19,7 @@ use iota_sdk_types::{
     TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    validator::ValidatorCommitteeMember,
 };
 use iota_types::{
     base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
@@ -158,6 +159,15 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &kp).unwrap();
     tracer.trace_value(&mut samples, &pk).unwrap();
+
+    // `ValidatorCommitteeMember` (reachable via `EndOfEpochData`) holds an SDK
+    // `Bls12381PublicKey` whose custom serializer expects a fixed-size byte
+    // array, so it needs a sample before any containing type is traced.
+    let committee_member = ValidatorCommitteeMember {
+        public_key: pk.into(),
+        stake: 1,
+    };
+    tracer.trace_value(&mut samples, &committee_member).unwrap();
 
     tracer.trace_value(&mut samples, &s_addr).unwrap();
     tracer.trace_value(&mut samples, &s_kp).unwrap();

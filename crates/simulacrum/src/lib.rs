@@ -326,8 +326,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let mut inner = self.inner.write().unwrap();
             let new_epoch_state = EpochState::new(inner.store.get_system_state());
             let end_of_epoch_data = EndOfEpochData {
-                next_epoch_committee: new_epoch_state.committee().voting_rights.clone(),
-                next_epoch_protocol_version,
+                next_epoch_committee: new_epoch_state.committee().committee_members(),
+                next_epoch_protocol_version: next_epoch_protocol_version.as_u64(),
                 epoch_commitments: vec![],
                 // Do not simulate supply changes for now.
                 epoch_supply_change: 0,
