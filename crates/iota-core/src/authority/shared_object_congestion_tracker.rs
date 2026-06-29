@@ -227,12 +227,30 @@ impl WorkerOccupancy {
         Self(Vec::new())
     }
 
-    /// The worker occupancy at `point` (`0` if no segment covers it).
-    fn count_at(segments: &[WorkerSegment], point: ExecutionTime) -> u16 {
-        segments
-            .iter()
-            .find(|s| point >= s.start_time && point < s.end_time)
-            .map_or(0, |s| s.worker_count)
+    /// Appends `[start, end)` with `count` to a segment list, coalescing with
+    /// the previous segment when they are adjacent and share a count, and
+    /// dropping empty or zero-count pieces. Inputs must arrive in ascending
+    /// time order.
+    fn push_segment(
+        segments: &mut Vec<WorkerSegment>,
+        start: ExecutionTime,
+        end: ExecutionTime,
+        count: u16,
+    ) {
+        if count == 0 || start >= end {
+            return;
+        }
+        if let Some(last) = segments.last_mut() {
+            if last.end_time == start && last.worker_count == count {
+                last.end_time = end;
+                return;
+            }
+        }
+        segments.push(WorkerSegment {
+            start_time: start,
+            end_time: end,
+            worker_count: count,
+        });
     }
 
     /// Returns the free execution slots in which a new transaction can be
@@ -240,59 +258,77 @@ impl WorkerOccupancy {
     /// of `[0, MAX)` where occupancy is strictly below `n`. The result is a
     /// valid free-list (sorted, non-overlapping) and can be intersected with
     /// object free-lists during scheduling.
+    ///
+    /// Single pass over the (sorted, disjoint) segments: the free-list is the
+    /// complement of the saturated (`count >= n`) segments within `[0, MAX)`.
     fn free_slots_below(&self, n: u16) -> ObjectExecutionSlots {
-        let mut free = ObjectExecutionSlots::new();
+        let mut free = Vec::new();
+        let mut cursor = 0;
         for segment in &self.0 {
+            // Segments below the cap (and the implicit gaps between segments)
+            // remain free, so only saturated segments break the free region.
             if segment.worker_count >= n {
-                free.remove(ExecutionSlot::new(segment.start_time, segment.end_time));
+                if cursor < segment.start_time {
+                    free.push(ExecutionSlot::new(cursor, segment.start_time));
+                }
+                cursor = segment.end_time;
             }
         }
-        free
+        if cursor < MAX_EXECUTION_TIME {
+            free.push(ExecutionSlot::new(cursor, MAX_EXECUTION_TIME));
+        }
+        ObjectExecutionSlots(free)
     }
 
     /// Adds one worker occupancy over `[start_time, start_time + duration)`,
-    /// splitting and merging segments as needed so that the invariant (sorted,
-    /// disjoint, adjacent-equal-count segments merged, no zero-count segments)
-    /// is maintained.
+    /// maintaining the invariant (sorted, disjoint, adjacent-equal-count
+    /// segments merged, no zero-count segments).
+    ///
+    /// Single pass over the existing (sorted, disjoint) segments: each is split
+    /// into its before-, within- and after-`[start, end)` portions (the within
+    /// portion getting `+1`), and gaps inside `[start, end)` are emitted with
+    /// count `1`. `filled` tracks how far the `[start, end)` region has been
+    /// covered so the inter-segment gaps can be filled in order.
     fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime) {
         let end_time = start_time.saturating_add(duration);
         if start_time >= end_time {
             return;
         }
 
-        // Sweep over every boundary so each output piece has a single count.
-        let mut boundaries = std::collections::BTreeSet::new();
-        boundaries.insert(start_time);
-        boundaries.insert(end_time);
-        for segment in &self.0 {
-            boundaries.insert(segment.start_time);
-            boundaries.insert(segment.end_time);
-        }
-        let boundaries: Vec<ExecutionTime> = boundaries.into_iter().collect();
+        let old = std::mem::take(&mut self.0);
+        let mut merged: Vec<WorkerSegment> = Vec::with_capacity(old.len() + 2);
+        // Next position within `[start_time, end_time)` not yet covered, so any
+        // gap between segments inside the range can be emitted with count 1.
+        let mut filled = start_time;
 
-        let mut merged: Vec<WorkerSegment> = Vec::new();
-        for window in boundaries.windows(2) {
-            let (piece_start, piece_end) = (window[0], window[1]);
-            let mut count = Self::count_at(&self.0, piece_start);
-            if piece_start >= start_time && piece_end <= end_time {
-                count += 1;
+        for segment in old {
+            let WorkerSegment {
+                start_time: a,
+                end_time: b,
+                worker_count: c,
+            } = segment;
+
+            // Gap inside `[start_time, end_time)` preceding this segment.
+            if a > filled && filled < end_time {
+                let gap_end = a.min(end_time);
+                Self::push_segment(&mut merged, filled, gap_end, 1);
+                filled = filled.max(gap_end);
             }
-            if count == 0 {
-                continue;
+            // Portion before the occupied range: count unchanged.
+            Self::push_segment(&mut merged, a, b.min(start_time), c);
+            // Portion within the occupied range: count + 1.
+            let within_start = a.max(start_time);
+            let within_end = b.min(end_time);
+            if within_start < within_end {
+                Self::push_segment(&mut merged, within_start, within_end, c.saturating_add(1));
+                filled = filled.max(within_end);
             }
-            // Coalesce with the previous segment if adjacent and equal count.
-            if let Some(last) = merged.last_mut() {
-                if last.end_time == piece_start && last.worker_count == count {
-                    last.end_time = piece_end;
-                    continue;
-                }
-            }
-            merged.push(WorkerSegment {
-                start_time: piece_start,
-                end_time: piece_end,
-                worker_count: count,
-            });
+            // Portion after the occupied range: count unchanged.
+            Self::push_segment(&mut merged, a.max(end_time), b, c);
         }
+        // Trailing gap inside `[start_time, end_time)` after the last segment.
+        Self::push_segment(&mut merged, filled, end_time, 1);
+
         self.0 = merged;
     }
 }
@@ -2088,6 +2124,41 @@ mod object_cost_tests {
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME),
             ]
+        );
+    }
+
+    #[test]
+    fn test_worker_occupancy_gap_fill_and_coalesce() {
+        let mut occupancy = WorkerOccupancy::new();
+        // Two busy regions separated by a gap [5, 10).
+        occupancy.occupy(0, 5); // [0, 5) -> 1
+        occupancy.occupy(10, 5); // [10, 15) -> 1
+
+        // Occupy across the gap: the gap is filled at count 1 and the existing
+        // regions rise to 2 -> [0, 5):2, [5, 10):1, [10, 15):2.
+        occupancy.occupy(0, 15);
+        assert_eq!(
+            occupancy.free_slots_below(2).0,
+            vec![
+                ExecutionSlot::new(5, 10),
+                ExecutionSlot::new(15, MAX_EXECUTION_TIME),
+            ]
+        );
+
+        // Raising the middle to 2 makes all of [0, 15) count 2, which must
+        // coalesce into a single segment.
+        occupancy.occupy(5, 5); // [5, 10) -> 2
+        assert_eq!(
+            occupancy.0,
+            vec![WorkerSegment {
+                start_time: 0,
+                end_time: 15,
+                worker_count: 2,
+            }]
+        );
+        assert_eq!(
+            occupancy.free_slots_below(2).0,
+            vec![ExecutionSlot::new(15, MAX_EXECUTION_TIME)]
         );
     }
 
