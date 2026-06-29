@@ -1798,12 +1798,12 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
-    pub fn commits_per_schedule(&self) -> u64 {
+    pub fn commits_per_schedule(&self) -> u32 {
         if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
-            min(10, self.consensus_commits_per_schedule.unwrap_or(300)) as u64
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300))
         } else {
-            self.consensus_commits_per_schedule.unwrap_or(300) as u64
+            self.consensus_commits_per_schedule.unwrap_or(300)
         }
     }
 }

@@ -718,7 +718,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule() as u32;
+        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.

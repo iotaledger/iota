@@ -59,7 +59,7 @@ fn recover_leader_swap_table(
 pub(crate) struct LeaderSchedule {
     pub leader_swap_table: Arc<RwLock<LeaderSwapTable>>,
     context: Arc<Context>,
-    num_commits_per_schedule: u64,
+    num_commits_per_schedule: u32,
 }
 
 impl LeaderSchedule {
@@ -73,7 +73,7 @@ impl LeaderSchedule {
     }
 
     #[cfg(test)]
-    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u64) -> Self {
+    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u32) -> Self {
         self.num_commits_per_schedule = num_commits_per_schedule;
         self
     }
@@ -112,7 +112,7 @@ impl LeaderSchedule {
         &self,
         dag_state: Arc<RwLock<DagState>>,
     ) -> usize {
-        let subdag_count = dag_state.read().scoring_subdags_count() as u64;
+        let subdag_count = dag_state.read().scoring_subdags_count() as u32;
 
         // In the normal online flow, `scoring_subdag` is cleared every time we
         // update the schedule, so its size stays within `num_commits_per_schedule`.
@@ -312,7 +312,7 @@ impl LeaderSchedule {
             return Ok(());
         }
 
-        let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
+        let range_start = range_end.saturating_sub(self.num_commits_per_schedule - 1);
         let commit_range = CommitRange::new(range_start..=range_end);
 
         let reputation_scores = ReputationScores::from_scores_desc(
