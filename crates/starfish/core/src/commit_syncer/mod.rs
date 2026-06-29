@@ -63,13 +63,12 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
-    peer_responsiveness::FetchKind,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
 };
@@ -530,8 +529,8 @@ where
     // Regular and fast commit sync transfer different amounts of data per fetch,
     // so their per-peer responsiveness is tracked under distinct kinds.
     let fetch_kind = match inner.sync_type {
-        CommitSyncType::Regular => FetchKind::CommitSync,
-        CommitSyncType::Fast => FetchKind::FastCommitSync,
+        CommitSyncType::Regular => DataSource::CommitSyncer,
+        CommitSyncType::Fast => DataSource::FastCommitSyncer,
     };
     info!(
         "[{}] Starting to fetch commits in {commit_range:?} ...",
@@ -559,8 +558,6 @@ where
         // keep the previous behaviour: a uniform shuffle in production, a stable
         // committee order under test.
         if inner.context.parameters.enable_peer_responsiveness_ranking {
-            // `thread_rng` keeps peer ordering deterministic under the consensus
-            // simulator (entropy-seeded RNGs are not virtualized there).
             let mut rng = thread_rng();
             inner.context.peer_responsiveness.prioritize(
                 fetch_kind,
@@ -578,9 +575,8 @@ where
 
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
+        let responsiveness = &inner.context.peer_responsiveness;
         for authority in target_authorities {
-            // Time the attempt with the tokio clock so the responsiveness signal
-            // is consistent and deterministic under the simulator.
             let started = Instant::now();
             match tokio::time::timeout(
                 fetch_timeout,
@@ -594,11 +590,7 @@ where
             .await
             {
                 Ok(Ok(data)) => {
-                    inner.context.peer_responsiveness.record_success(
-                        fetch_kind,
-                        authority,
-                        started.elapsed(),
-                    );
+                    responsiveness.record_success(fetch_kind, authority, started.elapsed());
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
@@ -606,10 +598,11 @@ where
                     return (commit_range.end(), data);
                 }
                 Ok(Err(e)) => {
-                    inner
-                        .context
-                        .peer_responsiveness
-                        .record_failure_with_timeout(fetch_kind, authority, fetch_timeout);
+                    responsiveness.record_failure_with_timeout(
+                        fetch_kind,
+                        authority,
+                        fetch_timeout,
+                    );
                     let hostname = inner
                         .context
                         .committee
@@ -631,10 +624,11 @@ where
                         .inc();
                 }
                 Err(_) => {
-                    inner
-                        .context
-                        .peer_responsiveness
-                        .record_failure_with_timeout(fetch_kind, authority, fetch_timeout);
+                    responsiveness.record_failure_with_timeout(
+                        fetch_kind,
+                        authority,
+                        fetch_timeout,
+                    );
                     let hostname = inner
                         .context
                         .committee

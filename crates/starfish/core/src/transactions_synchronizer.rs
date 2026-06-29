@@ -34,7 +34,6 @@ use crate::{
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactionsV2},
-    peer_responsiveness::FetchKind,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -720,10 +719,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // synchronizer for too long, as certain peers may take a while to respond.
         // The number of requests to each peer is limited by the parameters.
 
-        // Initialize randomness for ordering authorities. `StdRng` is `Send`
-        // (this future is spawned) and is seeded from `thread_rng`, which the
-        // consensus simulator virtualizes, so ordering stays deterministic
-        // under simulation.
+        // Randomness for ordering the authorities below.
         let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
         // Create an iterator over authorities with their corresponding block refs.
@@ -743,9 +739,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .collect();
             let mut order: Vec<AuthorityIndex> =
                 vec.iter().map(|(authority, _)| *authority).collect();
-            context
-                .peer_responsiveness
-                .prioritize(FetchKind::Transactions, &mut order, &mut rng);
+            context.peer_responsiveness.prioritize(
+                DataSource::TransactionSynchronizer,
+                &mut order,
+                &mut rng,
+            );
             let position: HashMap<AuthorityIndex, usize> =
                 order.iter().enumerate().map(|(i, a)| (*a, i)).collect();
             vec.sort_by_key(|(authority, _)| position[authority]);
@@ -830,14 +828,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let shortfall_factor =
                         (stats.requested as f64 / stats.delivered as f64).max(1.0);
                     context.peer_responsiveness.record_success(
-                        FetchKind::Transactions,
+                        DataSource::TransactionSynchronizer,
                         peer,
                         stats.latency.mul_f64(shortfall_factor),
                     );
                 }
                 Ok(stats) if stats.received > 0 => {
                     context.peer_responsiveness.record_success(
-                        FetchKind::Transactions,
+                        DataSource::TransactionSynchronizer,
                         peer,
                         stats.latency,
                     );
@@ -845,12 +843,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 Ok(_) => {
                     context
                         .peer_responsiveness
-                        .record_failure(FetchKind::Transactions, peer);
+                        .record_failure(DataSource::TransactionSynchronizer, peer);
                 }
                 Err(err) => {
                     last_failure_by_peer.update_with_new_instant(peer, Instant::now());
                     context.peer_responsiveness.record_failure_with_timeout(
-                        FetchKind::Transactions,
+                        DataSource::TransactionSynchronizer,
                         peer,
                         FETCH_REQUEST_TIMEOUT,
                     );
@@ -2065,10 +2063,14 @@ mod tests {
         // THEN both peers were fed back, and the error peer ranks slower than the
         // peer that successfully delivered the transactions.
         let pr = &context.peer_responsiveness;
-        let failure =
-            pr.effective_latency_ms(FetchKind::Transactions, AuthorityIndex::new_for_test(1));
-        let success =
-            pr.effective_latency_ms(FetchKind::Transactions, AuthorityIndex::new_for_test(2));
+        let failure = pr.effective_latency_ms(
+            DataSource::TransactionSynchronizer,
+            AuthorityIndex::new_for_test(1),
+        );
+        let success = pr.effective_latency_ms(
+            DataSource::TransactionSynchronizer,
+            AuthorityIndex::new_for_test(2),
+        );
         assert!(failure.is_some(), "error peer must have a recorded score");
         assert!(success.is_some(), "success peer must have a recorded score");
         assert!(
