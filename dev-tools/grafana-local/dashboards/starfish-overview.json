@@ -677,8 +677,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -773,7 +773,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -784,7 +784,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.05, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -795,7 +795,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -806,7 +806,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -889,7 +889,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -900,7 +900,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.05, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -911,7 +911,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -922,7 +922,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -1004,7 +1004,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1109,7 +1109,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1214,7 +1214,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1330,7 +1330,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1445,7 +1445,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1549,7 +1549,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -2163,7 +2163,7 @@
               "editorMode": "code",
               "expr": "sum by(host) (rate(transactions_included_in_checkpoint[2m]))",
               "hide": false,
-              "legendFormat": "{{label_name}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "D"
             }
@@ -2244,7 +2244,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2339,7 +2339,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2434,7 +2434,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2530,8 +2530,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -2626,8 +2626,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -3223,7 +3223,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -3305,8 +3305,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -3403,8 +3403,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -3710,7 +3710,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -3800,7 +3800,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -3891,7 +3891,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5297,7 +5297,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5395,7 +5395,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5421,7 +5421,7 @@
           "type": "timeseries"
         }
       ],
-      "title": "Starfish RAM",
+      "title": "Starfish In-Memory State",
       "type": "row"
     },
     {
@@ -8094,7 +8094,7 @@
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{type}}",
               "range": true,
               "refId": "A",
               "useBackend": false
@@ -8381,7 +8381,7 @@
               "useBackend": false
             }
           ],
-          "title": "Average useful shards by host ",
+          "title": "Average useful shards by host",
           "transformations": [
             {
               "id": "organize",
@@ -8475,7 +8475,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -8575,7 +8575,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -8693,8 +8693,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -8788,8 +8788,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9000,8 +9000,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9095,8 +9095,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9186,11 +9186,11 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9296,8 +9296,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9390,8 +9390,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9488,8 +9488,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9669,8 +9669,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9767,8 +9767,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9860,8 +9860,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9958,8 +9958,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -10001,18 +10001,18 @@
               },
               "mappings": [],
               "thresholds": {
-                "mode": "percentage",
+                "mode": "absolute",
                 "steps": [
                   {
                     "color": "green"
                   },
                   {
                     "color": "#EAB839",
-                    "value": 50
+                    "value": 1
                   },
                   {
                     "color": "red",
-                    "value": 100
+                    "value": 3
                   }
                 ]
               },
@@ -10186,7 +10186,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10280,7 +10280,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10374,7 +10374,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10468,7 +10468,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10566,7 +10566,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10664,7 +10664,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10676,11 +10676,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "reconstructed_transactions_unknown",
+              "expr": "max by(host) (consensus_reconstructed_transactions_unknown)",
               "fullMetaSearch": false,
               "includeNullMetadata": false,
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
@@ -10762,7 +10762,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10855,7 +10855,8 @@
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "s"
             },
             "overrides": []
           },
@@ -10874,7 +10875,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -11024,8 +11025,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11222,8 +11223,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11420,8 +11421,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11523,8 +11524,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "pluginVersion": "10.1.1",
@@ -11543,7 +11544,7 @@
               "refId": "B"
             }
           ],
-          "title": "Median transaction synchronizer fetch latency",
+          "title": "Median transaction synchronizer fetch latency (live)",
           "type": "timeseries"
         },
         {
@@ -11623,8 +11624,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "pluginVersion": "10.1.1",
@@ -11646,7 +11647,7 @@
               "useBackend": false
             }
           ],
-          "title": "Median transaction synchronizer fetch latency",
+          "title": "Median transaction synchronizer fetch latency (periodic)",
           "type": "timeseries"
         },
         {
@@ -11926,8 +11927,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12128,8 +12129,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12221,7 +12222,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -12337,8 +12338,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12535,8 +12536,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12634,8 +12635,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12833,8 +12834,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12934,8 +12935,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13136,8 +13137,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13237,8 +13238,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13439,8 +13440,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13763,8 +13764,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13880,8 +13881,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13998,8 +13999,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14115,8 +14116,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14233,8 +14234,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14330,8 +14331,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14459,8 +14460,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14576,8 +14577,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14693,8 +14694,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14810,8 +14811,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14927,8 +14928,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15044,8 +15045,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15138,8 +15139,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15461,7 +15462,7 @@
               "refId": "A"
             }
           ],
-          "title": "Commit Sync Gap Retries ",
+          "title": "Commit Sync Gap Retries",
           "type": "timeseries"
         },
         {
@@ -15520,7 +15521,8 @@
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "s"
             },
             "overrides": []
           },
@@ -15749,7 +15751,7 @@
               "refId": "A"
             }
           ],
-          "title": " Commit Sync Fetch Errors",
+          "title": "Commit Sync Fetch Errors",
           "type": "timeseries"
         },
         {
@@ -15830,8 +15832,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15934,11 +15936,11 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -16235,11 +16237,11 @@
               ],
               "displayMode": "list",
               "placement": "right",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -16334,7 +16336,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16535,7 +16537,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "right",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16674,7 +16676,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16817,7 +16819,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17099,7 +17101,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17381,7 +17383,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17477,7 +17479,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17572,7 +17574,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17784,7 +17786,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -17885,7 +17887,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18082,7 +18084,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18183,7 +18185,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18578,7 +18580,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18896,7 +18898,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -19307,7 +19309,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -19426,7 +19428,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -19746,7 +19748,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -19944,7 +19946,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20034,7 +20036,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20124,7 +20126,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20214,7 +20216,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
