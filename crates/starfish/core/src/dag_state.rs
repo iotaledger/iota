@@ -271,8 +271,14 @@ pub(crate) struct DagState {
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// The committed subdags that have been scored but scores have not been
-    /// used for leader schedule yet.
+    /// Committed subdags scored since the last leader-schedule rotation, not
+    /// yet applied to the schedule. The V2 path computes its reputation
+    /// scores from these; the sliding-window path takes scores from the
+    /// window scorer instead, so there this serves only as the rotation
+    /// counter (`scoring_subdags_count`) and the just-rotated edge
+    /// (`is_scoring_subdag_empty`). Once V2 is removed it can be dropped
+    /// entirely, both roles replaced by a single recovered `u32` holding the
+    /// last rotation boundary index.
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks. Ordered by
@@ -304,9 +310,8 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
-    /// The index in CommitRef correspond to the first index of the next
-    /// scheduler window, while the reputation scores in CommitInfoare for
-    /// the previous window.
+    /// The `CommitRef` is the boundary commit — the last commit of the window
+    /// that just closed — so recovery resumes from its index + 1.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
@@ -639,10 +644,9 @@ impl DagState {
     }
 
     fn rebuild_scoring_subdag_from_store(&mut self) {
-        let Some(last_commit) = self.last_commit.as_ref() else {
+        let Some(last_commit_index) = self.last_commit.as_ref().map(|c| c.index()) else {
             return;
         };
-        let last_commit_index = last_commit.index();
 
         let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
