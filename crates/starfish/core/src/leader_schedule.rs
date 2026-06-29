@@ -8,16 +8,17 @@ use std::{
     sync::Arc,
 };
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
     CommitIndex, Round,
-    commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX},
+    commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX, SubDagBase},
     context::Context,
     dag_state::DagState,
     leader_scoring::ReputationScores,
+    sliding_window_schedule::SlidingWindowSchedule,
 };
 
 /// Calculates the seed index for leader swap table initialization.
@@ -51,14 +52,6 @@ fn recover_leader_swap_table(
     )
 }
 
-/// The window where the schedule change takes place in consensus. It
-/// represents number of committed sub dags.
-/// TODO: move this to protocol config
-#[cfg(not(msim))]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
-#[cfg(msim)]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
-
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -67,14 +60,30 @@ pub(crate) struct LeaderSchedule {
     pub leader_swap_table: Arc<RwLock<LeaderSwapTable>>,
     context: Arc<Context>,
     num_commits_per_schedule: u64,
+    /// When set (the `consensus_enable_sliding_window_leader_schedule` flag is
+    /// on), reputation scores are sourced from this sliding-window scorer
+    /// instead of the `ScoringSubdag` snapshot, and the base election is
+    /// uniform. `None` runs the V2 path.
+    sliding_window: Option<Arc<Mutex<SlidingWindowSchedule>>>,
 }
 
 impl LeaderSchedule {
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
+        let num_commits_per_schedule = context.protocol_config.commits_per_schedule();
+        let sliding_window = context
+            .protocol_config
+            .consensus_enable_sliding_window_leader_schedule()
+            .then(|| {
+                Arc::new(Mutex::new(SlidingWindowSchedule::new(
+                    context.clone(),
+                    context.protocol_config.leader_schedule_window_size(),
+                )))
+            });
         Self {
             context,
-            num_commits_per_schedule: CONSENSUS_COMMITS_PER_SCHEDULE,
+            num_commits_per_schedule,
             leader_swap_table: Arc::new(RwLock::new(leader_swap_table)),
+            sliding_window,
         }
     }
 
@@ -96,7 +105,9 @@ impl LeaderSchedule {
         );
 
         // create the schedule
-        Self::new(context, leader_swap_table)
+        let schedule = Self::new(context, leader_swap_table);
+        schedule.recover_sliding_window(&dag_state);
+        schedule
     }
 
     /// Reinitializes the leader schedule from stored commit info.
@@ -110,8 +121,11 @@ impl LeaderSchedule {
             dag_state.read().scoring_subdags_count(),
         );
 
-        let mut write = self.leader_swap_table.write();
-        *write = leader_swap_table;
+        {
+            let mut write = self.leader_swap_table.write();
+            *write = leader_swap_table;
+        }
+        self.recover_sliding_window(dag_state);
     }
 
     pub(crate) fn commits_until_leader_schedule_update(
@@ -163,13 +177,19 @@ impl LeaderSchedule {
                 let table = self.leader_swap_table.read();
                 table.swap(leader, round, leader_offset).unwrap_or(leader)
             } else {
-                let leader = self.elect_leader_stake_based(round, leader_offset);
+                let leader = if self.sliding_window.is_some() {
+                    self.elect_leader_uniform(round, leader_offset)
+                } else {
+                    self.elect_leader_stake_based(round, leader_offset)
+                };
                 let table = self.leader_swap_table.read();
                 table.swap(leader, round, leader_offset).unwrap_or(leader)
             }
         }
     }
 
+    /// Stake-weighted base election. `offset` selects among multiple leaders in
+    /// a round; with one leader per round today it is always 0.
     pub(crate) fn elect_leader_stake_based(&self, round: u32, offset: u32) -> AuthorityIndex {
         assert!((offset as usize) < self.context.committee.size());
 
@@ -204,9 +224,8 @@ impl LeaderSchedule {
         let new_commit_range = &new_table.reputation_scores.commit_range;
 
         // Unless LeaderSchedule is brand new and using the default commit range
-        // of CommitRange(0..0) all future LeaderSwapTables should be calculated
-        // from a CommitRange of equal length and immediately following the
-        // preceding commit range of the old swap table.
+        // of CommitRange(0..0), every LeaderSwapTable should carry a CommitRange
+        // of equal length, immediately following the old table's range.
         if *old_commit_range != CommitRange::default() {
             assert!(
                 old_commit_range.is_next_range(new_commit_range)
@@ -261,21 +280,39 @@ impl LeaderSchedule {
             .scope_processing_time
             .with_label_values(&["LeaderSchedule::update_leader_schedule"])
             .start_timer();
-        let (reputation_scores, last_commit_index) = {
+
+        // Both paths feed the same swap table and go through range_validation and
+        // persist below; they differ only in where the scores and commit_range
+        // come from.
+        //
+        // Sliding-window: scores are the running-window aggregate; commit_range is
+        // the committed interval ending at the boundary L — the same shape V2
+        // produces, so it satisfies the shared range_validation. Its end (L) is
+        // where a restarted node resumes the scoring subdag (from L+1). The
+        // window's scored frontier lags L by MAX_PENDING_COMMITS.
+        //
+        // V2: scores and commit_range both come from the ScoringSubdag snapshot.
+        let (reputation_scores, boundary) = if let Some(sliding_window) = &self.sliding_window {
+            let scores = sliding_window
+                .lock()
+                .reputation_scores()
+                .scores_per_authority;
+            let boundary = dag_state_write_lock.last_commit_index();
+            let interval = self.num_commits_per_schedule as u32;
+            let start = boundary.saturating_sub(interval).saturating_add(1);
+            (
+                ReputationScores::new(CommitRange::new(start..=boundary), scores),
+                boundary,
+            )
+        } else {
             let reputation_scores = dag_state_write_lock.calculate_scoring_subdag_scores();
-            let last_commit_index = dag_state_write_lock.scoring_subdag_commit_range();
-            (reputation_scores, last_commit_index)
+            let boundary = dag_state_write_lock.scoring_subdag_commit_range();
+            (reputation_scores, boundary)
         };
-        let table = LeaderSwapTable::new(
-            self.context.clone(),
-            last_commit_index,
-            reputation_scores.clone(),
-        );
+        let table = LeaderSwapTable::new(self.context.clone(), boundary, reputation_scores.clone());
         self.persist_scores(dag_state_write_lock, reputation_scores);
-        {
-            self.range_validation(&table, &self.leader_swap_table.read());
-            self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
-        }
+        self.range_validation(&table, &self.leader_swap_table.read());
+        self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
     }
 
     /// Updates the leader schedule from reputation scores stored in a commit.
@@ -295,10 +332,9 @@ impl LeaderSchedule {
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
-        // Determine the commit range for these scores.
         // Reputation scores are attached to the *first* commit after a schedule
-        // update, so the scores correspond to the previous window ending at
-        // commit_index - 1.
+        // update, so commit_index - 1 is the last commit of the window that just
+        // closed; the commit_range below is the committed interval ending there.
         let range_end = commit_index.saturating_sub(1);
         if range_end == GENESIS_COMMIT_INDEX {
             return;
@@ -353,6 +389,61 @@ impl LeaderSchedule {
         let mut old = self.leader_swap_table.write();
         self.range_validation(&table, &old);
         self.apply_reputation_scores_inner(&mut old, table);
+    }
+
+    /// Uniform (non-stake-weighted) base election, used when the sliding-window
+    /// leader schedule is enabled. Round-seeded so all authorities draw the
+    /// same candidate for a given round. `offset` selects among multiple
+    /// leaders in a round; with one leader per round today it is always 0.
+    pub(crate) fn elect_leader_uniform(&self, round: u32, offset: u32) -> AuthorityIndex {
+        assert!((offset as usize) < self.context.committee.size());
+        let mut seed_bytes = [0u8; 32];
+        seed_bytes[32 - 4..].copy_from_slice(&round.to_le_bytes());
+        let mut rng = StdRng::from_seed(seed_bytes);
+        let choices = self
+            .context
+            .committee
+            .authorities()
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        *choices
+            .choose_multiple(&mut rng, self.context.committee.size())
+            .nth(offset as usize)
+            .unwrap()
+    }
+
+    /// Feeds newly committed subdags to the sliding-window scorer when enabled.
+    /// Called on every commit; returns without effect on the V2 path (no
+    /// scorer).
+    pub(crate) fn feed_committed_subdags(&self, subdags: impl IntoIterator<Item = SubDagBase>) {
+        if let Some(sliding_window) = &self.sliding_window {
+            let mut scorer = sliding_window.lock();
+            for subdag in subdags {
+                scorer.add_commit(subdag);
+            }
+        }
+    }
+
+    /// Rebuilds the sliding-window scorer (when enabled) by replaying the last
+    /// `window_size` committed subdags from storage, so the running aggregate
+    /// is current after a restart or fast-sync. Does not recover the in-effect
+    /// swap table. Returns without effect on the V2 path (no scorer).
+    fn recover_sliding_window(&self, dag_state: &RwLock<DagState>) {
+        let Some(sliding_window) = &self.sliding_window else {
+            return;
+        };
+        let window_size = self.context.protocol_config.leader_schedule_window_size();
+        let subdags = {
+            let dag_state = dag_state.read();
+            let last_commit_index = dag_state.last_commit_index();
+            let start = SlidingWindowSchedule::replay_start(last_commit_index, window_size);
+            dag_state.scan_subdag_bases((start..=last_commit_index).into())
+        };
+        let mut fresh = SlidingWindowSchedule::new(self.context.clone(), window_size);
+        for subdag in subdags {
+            fresh.add_commit(subdag);
+        }
+        *sliding_window.lock() = fresh;
     }
 }
 
@@ -644,6 +735,29 @@ mod tests {
         assert_ne!(
             leader_schedule.elect_leader_stake_based(1, 1),
             leader_schedule.elect_leader_stake_based(1, 2)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_elect_leader_uniform() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+        let size = context.committee.size();
+
+        // For a fixed round, varying the offset across the whole committee yields
+        // a permutation of all authorities — the uniform draw covers everyone.
+        let round = 7;
+        let mut leaders = (0..size as u32)
+            .map(|offset| leader_schedule.elect_leader_uniform(round, offset))
+            .collect::<Vec<_>>();
+        leaders.sort();
+        leaders.dedup();
+        assert_eq!(leaders.len(), size);
+
+        // Deterministic: same (round, offset) always elects the same leader.
+        assert_eq!(
+            leader_schedule.elect_leader_uniform(round, 0),
+            leader_schedule.elect_leader_uniform(round, 0)
         );
     }
 
@@ -978,6 +1092,64 @@ mod tests {
             leader_schedule.elect_leader(4, 0),
             AuthorityIndex::new_for_test(2)
         );
+    }
+
+    #[tokio::test]
+    async fn test_update_leader_schedule_sliding_window() {
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+        let context = Arc::new(context);
+        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
+            .with_num_commits_per_schedule(3);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=9).build();
+        let commits = dag_builder
+            .get_sub_dag_and_commits(1..=9)
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        // Feed the first 6 commits, then rebuild: scores come from the sliding
+        // window (commits 1..=3 are scored, given the 3-commit lookback), not a
+        // ScoringSubdag snapshot. commit_range is the committed interval ending at
+        // the boundary — with num_commits_per_schedule = 3 and last committed
+        // index 6, that is 4..=6.
+        leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
+        {
+            let mut ds = dag_state.write();
+            ds.set_last_commit(commits[5].1.clone());
+            leader_schedule.update_leader_schedule(&mut ds);
+        }
+        let range = leader_schedule
+            .leader_swap_table
+            .read()
+            .reputation_scores
+            .commit_range
+            .clone();
+        assert_eq!(range, (4..=6).into());
+
+        // Feed 3 more and rebuild again. The committed-interval ranges are
+        // contiguous and equal-size (4..=6 then 7..=9), so range_validation — now
+        // shared with the V2 path — accepts them.
+        leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
+        {
+            let mut ds = dag_state.write();
+            ds.set_last_commit(commits[8].1.clone());
+            leader_schedule.update_leader_schedule(&mut ds);
+        }
+        let range = leader_schedule
+            .leader_swap_table
+            .read()
+            .reputation_scores
+            .commit_range
+            .clone();
+        assert_eq!(range, (7..=9).into());
     }
 
     #[tokio::test]
