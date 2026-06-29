@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 #
-# matrix.sh — run the H1 config matrix (workload × submission-path × TARGET_QPS),
-# ITERS iterations each, as labeled experiments under results/<LABEL>/.
+# matrix.sh — run the H1 attestation-overhead matrix (V1 vs V2), ITERS iterations
+# each, as labeled experiments under results/<LABEL>/.
 #
-#   6 workloads {owned; shared cnt2; slow {100x100, 500x500} × {shared, owned-only}}
-# × 2 paths     {fullnode (DIRECT=false), pinned (DIRECT=true, 1 target validator)}
-# × 3 qps       {200, 1000, 2000}                                      = 36 configs.
+# Workload is slow-owned only: pure owned-object compute (no shared object, so no
+# congestion/cancellation to confound the V1-vs-V2 delta). Each tx calls
+# slow::slow(n, size) with n == size, sweeping per-tx compute — which is exactly
+# what the V2 pre-consensus attestation dry-run cost scales with.
 #
-# The slow workloads vary the per-tx compute (SLOW_N x SLOW_SIZE) and whether a
-# shared object is attached (SLOW_SHARED): "-shared" engages congestion control,
-# "-owned" is pure owned-object compute (no shared object / no congestion).
+#   4 compute {0, 50, 100, 500}  (slow::slow(n,n); 0 = no-op floor, ~gas_rounding_step)
+# × 2 paths   {fullnode (DIRECT=false), pinned (DIRECT=true, 1 target validator)}
+# × 3 qps     {200, 1000, 2000}                                      = 24 configs.
 #
 # Each run.sh invocation does ITERS iterations (V1+V2 per iter), so this is
-# 36 * ITERS full experiments — HOURS of wall time at ITERS=5. Per-config console
+# 24 * ITERS full experiments — HOURS of wall time at ITERS=5. Per-config console
 # output goes to logs/<LABEL>.log; redirecting it also makes run.sh non-interactive
 # (no monitoring prompt) and strips ANSI colors, so the matrix runs unattended.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 36 configs
-#   ITERS=3 ./matrix.sh slow        # only labels containing "slow" (substring filter)
+#   ITERS=5 ./matrix.sh             # run all 24 configs
+#   ITERS=3 ./matrix.sh slow100     # only labels containing "slow100" (substring filter)
 #
 # A config that fails (or is interrupted) does NOT abort the matrix — it's logged
 # and the next config runs. Re-running is safe: run.sh's config gate appends more
@@ -43,34 +44,19 @@ fi
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
+  "slow0-owned-f-qps200  | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
+  "slow0-owned-v-qps200  | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-f-qps1000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
+  "slow0-owned-v-qps1000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-f-qps2000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
+  "slow0-owned-v-qps2000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
   #
-  "owned-f-qps200  | WORKLOAD=owned TARGET_QPS=200  DIRECT=false"
-  "owned-v-qps200  | WORKLOAD=owned TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "owned-f-qps1000 | WORKLOAD=owned TARGET_QPS=1000 DIRECT=false"
-  "owned-v-qps1000 | WORKLOAD=owned TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "owned-f-qps2000 | WORKLOAD=owned TARGET_QPS=2000 DIRECT=false"
-  "owned-v-qps2000 | WORKLOAD=owned TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  #
-  "shared2-f-qps200  | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=200  DIRECT=false"
-  "shared2-v-qps200  | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "shared2-f-qps1000 | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=1000 DIRECT=false"
-  "shared2-v-qps1000 | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "shared2-f-qps2000 | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=2000 DIRECT=false"
-  "shared2-v-qps2000 | WORKLOAD=shared NUM_SHARED_COUNTERS=2 TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  #
-  "slow100-shared-f-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=200  DIRECT=false"
-  "slow100-shared-v-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-shared-f-qps1000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=1000 DIRECT=false"
-  "slow100-shared-v-qps1000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-shared-f-qps2000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=2000 DIRECT=false"
-  "slow100-shared-v-qps2000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  #
-  "slow500-shared-f-qps200  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=200  DIRECT=false"
-  "slow500-shared-v-qps200  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-shared-f-qps1000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=1000 DIRECT=false"
-  "slow500-shared-v-qps1000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-shared-f-qps2000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=2000 DIRECT=false"
-  "slow500-shared-v-qps2000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-f-qps200  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
+  "slow50-owned-v-qps200  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-f-qps1000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
+  "slow50-owned-v-qps1000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-f-qps2000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
+  "slow50-owned-v-qps2000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
   #
   "slow100-owned-f-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
   "slow100-owned-v-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
