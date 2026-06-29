@@ -1803,12 +1803,17 @@ impl ProtocolConfig {
     }
 
     pub fn commits_per_schedule(&self) -> u64 {
-        if cfg!(msim) {
+        let commits_per_schedule = if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
             min(10, self.consensus_commits_per_schedule.unwrap_or(300)) as u64
         } else {
             self.consensus_commits_per_schedule.unwrap_or(300) as u64
-        }
+        };
+        assert!(
+            commits_per_schedule > 0,
+            "consensus_commits_per_schedule must be greater than 0"
+        );
+        commits_per_schedule
     }
 
     pub fn leader_schedule_window_size(&self) -> u32 {
