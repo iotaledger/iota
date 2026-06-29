@@ -487,21 +487,18 @@ def prometheus_vector(expr: str) -> list[tuple[dict[str, str], float]]:
 def _commit_latency_queries(range_s: int) -> dict[str, str]:
     """PromQL for block/transaction commit latency over a *range_s* window.
 
-    Block queries carry `or` fallbacks across the two block-latency metric
-    naming conventions. Transaction queries intentionally have no block
-    fallback: unavailable transaction latency must be reported as n/a rather
-    than mislabeled block latency."""
+    Transaction queries intentionally have no block fallback: unavailable
+    transaction latency must be reported as n/a rather than mislabeled block
+    latency."""
     r = f"{range_s}s"
     return {
         "blk_p50": (
             "histogram_quantile(0.5,"
-            f" sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
-            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
+            f" sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
         ),
         "blk_p95": (
             "histogram_quantile(0.95,"
-            f" sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
-            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
+            f" sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
         ),
         "txn_p50": (
             "histogram_quantile(0.5,"
