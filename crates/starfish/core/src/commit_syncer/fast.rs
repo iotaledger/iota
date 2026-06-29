@@ -883,7 +883,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use iota_protocol_config::ProtocolConfig;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;
     use tokio::time::sleep;

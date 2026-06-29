@@ -25,7 +25,6 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -45,6 +44,7 @@ iota-package-resolver.workspace = true
 iota-sdk.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

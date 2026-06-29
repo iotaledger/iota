@@ -38,7 +38,7 @@ use iota_types::{
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,

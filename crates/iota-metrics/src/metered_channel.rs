@@ -13,7 +13,7 @@ use async_trait::async_trait;
 // TODO: complete tests - This kinda sorta facades the whole tokio::mpsc::{Sender, Receiver}:
 // without tests, this will be fragile to maintain.
 use futures::{FutureExt, Stream, TryFutureExt};
-use prometheus::{IntCounter, IntGauge};
+use prometheus_filtered::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{
     self,
     error::{SendError, TryRecvError, TrySendError},

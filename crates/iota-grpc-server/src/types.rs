@@ -29,7 +29,7 @@ use iota_types::{
     object::Object,
     storage::error::Kind,
 };
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use prost::Message;
 use tokio::sync::{
     OwnedSemaphorePermit, Semaphore,

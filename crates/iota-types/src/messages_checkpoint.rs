@@ -19,7 +19,7 @@ use iota_sdk_types::{
 };
 use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
-use prometheus::Histogram;
+use prometheus_filtered::Histogram;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;

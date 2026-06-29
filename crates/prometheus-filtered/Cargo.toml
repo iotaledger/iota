@@ -1,0 +1,14 @@
+[package]
+name = "prometheus-filtered"
+version.workspace = true
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "A drop-in prometheus wrapper with per-metric filtering"
+
+[dependencies]
+prometheus = "0.14.0"
+tracing.workspace = true
+
+[lints]
+workspace = true

@@ -18,7 +18,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},

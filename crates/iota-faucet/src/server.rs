@@ -22,7 +22,7 @@ use http::Method;
 use iota_config::IOTA_CLIENT_CONFIG;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tower::{ServiceBuilder, limit::RateLimitLayer};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};

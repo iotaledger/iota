@@ -31,7 +31,7 @@ use iota_types::{
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
 use tokio::time::timeout;

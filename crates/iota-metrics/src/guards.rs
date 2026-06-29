@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 
 /// Increments gauge when acquired, decrements when guard drops
 pub struct GaugeGuard<'a>(&'a IntGauge);

@@ -102,7 +102,7 @@ impl Executor {
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
         let tx_context = create_migration_context(&coin_type, target_network, &protocol_config);
         // Use a throwaway metrics registry for transaction execution.
-        let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
+        let metrics = Arc::new(LimitsMetrics::new(&prometheus_filtered::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
         // Get the correct system packages for our protocol version. If we cannot find
         // the snapshot that means that we must be at the latest version and we

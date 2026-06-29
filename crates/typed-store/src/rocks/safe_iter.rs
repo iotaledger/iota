@@ -5,7 +5,7 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
-use prometheus::{Histogram, HistogramTimer};
+use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{DBWithThreadMode, Direction, MultiThreaded};
 use serde::de::DeserializeOwned;
 use typed_store_error::TypedStoreError;

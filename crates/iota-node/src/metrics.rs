@@ -7,7 +7,7 @@ use std::{collections::HashSet, time::Duration};
 use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
 use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
@@ -139,7 +139,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use iota_metrics::start_prometheus_server;
-    use prometheus::{IntCounter, Registry};
+    use prometheus_filtered::{IntCounter, Registry};
 
     #[tokio::test]
     pub async fn test_metrics_endpoint_with_multiple_registries_add_remove() {

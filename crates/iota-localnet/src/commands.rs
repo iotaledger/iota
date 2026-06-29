@@ -790,7 +790,7 @@ async fn start(
             ..Default::default()
         };
 
-        let prometheus_registry = prometheus::Registry::new();
+        let prometheus_registry = prometheus_filtered::Registry::new();
         if force_regenesis {
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);

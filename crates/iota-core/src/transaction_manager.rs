@@ -1069,7 +1069,7 @@ impl TransactionQueue {
 
 #[cfg(test)]
 mod test {
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use rand::{Rng, RngCore};
 
     use super::*;
