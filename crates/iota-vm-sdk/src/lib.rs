@@ -19,8 +19,8 @@
 //!   from a node via gRPC, caching them in an [`InMemoryStore`].
 //! - `graphql` — a [`GraphqlStore`](graphql::GraphqlStore) over GraphQL.
 //! - `tracing` — compile the Move VM gas profiler and instruction tracer into
-//!   the engine so [`DebugConfig::with_profile`] / [`DebugConfig::with_trace`]
-//!   capture output.
+//!   the engine so [`DebugConfig::with_profiling`] /
+//!   [`DebugConfig::with_tracing`] capture output.
 
 mod debug;
 mod error;
@@ -45,10 +45,9 @@ pub use executor::{
 };
 // --- Re-exports of upstream types in the public API ----------------------
 pub use iota_protocol_config::{Chain, ProtocolVersion};
-pub use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+pub use iota_sdk_types::{Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, Version};
 pub use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
-    move_authenticator::MoveAuthenticator,
     object::Object,
     signature::GenericSignature,
     transaction::{SenderSignedData, TransactionData},

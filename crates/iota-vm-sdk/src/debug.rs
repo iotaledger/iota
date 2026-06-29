@@ -21,7 +21,7 @@ pub struct DebugConfig {
     /// ends up.
     pub profile: Option<ProfileSink>,
     /// Enable instruction-level execution tracing. Only captured on the
-    /// `MoveAuthenticator` path; see [`with_trace`](Self::with_trace).
+    /// `MoveAuthenticator` path; see [`with_tracing`](Self::with_tracing).
     pub trace: bool,
 }
 
@@ -31,7 +31,7 @@ impl DebugConfig {
     /// Requires the crate's `tracing` feature; without it the run captures no
     /// profile and [`DebugArtifacts::profile`] stays `None`.
     #[must_use]
-    pub fn with_profile(mut self, sink: ProfileSink) -> Self {
+    pub fn with_profiling(mut self, sink: ProfileSink) -> Self {
         self.profile = Some(sink);
         self
     }
@@ -49,7 +49,7 @@ impl DebugConfig {
     /// [`DebugArtifacts::trace`] stays `None` even when tracing was
     /// requested.
     #[must_use]
-    pub fn with_trace(mut self) -> Self {
+    pub fn with_tracing(mut self) -> Self {
         self.trace = true;
         self
     }
@@ -91,6 +91,6 @@ pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
     pub profile: Option<ProfileOutput>,
     /// Instruction-level execution trace. `None` unless the run went through
-    /// the `MoveAuthenticator` path (see [`DebugConfig::with_trace`]).
+    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
     pub trace: Option<MoveTrace>,
 }

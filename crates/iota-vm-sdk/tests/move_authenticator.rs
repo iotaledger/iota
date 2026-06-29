@@ -290,8 +290,8 @@ fn move_authenticator_dry_run_meters_body_at_full_budget() {
 fn move_authenticator_run_captures_trace_and_profile() {
     let opts = ExecuteOptions::dev_inspect().with_debug(
         DebugConfig::default()
-            .with_trace()
-            .with_profile(ProfileSink::Capture),
+            .with_tracing()
+            .with_profiling(ProfileSink::Capture),
     );
     let result = run("move_auth_free_access_valid.json", opts);
     let debug = result

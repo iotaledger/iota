@@ -60,7 +60,7 @@ fn main() -> Result<()> {
     // PTB body. ---
     let mut vm = LocalVm::new(ctx, store)?;
     let opts = ExecuteOptions::dry_run()
-        .with_debug(DebugConfig::default().with_profile(ProfileSink::Path(out_path)));
+        .with_debug(DebugConfig::default().with_profiling(ProfileSink::Path(out_path)));
     let result = vm.execute_signed(signed, opts)?;
 
     // --- Inspect: status, signature verdict, and the gas ledger. ---

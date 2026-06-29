@@ -136,7 +136,7 @@ impl LocalVm {
             execute_prepared(&env, &backend, prepared, opts.mode)?
         };
         // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
-        // never captures a trace; pass `None`. See `DebugConfig::with_trace`.
+        // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
         let artifacts = env.collect_artifacts(None);
         self.finish(sim, opts.mode, SignatureStatus::NotChecked, artifacts)
     }
