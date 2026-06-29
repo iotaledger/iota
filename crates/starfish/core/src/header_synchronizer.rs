@@ -52,7 +52,6 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
-    peer_responsiveness::FetchKind,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -666,7 +665,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 }
                                 Err(err) => {
                                     context.peer_responsiveness.record_failure_with_timeout(
-                                        FetchKind::HeaderSync,
+                                        DataSource::HeaderSynchronizer,
                                         peer_index,
                                         FETCH_REQUEST_TIMEOUT,
                                     );
@@ -677,7 +676,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         },
                         Err(_) => {
                             context.peer_responsiveness.record_failure_with_timeout(
-                                FetchKind::HeaderSync,
+                                DataSource::HeaderSynchronizer,
                                 peer_index,
                                 FETCH_REQUEST_TIMEOUT,
                             );
@@ -1020,15 +1019,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         if returned == 0 {
             context
                 .peer_responsiveness
-                .record_failure(FetchKind::HeaderSync, peer);
+                .record_failure(DataSource::HeaderSynchronizer, peer);
         } else if delivered == 0 {
-            context
-                .peer_responsiveness
-                .record_success(FetchKind::HeaderSync, peer, latency);
+            context.peer_responsiveness.record_success(
+                DataSource::HeaderSynchronizer,
+                peer,
+                latency,
+            );
         } else {
             let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
             context.peer_responsiveness.record_success(
-                FetchKind::HeaderSync,
+                DataSource::HeaderSynchronizer,
                 peer,
                 latency.mul_f64(shortfall_factor),
             );
@@ -1040,12 +1041,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer: AuthorityIndex,
         latency: Duration,
     ) {
-        for kind in [
-            FetchKind::HeaderSync,
-            FetchKind::Transactions,
-            FetchKind::CommitSync,
-            FetchKind::FastCommitSync,
-        ] {
+        for kind in DataSource::RESPONSIVENESS_SOURCES {
             context
                 .peer_responsiveness
                 .record_bootstrap_success(kind, peer, latency);
@@ -1057,12 +1053,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer: AuthorityIndex,
         timeout: Duration,
     ) {
-        for kind in [
-            FetchKind::HeaderSync,
-            FetchKind::Transactions,
-            FetchKind::CommitSync,
-            FetchKind::FastCommitSync,
-        ] {
+        for kind in DataSource::RESPONSIVENESS_SOURCES {
             context
                 .peer_responsiveness
                 .record_bootstrap_failure_with_timeout(kind, peer, timeout);
@@ -1379,7 +1370,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         }
                         Err(err) => {
                             context.peer_responsiveness.record_failure_with_timeout(
-                                FetchKind::HeaderSync,
+                                DataSource::HeaderSynchronizer,
                                 peer,
                                 FETCH_REQUEST_TIMEOUT,
                             );
@@ -1470,11 +1461,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let mut aware_peers: Vec<AuthorityIndex> =
             authority_to_block_headers_refs.keys().copied().collect();
         if context.parameters.enable_peer_responsiveness_ranking {
-            // `thread_rng` keeps the ordering deterministic under the consensus
-            // simulator (entropy-seeded RNGs are not virtualized there).
             let mut ranking_rng = thread_rng();
             context.peer_responsiveness.prioritize(
-                FetchKind::HeaderSync,
+                DataSource::HeaderSynchronizer,
                 &mut aware_peers,
                 &mut ranking_rng,
             );
@@ -1660,7 +1649,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         },
                         Err(_) => {
                             context.peer_responsiveness.record_failure_with_timeout(
-                                FetchKind::HeaderSync,
+                                DataSource::HeaderSynchronizer,
                                 peer_index,
                                 FETCH_REQUEST_TIMEOUT,
                             );
@@ -1761,7 +1750,6 @@ mod tests {
         },
         misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, NetworkClient},
-        peer_responsiveness::FetchKind,
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -2978,12 +2966,7 @@ mod tests {
             10
         );
 
-        for kind in [
-            FetchKind::HeaderSync,
-            FetchKind::Transactions,
-            FetchKind::CommitSync,
-            FetchKind::FastCommitSync,
-        ] {
+        for kind in DataSource::RESPONSIVENESS_SOURCES {
             for peer in 1..=3 {
                 let latency = context
                     .peer_responsiveness
