@@ -283,17 +283,14 @@ EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
   STRUCT:
-    - nextEpochCommittee:
+    - next_epoch_committee:
         SEQ:
-          TUPLE:
-            - TYPENAME: AuthorityPublicKeyBytes
-            - U64
-    - nextEpochProtocolVersion:
-        TYPENAME: ProtocolVersion
-    - epochCommitments:
+          TYPENAME: ValidatorCommitteeMember
+    - next_epoch_protocol_version: U64
+    - epoch_commitments:
         SEQ:
           TYPENAME: CheckpointCommitment
-    - epochSupplyChange: I64
+    - epoch_supply_change: I64
 EndOfEpochTransactionKind:
   ENUM:
     0:
@@ -757,8 +754,6 @@ ProgrammableTransaction:
     - commands:
         SEQ:
           TYPENAME: Command
-ProtocolVersion:
-  NEWTYPESTRUCT: U64
 Publish:
   STRUCT:
     - modules:
@@ -1000,6 +995,10 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectId
     - upgraded_version: U64
+ValidatorCommitteeMember:
+  STRUCT:
+    - public_key: BYTES
+    - stake: U64
 VersionAssignment:
   STRUCT:
     - object_id:
