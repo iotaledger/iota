@@ -72,7 +72,7 @@ use iota_types::{
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;

@@ -40,7 +40,7 @@ use iota_indexer::{
 };
 use iota_sdk_ext::types::Event;
 use iota_types::digests::TransactionDigest;
-use prometheus::{Histogram, IntGauge};
+use prometheus_filtered::{Histogram, IntGauge};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};

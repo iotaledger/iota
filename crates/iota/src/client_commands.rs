@@ -86,7 +86,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};

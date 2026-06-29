@@ -33,7 +33,6 @@ num_enum.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 percent-encoding = "2.3"
-prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -51,6 +50,7 @@ iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

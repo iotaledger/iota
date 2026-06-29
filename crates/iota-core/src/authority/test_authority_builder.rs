@@ -25,7 +25,7 @@ use iota_types::{
     object::Object, supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{

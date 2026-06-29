@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use iota_sdk_ext::types::RandomnessRound;
 use iota_types::committee::EpochId;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,
 };

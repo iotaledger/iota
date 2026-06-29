@@ -18,7 +18,6 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 notify = "6.1.1"
 object_store.workspace = true
-prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
@@ -37,6 +36,7 @@ iota-protocol-config.workspace = true
 iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-storage.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 # external dependencies

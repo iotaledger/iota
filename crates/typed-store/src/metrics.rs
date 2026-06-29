@@ -12,7 +12,7 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
@@ -336,7 +336,7 @@ impl OperationMetrics {
                 "rocksdb_iter_bytes",
                 "Rocksdb iter size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -361,7 +361,7 @@ impl OperationMetrics {
                 "rocksdb_get_bytes",
                 "Rocksdb get call returned data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry
@@ -379,7 +379,7 @@ impl OperationMetrics {
                 "rocksdb_multiget_bytes",
                 "Rocksdb multiget call returned data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -397,7 +397,7 @@ impl OperationMetrics {
                 "rocksdb_put_bytes",
                 "Rocksdb put call puts data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -407,7 +407,7 @@ impl OperationMetrics {
                 "rocksdb_batch_put_bytes",
                 "Rocksdb batch put call puts data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -440,7 +440,7 @@ impl OperationMetrics {
                 "rocksdb_batch_commit_bytes",
                 "Rocksdb schema batch commit size in bytes",
                 &["db_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -1016,6 +1016,6 @@ impl DBMetrics {
         // Lazily initialize against the global default registry when no explicit
         // `init` has run. `get_or_init` ensures the rocksdb metrics are
         // registered at most once even when first reached concurrently.
-        ONCE.get_or_init(|| Arc::new(DBMetrics::new(prometheus::default_registry())))
+        ONCE.get_or_init(|| Arc::new(DBMetrics::new(prometheus_filtered::default_registry())))
     }
 }

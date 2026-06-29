@@ -30,7 +30,7 @@ use iota_types::{
     },
     storage::WriteStore,
 };
-use prometheus::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
+use prometheus_filtered::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
 use rand::seq::SliceRandom;
 use tokio::sync::{Mutex, oneshot, oneshot::Sender};
 use tracing::info;

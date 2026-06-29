@@ -60,7 +60,7 @@ use move_core_types::{
     language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
 use tracing::{error, info, trace, warn};
@@ -385,7 +385,7 @@ impl LocalExec {
         remote_fetcher: Option<RemoteFetcher>,
     ) -> Result<Self, ReplayEngineError> {
         // Use a throwaway metrics registry for local execution.
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
 
         let fetcher = remote_fetcher.unwrap_or(RemoteFetcher::new(client.clone()));
@@ -414,7 +414,7 @@ impl LocalExec {
         backup_rpc_url: Option<String>,
     ) -> Result<Self, ReplayEngineError> {
         // Use a throwaway metrics registry for local execution.
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
 
         let state = NodeStateDump::read_from_file(&PathBuf::from(path))?;

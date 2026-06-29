@@ -1153,7 +1153,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 }
 
 struct InflightGuard<'a> {
-    metric: &'a prometheus::IntGauge,
+    metric: &'a prometheus_filtered::IntGauge,
 }
 
 impl<'a> Drop for InflightGuard<'a> {

@@ -10,7 +10,7 @@ use axum::{
 };
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
-use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
+use prometheus_filtered::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
 
 use crate::{
     admin::{Labels, ReqwestClient},

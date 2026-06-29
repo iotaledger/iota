@@ -135,7 +135,7 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{Transaction, VerifiedCertificate},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 #[cfg(msim)]
 use simulator::*;
 use tap::tap::TapFallible;

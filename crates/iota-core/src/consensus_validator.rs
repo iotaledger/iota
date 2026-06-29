@@ -11,7 +11,7 @@ use iota_types::{
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
-use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
 use tap::TapFallible;
 use tracing::{info, instrument, warn};

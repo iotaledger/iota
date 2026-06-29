@@ -17,7 +17,7 @@ use iota_types::{
     object::Object,
     transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {

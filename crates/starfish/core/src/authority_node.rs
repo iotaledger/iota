@@ -10,7 +10,7 @@ use std::{
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use tracing::{info, warn};
 
@@ -528,7 +528,7 @@ pub(crate) mod tests {
 
     use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use rstest::rstest;
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;

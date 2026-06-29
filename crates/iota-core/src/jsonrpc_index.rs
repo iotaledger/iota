@@ -38,7 +38,7 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use parking_lot::ArcMutexGuard;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry,
 };
@@ -1694,7 +1694,7 @@ mod tests {
         gas_coin::GAS,
         object,
     };
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
 

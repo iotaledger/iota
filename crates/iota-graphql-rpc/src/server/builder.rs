@@ -814,7 +814,7 @@ pub mod tests {
             connection_config.db_url.clone(),
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
-            IndexerMetrics::new(&prometheus::Registry::new()),
+            IndexerMetrics::new(&prometheus_filtered::Registry::new()),
             CancellationToken::new(),
         )
         .expect("failed to create pg connection pool");

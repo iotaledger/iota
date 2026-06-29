@@ -21,7 +21,6 @@ futures.workspace = true
 http.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-prometheus.workspace = true
 scopeguard.workspace = true
 simple-server-timing-header = "0.1.1"
 sysinfo = "^0.33"
@@ -33,3 +32,4 @@ uuid.workspace = true
 
 # internal dependencies
 prometheus-closure-metric.workspace = true
+prometheus-filtered.workspace = true

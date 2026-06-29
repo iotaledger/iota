@@ -40,10 +40,10 @@ move-binary-format.workspace = true
 [target.'cfg(msim)'.dependencies]
 # external dependencies
 fastcrypto-zkp.workspace = true
-prometheus.workspace = true
 
 # internal dependencies
 iota-simulator.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 iota-json-rpc-api.workspace = true

@@ -24,7 +24,7 @@ use iota_types::{
 };
 use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard};
-use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,

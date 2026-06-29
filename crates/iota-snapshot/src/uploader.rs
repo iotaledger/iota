@@ -22,7 +22,7 @@ use iota_storage::{
 };
 use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
 use object_store::DynObjectStore;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };

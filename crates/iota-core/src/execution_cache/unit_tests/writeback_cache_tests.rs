@@ -24,7 +24,7 @@ use iota_types::{
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
-use prometheus::default_registry;
+use prometheus_filtered::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
 

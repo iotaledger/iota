@@ -28,7 +28,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tap::tap::TapFallible;
 use tokio::{
     sync::{

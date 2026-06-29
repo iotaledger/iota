@@ -46,7 +46,7 @@ use iota_types::{
     quorum_driver_types::{GroupedErrors, QuorumDriverResponse},
     transaction::*,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
@@ -118,7 +118,7 @@ pub struct AuthAggMetrics {
 
 impl AuthAggMetrics {
     /// Create a new instance of `AuthAggMetrics` with a Prometheus registry.
-    pub fn new(registry: &prometheus::Registry) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry) -> Self {
         Self {
             total_tx_certificates_created: register_int_counter_with_registry!(
                 "total_tx_certificates_created",
@@ -223,7 +223,7 @@ impl AuthAggMetrics {
 
     /// Creates a new instance of `AuthAggMetrics` for testing.
     pub fn new_for_tests() -> Self {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         Self::new(&registry)
     }
 }

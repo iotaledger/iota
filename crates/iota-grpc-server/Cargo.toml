@@ -19,7 +19,6 @@ http.workspace = true
 itertools.workspace = true
 paste = "1.0.15"
 pin-project-lite.workspace = true
-prometheus.workspace = true
 prost.workspace = true
 prost-types.workspace = true
 serde.workspace = true
@@ -39,6 +38,7 @@ iota-protocol-config.workspace = true
 iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-types.workspace = true
 move-core-types.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 iota-test-transaction-builder.workspace = true

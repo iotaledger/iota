@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,

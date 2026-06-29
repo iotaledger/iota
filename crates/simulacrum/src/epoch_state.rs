@@ -50,7 +50,7 @@ impl EpochState {
         let committee = epoch_start_state.get_iota_committee();
         let protocol_config =
             ProtocolConfig::get_for_version(epoch_start_state.protocol_version(), Chain::Unknown);
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let limits_metrics = Arc::new(LimitsMetrics::new(&registry));
         let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(&registry));
         let executor = iota_execution::executor(&protocol_config, true, None).unwrap();

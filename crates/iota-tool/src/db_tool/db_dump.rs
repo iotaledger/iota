@@ -30,7 +30,7 @@ use iota_core::{
 };
 use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::EpochId;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use strum_macros::EnumString;
 use tracing::info;
 use typed_store::{

@@ -12,7 +12,7 @@
 // (For now, look at tests for an example.)
 
 use anyhow::{Result, bail};
-use prometheus::{core, proto};
+use prometheus_filtered::{core, proto};
 
 /// A Prometheus metric whose value is computed at collection time by the
 /// provided closure.
@@ -71,16 +71,16 @@ where
     }
 }
 
-impl<F, T> prometheus::core::Collector for ClosureMetric<F>
+impl<F, T> prometheus_filtered::core::Collector for ClosureMetric<F>
 where
     F: Fn() -> T + Sync + Send,
     T: core::Number,
 {
-    fn desc(&self) -> Vec<&prometheus::core::Desc> {
+    fn desc(&self) -> Vec<&prometheus_filtered::core::Desc> {
         vec![&self.desc]
     }
 
-    fn collect(&self) -> Vec<prometheus::proto::MetricFamily> {
+    fn collect(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
         let mut m = proto::MetricFamily::default();
         m.set_name(self.desc.fq_name.clone());
         m.set_help(self.desc.help.clone());

@@ -23,7 +23,7 @@ use iota_types::{
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tracing::instrument;
 use typed_store::rocks::DBBatch;
 

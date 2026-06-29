@@ -15,7 +15,6 @@ derive_more = { workspace = true, features = ["debug"] }
 fastcrypto.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
-prometheus.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
@@ -40,6 +39,7 @@ iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
