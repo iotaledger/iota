@@ -58,6 +58,9 @@ use iota_storage::{
 };
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
+// Re-exported for backward compatibility; canonical definition lives in
+// `iota_types::gas_coin`.
+pub use iota_types::gas_coin::SIMULATION_GAS_COIN_VALUE;
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
@@ -86,7 +89,6 @@ use iota_types::{
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
-    gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -390,9 +392,6 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
     10.0, 50.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0, 2000.0,
     3000.0, 4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 50000.0, 100000.0, 1000000.0,
 ];
-
-/// Gas coin value used in dev-inspect and dry-runs if no gas coin was provided.
-pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
     pub fn new(registry: &prometheus_filtered::Registry) -> AuthorityMetrics {

@@ -133,8 +133,8 @@ impl Store for InMemoryStore {
         child: &ObjectId,
         version_upper_bound: Version,
     ) -> Result<Option<Object>, StoreError> {
-        // Match the node's resolver: an object only counts as a child of
-        // `parent` if `parent` actually owns it.
+        // A child must be owned by `parent`, and the version bound is applied
+        // to the single version held (this store keeps one version per id).
         Ok(self
             .objects
             .get(child)

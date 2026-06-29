@@ -17,7 +17,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     gas::IotaGasStatus,
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::SIMULATION_GAS_COIN_VALUE,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -204,7 +204,6 @@ impl EpochState {
         )?;
 
         // Create a mock gas object if one was not provided
-        const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
         let mock_gas_id = if transaction.gas().is_empty() {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(1.into(), ObjectId::MAX, SIMULATION_GAS_COIN_VALUE),

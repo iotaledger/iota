@@ -46,11 +46,17 @@ pub enum VmSdkError {
     /// violation, executor construction failure, authenticator resolution, …).
     #[error(transparent)]
     Vm(#[from] VmError),
-    /// This build of the SDK does not know the requested protocol version
-    /// (typically a node running a newer protocol than this binary supports).
-    #[error("unsupported protocol version {}", version.as_u64())]
+    /// The requested protocol version cannot serve the request: either this
+    /// build of the SDK does not know the version (typically a node running a
+    /// newer protocol than this binary supports), or the version predates a
+    /// feature the request requires (carried in `feature`).
+    #[error("unsupported protocol version {}{}", version.as_u64(), feature.map(|f| format!(": {f} is not available")).unwrap_or_default())]
     UnsupportedProtocolVersion {
         version: iota_protocol_config::ProtocolVersion,
+        /// The feature whose absence makes the version unsupported (e.g.
+        /// `"MoveAuthenticator signatures"`), or `None` when the version itself
+        /// is simply unknown to this build.
+        feature: Option<&'static str>,
     },
 }
 

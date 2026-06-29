@@ -9,8 +9,9 @@
 //! [`ExecutionMode`]s; `DevInspect`/`DryRun` leave the store untouched, while
 //! `Execute` commits writes/deletions on success.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
@@ -64,6 +65,11 @@ pub struct LocalVm {
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     store: Box<dyn Store>,
+    /// Executor cached for `decode_events`'s layout resolver, built lazily on
+    /// first use. It depends only on the immutable `protocol_config`, so one
+    /// instance is reused across calls. The `execute*` paths build their own
+    /// executor (with optional profiling) via [`ExecutionEnv`].
+    layout_executor: OnceLock<Arc<dyn Executor + Send + Sync>>,
 }
 
 impl LocalVm {
@@ -80,6 +86,7 @@ impl LocalVm {
             ProtocolConfig::get_for_version_if_supported(ctx.protocol_version, ctx.chain).ok_or(
                 VmSdkError::UnsupportedProtocolVersion {
                     version: ctx.protocol_version,
+                    feature: None,
                 },
             )?;
         Ok(Self {
@@ -92,6 +99,7 @@ impl LocalVm {
                 &prometheus::Registry::new(),
             )),
             store: Box::new(store),
+            layout_executor: OnceLock::new(),
         })
     }
 
@@ -183,11 +191,8 @@ impl LocalVm {
             .map_err(VmSdkError::SignatureVerification)?;
         let transaction = signed.into_inner().intent_message.value;
 
-        let authenticator_gas_budget = if move_authenticators.is_empty() {
-            0
-        } else {
-            self.protocol_config.max_auth_gas()
-        };
+        let authenticator_gas_budget =
+            authenticator_gas_budget(&self.protocol_config, !move_authenticators.is_empty())?;
 
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -238,6 +243,18 @@ impl LocalVm {
         self.finish(sim, opts.mode, signature_status, artifacts)
     }
 
+    /// The executor backing `decode_events`'s layout resolver, built on first
+    /// use and cached for the lifetime of this `LocalVm`.
+    fn layout_executor(&self) -> Result<&Arc<dyn Executor + Send + Sync>, VmSdkError> {
+        if let Some(executor) = self.layout_executor.get() {
+            return Ok(executor);
+        }
+        // `OnceLock::get_or_try_init` is unstable, so build first and let the
+        // first writer win; a redundant build from a racing caller is dropped.
+        let executor = build_executor(&self.protocol_config)?;
+        Ok(self.layout_executor.get_or_init(|| executor))
+    }
+
     /// Decode a [`TransactionEvents`] payload into fully-annotated
     /// [`DecodedEvent`]s using this VM's type-layout resolver and the store.
     /// One `Result` per event so a single bad event doesn't mask the rest.
@@ -245,8 +262,7 @@ impl LocalVm {
         &self,
         events: &TransactionEvents,
     ) -> Vec<Result<DecodedEvent, VmSdkError>> {
-        // Build an executor purely for its layout resolver.
-        let executor = match build_executor(&self.protocol_config) {
+        let executor = match self.layout_executor() {
             Ok(e) => e,
             Err(e) => return vec![Err(e)],
         };
@@ -337,5 +353,71 @@ impl LocalVm {
         if let Some(id) = sim.mock_gas_id {
             self.store.remove(&id);
         }
+    }
+}
+
+/// Gas budget for verifying the transaction's `MoveAuthenticator`s.
+///
+/// Returns `0` when none are present. Otherwise reads `max_auth_gas` from the
+/// protocol config; that value is unset on versions predating Move
+/// authentication, where its panicking getter would crash, so a typed
+/// [`VmSdkError::UnsupportedProtocolVersion`] is returned instead.
+fn authenticator_gas_budget(
+    protocol_config: &ProtocolConfig,
+    has_authenticators: bool,
+) -> Result<u64, VmSdkError> {
+    if !has_authenticators {
+        return Ok(0);
+    }
+    protocol_config
+        .max_auth_gas_as_option()
+        .ok_or(VmSdkError::UnsupportedProtocolVersion {
+            version: protocol_config.version,
+            feature: Some("MoveAuthenticator signatures"),
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::{Chain, MAX_PROTOCOL_VERSION, ProtocolConfig, ProtocolVersion};
+
+    use super::authenticator_gas_budget;
+    use crate::error::VmSdkError;
+
+    #[test]
+    fn authenticator_gas_budget_is_zero_without_authenticators() {
+        // No authenticators: no budget is needed and `max_auth_gas` is never
+        // read, so even a version that predates it is fine.
+        let old = ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
+        assert_eq!(authenticator_gas_budget(&old, false).unwrap(), 0);
+    }
+
+    #[test]
+    fn authenticator_gas_budget_errors_before_move_authentication() {
+        // Protocol v1 predates Move authentication, so `max_auth_gas` is unset:
+        // requesting a budget must surface a typed error, not panic.
+        let old = ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
+        assert!(old.max_auth_gas_as_option().is_none());
+        assert!(matches!(
+            authenticator_gas_budget(&old, true),
+            Err(VmSdkError::UnsupportedProtocolVersion {
+                feature: Some(_),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn authenticator_gas_budget_returns_configured_value() {
+        // The latest protocol version has Move authentication configured, so
+        // the budget is the value from `max_auth_gas`.
+        let new = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(MAX_PROTOCOL_VERSION),
+            Chain::Unknown,
+        );
+        let expected = new
+            .max_auth_gas_as_option()
+            .expect("max_auth_gas is set at the latest protocol version");
+        assert_eq!(authenticator_gas_budget(&new, true).unwrap(), expected);
     }
 }

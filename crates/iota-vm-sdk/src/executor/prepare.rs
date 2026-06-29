@@ -24,6 +24,7 @@ use iota_types::{
     dynamic_field::{self, Field},
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
+    gas_coin::SIMULATION_GAS_COIN_VALUE,
     layout_resolver::LayoutResolver,
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
@@ -44,10 +45,6 @@ use crate::{
         types::{DecodedEvent, ExecutionMode},
     },
 };
-
-/// Balance of the mock gas coin minted for a gasless transaction; same as the
-/// node's `SIMULATION_GAS_COIN_VALUE`.
-const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * iota_types::gas_coin::NANOS_PER_IOTA;
 
 pub(super) struct PreparedTransaction {
     transaction: TransactionData,

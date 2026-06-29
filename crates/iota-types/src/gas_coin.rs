@@ -32,6 +32,10 @@ pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 /// Stardust ledger, before any inflation mechanism
 pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
+/// Value of the mock gas coin minted for a gasless transaction in dev-inspect,
+/// dry-run, and offline simulation when no gas coin is provided.
+pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
+
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]

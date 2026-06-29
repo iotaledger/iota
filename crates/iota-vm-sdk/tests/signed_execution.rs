@@ -181,7 +181,8 @@ fn unsupported_protocol_version_is_an_error_not_a_panic() {
     assert!(
         matches!(
             err,
-            VmSdkError::UnsupportedProtocolVersion { version } if version.as_u64() == u64::MAX
+            VmSdkError::UnsupportedProtocolVersion { version, feature: None }
+                if version.as_u64() == u64::MAX
         ),
         "expected UnsupportedProtocolVersion, got {err:?}"
     );
