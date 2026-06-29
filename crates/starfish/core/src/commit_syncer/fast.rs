@@ -38,6 +38,7 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
+    sliding_window_schedule::SlidingWindowSchedule,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -732,6 +733,25 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commits_since_schedule_update,
                 max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
             );
+            // When the sliding-window leader schedule is enabled, recovery replays
+            // the scorer over `replay_start..=last`; fetch enough commits to cover
+            // that range so the replayed window matches a fully-synced node
+            let num_commits = if inner
+                .context
+                .protocol_config
+                .consensus_enable_sliding_window_leader_schedule()
+            {
+                let window = inner.context.protocol_config.leader_schedule_window_size();
+                let replay_start = SlidingWindowSchedule::replay_start(last_commit_index, window);
+                max(
+                    num_commits,
+                    last_commit_index
+                        .saturating_sub(replay_start)
+                        .saturating_add(1),
+                )
+            } else {
+                num_commits
+            };
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
             (commits_since_schedule_update, block_refs)
         };

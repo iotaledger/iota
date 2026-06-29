@@ -1310,6 +1310,7 @@
                 "consensus_block_restrictions": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
+                "consensus_enable_sliding_window_leader_schedule": false,
                 "consensus_fast_commit_sync": false,
                 "consensus_linearize_subdag_v2": false,
                 "consensus_median_timestamp_with_checkpoint_enforcement": false,
@@ -1479,6 +1480,7 @@
                 },
                 "consensus_commits_per_schedule": null,
                 "consensus_gc_depth": null,
+                "consensus_leader_schedule_window_size": null,
                 "consensus_max_acknowledgments_per_block": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"

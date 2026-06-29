@@ -86,9 +86,9 @@ pub(crate) struct Core {
     /// to note that this does not signify that the leader has been
     /// persisted yet as it still has to go through CommitObserver and
     /// persist the commit in store. On recovery/restart
-    /// the last_decided_leader will be set to the last_commit leader in dag
+    /// the last_finalized_leader will be set to the last_commit leader in dag
     /// state.
-    last_decided_leader: Slot,
+    last_finalized_leader: Slot,
     /// The consensus leader schedule to be used to resolve the leader for a
     /// given round.
     leader_schedule: Arc<LeaderSchedule>,
@@ -218,7 +218,7 @@ impl Core {
         sync_last_known_own_block: bool,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
     ) -> Self {
-        let last_decided_leader = dag_state.read().last_commit_leader();
+        let last_finalized_leader = dag_state.read().last_commit_leader();
         let committer = UniversalCommitterBuilder::new(
             context.clone(),
             leader_schedule.clone(),
@@ -275,7 +275,7 @@ impl Core {
             context,
             last_signaled_round,
             last_included_ancestors,
-            last_decided_leader,
+            last_finalized_leader,
             leader_schedule,
             transaction_consumer,
             block_manager,
@@ -738,8 +738,8 @@ impl Core {
         // 6. Reinitialize BlockManager
         self.block_manager.reinitialize();
 
-        // 7. Update last_decided_leader to match the new DAG state
-        self.last_decided_leader = last_commit_leader;
+        // 7. Update last_finalized_leader to match the new DAG state
+        self.last_finalized_leader = last_commit_leader;
 
         // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
         self.commit_observer.reinitialize(last_commit_index).await?;
@@ -1287,19 +1287,21 @@ impl Core {
             // Always try to process the synced commits first. If there are certified
             // commits to process then the decided leaders and the commits will be returned.
 
-            let mut decided_leaders = self.committer.try_decide(self.last_decided_leader);
+            let mut decided_leaders = self.committer.try_decide(self.last_finalized_leader);
 
-            // Truncate the decided leaders to fit the commit schedule limit.
+            // Drop leaders past the next rotation boundary; they are re-decided next
+            // pass under the new schedule. This pins each committed leader to the
+            // schedule at its position — the dropped tail stays provisional.
             if decided_leaders.len() >= commits_until_update {
                 let _ = decided_leaders.split_off(commits_until_update);
             }
 
             // If the decided leaders list is empty then just break the loop.
-            let Some(last_decided) = decided_leaders.last().cloned() else {
+            let Some(last_finalized) = decided_leaders.last().cloned() else {
                 break;
             };
 
-            self.last_decided_leader = last_decided.slot();
+            self.last_finalized_leader = last_finalized.slot();
 
             // Emit skip events for the DAG visualizer before filtering.
             #[cfg(feature = "dag-visualizer")]
@@ -1323,7 +1325,7 @@ impl Core {
                 .metrics
                 .node_metrics
                 .last_decided_leader_round
-                .set(self.last_decided_leader.round as i64);
+                .set(self.last_finalized_leader.round as i64);
 
             // It's possible to reach this point as the decided leaders might all of them be
             // "Skip" decisions. In this case there is no leader to commit and
@@ -1368,6 +1370,8 @@ impl Core {
                 );
                 dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
             }
+            self.leader_schedule
+                .feed_committed_subdags(subdags.iter().map(|s| s.base.clone()));
 
             committed_sub_dags.extend(subdags);
 
@@ -1833,17 +1837,18 @@ impl CoreSignalsReceivers {
 pub(crate) async fn create_cores(
     context: Context,
     authorities: Vec<Stake>,
-) -> Vec<CoreTextFixture> {
+) -> Vec<CoreTestFixture> {
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
         let own_index = AuthorityIndex::new_for_test(index as u8);
-        let core = CoreTextFixture::new(
+        let core = CoreTestFixture::new(
             context.clone(),
             authorities.clone(),
             own_index,
             false,
             false,
+            None,
         )
         .await;
         cores.push(core);
@@ -1852,7 +1857,7 @@ pub(crate) async fn create_cores(
 }
 
 #[cfg(test)]
-pub(crate) struct CoreTextFixture {
+pub(crate) struct CoreTestFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
     pub block_receiver: broadcast::Receiver<VerifiedBlock>,
@@ -1861,13 +1866,14 @@ pub(crate) struct CoreTextFixture {
 }
 
 #[cfg(test)]
-impl CoreTextFixture {
+impl CoreTestFixture {
     async fn new(
         context: Context,
         authorities: Vec<Stake>,
         own_index: AuthorityIndex,
         sync_last_known_own_block: bool,
         with_rocksdb: bool,
+        store: Option<Arc<dyn Store>>,
     ) -> Self {
         let (committee, mut signers) = local_committee_and_keys(0, authorities);
         let mut context = context;
@@ -1879,11 +1885,15 @@ impl CoreTextFixture {
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
         let context = Arc::new(context);
-        let store: Arc<dyn Store> = if !with_rocksdb {
-            Arc::new(MemStore::new())
-        } else {
-            let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-            Arc::new(RocksDBStore::new(store_path))
+        // Reuse an existing store to model a restart (recovery from persisted
+        // state); otherwise start from a fresh one.
+        let store: Arc<dyn Store> = match store {
+            Some(store) => store,
+            None if !with_rocksdb => Arc::new(MemStore::new()),
+            None => {
+                let store_path = context.parameters.db_path.as_path().to_str().unwrap();
+                Arc::new(RocksDBStore::new(store_path))
+            }
         };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
@@ -1957,7 +1967,7 @@ mod test {
             BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
             genesis_blocks,
         },
-        commit::CommitAPI,
+        commit::{CommitAPI, CommitRange},
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -2508,12 +2518,13 @@ mod test {
             "test assumes consensus_fast_commit_sync is enabled at max version"
         );
 
-        let fixture = CoreTextFixture::new(
+        let fixture = CoreTestFixture::new(
             context.clone(),
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
             false,
             false,
+            None,
         )
         .await;
         let core = &fixture.core;
@@ -2543,12 +2554,13 @@ mod test {
         context_off
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(false);
-        let fixture_off = CoreTextFixture::new(
+        let fixture_off = CoreTestFixture::new(
             context_off,
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
             false,
             false,
+            None,
         )
         .await;
         assert_eq!(
@@ -2859,69 +2871,17 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
-        // Now iterate over a few rounds and ensure the corresponding signals are
-        // created while network advances
+        // Advance the gossip network round by round; `gossip_one_round` asserts
+        // each round is healthy and fully connected.
         let mut last_round_block_headers = Vec::new();
         for round in 1..=30 {
-            let mut this_round_block_headers = Vec::new();
-
-            // Wait for min block delay to allow blocks to be proposed.
-            sleep(default_params.min_block_delay).await;
-
-            for core_fixture in &mut cores {
-                // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be
-                // emitted
-                core_fixture
-                    .core
-                    .add_block_headers(last_round_block_headers.clone(), DataSource::Test)
-                    .unwrap();
-
-                // A "new round" signal should be received given that all the blocks of previous
-                // round have been processed
-                let new_round = receive(
-                    Duration::from_secs(1),
-                    core_fixture.signal_receivers.new_round_receiver(),
-                )
-                .await;
-                assert_eq!(new_round, round);
-
-                // Check that a new block has been proposed.
-                let verified_block = tokio::time::timeout(
-                    Duration::from_secs(1),
-                    core_fixture.block_receiver.recv(),
-                )
-                .await
-                .unwrap()
-                .unwrap();
-                assert_eq!(verified_block.round(), round);
-                assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
-
-                // append the new block to this round blocks
-                this_round_block_headers
-                    .push(core_fixture.core.last_proposed_block_header().clone());
-
-                let block_header = core_fixture.core.last_proposed_block_header();
-
-                // ensure that produced block is referring to the blocks of last_round
-                assert_eq!(
-                    block_header.ancestors().len(),
-                    core_fixture.core.context.committee.size()
-                );
-                for ancestor in block_header.ancestors() {
-                    if block_header.round() > 1 {
-                        // don't bother with round 1 block which just contains the genesis blocks.
-                        assert!(
-                            last_round_block_headers
-                                .iter()
-                                .any(|block_header| block_header.reference() == *ancestor),
-                            "Reference from previous round should be added"
-                        );
-                    }
-                }
-            }
-
-            last_round_block_headers = this_round_block_headers;
+            last_round_block_headers = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_block_headers,
+                default_params.min_block_delay,
+            )
+            .await;
         }
 
         for core_fixture in cores {
@@ -2974,6 +2934,200 @@ mod test {
         }
     }
 
+    /// Drives a fully-connected gossip network forward by one block-round:
+    /// feeds the previous round's proposed headers to every core (which
+    /// runs the real `try_commit`) and returns the headers proposed this
+    /// round, to be used as ancestors for the next round. A uniform,
+    /// fully-connected DAG keeps the reputation scores equal across all
+    /// authorities, so the resulting leader schedule is independent of RNG
+    /// seed and topology.
+    async fn gossip_one_round(
+        cores: &mut [CoreTestFixture],
+        round: u32,
+        last_round_block_headers: &[VerifiedBlockHeader],
+        min_block_delay: Duration,
+    ) -> Vec<VerifiedBlockHeader> {
+        let mut this_round_block_headers = Vec::new();
+        // Wait for min block delay to allow blocks to be proposed.
+        sleep(min_block_delay).await;
+        for core_fixture in cores.iter_mut() {
+            core_fixture
+                .core
+                .add_block_headers(last_round_block_headers.to_vec(), DataSource::Test)
+                .unwrap();
+            // Feeding the previous round's blocks advances this core a round and
+            // triggers a proposal; assert the round signal and a healthy,
+            // fully-connected proposed block.
+            let new_round = receive(
+                Duration::from_secs(1),
+                core_fixture.signal_receivers.new_round_receiver(),
+            )
+            .await;
+            assert_eq!(new_round, round);
+            let proposed_block =
+                tokio::time::timeout(Duration::from_secs(1), core_fixture.block_receiver.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            assert_eq!(proposed_block.round(), round);
+            assert_eq!(proposed_block.author(), core_fixture.core.context.own_index);
+            let block_header = core_fixture.core.last_proposed_block_header().clone();
+            assert_eq!(
+                block_header.ancestors().len(),
+                core_fixture.core.context.committee.size()
+            );
+            if round > 1 {
+                for ancestor in block_header.ancestors() {
+                    assert!(
+                        last_round_block_headers
+                            .iter()
+                            .any(|bh| bh.reference() == *ancestor),
+                        "reference from previous round should be added"
+                    );
+                }
+            }
+            this_round_block_headers.push(block_header);
+        }
+        this_round_block_headers
+    }
+
+    /// Drives the gossip network until `cores[0]` has performed at least one
+    /// leader-schedule rotation and then sits mid-interval: its scoring-subdag
+    /// count is strictly between 0 and `num_commits_per_schedule` (10 here,
+    /// matching `CoreTestFixture`'s `with_num_commits_per_schedule(10)`). It
+    /// loops until that state holds rather than running a fixed number of
+    /// gossip rounds, because the number of commits per round is not fixed.
+    async fn drive_to_post_rotation_mid_interval(
+        cores: &mut [CoreTestFixture],
+        min_block_delay: Duration,
+    ) {
+        const NUM_COMMITS_PER_SCHEDULE: u64 = 10;
+        // Generous safety ceiling; the loop actually breaks dynamically below.
+        const MAX_ROUNDS: u32 = 6 * NUM_COMMITS_PER_SCHEDULE as u32;
+        let mut round = 0u32;
+        let mut last_round_block_headers = Vec::new();
+        let mut rotated = false;
+        loop {
+            round += 1;
+            assert!(
+                round <= MAX_ROUNDS,
+                "network did not reach a post-rotation mid-interval state within {MAX_ROUNDS} rounds"
+            );
+            last_round_block_headers =
+                gossip_one_round(cores, round, &last_round_block_headers, min_block_delay).await;
+
+            // A rotation has occurred once the in-effect swap table carries
+            // persisted reputation scores (a non-empty commit range).
+            if cores[0]
+                .core
+                .leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range
+                != CommitRange::default()
+            {
+                rotated = true;
+            }
+
+            let count = cores[0].core.dag_state.read().scoring_subdags_count() as u64;
+            if rotated && count > 0 && count < NUM_COMMITS_PER_SCHEDULE {
+                break;
+            }
+        }
+    }
+
+    /// Drives a real 4-core network past one leader-schedule rotation to a
+    /// mid-interval commit, flushes, then rebuilds authority 0 from the same
+    /// store via the real recovery path (`DagState::new` +
+    /// `LeaderSchedule::from_store`) and asserts the rotation count is
+    /// restart-invariant: a recovered node resumes with the same
+    /// commits-until-next-rotation as one that never restarted.
+    ///
+    /// On the sliding-window path the scorer's scored frontier lags the
+    /// rotation boundary by `MAX_PENDING_COMMITS = 3`, while recovery rebuilds
+    /// the rotation-counting scoring subdag from the persisted
+    /// `commit_range.end() + 1`. The count stays invariant because the
+    /// persisted end is the rotation boundary (the last committed index), not
+    /// the lagging frontier. The assertions compare live vs. restarted directly
+    /// (no hard-coded count) and run for both the sliding-window and V2 paths.
+    #[rstest]
+    #[case::sliding_window(true)]
+    #[case::v2(false)]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_leader_schedule_restart_invariant_rotation(#[case] enable_sliding_window: bool) {
+        telemetry_subscribers::init_for_testing();
+        let default_params = Parameters::default();
+
+        let (mut context, _) = Context::new_for_test(4);
+        if enable_sliding_window {
+            context
+                .protocol_config
+                .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+            // Pin the rotation interval small and keep `window_size >=
+            // commits_per_schedule` (a protocol-config invariant the flag
+            // getter asserts).
+            context
+                .protocol_config
+                .set_commits_per_schedule_for_testing(10);
+            context
+                .protocol_config
+                .set_leader_schedule_window_size_for_testing(20);
+        }
+
+        // Drive a real 4-core network until it has done >= 1 rotation and sits
+        // mid-interval, persisting a real `CommitInfo`.
+        let mut cores = create_cores(context.clone(), vec![1, 1, 1, 1]).await;
+        drive_to_post_rotation_mid_interval(&mut cores, default_params.min_block_delay).await;
+
+        // Flush so the persisted `CommitInfo` reaches the store, then restart the
+        // node by rebuilding it from the same store via the real recovery path.
+        cores[0].core.dag_state.write().flush();
+        let restarted = CoreTestFixture::new(
+            context,
+            vec![1, 1, 1, 1],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+            Some(cores[0].store.clone()),
+        )
+        .await;
+
+        // Root cause: the rotation count is restart-invariant.
+        assert_eq!(
+            restarted.core.dag_state.read().scoring_subdags_count(),
+            cores[0].core.dag_state.read().scoring_subdags_count(),
+            "scoring_subdags_count must be restart-invariant"
+        );
+        // The same fact, as commits-until-next-rotation.
+        assert_eq!(
+            restarted
+                .core
+                .leader_schedule
+                .commits_until_leader_schedule_update(restarted.core.dag_state.clone()),
+            cores[0]
+                .core
+                .leader_schedule
+                .commits_until_leader_schedule_update(cores[0].core.dag_state.clone()),
+            "commits_until_leader_schedule_update must be restart-invariant"
+        );
+
+        // The recovered swap table must match the live one exactly, not just
+        // the rotation count. It is rebuilt with the rotation boundary as its
+        // seed, so equal-scoring authorities shuffle into the same good/bad
+        // split on both sides.
+        let restarted_table = restarted.core.leader_schedule.leader_swap_table.read();
+        let live_table = cores[0].core.leader_schedule.leader_swap_table.read();
+        assert_eq!(
+            restarted_table.good_nodes, live_table.good_nodes,
+            "recovered good_nodes must match the live node"
+        );
+        assert_eq!(
+            restarted_table.bad_nodes, live_table.bad_nodes,
+            "recovered bad_nodes must match the live node"
+        );
+    }
+
     #[rstest]
     #[case(true, true)]
     #[case(true, false)]
@@ -3017,12 +3171,13 @@ mod test {
                 commit_only_for_traversed_headers,
             );
         let own_index = AuthorityIndex::new_for_test(0);
-        let core_fixture_own = CoreTextFixture::new(
+        let core_fixture_own = CoreTestFixture::new(
             context.clone(),
             vec![1; committee_size],
             own_index,
             true,
             false,
+            None,
         )
         .await;
         // create a DAG of 2*gc_depth rounds
@@ -3035,12 +3190,13 @@ mod test {
             .dag_state_cached_rounds;
         // One authority will try to catch up, so it does not create any block
         let catch_up_index = AuthorityIndex::new_for_test((committee_size - 1) as u8);
-        let core_fixture_catch_up = CoreTextFixture::new(
+        let core_fixture_catch_up = CoreTestFixture::new(
             context.clone(),
             vec![1; committee_size],
             catch_up_index,
             true,
             true,
+            None,
         )
         .await;
         let active_authorities = (0..(committee_size - 1) as u8)
@@ -3240,8 +3396,15 @@ mod test {
         });
 
         let authority_index = AuthorityIndex::new_for_test(0);
-        let core =
-            CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false).await;
+        let core = CoreTestFixture::new(
+            context,
+            vec![1, 1, 1, 1],
+            authority_index,
+            true,
+            false,
+            None,
+        )
+        .await;
         let store = core.store.clone();
         let mut core = core.core;
 
@@ -3874,12 +4037,13 @@ mod test {
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(true);
-        let fixture = CoreTextFixture::new(
+        let fixture = CoreTestFixture::new(
             context,
             vec![1; 4],
             AuthorityIndex::new_for_test(0),
             false,
             false,
+            None,
         )
         .await;
 

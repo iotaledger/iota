@@ -655,7 +655,7 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
 }
 
 #[tokio::test]
-async fn leader_status_is_final_classification() {
+async fn leader_status_is_resolved_classification() {
     let (context, dag_state) = test_context_with_flag(true);
     let refs = build_v2_layers(&context, &dag_state, None, 1);
     let block = dag_state
@@ -665,17 +665,18 @@ async fn leader_status_is_final_classification() {
 
     let slot = Slot::new(3, AuthorityIndex::from(0u8));
     assert!(
-        !LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_final()
+        !LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_resolved()
     );
     assert!(
-        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![]).is_final()
+        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![])
+            .is_resolved()
     );
     assert!(
-        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_final()
+        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_resolved()
     );
-    assert!(LeaderStatus::Commit(block, None, vec![]).is_final());
-    assert!(LeaderStatus::Skip(slot).is_final());
-    assert!(!LeaderStatus::Undecided(slot).is_final());
+    assert!(LeaderStatus::Commit(block, None, vec![]).is_resolved());
+    assert!(LeaderStatus::Skip(slot).is_resolved());
+    assert!(!LeaderStatus::Undecided(slot).is_resolved());
 }
 
 fn build_universal_committer(
