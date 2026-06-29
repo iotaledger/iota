@@ -172,6 +172,7 @@ mod checked {
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
         metrics: &Arc<BytecodeVerifierMetrics>,
+        protocol_config: Option<&ProtocolConfig>,
     ) -> Result<(), IotaError> {
         // run the Move verifier
         for module in modules.iter() {
@@ -179,7 +180,9 @@ mod checked {
                 .verifier_runtime_per_module_success_latency
                 .start_timer();
 
-            if let Err(e) = verify_module_timeout_only(module, verifier_config, meter) {
+            if let Err(e) =
+                verify_module_timeout_only(module, verifier_config, meter, protocol_config)
+            {
                 // We only checked that the failure was due to timeout
                 // Discard success timer, but record timeout/failure timer
                 metrics
@@ -218,6 +221,7 @@ mod checked {
         module: &CompiledModule,
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
+        protocol_config: Option<&ProtocolConfig>,
     ) -> Result<(), IotaError> {
         meter.enter_scope(module.self_id().name().as_str(), Scope::Module);
 
@@ -241,9 +245,12 @@ mod checked {
                     error: format!("Verification timed out: {e}"),
                 });
             }
-        } else if let Err(err) =
-            iota_verify_module_metered_check_timeout_only(module, &BTreeMap::new(), meter)
-        {
+        } else if let Err(err) = iota_verify_module_metered_check_timeout_only(
+            module,
+            &BTreeMap::new(),
+            meter,
+            protocol_config,
+        ) {
             return Err(err.into());
         }
 

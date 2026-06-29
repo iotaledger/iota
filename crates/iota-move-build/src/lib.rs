@@ -21,10 +21,11 @@ use iota_sdk_types::{Address, ObjectId, move_package::MovePackage};
 use iota_types::{
     error::{IotaError, IotaResult},
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, RuntimeModuleMetadata,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, IotaAttributeV2, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
         is_view_function_from_fn_info,
     },
+    supported_protocol_versions::ProtocolConfig,
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
 use move_binary_format::{
@@ -66,6 +67,8 @@ mod build_tests;
 pub mod test_utils {
     use std::path::PathBuf;
 
+    use iota_types::supported_protocol_versions::ProtocolConfig;
+
     use crate::{BuildConfig, CompiledPackage, IotaPackageHooks};
 
     pub fn compile_basics_package() -> CompiledPackage {
@@ -78,10 +81,13 @@ pub mod test_utils {
 
     pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
-        BuildConfig::new_for_testing().build(&path).unwrap()
+        BuildConfig::new_for_testing()
+            .build(&path, Some(&protocol_config))
+            .unwrap()
     }
 }
 
@@ -215,7 +221,11 @@ impl BuildConfig {
     /// Given a `path` and a `build_config`, build the package in that path,
     /// including its dependencies. If we are building the IOTA framework,
     /// we skip the check that the addresses should be 0
-    pub fn build(self, path: &Path) -> IotaResult<CompiledPackage> {
+    pub fn build(
+        self,
+        path: &Path,
+        protocol_config: Option<&ProtocolConfig>,
+    ) -> IotaResult<CompiledPackage> {
         let print_diags_to_stderr = self.print_diags_to_stderr;
         let run_bytecode_verifier = self.run_bytecode_verifier;
         let chain_id = self.chain_id.clone();
@@ -225,6 +235,7 @@ impl BuildConfig {
             run_bytecode_verifier,
             print_diags_to_stderr,
             chain_id,
+            protocol_config,
         )
     }
 
@@ -293,6 +304,7 @@ pub fn build_from_resolution_graph(
     run_bytecode_verifier: bool,
     print_diags_to_stderr: bool,
     chain_id: Option<String>,
+    protocol_config: Option<&ProtocolConfig>,
 ) -> IotaResult<CompiledPackage> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
 
@@ -314,10 +326,10 @@ pub fn build_from_resolution_graph(
 
     // Based on the information found in `fn_info`, fill in the metadata for each
     // compiled module
-    fill_metadata(&mut package, &fn_info)?;
+    fill_metadata(&mut package, &fn_info, protocol_config)?;
 
     if run_bytecode_verifier {
-        verify_bytecode(&package, &fn_info)?;
+        verify_bytecode(&package, &fn_info, protocol_config)?;
     }
 
     Ok(CompiledPackage {
@@ -366,41 +378,78 @@ fn collect_bytecode_deps(
 }
 
 /// Fill metadata
-fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> IotaResult<()> {
+fn fill_metadata(
+    package: &mut MoveCompiledPackage,
+    fn_info_map: &FnInfoMap,
+    protocol_config: Option<&ProtocolConfig>,
+) -> IotaResult<()> {
     for module in package
         .root_compiled_units
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        let mut runtime_metadata = RuntimeModuleMetadata::default();
-        for fn_def in &module.function_defs {
-            let fn_handle = module.function_handle_at(fn_def.function);
-            let fn_name = module.identifier_at(fn_handle.name);
-            if let Some(version) =
-                get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
+        match protocol_config {
+            Some(protocol_config)
+                if protocol_config.package_metadata_with_dynamic_module_metadata() =>
             {
-                runtime_metadata.add_function_attribute(
-                    fn_name.to_string(),
-                    IotaAttribute::authenticator_attribute(version),
-                );
-            };
-            if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
-                runtime_metadata
-                    .add_function_attribute(fn_name.to_string(), IotaAttribute::view_attribute());
+                let mut runtime_metadata = RuntimeModuleMetadata::v2();
+                for fn_def in &module.function_defs {
+                    let fn_handle = module.function_handle_at(fn_def.function);
+                    let fn_name = module.identifier_at(fn_handle.name);
+                    if let Some(version) =
+                        get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
+                    {
+                        runtime_metadata.add_function_attribute_V2(
+                            fn_name.to_string(),
+                            IotaAttributeV2::authenticator_attribute(version),
+                        );
+                    };
+                    if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
+                        runtime_metadata.add_function_attribute_V2(
+                            fn_name.to_string(),
+                            IotaAttributeV2::view_attribute(),
+                        );
+                    }
+                }
+                if !runtime_metadata.is_empty() {
+                    module.metadata.push(move_core_types::metadata::Metadata {
+                        key: IOTA_METADATA_KEY.to_vec(),
+                        value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+                    });
+                }
             }
-        }
-        if !runtime_metadata.is_empty() {
-            module.metadata.push(move_core_types::metadata::Metadata {
-                key: IOTA_METADATA_KEY.to_vec(),
-                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
-            });
+            Some(_) | None => {
+                let mut runtime_metadata = RuntimeModuleMetadata::v1();
+                for fn_def in &module.function_defs {
+                    let fn_handle = module.function_handle_at(fn_def.function);
+                    let fn_name = module.identifier_at(fn_handle.name);
+                    if let Some(version) =
+                        get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
+                    {
+                        runtime_metadata.add_function_attribute_V1(
+                            fn_name.to_string(),
+                            IotaAttribute::authenticator_attribute(version),
+                        );
+                    };
+                }
+                if !runtime_metadata.is_empty() {
+                    module.metadata.push(move_core_types::metadata::Metadata {
+                        key: IOTA_METADATA_KEY.to_vec(),
+                        value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
+                    });
+                }
+            }
         }
     }
     Ok(())
 }
 
 /// Check that the compiled modules in `package` are valid
-fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaResult<()> {
+fn verify_bytecode(
+    package: &MoveCompiledPackage,
+    fn_info: &FnInfoMap,
+    protocol_config: Option<&ProtocolConfig>,
+) -> IotaResult<()> {
     let compiled_modules = package.root_modules_map();
     for m in compiled_modules.iter_modules() {
         move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
@@ -412,8 +461,9 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
         // attribute may actually be published is decided by the target network's
         // protocol at publish time, so accept it here.
         iota_bytecode_verifier::iota_verify_module_unmetered(
-            m, fn_info, // view_function_metadata_enabled
-            true,
+            m,
+            fn_info, // view_function_metadata_enabled
+            protocol_config,
         )?;
     }
     // Don't change the link components to iota. It is correct as it is.

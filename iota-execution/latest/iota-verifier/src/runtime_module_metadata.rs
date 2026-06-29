@@ -12,7 +12,10 @@ use std::collections::BTreeSet;
 
 use iota_types::{
     error::ExecutionError,
-    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
+    move_package::{
+        IotaAttribute, IotaAttributeV2, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+    },
+    supported_protocol_versions::ProtocolConfig,
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
 use move_core_types::identifier::Identifier;
@@ -39,7 +42,7 @@ use crate::{
 /// onto the chain that a not-yet-upgraded validator cannot even deserialize.
 pub fn verify_module(
     module: &CompiledModule,
-    view_function_metadata_enabled: bool,
+    protocol_config: Option<&ProtocolConfig>,
 ) -> Result<(), ExecutionError> {
     if !module.metadata.is_empty() {
         if module.metadata.len() > 1 {
@@ -61,12 +64,14 @@ pub fn verify_module(
                     "Failed to read bcs bytes for IOTA module metadata: {err}",
                 ))
             })?
-            .try_into()
+            .try_from_bcs_bytes(protocol_config)
             .map_err(|err| {
                 verification_failure(format!(
                     "Failed to deserialize runtime IOTA module metadata from wrapper: {err}",
                 ))
             })?;
+        let view_function_metadata_enabled =
+            protocol_config.is_some_and(|c| c.package_metadata_with_dynamic_module_metadata());
         verify_runtime_metadata(module, &metadata, view_function_metadata_enabled)?;
     }
 
@@ -78,22 +83,84 @@ fn verify_runtime_metadata(
     metadata: &RuntimeModuleMetadata,
     view_function_metadata_enabled: bool,
 ) -> Result<(), ExecutionError> {
-    for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
-        let mut seen = BTreeSet::new();
-        // Verify each function attribute
-        for attribute in fn_attributes {
-            if !seen.insert(attribute) {
-                return Err(verification_failure(format!(
-                    "Duplicate attribute {attribute:?} found for function {fn_name}"
-                )));
+    match metadata {
+        RuntimeModuleMetadata::V1(runtime_module_metadata_v1) => {
+            for (fn_name, fn_attributes) in runtime_module_metadata_v1.fun_attributes.iter() {
+                let mut seen = BTreeSet::new();
+                // Verify each function attribute
+                for attribute in fn_attributes {
+                    if !seen.insert(attribute) {
+                        return Err(verification_failure(format!(
+                            "Duplicate attribute {attribute:?} found for function {fn_name}"
+                        )));
+                    }
+                    match attribute {
+                        IotaAttribute::Authenticator(attr) => {
+                            // Verify authenticator attribute
+                            match attr.version {
+                                1 => {
+                                    // Version 1: verify that the function is a valid authenticator
+                                    verify_authenticate_func_v1(
+                                        module,
+                                        &Identifier::new(fn_name.clone()).map_err(|err| {
+                                            verification_failure(format!(
+                                                "Failed to read function name: {err}",
+                                            ))
+                                        })?,
+                                    )?;
+                                }
+                                _ => {
+                                    return Err(verification_failure(format!(
+                                        "Unsupported authenticator attribute version {} for function {}",
+                                        attr.version, fn_name
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            match attribute {
-                IotaAttribute::Authenticator(attr) => {
-                    // Verify authenticator attribute
-                    match attr.version {
-                        1 => {
-                            // Version 1: verify that the function is a valid authenticator
-                            verify_authenticate_func_v1(
+        }
+        RuntimeModuleMetadata::V2(runtime_module_metadata_v2) => {
+            for (fn_name, fn_attributes) in runtime_module_metadata_v2.fun_attributes.iter() {
+                let mut seen = BTreeSet::new();
+                // Verify each function attribute
+                for attribute in fn_attributes {
+                    if !seen.insert(attribute) {
+                        return Err(verification_failure(format!(
+                            "Duplicate attribute {attribute:?} found for function {fn_name}"
+                        )));
+                    }
+                    match attribute {
+                        IotaAttributeV2::Authenticator(attr) => {
+                            // Verify authenticator attribute
+                            match attr.version {
+                                1 => {
+                                    // Version 1: verify that the function is a valid authenticator
+                                    verify_authenticate_func_v1(
+                                        module,
+                                        &Identifier::new(fn_name.clone()).map_err(|err| {
+                                            verification_failure(format!(
+                                                "Failed to read function name: {err}",
+                                            ))
+                                        })?,
+                                    )?;
+                                }
+                                _ => {
+                                    return Err(verification_failure(format!(
+                                        "Unsupported authenticator attribute version {} for function {}",
+                                        attr.version, fn_name
+                                    )));
+                                }
+                            }
+                        }
+                        IotaAttributeV2::View => {
+                            if !view_function_metadata_enabled {
+                                return Err(verification_failure(format!(
+                                    "View attribute for function {fn_name} is not supported by the current protocol version"
+                                )));
+                            }
+                            verify_view_func(
                                 module,
                                 &Identifier::new(fn_name.clone()).map_err(|err| {
                                     verification_failure(format!(
@@ -102,30 +169,12 @@ fn verify_runtime_metadata(
                                 })?,
                             )?;
                         }
-                        _ => {
-                            return Err(verification_failure(format!(
-                                "Unsupported authenticator attribute version {} for function {}",
-                                attr.version, fn_name
-                            )));
-                        }
                     }
-                }
-                IotaAttribute::View => {
-                    if !view_function_metadata_enabled {
-                        return Err(verification_failure(format!(
-                            "View attribute for function {fn_name} is not supported by the current protocol version"
-                        )));
-                    }
-                    verify_view_func(
-                        module,
-                        &Identifier::new(fn_name.clone()).map_err(|err| {
-                            verification_failure(format!("Failed to read function name: {err}",))
-                        })?,
-                    )?;
                 }
             }
         }
     }
+
     Ok(())
 }
 
@@ -160,8 +209,8 @@ mod tests {
             ..Default::default()
         });
 
-        let mut metadata = RuntimeModuleMetadata::default();
-        metadata.add_function_attribute("view".to_owned(), IotaAttribute::view_attribute());
+        let mut metadata = RuntimeModuleMetadata::v2();
+        metadata.add_function_attribute_V2("view".to_owned(), IotaAttributeV2::view_attribute());
         module.metadata.push(Metadata {
             key: IOTA_METADATA_KEY.to_vec(),
             value: RuntimeModuleMetadataWrapper::from(metadata).to_bcs_bytes(),
@@ -170,8 +219,12 @@ mod tests {
         module
     }
 
-    fn assert_error_contains(module: &CompiledModule, expected: &str) {
-        let err = verify_module(module, /* view_function_metadata_enabled */ true).unwrap_err();
+    fn assert_error_contains(
+        module: &CompiledModule,
+        expected: &str,
+        protocol_config: Option<&ProtocolConfig>,
+    ) {
+        let err = verify_module(module, protocol_config).unwrap_err();
         let source = err.source().as_ref().unwrap().to_string();
         assert!(
             source.contains(expected),
@@ -186,7 +239,11 @@ mod tests {
             Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
         );
 
-        verify_module(&module, /* view_function_metadata_enabled */ true).unwrap();
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_publish_package_metadata_for_testing(true);
+        config.set_package_metadata_with_dynamic_module_metadata_for_testing(true);
+
+        verify_module(&module, Some(&config)).unwrap();
     }
 
     #[test]
@@ -196,7 +253,15 @@ mod tests {
             Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
         );
 
-        assert_error_contains(&module, "View function 'view' must be public");
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_publish_package_metadata_for_testing(true);
+        config.set_package_metadata_with_dynamic_module_metadata_for_testing(true);
+
+        assert_error_contains(
+            &module,
+            "View function 'view' must be public",
+            Some(&config),
+        );
     }
 
     #[test]
@@ -209,7 +274,10 @@ mod tests {
             Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
         );
 
-        let err = verify_module(&module, /* view_function_metadata_enabled */ false).unwrap_err();
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_package_metadata_with_dynamic_module_metadata_for_testing(false);
+
+        let err = verify_module(&module, Some(&config)).unwrap_err();
         let source = err.source().as_ref().unwrap().to_string();
         assert!(
             source.contains("is not supported by the current protocol version"),

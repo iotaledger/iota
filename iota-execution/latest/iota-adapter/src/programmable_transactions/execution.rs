@@ -33,7 +33,7 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, RuntimeModuleMetadata, UpgradeCap, UpgradePolicy,
+            IotaAttributeV2, MovePackageExt, RuntimeModuleMetadata, UpgradeCap, UpgradePolicy,
             UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules_with_metadata,
             normalize_modules_with_metadata,
         },
@@ -769,6 +769,7 @@ mod checked {
             existing_package.serialized_module_map().values(),
             &binary_config,
             true, // include code
+            Some(context.protocol_config),
         ) {
             Ok(modules) => modules,
             Err(IotaError::ModuleDeserializationFailure { .. }) => {
@@ -806,6 +807,7 @@ mod checked {
             pool,
             upgrading_modules.iter(),
             true, // include code
+            Some(context.protocol_config),
         )
         .map_err(|e| {
             ExecutionError::new_with_source(
@@ -899,15 +901,19 @@ mod checked {
     }
 
     fn view_functions(metadata: &RuntimeModuleMetadata) -> BTreeSet<String> {
-        metadata
-            .fun_attributes_iter()
-            .filter(|&(_function_name, attributes)| {
-                attributes
-                    .iter()
-                    .any(|attribute| matches!(attribute, IotaAttribute::View))
-            })
-            .map(|(function_name, _attributes)| function_name.clone())
-            .collect()
+        match metadata {
+            RuntimeModuleMetadata::V1(_) => BTreeSet::new(),
+            RuntimeModuleMetadata::V2(runtime_module_metadata_v2) => runtime_module_metadata_v2
+                .fun_attributes
+                .iter()
+                .filter(|&(_function_name, attributes)| {
+                    attributes
+                        .iter()
+                        .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+                })
+                .map(|(function_name, _attributes)| function_name.clone())
+                .collect(),
+        }
     }
 
     /// Retrieves a `PackageObject` from the storage based on the provided
@@ -1094,9 +1100,7 @@ mod checked {
             iota_verifier::verifier::iota_verify_module_unmetered(
                 module,
                 &BTreeMap::new(),
-                context
-                    .protocol_config
-                    .package_metadata_with_dynamic_module_metadata(),
+                Some(context.protocol_config),
             )?;
         }
 

@@ -74,7 +74,7 @@ impl Build {
             print_diags_to_stderr: true,
             chain_id,
         }
-        .build(rerooted_path)?;
+        .build(rerooted_path, None)?;
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();

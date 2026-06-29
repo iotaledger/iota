@@ -11,6 +11,7 @@ use std::{
 use anyhow::Result;
 use capitalize::Capitalize;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_types::supported_protocol_versions::ProtocolConfig;
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
 use move_docgen::DocgenFlags;
@@ -127,6 +128,7 @@ fn build_packages_with_move_config(
     stdlib_dir: &str,
     stardust_dir: &str,
     config: MoveBuildConfig,
+    protocol_config: Option<&ProtocolConfig>,
 ) {
     let stdlib_pkg = BuildConfig {
         config: config.clone(),
@@ -134,7 +136,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(stdlib_path)
+    .build(stdlib_path, protocol_config)
     .unwrap();
     let framework_pkg = BuildConfig {
         config: config.clone(),
@@ -142,7 +144,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(iota_framework_path)
+    .build(iota_framework_path, protocol_config)
     .unwrap();
     let system_pkg = BuildConfig {
         config: config.clone(),
@@ -150,7 +152,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(iota_system_path)
+    .build(iota_system_path, protocol_config)
     .unwrap();
     let stardust_pkg = BuildConfig {
         config,
@@ -158,7 +160,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(stardust_path)
+    .build(stardust_path, protocol_config)
     .unwrap();
 
     let move_stdlib = stdlib_pkg.get_stdlib_modules();
