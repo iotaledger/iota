@@ -847,7 +847,23 @@ impl DagState {
         );
         #[cfg(feature = "dag-visualizer")]
         let clock_before = self.threshold_clock.get_round();
-        self.threshold_clock.add_block_header(block_ref);
+        if self.threshold_clock.add_block_header(block_ref) {
+            // Only measure quorum latency when the local node proposed in the round
+            // that just reached quorum, to avoid skewing the metric during idle rounds.
+            let last_proposed = self.get_last_proposed_block_header();
+            if last_proposed.round() == block_ref.round {
+                let quorum_delay_ms = self
+                    .context
+                    .clock
+                    .timestamp_utc_ms()
+                    .saturating_sub(last_proposed.timestamp_ms());
+                self.context
+                    .metrics
+                    .node_metrics
+                    .quorum_receive_latency
+                    .observe((quorum_delay_ms as f64) / 1000.0);
+            }
+        }
         #[cfg(feature = "dag-visualizer")]
         {
             let clock_after = self.threshold_clock.get_round();
