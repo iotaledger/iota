@@ -987,7 +987,7 @@ impl GrpcIndexesStore {
                 // one call covers all tables.
                 tables
                     .meta
-                    .flush()
+                    .flush_all()
                     .expect("gRPC index DB should be flushable after bulk ingestion");
 
                 let weak_db = Arc::downgrade(&tables.meta.db);

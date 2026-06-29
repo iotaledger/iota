@@ -311,9 +311,28 @@ impl Database {
         }
     }
 
+    /// Flush the memtable of a single column family to SST files on disk.
+    pub(crate) fn flush_cf(&self, cf: &ColumnFamily) -> Result<(), TypedStoreError> {
+        match &self.storage {
+            Storage::Rocks(rocks) => {
+                let cf_name = cf.name();
+                if let Some(handle) = rocks.underlying.cf_handle(cf_name) {
+                    rocks.underlying.flush_cf(&handle).map_err(|e| {
+                        TypedStoreError::RocksDB(format!(
+                            "Failed to flush column family {cf_name}: {e}"
+                        ))
+                    })?;
+                }
+                Ok(())
+            }
+            // InMemory databases don't need flushing.
+            Storage::InMemory(_) => Ok(()),
+        }
+    }
+
     /// Iterate all column families and flush the memtables of every column
     /// family to SST files on disk.
-    pub fn flush(&self) -> Result<(), TypedStoreError> {
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
         match &self.storage {
             Storage::Rocks(rocks) => {
                 for cf_name in &rocks.cf_names {
@@ -557,8 +576,15 @@ impl<K, V> DBMap<K, V> {
         )
     }
 
+    /// Flush the memtable of this table's column family to SST files on disk.
     pub fn flush(&self) -> Result<(), TypedStoreError> {
-        self.db.flush()
+        self.db.flush_cf(&self.column_family)
+    }
+
+    /// Iterate all column families and flush the memtables of every column
+    /// family to SST files on disk.
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
+        self.db.flush_all()
     }
 
     pub fn compact_range<J: Serialize>(&self, start: &J, end: &J) -> Result<(), TypedStoreError> {
