@@ -77,16 +77,12 @@ def get_consensus_metrics(container_name: str) -> dict[str, float]:
     if val is not None:
         metrics["proposal_interval_sum"] = val
 
-    # Latency (support both legacy and header-level metrics)
-    val = get_metric_value(text, "consensus_block_commit_latency_sum")
-    if val is None:
-        val = get_metric_value(text, "consensus_block_header_commit_latency_sum")
+    # Latency
+    val = get_metric_value(text, "consensus_block_header_commit_latency_sum")
     if val is not None:
         metrics["block_commit_latency_sum"] = val
 
-    val = get_metric_value(text, "consensus_block_commit_latency_count")
-    if val is None:
-        val = get_metric_value(text, "consensus_block_header_commit_latency_count")
+    val = get_metric_value(text, "consensus_block_header_commit_latency_count")
     if val is not None:
         metrics["block_commit_latency_count"] = val
 
