@@ -1068,12 +1068,8 @@ mod tests {
         let mut subdag_transactions = Vec::new();
 
         for (i, (owned_obj, gas_obj)) in owned_objects.iter().zip(gas_objects.iter()).enumerate() {
-            let owned_ref = state
-                .get_object(&owned_obj.id())
-                .await
-                .unwrap()
-                .object_ref();
-            let gas_ref = state.get_object(&gas_obj.id()).await.unwrap().object_ref();
+            let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
+            let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
             let tx_data = TransactionData::new_transfer(
                 recipient,
