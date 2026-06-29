@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{IntGaugeVec, Registry, register_int_gauge_vec_with_registry};
+use prometheus_filtered::{IntGaugeVec, Registry, register_int_gauge_vec_with_registry};
 
 #[derive(Clone)]
 pub struct DataIngestionMetrics {

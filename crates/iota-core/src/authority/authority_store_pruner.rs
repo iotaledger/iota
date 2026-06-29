@@ -23,7 +23,7 @@ use iota_types::{
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };
@@ -942,7 +942,7 @@ mod tests {
         storage::ObjectKey,
     };
     use more_asserts as ma;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use tracing::info;
     use typed_store::{
         Map,

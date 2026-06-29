@@ -11,7 +11,7 @@ use iota_data_ingestion_core::{
     reader::v2::CheckpointReaderConfig,
 };
 use iota_types::full_checkpoint_content::CheckpointData;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 struct CustomWorker;
 

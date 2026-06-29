@@ -450,7 +450,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
     )
     .expect("creating new connection pool should succeed");
 
-    let registry = prometheus::Registry::default();
+    let registry = prometheus_filtered::Registry::default();
     init_metrics(&registry);
     let metrics = IndexerMetrics::new(&registry);
 

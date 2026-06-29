@@ -26,6 +26,7 @@ peer_round_ahead_margin: 1000
 commit_sync_parallel_fetches: 8
 commit_sync_batch_size: 100
 commit_sync_batches_ahead: 32
+commit_recovery_batch_size: 250
 max_headers_per_bundle: 150
 max_shards_per_bundle: 150
 tonic:

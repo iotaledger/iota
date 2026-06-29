@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    CommitConsumer, CommittedSubDag,
+    CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
     block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     commit::{
         CommitAPI, CommitIndex, CommitMetastate, PendingSubDag, TrustedCommit,
@@ -56,8 +56,11 @@ impl CommittedSubDagSource {
 /// - The committed subdags are sent as consensus output via an unbounded tokio
 ///   channel.
 ///
-/// No back pressure mechanism is needed as backpressure is handled as input
-/// into consensus.
+/// During normal operation no backpressure mechanism is needed as backpressure
+/// is handled as input into consensus. During recovery, resending the
+/// unprocessed backlog is paced on consumer progress so the channel stays
+/// bounded; the consumer must therefore already be draining the channel when
+/// the observer is created.
 ///
 /// - Commit metadata including index is persisted in store, before the
 ///   CommittedSubDag is sent to the consumer.
@@ -72,6 +75,8 @@ pub(crate) struct CommitObserver {
     /// An unbounded channel to send committed sub-dags to the consumer of
     /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
+    /// Tracks the consumer's progress, used to pace recovery resends.
+    commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
     /// Dag state for direct access to block headers
@@ -100,6 +105,7 @@ impl CommitObserver {
             ),
             commit_solidifier: CommitSolidifier::new(dag_state.clone()),
             context,
+            commit_consumer_monitor: commit_consumer.monitor(),
             sender: commit_consumer.sender,
             store,
             dag_state,
@@ -109,7 +115,8 @@ impl CommitObserver {
 
         observer
             .recover_and_send_commits(last_processed_commit_index, CommittedSubDagSource::Recover)
-            .await;
+            .await
+            .unwrap_or_else(|e| panic!("Failed to recover commits at startup: {e:?}"));
         observer
     }
 
@@ -118,7 +125,10 @@ impl CommitObserver {
     /// - Recovering linearizer state (transaction ack tracker, traversed
     ///   headers)
     /// - Only re-sends commits that are > last_commit_index (none in this case)
-    pub(crate) async fn reinitialize(&mut self, last_commit_index: CommitIndex) {
+    pub(crate) async fn reinitialize(
+        &mut self,
+        last_commit_index: CommitIndex,
+    ) -> ConsensusResult<()> {
         let now = Instant::now();
 
         // Clear linearizer state
@@ -128,13 +138,14 @@ impl CommitObserver {
         // Reuse existing recovery logic - it won't resend commits since
         // they're all <= last_commit_index
         self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer)
-            .await;
+            .await?;
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
             last_commit_index,
             now.elapsed()
         );
+        Ok(())
     }
 
     /// Handles the creation of commits from a set of passed leaders.
@@ -227,26 +238,34 @@ impl CommitObserver {
         &self,
         commit: &TrustedCommit,
         reputation_scores: Vec<(AuthorityIndex, u64)>,
-    ) -> Option<CommittedSubDag> {
+    ) -> ConsensusResult<Option<CommittedSubDag>> {
         let tx_refs = commit.committed_transactions();
-        let transactions = match self
+        let transaction_results = self
             .dag_state
             .read()
-            .try_get_all_verified_transactions(&tx_refs)
-        {
-            Ok(transactions) => transactions,
-            Err(missing_refs) => {
-                warn!(
-                    "Missing {} transactions for commit {}: {:?}",
-                    missing_refs.len(),
-                    commit.index(),
-                    missing_refs,
-                );
-                return None;
-            }
-        };
+            .try_get_verified_transactions(&tx_refs)?;
+        let missing_refs: Vec<_> = tx_refs
+            .iter()
+            .zip(&transaction_results)
+            .filter_map(|(transaction_ref, transaction)| {
+                transaction.is_none().then_some(*transaction_ref)
+            })
+            .collect();
+        if !missing_refs.is_empty() {
+            warn!(
+                "Missing {} transactions for commit {}: {:?}",
+                missing_refs.len(),
+                commit.index(),
+                missing_refs,
+            );
+            return Ok(None);
+        }
+        let transactions = transaction_results
+            .into_iter()
+            .map(|transaction| transaction.expect("missing transactions checked above"))
+            .collect();
 
-        Some(CommittedSubDag::new(
+        Ok(Some(CommittedSubDag::new(
             commit.leader(),
             vec![], // Empty headers for recovery
             commit.block_headers().to_vec(),
@@ -255,18 +274,15 @@ impl CommitObserver {
             commit.reference(),
             reputation_scores,
             self.dag_state.read().misbehavior_store().snapshot_totals(),
-        ))
+        )))
     }
 
     async fn recover_and_send_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
-        let last_commit = self
-            .store
-            .read_last_commit()
-            .expect("Reading the last commit should not fail");
+    ) -> ConsensusResult<()> {
+        let last_commit = self.store.read_last_commit()?;
         let last_commit_index = last_commit
             .as_ref()
             .map(|commit| commit.index())
@@ -277,7 +293,7 @@ impl CommitObserver {
         );
         if last_commit_index == 0 {
             info!("No commits to recover in commit observer");
-            return;
+            return Ok(());
         }
 
         // Phase 1: Resend all solid committed sub-dags that haven't been processed
@@ -286,17 +302,18 @@ impl CommitObserver {
             last_commit_index,
             source,
         )
-        .await;
+        .await?;
 
         // Phase 2: Recover linearizer and solidifier state
         // Skip if fast sync is ongoing - block data may not be available and
         // this will be reinitialized by fast commit syncer anyway
-        if self.store.read_fast_sync_ongoing() {
+        if self.store.read_fast_sync_ongoing()? {
             info!("Skipping linearizer/solidifier recovery - fast sync ongoing");
-            return;
+            return Ok(());
         }
         self.recover_linearizer_and_solidifier_state(last_commit_index, source)
-            .await;
+            .await?;
+        Ok(())
     }
 
     /// Recovers linearizer trackers from recent commits and seeds the
@@ -305,90 +322,109 @@ impl CommitObserver {
         &mut self,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
+    ) -> ConsensusResult<()> {
         let linearizer_recovery_start = last_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
         let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
         let recovery_start = linearizer_recovery_start.min(solidifier_recovery_start);
 
-        let recovery_commits = self
-            .store
-            .scan_commits((recovery_start..=last_commit_index).into())
-            .expect("Scanning commits should not fail");
-
         info!(
-            "Recovering linearizer/solidifier state from {} commits (indices {}..={})",
-            recovery_commits.len(),
-            recovery_start,
-            last_commit_index
+            "Recovering linearizer/solidifier state from commits {recovery_start}..={last_commit_index}"
         );
 
+        // Set the solidifier cursor exactly once. The solidifier advances
+        // last_solid_committed_index itself in try_get_solid_sub_dags, so it must
+        // not be reset per batch.
         self.commit_solidifier
             .set_last_solid_committed_index(self.last_sent_commit_index);
 
-        let mut pending_for_solidifier = Vec::new();
-        for commit in recovery_commits {
-            // Recovery only needs headers/acks, so reputation scores are irrelevant here.
-            let commit_index = commit.index();
-            let is_optimistic = commit.is_optimistic();
-            let pending_sub_dag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+        // Process in bounded batches so a large unprocessed range (e.g. when tx
+        // data lagged behind commits for a long period) is never materialized at
+        // once. Disjoint, ascending, contiguous batches feed the solidifier
+        // exactly as a single pass would.
+        let batch_size = self.context.parameters.commit_recovery_batch_size;
+        for start_index in (recovery_start..=last_commit_index).step_by(batch_size as usize) {
+            let end_index = start_index
+                .saturating_add(batch_size - 1)
+                .min(last_commit_index);
 
-            if commit_index >= linearizer_recovery_start {
-                // Rebuild traversed headers tracker
-                self.linearizer
-                    .record_traversed_headers(pending_sub_dag.headers.iter());
+            let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
+            if batch_commits.is_empty() {
+                break;
+            }
 
-                // Recover transaction acknowledgments tracker state
-                for ((round, authority_idx), transaction_acknowledgments) in
-                    pending_sub_dag.transaction_acknowledgments().into_iter()
-                {
-                    self.linearizer.add_committed_transaction_acks(
-                        round,
-                        authority_idx,
-                        transaction_acknowledgments,
-                    );
-                }
+            // Re-declared per batch so it stays bounded to the batch.
+            let mut pending_for_solidifier = Vec::new();
+            for commit in batch_commits {
+                // Recovery only needs headers/acks, so reputation scores are irrelevant here.
+                let commit_index = commit.index();
+                let is_optimistic = commit.is_optimistic();
+                let pending_sub_dag =
+                    load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
 
-                // Repopulate the ack tracker for transactions optimistically committed
-                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
-                // The full committee is used as a conservative over-approximation of
-                // the actual acknowledging set.
-                if is_optimistic {
-                    let leader_ref = pending_sub_dag.leader;
-                    let leader_header = pending_sub_dag
-                        .headers
-                        .iter()
-                        .find(|h| h.reference() == leader_ref)
-                        .expect("leader header must be present in pending sub-dag");
-                    let refs: Vec<BlockRef> = std::iter::once(leader_ref)
-                        .chain(leader_header.acknowledgments().iter().copied())
-                        .collect();
-                    for (authority_idx, _) in self.context.committee.authorities() {
-                        let _ = self.linearizer.add_committed_transaction_acks(
-                            leader_header.round() + 1,
+                if commit_index >= linearizer_recovery_start {
+                    // Rebuild traversed headers tracker
+                    self.linearizer
+                        .record_traversed_headers(pending_sub_dag.headers.iter());
+
+                    // Recover transaction acknowledgments tracker state
+                    for ((round, authority_idx), transaction_acknowledgments) in
+                        pending_sub_dag.transaction_acknowledgments().into_iter()
+                    {
+                        self.linearizer.add_committed_transaction_acks(
+                            round,
                             authority_idx,
-                            refs.clone(),
+                            transaction_acknowledgments,
                         );
                     }
+
+                    // Repopulate the ack tracker for transactions optimistically committed
+                    // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                    // The full committee is used as a conservative over-approximation of
+                    // the actual acknowledging set.
+                    if is_optimistic {
+                        let leader_ref = pending_sub_dag.leader;
+                        let leader_header = pending_sub_dag
+                            .headers
+                            .iter()
+                            .find(|h| h.reference() == leader_ref)
+                            .expect("leader header must be present in pending sub-dag");
+                        let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                            .chain(leader_header.acknowledgments().iter().copied())
+                            .collect();
+                        for (authority_idx, _) in self.context.committee.authorities() {
+                            let _ = self.linearizer.add_committed_transaction_acks(
+                                leader_header.round() + 1,
+                                authority_idx,
+                                refs.clone(),
+                            );
+                        }
+                    }
                 }
+
+                if commit_index >= solidifier_recovery_start {
+                    pending_for_solidifier.push(pending_sub_dag);
+                }
+
+                tokio::task::yield_now().await;
             }
 
-            if commit_index >= solidifier_recovery_start {
-                pending_for_solidifier.push(pending_sub_dag);
+            if !pending_for_solidifier.is_empty() {
+                let (solid_sub_dags, _missing) = self
+                    .commit_solidifier
+                    .try_get_solid_sub_dags(&pending_for_solidifier);
+                self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)?;
             }
 
+            if end_index == last_commit_index {
+                break;
+            }
+
+            // Yield between batches during a potentially long recovery.
             tokio::task::yield_now().await;
         }
-
-        if !pending_for_solidifier.is_empty() {
-            let (solid_sub_dags, _missing) = self
-                .commit_solidifier
-                .try_get_solid_sub_dags(&pending_for_solidifier);
-            self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)
-                .expect("We should successfully send solid commits during recovery");
-        }
+        Ok(())
     }
 
     /// Sends committed sub-dags through the channel.
@@ -457,7 +493,7 @@ impl CommitObserver {
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) {
+    ) -> ConsensusResult<()> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
 
@@ -465,23 +501,23 @@ impl CommitObserver {
             // last solid subdag in dag state so that fast sync knows where to start
             // fetching.
             if last_processed_commit_index > 0 {
-                if let Some(commit) = self
+                let commit = self
                     .store
                     .scan_commits(
                         (last_processed_commit_index..=last_processed_commit_index).into(),
-                    )
-                    .ok()
-                    .and_then(|commits| commits.into_iter().next())
-                {
+                    )?
+                    .into_iter()
+                    .next();
+                if let Some(commit) = commit {
                     if let Some(committed_subdag) =
-                        self.build_committed_subdag_from_commit(&commit, vec![])
+                        self.build_committed_subdag_from_commit(&commit, vec![])?
                     {
                         self.update_with_solid_subdags_and_flush(&[committed_subdag]);
                     }
                 }
             }
 
-            return;
+            return Ok(());
         }
 
         info!(
@@ -492,21 +528,26 @@ impl CommitObserver {
         // To avoid loading too many commits at once and causing OOM under stress
         // (e.g. when an authority quarantines commits for a long period), process
         // in bounded batches.
-        const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
-
+        let unhandled_commits_threshold = self.context.parameters.unhandled_commits_threshold();
+        let batch_size = self.context.parameters.commit_recovery_batch_size;
         let mut any_sent = false;
         let mut expected_commit_index = last_processed_commit_index;
-        for start_index in (last_processed_commit_index + 1..=last_commit_index)
-            .step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
+        for start_index in
+            (last_processed_commit_index + 1..=last_commit_index).step_by(batch_size as usize)
         {
+            // Pace on consumer progress like the commit syncers do: don't run
+            // more than unhandled_commits_threshold commits ahead of the
+            // consumer, so the consensus output channel stays bounded by the
+            // threshold instead of buffering the entire unprocessed backlog.
+            self.commit_consumer_monitor
+                .wait_until_handled_within(self.last_sent_commit_index, unhandled_commits_threshold)
+                .await;
+
             let end_index = start_index
-                .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
+                .saturating_add(batch_size - 1)
                 .min(last_commit_index);
 
-            let batch_commits = self
-                .store
-                .scan_commits((start_index..=end_index).into())
-                .expect("Scanning commits should not fail");
+            let batch_commits = self.store.scan_commits((start_index..=end_index).into())?;
 
             if batch_commits.is_empty() {
                 break;
@@ -536,7 +577,7 @@ impl CommitObserver {
                 };
 
                 let Some(committed_subdag) =
-                    self.build_committed_subdag_from_commit(&commit, reputation_scores)
+                    self.build_committed_subdag_from_commit(&commit, reputation_scores)?
                 else {
                     info!(
                         "Stopping resend at commit {} due to missing transactions",
@@ -551,8 +592,7 @@ impl CommitObserver {
 
             if !committed_subdags.is_empty() {
                 any_sent = true;
-                self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
-                    .expect("We should successfully send committed subdags during resend");
+                self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)?;
 
                 if let Some(last) = committed_subdags.last() {
                     self.context
@@ -576,17 +616,18 @@ impl CommitObserver {
         // last_solid_subdag_base from last_processed so fast sync
         // starts from the right position instead of index 0.
         if !any_sent && last_processed_commit_index > 0 {
-            if let Some(commit) = self
+            let commit = self
                 .store
-                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())
-                .ok()
-                .and_then(|commits| commits.into_iter().next())
-            {
-                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![]) {
+                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())?
+                .into_iter()
+                .next();
+            if let Some(commit) = commit {
+                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![])? {
                     self.update_with_solid_subdags_and_flush(&[subdag]);
                 }
             }
         }
+        Ok(())
     }
 
     /// Get all missing transactions from pending subdags along with authorities
@@ -1266,6 +1307,131 @@ mod tests {
         verify_channel_empty(&mut receiver);
     }
 
+    /// Recovery resend must pace itself on consumer progress: once the
+    /// last sent commit runs `unhandled_commits_threshold` ahead of the
+    /// consumer's highest handled commit, the next batch is sent only
+    /// after the consumer catches up.
+    #[tokio::test]
+    async fn test_recovery_resend_paced_by_consumer_progress() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+
+        // unhandled_commits_threshold = commit_sync_batch_size *
+        // commit_sync_batches_ahead = 3, matching the recovery batch size in
+        // tests, so recovery must wait for consumer progress between batches.
+        let (committee, _keypairs) =
+            starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
+        let metrics = crate::metrics::test_metrics();
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let clock = Arc::new(crate::context::Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            committee,
+            starfish_config::Parameters {
+                db_path: temp_dir.keep(),
+                commit_sync_batch_size: 3,
+                commit_sync_batches_ahead: 1,
+                commit_recovery_batch_size: 3,
+                ..Default::default()
+            },
+            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
+            metrics,
+            clock,
+        ));
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        // Produce 10 commits that the consumer never processes.
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+
+        let num_rounds = 10;
+        let mut builder = DagBuilder::new(context.clone());
+        builder
+            .layers(1..=num_rounds)
+            .build()
+            .persist_layers(dag_state.clone());
+        let leaders = builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+        observer
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .unwrap();
+        while receiver.try_recv().is_ok() {}
+        drop(observer);
+
+        // Restart with last processed index 0; recovery must resend all 10
+        // commits, paced on the consumer monitor.
+        let commit_consumer = CommitConsumer::new(sender, 0);
+        let monitor = commit_consumer.monitor();
+        let recovery = tokio::spawn(CommitObserver::new(
+            context,
+            commit_consumer,
+            dag_state,
+            mem_store,
+            leader_schedule,
+        ));
+
+        // Without consumer progress, only the first batch is sent before the
+        // producer runs threshold commits ahead of the consumer.
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![1, 2, 3]
+        );
+
+        monitor.set_highest_handled_commit(3);
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![4, 5, 6]
+        );
+
+        monitor.set_highest_handled_commit(6);
+        assert_eq!(
+            drain_resent_commit_indices(&mut receiver).await,
+            vec![7, 8, 9]
+        );
+
+        monitor.set_highest_handled_commit(9);
+        assert_eq!(drain_resent_commit_indices(&mut receiver).await, vec![10]);
+
+        let _observer = recovery.await.unwrap();
+        verify_channel_empty(&mut receiver);
+    }
+
+    /// Lets the recovery task run until it parks (waiting on consumer
+    /// progress) or completes, then returns the commit indices sent in the
+    /// meantime.
+    async fn drain_resent_commit_indices(
+        receiver: &mut UnboundedReceiver<CommittedSubDag>,
+    ) -> Vec<CommitIndex> {
+        let mut indices = Vec::new();
+        for _ in 0..64 {
+            tokio::task::yield_now().await;
+            while let Ok(subdag) = receiver.try_recv() {
+                indices.push(subdag.commit_ref.index);
+            }
+        }
+        indices
+    }
+
     /// After receiving all expected subdags, ensure channel is empty
     fn verify_channel_empty(receiver: &mut UnboundedReceiver<CommittedSubDag>) {
         match receiver.try_recv() {
@@ -1310,6 +1476,7 @@ mod tests {
             committee,
             starfish_config::Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             protocol_config,
@@ -1445,6 +1612,7 @@ mod tests {
             committee,
             starfish_config::Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
                 ..Default::default()
             },
             protocol_config,

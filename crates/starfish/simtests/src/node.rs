@@ -17,7 +17,7 @@ use eyre::Result;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommitDigest, CommitIndex,
@@ -101,7 +101,17 @@ impl AuthorityNode {
         config.boot_counter = current_boot_counter;
         config.db_dir = self.db_dir.lock().clone();
         config.last_processed_commit = last_processed;
-        *self.inner.lock() = Some(AuthorityNodeInner::spawn(config).await);
+
+        let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(commit_sender, last_processed);
+        let commit_consumer_monitor = commit_consumer.monitor();
+        // Consume commits while the node starts: commit observer recovery
+        // paces itself on consumer progress, so the consumer must already be
+        // draining the channel during startup.
+        self.spawn_committed_subdag_consumer(commit_receiver, commit_consumer_monitor.clone());
+
+        *self.inner.lock() =
+            Some(AuthorityNodeInner::spawn(config, commit_consumer, commit_consumer_monitor).await);
         Ok(())
     }
 
@@ -154,39 +164,35 @@ impl AuthorityNode {
     ///
     /// The spawned task runs until the commit receiver is closed (when the node
     /// stops), so the task handle is intentionally not stored.
-    ///
-    /// Must be called after `start()` to begin tracking commits.
-    pub fn spawn_committed_subdag_consumer(&self) -> Result<()> {
-        let inner = self.inner.lock();
-        if let Some(inner) = inner.as_ref() {
-            let mut commit_receiver = inner.take_commit_receiver();
-            let commit_consumer_monitor = inner.commit_consumer_monitor();
-            let commit_digests = self.commit_digests.clone();
-            let last_processed = self.last_processed_commit.clone();
-            let committed_transactions = self.committed_transactions.clone();
-            let _handle = tokio::spawn(async move {
-                while let Some(subdag) = commit_receiver.recv().await {
-                    // Store commit digest for consistency verification
-                    commit_digests
-                        .write()
-                        .await
-                        .insert(subdag.commit_ref.index, subdag.commit_ref.digest);
-                    // Track committed transactions
-                    for verified_txns in &subdag.transactions {
-                        for txn in verified_txns.transactions() {
-                            committed_transactions
-                                .write()
-                                .await
-                                .insert(txn.data().to_vec());
-                        }
+    fn spawn_committed_subdag_consumer(
+        &self,
+        mut commit_receiver: UnboundedReceiver<CommittedSubDag>,
+        commit_consumer_monitor: Arc<CommitConsumerMonitor>,
+    ) {
+        let commit_digests = self.commit_digests.clone();
+        let last_processed = self.last_processed_commit.clone();
+        let committed_transactions = self.committed_transactions.clone();
+        let _handle = tokio::spawn(async move {
+            while let Some(subdag) = commit_receiver.recv().await {
+                // Store commit digest for consistency verification
+                commit_digests
+                    .write()
+                    .await
+                    .insert(subdag.commit_ref.index, subdag.commit_ref.digest);
+                // Track committed transactions
+                for verified_txns in &subdag.transactions {
+                    for txn in verified_txns.transactions() {
+                        committed_transactions
+                            .write()
+                            .await
+                            .insert(txn.data().to_vec());
                     }
-                    // Track last processed for persistent DB restarts
-                    last_processed.store(subdag.commit_ref.index, Ordering::SeqCst);
-                    commit_consumer_monitor.set_highest_handled_commit(subdag.commit_ref.index);
                 }
-            });
-        }
-        Ok(())
+                // Track last processed for persistent DB restarts
+                last_processed.store(subdag.commit_ref.index, Ordering::SeqCst);
+                commit_consumer_monitor.set_highest_handled_commit(subdag.commit_ref.index);
+            }
+        });
     }
 
     pub fn commit_consumer_monitor(&self) -> Arc<CommitConsumerMonitor> {
@@ -269,7 +275,6 @@ pub(crate) struct AuthorityNodeInner {
     handle: Option<NodeHandle>,
     cancel_sender: Option<tokio::sync::watch::Sender<bool>>,
     consensus_authority: Option<ConsensusAuthority>,
-    commit_receiver: ArcSwapOption<UnboundedReceiver<CommittedSubDag>>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 }
 
@@ -293,7 +298,11 @@ impl Drop for AuthorityNodeInner {
 
 impl AuthorityNodeInner {
     /// Spawn a new Node.
-    pub async fn spawn(config: Config) -> Self {
+    pub async fn spawn(
+        config: Config,
+        commit_consumer: CommitConsumer,
+        commit_consumer_monitor: Arc<CommitConsumerMonitor>,
+    ) -> Self {
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
         let (cancel_sender, cancel_receiver) = tokio::sync::watch::channel(false);
 
@@ -308,6 +317,7 @@ impl AuthorityNodeInner {
         };
         let init_receiver_swap = Arc::new(ArcSwapOption::empty());
         let int_receiver_swap_clone = init_receiver_swap.clone();
+        let commit_consumer = Arc::new(Mutex::new(Some(commit_consumer)));
 
         let node = builder
             .ip(ip)
@@ -318,17 +328,18 @@ impl AuthorityNodeInner {
                 let mut cancel_receiver = cancel_receiver.clone();
                 let init_receiver_swap_clone = int_receiver_swap_clone.clone();
                 let startup_sender_clone = startup_sender.clone();
+                let commit_consumer = commit_consumer.clone();
 
                 async move {
-                    let (consensus_authority, commit_receiver, commit_consumer_monitor) =
-                        super::node::make_authority(config).await;
+                    let commit_consumer = commit_consumer
+                        .lock()
+                        .take()
+                        .expect("the node init closure runs once per spawn");
+                    let consensus_authority =
+                        super::node::make_authority(config, commit_consumer).await;
 
                     startup_sender_clone.send(true).ok();
-                    init_receiver_swap_clone.store(Some(Arc::new((
-                        consensus_authority,
-                        commit_receiver,
-                        commit_consumer_monitor,
-                    ))));
+                    init_receiver_swap_clone.store(Some(Arc::new(consensus_authority)));
 
                     // run until canceled
                     loop {
@@ -343,21 +354,18 @@ impl AuthorityNodeInner {
 
         startup_receiver.changed().await.unwrap();
 
-        let Some(init_tuple) = init_receiver_swap.swap(None) else {
+        let Some(init_authority) = init_receiver_swap.swap(None) else {
             panic!("Components should be initialised by now");
         };
 
-        let Ok((consensus_authority, commit_receiver, commit_consumer_monitor)) =
-            Arc::try_unwrap(init_tuple)
-        else {
-            panic!("commit receiver still in use");
+        let Ok(consensus_authority) = Arc::try_unwrap(init_authority) else {
+            panic!("consensus authority still in use");
         };
 
         Self {
             handle: Some(NodeHandle { node_id: node.id() }),
             cancel_sender: Some(cancel_sender),
             consensus_authority: Some(consensus_authority),
-            commit_receiver: ArcSwapOption::new(Some(Arc::new(commit_receiver))),
             commit_consumer_monitor,
         }
     }
@@ -376,18 +384,6 @@ impl AuthorityNodeInner {
         }
     }
 
-    pub fn take_commit_receiver(&self) -> UnboundedReceiver<CommittedSubDag> {
-        if let Some(commit_receiver) = self.commit_receiver.swap(None) {
-            let Ok(commit_receiver) = Arc::try_unwrap(commit_receiver) else {
-                panic!("commit receiver still in use");
-            };
-
-            commit_receiver
-        } else {
-            panic!("commit receiver already taken");
-        }
-    }
-
     pub fn commit_consumer_monitor(&self) -> Arc<CommitConsumerMonitor> {
         self.commit_consumer_monitor.clone()
     }
@@ -402,11 +398,8 @@ impl AuthorityNodeInner {
 
 pub(crate) async fn make_authority(
     config: Config,
-) -> (
-    ConsensusAuthority,
-    UnboundedReceiver<CommittedSubDag>,
-    Arc<CommitConsumerMonitor>,
-) {
+    commit_consumer: CommitConsumer,
+) -> ConsensusAuthority {
     let Config {
         authority_index,
         db_dir,
@@ -416,7 +409,7 @@ pub(crate) async fn make_authority(
         boot_counter,
         clock_drift,
         protocol_config,
-        last_processed_commit,
+        last_processed_commit: _,
     } = config;
 
     let registry = Registry::new();
@@ -436,12 +429,7 @@ pub(crate) async fn make_authority(
     let protocol_keypair = keypairs[authority_index].1.clone();
     let network_keypair = keypairs[authority_index].0.clone();
 
-    let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
-
-    let commit_consumer = CommitConsumer::new(commit_sender, last_processed_commit);
-    let commit_consumer_monitor = commit_consumer.monitor();
-
-    let authority = ConsensusAuthority::start(
+    ConsensusAuthority::start(
         0,
         authority_index,
         committee,
@@ -455,7 +443,5 @@ pub(crate) async fn make_authority(
         registry,
         boot_counter,
     )
-    .await;
-
-    (authority, commit_receiver, commit_consumer_monitor)
+    .await
 }

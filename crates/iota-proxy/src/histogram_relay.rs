@@ -12,7 +12,7 @@ use std::{
 use anyhow::{Result, bail};
 use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use once_cell::sync::Lazy;
-use prometheus::{
+use prometheus_filtered::{
     CounterVec, HistogramVec,
     proto::{Metric, MetricFamily},
     register_counter_vec, register_histogram_vec,
@@ -154,7 +154,7 @@ impl HistogramRelay {
             queue.len()
         );
 
-        let encoder = prometheus::TextEncoder::new();
+        let encoder = prometheus_filtered::TextEncoder::new();
         let string = match encoder.encode_to_string(&histograms) {
             Ok(s) => s,
             Err(error) => bail!("{error}"),
@@ -196,7 +196,7 @@ fn extract_histograms(data: Vec<MetricFamily>) -> impl Iterator<Item = MetricFam
 
 #[cfg(test)]
 mod tests {
-    use prometheus::proto;
+    use prometheus_filtered::proto;
 
     use crate::{
         histogram_relay::extract_histograms,

@@ -9,7 +9,7 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::VerifiedCertificate,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_core::BlockRef;
 use tokio::{
     sync::{mpsc, oneshot},

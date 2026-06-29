@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ProgressStore};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
 
 use crate::IndexerError;

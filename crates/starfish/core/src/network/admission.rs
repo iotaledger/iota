@@ -15,7 +15,7 @@ use std::{
 };
 
 use futures::Stream;
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 

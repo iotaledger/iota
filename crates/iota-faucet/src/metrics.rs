@@ -9,7 +9,7 @@
 use std::time::Duration;
 
 use iota_network_stack::metrics::MetricsCallbackProvider;
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
