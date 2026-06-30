@@ -34,6 +34,34 @@ use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{dag_state::DataSource, metrics::Metrics};
 
+impl DataSource {
+    /// Number of distinct fetch sources tracked for peer responsiveness.
+    pub(crate) const RESPONSIVENESS_COUNT: usize = 4;
+
+    /// Fetch sources tracked for peer-responsiveness ranking, in index order.
+    /// Only outbound, peer-selecting fetches; other sources have no peer to
+    /// rank.
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; Self::RESPONSIVENESS_COUNT] = [
+        DataSource::TransactionSynchronizer,
+        DataSource::CommitSyncer,
+        DataSource::FastCommitSyncer,
+        DataSource::HeaderSynchronizer,
+    ];
+
+    /// Dense index into the per-peer responsiveness tracker, defined only for
+    /// the sources in [`Self::RESPONSIVENESS_SOURCES`]; `None` for sources with
+    /// no peer to rank (own block, recovery, streaming, shard reconstruction).
+    pub(crate) fn responsiveness_index(&self) -> Option<usize> {
+        Some(match self {
+            DataSource::TransactionSynchronizer => 0,
+            DataSource::CommitSyncer => 1,
+            DataSource::FastCommitSyncer => 2,
+            DataSource::HeaderSynchronizer => 3,
+            _ => return None,
+        })
+    }
+}
+
 /// Probability that a `prioritize` call ignores ranking and returns a uniform
 /// shuffle, applied uniformly to every fetch kind. Guarantees every eligible
 /// peer keeps a floor probability of being tried early regardless of its rank,
