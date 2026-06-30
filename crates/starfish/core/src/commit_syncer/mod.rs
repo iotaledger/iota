@@ -597,22 +597,20 @@ where
                     // requested commits. A response is capped at
                     // `max_commits_per_response`, so the requested count is
                     // clamped to that cap; the unreturned tail is requeued, not
-                    // a goodput failure.
+                    // a goodput failure. The delivered count is floored at 1: a
+                    // verified response always carries at least one commit, and
+                    // the floor keeps a degenerate empty response at the maximal
+                    // shortfall penalty rather than crediting it.
                     let requested = commit_range
                         .size()
                         .min(inner.sync_type.max_commits_per_response(&inner.context));
-                    let delivered = delivered_commits_fn(&data);
-                    let latency = started.elapsed();
-                    if delivered == 0 {
-                        responsiveness.record_success(fetch_kind, authority, latency);
-                    } else {
-                        let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
-                        responsiveness.record_success(
-                            fetch_kind,
-                            authority,
-                            latency.mul_f64(shortfall_factor),
-                        );
-                    }
+                    let delivered = delivered_commits_fn(&data).max(1);
+                    let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
+                    responsiveness.record_success(
+                        fetch_kind,
+                        authority,
+                        started.elapsed().mul_f64(shortfall_factor),
+                    );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
