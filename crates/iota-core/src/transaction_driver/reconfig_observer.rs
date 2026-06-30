@@ -21,7 +21,7 @@ use crate::{
 };
 
 #[async_trait]
-pub trait ReconfigObserver<A: Clone> {
+pub trait ReconfigObserver<A> {
     async fn run(&mut self, epoch_updatable: Arc<dyn AuthorityAggregatorUpdatable<A>>);
     fn clone_boxed(&self) -> Box<dyn ReconfigObserver<A> + Send + Sync>;
 }

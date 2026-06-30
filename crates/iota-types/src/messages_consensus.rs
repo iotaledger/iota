@@ -56,6 +56,7 @@ pub enum ConsensusTransactionKey {
     ),
     /// P-COOL user transaction key (by transaction digest).
     UserTransaction(TransactionDigest),
+    OverloadNotificationV1(AuthorityName, u64 /* generation */),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -97,6 +98,13 @@ impl Debug for ConsensusTransactionKey {
                 )
             }
             Self::UserTransaction(digest) => write!(f, "UserTransaction({digest:?})"),
+            Self::OverloadNotificationV1(name, generation) => {
+                write!(
+                    f,
+                    "OverloadNotificationV1({:?}, gen={generation:?})",
+                    name.concise()
+                )
+            }
         }
     }
 }
@@ -239,6 +247,11 @@ pub enum ConsensusTransactionKind {
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
     UserTransactionV1(Box<Transaction>),
+    OverloadNotificationV1(
+        AuthorityName,
+        u64, // generation
+        u8,  // percentage
+    ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -552,6 +565,37 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_overload_notification_v1(
+        authority: AuthorityName,
+        load_shedding_percentage: u8,
+    ) -> Self {
+        // Wall-clock millis-since-epoch is used purely as a unique-per-submission
+        // disambiguator in the consensus transaction key, mirroring
+        // `AuthorityCapabilitiesV1::new`, because `consensus_message_processed`
+        // dedups by key for the full epoch.
+        // The receive side uses the percentage value directly; the generation is only
+        // for key uniqueness, not for ordering (consensus already orders deliveries).
+        let generation: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        let mut hasher = DefaultHasher::new();
+        authority.hash(&mut hasher);
+        generation.hash(&mut hasher);
+        load_shedding_percentage.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::OverloadNotificationV1(
+                authority,
+                generation,
+                load_shedding_percentage,
+            ),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -601,6 +645,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::UserTransactionV1(tx) => {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, generation, _) => {
+                ConsensusTransactionKey::OverloadNotificationV1(*authority, *generation)
             }
         }
     }

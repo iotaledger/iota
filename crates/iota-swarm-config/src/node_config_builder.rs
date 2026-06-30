@@ -151,6 +151,7 @@ impl ValidatorConfigBuilder {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             parameters: Default::default(),
+            graduated_load_shedding_soft_limit_pct: Default::default(),
         };
 
         let p2p_config = P2pConfig {
@@ -231,6 +232,7 @@ impl ValidatorConfigBuilder {
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
+            enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: None,
@@ -582,6 +584,9 @@ impl FullnodeConfigBuilder {
             execution_cache_config: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
+            // No effect on a fullnode (soft-locking runs only in the validator
+            // submit path); kept at the default so the config mirrors production.
+            enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
