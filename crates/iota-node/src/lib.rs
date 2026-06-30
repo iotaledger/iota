@@ -171,7 +171,7 @@ pub struct ValidatorComponents {
     /// via a `Weak` reference; this handle exists purely for ownership clarity.
     soft_lock_sweep_handle: JoinHandle<()>,
     overload_notifier_handle: Option<JoinHandle<()>>,
-    consensus_manager: ConsensusManager,
+    consensus_manager: Arc<ConsensusManager>,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
     soft_locks: Arc<PreConsensusSoftLocks>,
@@ -1224,13 +1224,13 @@ impl IotaNode {
             client.clone(),
             checkpoint_store.clone(),
         ));
-        let consensus_manager = ConsensusManager::new(
+        let consensus_manager = Arc::new(ConsensusManager::new(
             &config,
             consensus_config,
             registry_service,
             &validator_registry,
             client,
-        );
+        ));
 
         // This only gets started up once, not on every epoch. (Make call to remove
         // every epoch.)
@@ -1350,7 +1350,7 @@ impl IotaNode {
         epoch_store: Arc<AuthorityPerEpochStore>,
         state_sync_handle: state_sync::Handle,
         randomness_handle: randomness::Handle,
-        consensus_manager: ConsensusManager,
+        consensus_manager: Arc<ConsensusManager>,
         consensus_store_pruner: ConsensusStorePruner,
         global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
@@ -1410,25 +1410,39 @@ impl IotaNode {
             backpressure_manager,
         );
 
-        info!("Starting consensus manager");
+        info!("Starting consensus manager asynchronously");
 
-        consensus_manager
-            .start(
-                config,
+        // Spawn consensus startup asynchronously to avoid blocking other components
+        tokio::spawn({
+            let config = config.clone();
+            let epoch_store = epoch_store.clone();
+            let iota_tx_validator = IotaTxValidator::new(
                 epoch_store.clone(),
-                consensus_handler_initializer,
-                IotaTxValidator::new(
-                    epoch_store.clone(),
-                    checkpoint_service.clone(),
-                    state.transaction_manager().clone(),
-                    iota_tx_validator_metrics.clone(),
-                ),
-            )
-            .await;
-        let consensus_replay_waiter = consensus_manager.replay_waiter();
+                checkpoint_service.clone(),
+                state.transaction_manager().clone(),
+                iota_tx_validator_metrics.clone(),
+            );
+            let consensus_manager = consensus_manager.clone();
+            async move {
+                consensus_manager
+                    .start(
+                        &config,
+                        epoch_store,
+                        consensus_handler_initializer,
+                        iota_tx_validator,
+                    )
+                    .await;
+            }
+        });
+        let replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let checkpoint_service_tasks = checkpoint_service.spawn(consensus_replay_waiter).await;
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
+            None
+        } else {
+            Some(replay_waiter)
+        };
+        let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
 
         let overload_notifier_handle = Self::start_overload_notifier(
             config,

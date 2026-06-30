@@ -173,7 +173,7 @@ impl HardwareMetrics {
         Self::uint_gauge(
             "cpu_core_count",
             "CPU core count (and labels: model,vendor_id,arch)",
-            system.physical_core_count().unwrap_or_default() as u64,
+            System::physical_core_count().unwrap_or_default() as u64,
             &[
                 Some(Self::label("model", Self::cpu_model(system))),
                 Some(Self::label("vendor_id", Self::cpu_vendor_id(system))),

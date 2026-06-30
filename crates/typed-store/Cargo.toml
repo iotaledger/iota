@@ -17,11 +17,13 @@ eyre.workspace = true
 fastcrypto.workspace = true
 fdlimit = "0.2.1"
 hdrhistogram = "7.5.1"
+num_cpus.workspace = true
 once_cell.workspace = true
 ouroboros = "0.18"
 rand.workspace = true
 rocksdb = { version = "0.24.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf", "bindgen-runtime"] }
 serde.workspace = true
+sysinfo.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tracing.workspace = true

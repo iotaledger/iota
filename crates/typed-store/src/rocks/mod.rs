@@ -27,7 +27,8 @@ use typed_store_error::TypedStoreError;
 pub use crate::{
     database::{DBBatch, DBMap, MetricConf},
     rocks::options::{
-        DBMapTableConfigMap, DBOptions, ReadWriteOptions, default_db_options, list_tables,
+        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
+        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
         read_size_from_env,
     },
 };
@@ -52,6 +53,8 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,
+    /// Names of all column families opened on this database.
+    pub(crate) cf_names: Vec<String>,
 }
 
 impl Drop for RocksDB {
@@ -125,6 +128,7 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
         options.create_if_missing(true);
         options.create_missing_column_families(true);
+        let cf_names: Vec<String> = cfs.iter().map(|(name, _)| name.clone()).collect();
         let rocksdb = {
             rocksdb::DBWithThreadMode::<MultiThreaded>::open_cf_descriptors(
                 &options,
@@ -137,6 +141,7 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
+                cf_names,
             }),
             metric_conf,
         )))
@@ -200,9 +205,11 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
                 .map_err(typed_store_err_from_rocks_err)?;
             db
         };
+        let cf_names: Vec<String> = opt_cfs.keys().map(|name| name.to_string()).collect();
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
+                cf_names,
             }),
             metric_conf,
         )))
