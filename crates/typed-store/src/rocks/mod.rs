@@ -73,7 +73,12 @@ pub(crate) fn rocks_cf<'a>(
 // Check if the database is corrupted, and if so, panic.
 // If the corrupted key is not set, we set it to [1].
 pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
-    let db = rocksdb::DB::open_default(path).map_err(|e| e.to_string())?;
+    // rocksdb spawns its background threads when the DB is opened; under the
+    // simulator that open must run off the test thread, or the threads are
+    // scheduled against the simulated clock and then run against the real one,
+    // aborting periodic-task registration. Only the open needs the guard — the
+    // get/put below spawn no threads. See `open_cf_opts`. No-op outside msim.
+    let db = nondeterministic!(rocksdb::DB::open_default(path)).map_err(|e| e.to_string())?;
 
     db.get(DB_CORRUPTED_KEY)
         .map_err(|e| format!("Failed to open database: {e}"))
@@ -92,7 +97,8 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
 }
 
 pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
-    rocksdb::DB::open_default(path)?.put(DB_CORRUPTED_KEY, [0])
+    // See `check_and_mark_db_corruption` for why the open runs off the test thread.
+    nondeterministic!(rocksdb::DB::open_default(path))?.put(DB_CORRUPTED_KEY, [0])
 }
 
 /// Opens a database with options, and a number of column families with
