@@ -24,7 +24,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    iota_sdk_types_conversions::{identifier_sdk_to_core, type_tag_core_to_sdk},
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -1501,8 +1501,7 @@ impl IotaExecutionStatus {
 
                     let module_id = ModuleId::new(
                         AccountAddress::from(location.package.into_bytes()),
-                        move_core_types::identifier::Identifier::new(location.module.as_str())
-                            .unwrap(),
+                        identifier_sdk_to_core(&location.module),
                     );
 
                     let Some(CleverError {
@@ -2075,10 +2074,7 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(cmd) => {
-                    // Unsafe: `cmd.module` is an already validated `Identifier`
-                    let module = unsafe {
-                        move_core_types::identifier::Identifier::new_unchecked(cmd.module.as_str())
-                    };
+                    let module = identifier_sdk_to_core(&cmd.module);
                     let id = ModuleId::new(AccountAddress::new(cmd.package.into_bytes()), module);
                     let Some(types) = get_signature_types(id, &cmd.function, module_cache) else {
                         return result_types;

@@ -13,7 +13,7 @@ use iota_macros::EnumVariantOrder;
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_types::{
     error::{IotaError, UserInputError},
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    iota_sdk_types_conversions::{identifier_core_to_sdk, struct_tag_core_to_sdk},
 };
 use itertools::Itertools;
 use move_binary_format::{
@@ -496,7 +496,7 @@ impl From<MoveValue> for IotaMoveValue {
                 let type_ = struct_tag_core_to_sdk(type_);
                 let fields = fields
                     .iter()
-                    .map(|(id, value)| (Identifier::new_unchecked(id.as_str()), value.clone()))
+                    .map(|(id, value)| (identifier_core_to_sdk(id), value.clone()))
                     .collect::<Vec<_>>();
                 if let Some(value) = try_convert_type(&type_, &fields) {
                     return value;
