@@ -204,7 +204,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) last_known_own_block_header_round: IntGauge,
     pub(crate) sync_last_known_own_block_header_retries: IntCounter,
     pub(crate) commit_round_advancement_interval: Histogram,
-    pub(crate) last_decided_leader_round: IntGauge,
+    pub(crate) last_finalized_leader_round: IntGauge,
     pub(crate) missing_block_headers_total: IntCounter,
     pub(crate) missing_block_headers_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
@@ -838,9 +838,9 @@ impl NodeMetrics {
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            last_decided_leader_round: register_int_gauge_with_registry!(
-                "last_decided_leader_round",
-                "The last round where a commit decision was made.",
+            last_finalized_leader_round: register_int_gauge_with_registry!(
+                "last_finalized_leader_round",
+                "The round of the last finalized leader.",
                 registry,
             ).unwrap(),
             missing_block_headers_total: register_int_counter_with_registry!(
