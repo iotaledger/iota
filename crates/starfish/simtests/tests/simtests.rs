@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![cfg_attr(not(test), expect(unused))]
-
 #[cfg(msim)]
 mod test {
     use std::{
@@ -26,11 +24,10 @@ mod test {
         Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
     };
     use starfish_core::transaction::BlockStatus;
+    use starfish_simtests::node::{AuthorityNode, Config, RestartMode};
     use tempfile::TempDir;
     use tokio::{sync::RwLock, time::sleep};
     use typed_store::DBMetrics;
-
-    use crate::node::{AuthorityNode, Config, RestartMode};
 
     fn test_config() -> SimConfig {
         env_config(
@@ -286,7 +283,6 @@ mod test {
                 db_dir: Arc::new(TempDir::new().unwrap()),
                 committee: committee.clone(),
                 keypairs: keypairs.clone(),
-                network_type: iota_protocol_config::ConsensusNetwork::Tonic,
                 boot_counter: 0,
                 protocol_config: protocol_config.clone(),
                 clock_drift: clock_drifts[authority_index.value()],
