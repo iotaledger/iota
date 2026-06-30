@@ -264,6 +264,10 @@ def main() -> None:
             # Resolve the load image up front (pull, else build from the
             # network-benchmark clone) instead of surprising the run mid-way.
             ec.ensure_stress_image(cfg.spammer_image)
+        if cfg.spammer_enable and cfg.spammer_type == "iota-spammer":
+            # Check the script exists before bringing up the network; surfaces
+            # a misconfigured spammer in seconds instead of ~5 min in.
+            ec.ensure_iota_spammer_script()
         if not cfg.build:
             ec.require_local_image(
                 cfg.image,

@@ -797,6 +797,7 @@ def start_grafana(grafana_dir: Path, override_file: str | None = None) -> None:
     run_timed(cmd, "Starting monitoring stack", cwd=grafana_dir)
     print()
     log(f"  Grafana: {_C.CYAN}http://localhost:3000/dashboards{_C.RESET}")
+    log(f"  StarfishOverview: {_C.CYAN}http://localhost:3000/d/StarfishOverview{_C.RESET}")
     log(f"  Prometheus: {_C.CYAN}http://localhost:9090/targets{_C.RESET}")
 
 
@@ -941,6 +942,23 @@ def _update_or_clone_benchmark_repo() -> None:
     run_timed(
         ["git", "clone", NETWORK_BENCHMARK_REPO, str(NETWORK_BENCHMARK_DIR)],
         "Cloning network-benchmark", check=False,
+    )
+
+
+def ensure_iota_spammer_script() -> None:
+    """Verify the iota-spammer fuzz script is reachable BEFORE the network
+    comes up. Mirrors `ensure_stress_image` for the iota-spammer backend:
+    skipping the check leaves the run to fail in `start_spammer` ~5 minutes
+    in, after bootstrap + validator startup. The script lives in a separate
+    private repo, so a missing checkout is a likely-enough misconfiguration
+    to be worth surfacing up front."""
+    script = Path.home() / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
+    if script.is_file():
+        return
+    raise RuntimeError(
+        f"iota-spammer spammer requested but script not found at {script}; "
+        "clone github.com/iotaledger/iota-spammer to ~/iota-spammer "
+        "or select the stress backend (-C stress)"
     )
 
 
