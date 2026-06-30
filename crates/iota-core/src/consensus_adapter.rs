@@ -249,7 +249,7 @@ pub struct ConsensusAdapter {
     /// The hard limit on the number of inflight transactions at this node.
     /// Used as the upper bound for graduated pre-consensus load shedding
     /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
-    /// (pcool / white-flag) mode, and as the threshold for the binary
+    /// (P-COOL) mode, and as the threshold for the binary
     /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
     /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
@@ -286,8 +286,7 @@ pub struct ConsensusAdapter {
     /// limit at which graduated pre-consensus load shedding begins. When
     /// in-flight transactions are at or below the soft limit, no shedding
     /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
-    /// `max_pending_transactions`. Used in the certificate-less (pcool /
-    /// white-flag) mode.
+    /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
     graduated_load_shedding_soft_limit_pct: u32,
 }
 
@@ -651,7 +650,7 @@ impl ConsensusAdapter {
     /// Returns the percentage of `max_pending_transactions` (hard limit)
     /// defining the soft limit at which graduated pre-consensus load
     /// shedding begins. Defaults to 50%. Used in the certificate-less
-    /// (pcool / white-flag) mode.
+    /// (P-COOL) mode.
     pub(super) fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
         self.graduated_load_shedding_soft_limit_pct
     }
@@ -675,7 +674,7 @@ impl ConsensusAdapter {
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
     fn check_consensus_hard_limits(&self) -> bool {
         // First check total in-flight transactions (waiting and in submission).
-        // TODO: this check is redundant in the white-flag flow - graduated
+        // TODO: this check is redundant in the P-COOL flow - graduated
         // shedding already rejects at 100% once `num_inflight_transactions`
         // reaches `max_pending_transactions`. Remove when the certificate-based
         // flow is removed from the codebase. The semaphore check below stays in

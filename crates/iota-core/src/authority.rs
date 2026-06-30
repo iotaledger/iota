@@ -329,7 +329,7 @@ pub struct AuthorityMetrics {
     /// Stake-weighted quorum (2f+1) load shedding percentage enforced on user
     /// transactions in the most recent consensus commit. This is the cluster
     /// value actually applied post-consensus, as opposed to this authority's
-    /// own `authority_load_shedding_percentage`. 0 when the white-flag flow is
+    /// own `authority_load_shedding_percentage`. 0 when the P-COOL flow is
     /// disabled.
     pub consensus_handler_load_shedding_percentage: IntGauge,
     pub consensus_handler_max_object_costs: IntGaugeVec,
@@ -571,7 +571,7 @@ impl AuthorityMetrics {
                 .unwrap(),
             local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
-                "This authority's locally computed load shedding percentage. In the white-flag flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
+                "This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
                 registry)
                 .unwrap(),
             consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
@@ -760,7 +760,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_handler_load_shedding_percentage",
-                "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the white-flag flow is disabled.",
+                "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the P-COOL flow is disabled.",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
@@ -1216,7 +1216,7 @@ impl AuthorityState {
 
     /// Checks system overload conditions before accepting a transaction.
     ///
-    /// In certificate-less (white-flag) mode: only checks consensus
+    /// In certificate-less (P-COOL) mode: only checks consensus
     /// queue overload, since execution-based overload will be handled
     /// post-consensus.
     ///
@@ -1228,9 +1228,9 @@ impl AuthorityState {
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx_data: &SenderSignedData,
         do_authority_overload_check: bool,
-        white_flag_flow_enabled: bool,
+        pcool_flow_enabled: bool,
     ) -> IotaResult {
-        if white_flag_flow_enabled {
+        if pcool_flow_enabled {
             // Graduated shedding: 0% to 100% as consensus queue fills from soft
             // to hard limit.
             self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
