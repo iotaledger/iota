@@ -492,7 +492,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // - Fetching block headers referenced by the commits
         // - Time spent on pipelining requests
         // - Headroom to allow fetch_once() to timeout gracefully
-        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once).await
+        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once, |commits| {
+            commits.commits().len()
+        })
+        .await
     }
 
     // Fetches commits and blocks from a single authority. At a high level, first

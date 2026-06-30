@@ -541,7 +541,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
+        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once, |output| {
+            output.commits.len()
+        })
+        .await
     }
 
     // Fetches commits and transactions from a single authority.
