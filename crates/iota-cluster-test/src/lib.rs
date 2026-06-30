@@ -103,6 +103,10 @@ impl TestContext {
         self.cluster.fullnode_url()
     }
 
+    fn get_fullnode_grpc_url(&self) -> Option<&str> {
+        self.cluster.grpc_url()
+    }
+
     fn get_wallet(&self) -> &WalletContext {
         self.client.get_wallet()
     }

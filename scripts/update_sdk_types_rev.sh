@@ -61,10 +61,10 @@ update_file() {
     local file="$1"
     update_rev iota-sdk-types "$file"
     update_rev iota-sdk-crypto "$file"
+    update_rev iota-sdk-transaction-builder "$file"
     update_rev iota-sdk-grpc-types "$file"
     update_rev iota-sdk-grpc-client "$file"
     update_rev iota-sdk-graphql-client "$file"
-    update_rev iota-sdk-transaction-builder "$file"
 }
 
 echo "New rev: $NEW_REV"
