@@ -20,11 +20,14 @@
 //! still fully verified, so a peer that merely appears fast is never trusted to
 //! deliver.
 //!
-//! Ranking is resistant to gaming: an exploration fraction of selections is a
-//! plain uniform shuffle, equally-ranked peers are shuffled, and failures set a
-//! timeout-scale score while successes recover through EWMA, so no peer can
-//! monopolize selection and a peer that stalls or returns nothing after looking
-//! fast is quickly demoted and rotated past.
+//! Selection is a weighted random permutation: a candidate's probability of
+//! being tried first is proportional to a power of its inverse effective
+//! latency, so a clearly faster peer is very likely picked yet none is
+//! guaranteed. An exploration fraction of selections ignores ranking and
+//! shuffles uniformly, and failures set a timeout-scale score while successes
+//! recover through EWMA, so no peer can monopolize selection and a peer that
+//! stalls or returns nothing after looking fast is quickly demoted and rotated
+//! past.
 
 use std::{sync::Arc, time::Duration};
 
@@ -69,17 +72,15 @@ impl DataSource {
 /// keeps every peer's measurement fresh.
 const EXPLORE_PROBABILITY: f64 = 0.05;
 
-/// A candidate is "fast" when its effective latency is within this multiple of
-/// the fastest candidate's.
-const FAST_BUCKET_RATIO: f64 = 1.5;
+/// Exponent applied to inverse effective latency to form a peer's selection
+/// weight: `weight = (1 / latency)^SELECTION_SHARPNESS`. At 1 selection is
+/// literally proportional to inverse latency; higher values make a clearly
+/// faster peer dominate more decisively while a small edge still spreads load.
+const SELECTION_SHARPNESS: f64 = 2.0;
 
-/// A candidate is "medium" when within this multiple of the fastest; beyond it
-/// the candidate is "slow".
-const MEDIUM_BUCKET_RATIO: f64 = 3.0;
-
-/// Floor applied to every latency sample (ms). Keeps the fastest-candidate
-/// reference strictly positive so bucketing can never divide-by-zero or let a
-/// near-zero sample collapse all ratios.
+/// Floor applied to every latency sample (ms). Keeps effective latency strictly
+/// positive so a selection weight can never divide-by-zero or let a near-zero
+/// sample produce an unbounded weight.
 const MIN_LATENCY_MS: f64 = 1.0;
 
 /// Effective latency (ms) assigned to a peer with no samples yet. Sits between
@@ -92,11 +93,9 @@ const NEUTRAL_LATENCY_MS: f64 = 250.0;
 /// purpose: large enough to demote a failing peer below the responsive ones,
 /// small enough that a peer recovering at the network layer climbs back within
 /// a bounded number of successful fetches rather than being stuck in a penalty
-/// box.
-///
-/// Must stay above `MEDIUM_BUCKET_RATIO * NEUTRAL_LATENCY_MS` so that a single
-/// failure lands a peer in the "slow" bucket even when every other candidate is
-/// untried (neutral); keep these three constants tuned together.
+/// box. Large enough that a single failure gives a peer a much smaller
+/// selection weight than a responsive one, even when every other candidate is
+/// untried (neutral).
 const FAILURE_PENALTY_MS: f64 = 1_500.0;
 
 /// EWMA weight for a successful sample. Small, so the score is "slow to
@@ -224,7 +223,7 @@ impl PeerResponsiveness {
             Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        self.publish_bucket_counts(source, &snapshot);
+        self.publish_expected_latencies(source, &snapshot);
     }
 
     fn update_failure(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
@@ -245,7 +244,7 @@ impl PeerResponsiveness {
             Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        self.publish_bucket_counts(source, &snapshot);
+        self.publish_expected_latencies(source, &snapshot);
     }
 
     fn update_bootstrap(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
@@ -265,17 +264,20 @@ impl PeerResponsiveness {
             Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        self.publish_bucket_counts(source, &snapshot);
+        self.publish_expected_latencies(source, &snapshot);
     }
 
-    /// Reorders `candidates` in place to prefer peers that have been more
-    /// responsive for `source`, keeping the set itself unchanged (the output is
-    /// a permutation of the input: never adds or drops a peer).
+    /// Reorders `candidates` in place into a weighted random permutation that
+    /// prefers peers that have been more responsive for `source`, keeping the
+    /// set itself unchanged (the output is a permutation of the input: never
+    /// adds or drops a peer).
     ///
-    /// Ordering is a preference, not a guarantee: a fraction of calls return a
-    /// uniform shuffle, equally-ranked peers are shuffled, and `rng` is
-    /// consumed fresh on every call, so repeated calls do not lock onto the
-    /// same peers.
+    /// Each candidate's probability of landing first is proportional to its
+    /// selection weight (a power of its inverse effective latency), so a
+    /// clearly faster peer is very likely tried first yet none is
+    /// guaranteed. A fraction of calls ignore ranking and return a uniform
+    /// shuffle, and `rng` is consumed fresh on every call, so repeated
+    /// calls do not lock onto the same peers.
     pub(crate) fn prioritize<R: Rng>(
         &self,
         source: DataSource,
@@ -298,100 +300,94 @@ impl PeerResponsiveness {
             return;
         };
 
-        // Snapshot the effective latencies under the lock, then release it
-        // before sorting (parking_lot::Mutex must not be held across the work).
-        let scores: Vec<Option<f64>> = {
+        // Snapshot each candidate's selection weight under the lock, then
+        // release it before drawing (parking_lot::Mutex must not be held across
+        // the work). Untried peers use the neutral prior.
+        let weights: Vec<f64> = {
             let tracks = self.inner.lock();
             let track = &tracks.per_kind[kind_index];
             candidates
                 .iter()
                 .map(|peer| {
-                    track
+                    let latency = track
                         .get(peer.value())
                         .and_then(|stat| stat.effective_latency_ms)
+                        .unwrap_or(NEUTRAL_LATENCY_MS);
+                    Self::selection_weight(latency)
                 })
                 .collect()
         };
 
-        let buckets_by_position = Self::default_buckets(&scores);
-        let mut buckets: std::collections::BTreeMap<AuthorityIndex, u8> =
-            std::collections::BTreeMap::new();
-        for (peer, bucket) in candidates.iter().zip(buckets_by_position.iter()) {
-            buckets.insert(*peer, *bucket);
-        }
-
-        // Shuffle first so the order within each bucket is uniformly random
-        // (randomized tie-breaking), then stable-sort by bucket so faster
-        // buckets come first while preserving the shuffled intra-bucket order.
-        candidates.shuffle(rng);
-        candidates.sort_by_key(|peer| buckets.get(peer).copied().unwrap_or(1));
-    }
-
-    fn default_buckets(scores: &[Option<f64>]) -> Vec<u8> {
-        let latencies: Vec<f64> = scores
+        // Weighted random permutation (Efraimidis–Spirakis) in log space: the
+        // key `u^(1/weight)` is monotone with `ln(u) / weight`, which avoids the
+        // underflow that collapses the raw key to zero for small weights. Sorted
+        // descending this yields `P(candidate first) = weight / Σ weight`,
+        // extended to a full ordering, so any prefix the caller keeps is
+        // weighted sampling without replacement.
+        let mut keyed: Vec<(f64, AuthorityIndex)> = candidates
             .iter()
-            .map(|score| score.unwrap_or(NEUTRAL_LATENCY_MS))
+            .zip(weights)
+            .map(|(peer, weight)| {
+                let u = rng.gen::<f64>().max(f64::MIN_POSITIVE);
+                (u.ln() / weight, *peer)
+            })
             .collect();
-        let best = latencies
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min)
-            .max(MIN_LATENCY_MS);
-
-        latencies
-            .into_iter()
-            .map(|latency| Self::relative_latency_bucket(latency, best))
-            .collect()
+        keyed.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        for (slot, (_, peer)) in candidates.iter_mut().zip(keyed) {
+            *slot = peer;
+        }
     }
 
-    fn relative_latency_bucket(latency: f64, best: f64) -> u8 {
-        if latency <= FAST_BUCKET_RATIO * best {
-            0
-        } else if latency <= MEDIUM_BUCKET_RATIO * best {
-            1
-        } else {
-            3
-        }
+    /// Selection weight for a peer with effective latency `latency_ms`: faster
+    /// peers get exponentially more weight. The latency is floored so the
+    /// weight stays finite.
+    fn selection_weight(latency_ms: f64) -> f64 {
+        (1.0 / latency_ms.max(MIN_LATENCY_MS)).powf(SELECTION_SHARPNESS)
     }
 
     fn latency_snapshot(track: &[PeerStat]) -> Vec<Option<f64>> {
         track.iter().map(|stat| stat.effective_latency_ms).collect()
     }
 
-    /// Recomputes and publishes, for `source`, how many measured peers fall in
-    /// the fast/medium/slow latency buckets relative to the fastest measured
-    /// peer. Untried peers carry no sample and are not counted; all three
-    /// buckets are always set so a peer leaving a bucket is reflected at once.
-    fn publish_bucket_counts(&self, source: DataSource, latencies: &[Option<f64>]) {
-        let (mut fast, mut medium, mut slow) = (0i64, 0i64, 0i64);
-        if let Some(best) = latencies
+    /// Recomputes and publishes, for `source`, the expected per-fetch latency
+    /// under two selection strategies over the peers measured so far: `uniform`
+    /// (a random peer, the behaviour without ranking) and `weighted` (this
+    /// module's responsiveness weighting, including its exploration fraction).
+    /// `uniform / weighted` is the latency improvement the ranking buys; equal
+    /// values mean peers are homogeneous and ranking is not helping. Untried
+    /// peers carry no sample and are excluded.
+    fn publish_expected_latencies(&self, source: DataSource, latencies: &[Option<f64>]) {
+        let measured: Vec<f64> = latencies
             .iter()
             .filter_map(|latency| *latency)
-            .reduce(f64::min)
             .map(|latency| latency.max(MIN_LATENCY_MS))
-        {
-            for latency in latencies.iter().filter_map(|latency| *latency) {
-                match Self::relative_latency_bucket(latency, best) {
-                    0 => fast += 1,
-                    1 => medium += 1,
-                    _ => slow += 1,
-                }
-            }
+            .collect();
+        if measured.is_empty() {
+            return;
         }
+
+        let uniform = measured.iter().sum::<f64>() / measured.len() as f64;
+
+        let total_weight: f64 = measured.iter().copied().map(Self::selection_weight).sum();
+        let weighted_pure = measured
+            .iter()
+            .map(|latency| Self::selection_weight(*latency) * latency)
+            .sum::<f64>()
+            / total_weight;
+        // The strategy spends EXPLORE_PROBABILITY of selections on a uniform
+        // draw, so its realized expected latency blends the two.
+        let weighted = (1.0 - EXPLORE_PROBABILITY) * weighted_pure + EXPLORE_PROBABILITY * uniform;
 
         let gauge = &self
             .metrics
             .node_metrics
-            .peer_responsiveness_peers_in_bucket;
+            .peer_responsiveness_expected_latency_ms;
         gauge
-            .with_label_values(&[source.as_str(), "fast"])
-            .set(fast);
+            .with_label_values(&[source.as_str(), "uniform"])
+            .set(uniform);
         gauge
-            .with_label_values(&[source.as_str(), "medium"])
-            .set(medium);
-        gauge
-            .with_label_values(&[source.as_str(), "slow"])
-            .set(slow);
+            .with_label_values(&[source.as_str(), "weighted"])
+            .set(weighted);
     }
 
     #[cfg(test)]
@@ -696,8 +692,9 @@ mod tests {
     }
 
     #[test]
-    fn transactions_prioritize_low_latency_peers_ahead_of_known_slow_tail() {
+    fn transactions_prefer_low_latency_peers_over_a_large_slow_tail() {
         let pr = responsiveness(50);
+        let low_latency = [idx(1), idx(2), idx(3), idx(4)];
         for (peer, latency) in [(1, 150), (2, 250), (3, 300), (4, 450)] {
             pr.record_success(DataSource::TransactionSynchronizer, idx(peer), ms(latency));
         }
@@ -705,18 +702,46 @@ mod tests {
             pr.record_success(DataSource::TransactionSynchronizer, idx(peer), ms(1_200));
         }
 
-        assert_transactions_top_four_are_low_latency_most_of_the_time(&pr);
+        let candidates: Vec<_> = (1..50).map(idx).collect();
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            10_000,
+            1,
+        );
+
+        // The four low-latency peers are only 4 of 49 candidates (uniform share
+        // 8%); weighted sampling puts one of them first far more often, even
+        // though a large slow tail collectively dilutes their share.
+        let low_leads: usize = low_latency
+            .iter()
+            .map(|p| *counts.get(p).unwrap_or(&0))
+            .sum();
+        assert!(
+            low_leads as f64 / 10_000.0 > 0.6,
+            "low-latency peers should lead most rounds: {low_leads}"
+        );
+        // The single fastest peer leads far more than any individual slow peer.
+        let fastest = *counts.get(&idx(1)).unwrap_or(&0);
+        let worst_slow = (5..50)
+            .map(|p| *counts.get(&idx(p)).unwrap_or(&0))
+            .max()
+            .unwrap_or(0);
+        assert!(
+            fastest > 10 * worst_slow,
+            "fastest peer {fastest} should dominate any slow peer {worst_slow}"
+        );
     }
 
     #[test]
     fn transactions_treat_untried_peers_like_other_kinds() {
-        // Bucketing is uniform across kinds: an untried transaction peer is
-        // scored at the neutral prior and bucketed relative to the fastest
-        // peer, exactly like every other fetch kind, rather than being forced
-        // behind measured peers.
+        // An untried transaction peer is scored at the neutral prior and weighted
+        // exactly like every other fetch kind, rather than being forced behind
+        // measured peers.
         let pr = responsiveness(6);
-        // The fastest measured peer at 200ms keeps the neutral prior (250ms)
-        // within the fast bucket, so untried peers compete for the lead.
+        // The fastest measured peer at 200ms is only modestly faster than the
+        // neutral prior (250ms), so untried peers keep a competitive weight.
         pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(200));
         // idx(2)..=idx(5) are untried.
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5)];
@@ -731,9 +756,8 @@ mod tests {
             .iter()
             .map(|p| *counts.get(&idx(*p)).unwrap_or(&0))
             .sum();
-        // Sharing the fast bucket, untried peers lead a large share of rounds;
-        // the removed transaction overlay would have capped them near the 5%
-        // exploration floor.
+        // Four neutral-prior peers carry more combined weight than the single
+        // slightly-faster measured peer, so they lead a large share of rounds.
         assert!(
             untried_leads as f64 / 10_000.0 > 0.5,
             "untried transaction peers should compete for the lead: {untried_leads}"
@@ -745,50 +769,23 @@ mod tests {
         let pr = responsiveness(6);
         pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(1_200));
         pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(1_500));
-        // idx(3), idx(4), idx(5) are unknown.
+        // idx(3), idx(4), idx(5) are unknown (neutral prior).
 
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5)];
-        let mut unknowns_before_known_slow = 0;
-        for seed in 0..1_000u64 {
-            let mut c = candidates.clone();
-            let mut rng = StdRng::seed_from_u64(seed);
-            pr.prioritize(DataSource::TransactionSynchronizer, &mut c, &mut rng);
-            if c[..3]
-                .iter()
-                .all(|peer| [idx(3), idx(4), idx(5)].contains(peer))
-            {
-                unknowns_before_known_slow += 1;
-            }
-        }
-
-        assert!(
-            unknowns_before_known_slow > 900,
-            "unknowns should fill the first three slots in most ranked transaction rounds: {unknowns_before_known_slow}"
+        let unknown = [idx(3), idx(4), idx(5)];
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            10_000,
+            3,
         );
-    }
-
-    fn assert_transactions_top_four_are_low_latency_most_of_the_time(pr: &PeerResponsiveness) {
-        let candidates: Vec<_> = (1..50).map(idx).collect();
-        let low_latency = [idx(1), idx(2), idx(3), idx(4)];
-        let mut top_four_are_low_latency = 0;
-
-        for seed in 0..1_000u64 {
-            let mut c = candidates.clone();
-            let mut rng = StdRng::seed_from_u64(seed);
-            pr.prioritize(DataSource::TransactionSynchronizer, &mut c, &mut rng);
-
-            let mut sorted = c.clone();
-            sorted.sort();
-            assert_eq!(sorted, candidates);
-
-            if c[..4].iter().all(|peer| low_latency.contains(peer)) {
-                top_four_are_low_latency += 1;
-            }
-        }
-
+        let unknown_leads: usize = unknown.iter().map(|p| *counts.get(p).unwrap_or(&0)).sum();
+        // Neutral-prior peers carry far more selection weight than known-slow
+        // ones, so an unknown peer leads the large majority of rounds.
         assert!(
-            top_four_are_low_latency > 900,
-            "low-latency peers should fill the first four slots in most transaction rounds: {top_four_are_low_latency}"
+            unknown_leads as f64 / 10_000.0 > 0.85,
+            "unknown peers should lead most ranked transaction rounds: {unknown_leads}"
         );
     }
 
@@ -809,5 +806,38 @@ mod tests {
             .unwrap();
         assert!(recovered < penalized);
         assert!(recovered < NEUTRAL_LATENCY_MS, "recovered to {recovered}");
+    }
+
+    #[test]
+    fn expected_latency_metric_reports_weighting_improvement() {
+        let pr = responsiveness(5);
+        // One fast peer among slow ones: the weighted expectation should sit well
+        // below the uniform average, the latency the ranking saves.
+        pr.record_success(DataSource::CommitSyncer, idx(1), ms(50));
+        for p in [2u8, 3, 4] {
+            pr.record_success(DataSource::CommitSyncer, idx(p), ms(800));
+        }
+
+        let gauge = &pr
+            .metrics
+            .node_metrics
+            .peer_responsiveness_expected_latency_ms;
+        let uniform = gauge
+            .with_label_values(&[DataSource::CommitSyncer.as_str(), "uniform"])
+            .get();
+        let weighted = gauge
+            .with_label_values(&[DataSource::CommitSyncer.as_str(), "weighted"])
+            .get();
+
+        // Uniform is the plain average over measured peers.
+        assert!(
+            (uniform - (50.0 + 3.0 * 800.0) / 4.0).abs() < 1e-6,
+            "uniform {uniform}"
+        );
+        // Weighting biases toward the fast peer, so the expectation is far lower.
+        assert!(
+            weighted < uniform,
+            "weighted {weighted} should beat uniform {uniform}"
+        );
     }
 }
