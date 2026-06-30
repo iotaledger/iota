@@ -106,8 +106,6 @@ struct Tracks {
 /// Shared per epoch behind an `Arc`; constructed once from the epoch's
 /// committee. Cheap to clone (the handle is an `Arc`).
 pub(crate) struct PeerResponsiveness {
-    /// Per-peer hostnames captured from the epoch committee, for metric labels.
-    hostnames: Vec<String>,
     metrics: Arc<Metrics>,
     inner: Mutex<Tracks>,
 }
@@ -115,12 +113,7 @@ pub(crate) struct PeerResponsiveness {
 impl PeerResponsiveness {
     pub(crate) fn new(committee: &Committee, metrics: Arc<Metrics>) -> Arc<Self> {
         let size = committee.size();
-        let hostnames = committee
-            .authorities()
-            .map(|(_, authority)| authority.hostname.clone())
-            .collect();
         Arc::new(Self {
-            hostnames,
             metrics,
             inner: Mutex::new(Tracks {
                 per_kind: std::array::from_fn(|_| vec![PeerStat::default(); size]),
@@ -195,7 +188,7 @@ impl PeerResponsiveness {
         let Some(kind_index) = source.responsiveness_index() else {
             return;
         };
-        let updated = {
+        let snapshot = {
             let mut tracks = self.inner.lock();
             let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
                 return;
@@ -207,23 +200,17 @@ impl PeerResponsiveness {
             };
             stat.effective_latency_ms = Some(new);
             stat.sample_origin = Some(SampleOrigin::Observed);
-            new
+            Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        if let Some(hostname) = self.hostnames.get(peer.value()) {
-            self.metrics
-                .node_metrics
-                .peer_responsiveness_effective_latency
-                .with_label_values(&[hostname.as_str(), source.as_str()])
-                .set(updated as i64);
-        }
+        self.publish_bucket_counts(source, &snapshot);
     }
 
     fn update_failure(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
         let Some(kind_index) = source.responsiveness_index() else {
             return;
         };
-        let updated = {
+        let snapshot = {
             let mut tracks = self.inner.lock();
             let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
                 return;
@@ -234,23 +221,17 @@ impl PeerResponsiveness {
             };
             stat.effective_latency_ms = Some(new);
             stat.sample_origin = Some(SampleOrigin::Observed);
-            new
+            Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        if let Some(hostname) = self.hostnames.get(peer.value()) {
-            self.metrics
-                .node_metrics
-                .peer_responsiveness_effective_latency
-                .with_label_values(&[hostname.as_str(), source.as_str()])
-                .set(updated as i64);
-        }
+        self.publish_bucket_counts(source, &snapshot);
     }
 
     fn update_bootstrap(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
         let Some(kind_index) = source.responsiveness_index() else {
             return;
         };
-        let updated = {
+        let snapshot = {
             let mut tracks = self.inner.lock();
             let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
                 return;
@@ -260,16 +241,10 @@ impl PeerResponsiveness {
             }
             stat.effective_latency_ms = Some(sample);
             stat.sample_origin = Some(SampleOrigin::Bootstrap);
-            sample
+            Self::latency_snapshot(&tracks.per_kind[kind_index])
         };
 
-        if let Some(hostname) = self.hostnames.get(peer.value()) {
-            self.metrics
-                .node_metrics
-                .peer_responsiveness_effective_latency
-                .with_label_values(&[hostname.as_str(), source.as_str()])
-                .set(updated as i64);
-        }
+        self.publish_bucket_counts(source, &snapshot);
     }
 
     /// Reorders `candidates` in place to prefer peers that have been more
@@ -356,6 +331,46 @@ impl PeerResponsiveness {
         } else {
             3
         }
+    }
+
+    fn latency_snapshot(track: &[PeerStat]) -> Vec<Option<f64>> {
+        track.iter().map(|stat| stat.effective_latency_ms).collect()
+    }
+
+    /// Recomputes and publishes, for `source`, how many measured peers fall in
+    /// the fast/medium/slow latency buckets relative to the fastest measured
+    /// peer. Untried peers carry no sample and are not counted; all three
+    /// buckets are always set so a peer leaving a bucket is reflected at once.
+    fn publish_bucket_counts(&self, source: DataSource, latencies: &[Option<f64>]) {
+        let (mut fast, mut medium, mut slow) = (0i64, 0i64, 0i64);
+        if let Some(best) = latencies
+            .iter()
+            .filter_map(|latency| *latency)
+            .reduce(f64::min)
+            .map(|latency| latency.max(MIN_LATENCY_MS))
+        {
+            for latency in latencies.iter().filter_map(|latency| *latency) {
+                match Self::relative_latency_bucket(latency, best) {
+                    0 => fast += 1,
+                    1 => medium += 1,
+                    _ => slow += 1,
+                }
+            }
+        }
+
+        let gauge = &self
+            .metrics
+            .node_metrics
+            .peer_responsiveness_peers_in_bucket;
+        gauge
+            .with_label_values(&[source.as_str(), "fast"])
+            .set(fast);
+        gauge
+            .with_label_values(&[source.as_str(), "medium"])
+            .set(medium);
+        gauge
+            .with_label_values(&[source.as_str(), "slow"])
+            .set(slow);
     }
 
     #[cfg(test)]
