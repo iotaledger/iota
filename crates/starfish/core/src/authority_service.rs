@@ -986,7 +986,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // will help with liveness.
         let missed_blocks = stream::iter(
             dag_state
-                .get_own_cached_blocks(last_received + 1)
+                .get_own_cached_blocks(last_received.saturating_add(1))
                 .into_iter()
                 .filter_map(|block| match SerializedBlockBundle::try_from(block) {
                     Ok(block_bundle) => Some(block_bundle),

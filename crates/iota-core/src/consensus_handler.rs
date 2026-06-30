@@ -857,7 +857,7 @@ mod tests {
         },
         utils::to_sender_signed_transaction,
     };
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_core::{
         BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
         VerifiedBlockHeader, VerifiedTransactions,

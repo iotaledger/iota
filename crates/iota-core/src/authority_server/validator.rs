@@ -217,12 +217,40 @@ impl ValidatorService {
                     None
                 };
 
+                let effects = signed_effects.data();
+
+                let input_objects = include_input_objects
+                    .then(|| self.state.get_transaction_input_objects(effects))
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction input objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
+
+                let output_objects = include_output_objects
+                    .then(|| self.state.get_transaction_output_objects(effects))
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction output objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
+
                 return Ok((
                     Some(vec![HandleCertificateResponseV1 {
                         signed_effects: signed_effects.into_inner(),
                         events,
-                        input_objects: None,
-                        output_objects: None,
+                        input_objects,
+                        output_objects,
                         auxiliary_data: None,
                     }]),
                     Weight::one(),

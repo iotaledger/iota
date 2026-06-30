@@ -10,7 +10,7 @@ use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -99,7 +99,7 @@ impl IngestionLimit {
 ///     reader::v2::CheckpointReaderConfig
 /// };
 /// use iota_types::full_checkpoint_content::CheckpointData;
-/// use prometheus::Registry;
+/// use prometheus_filtered::Registry;
 /// use tokio_util::sync::CancellationToken;
 /// use std::{path::PathBuf, sync::Arc};
 ///

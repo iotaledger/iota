@@ -32,7 +32,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use parking_lot::RwLockReadGuard;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,

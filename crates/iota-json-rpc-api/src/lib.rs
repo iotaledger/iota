@@ -20,7 +20,7 @@ use jsonrpsee::{
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
 use once_cell::sync::Lazy;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, register_histogram_with_registry, register_int_counter_with_registry,
 };
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};
@@ -106,7 +106,7 @@ pub struct JsonRpcMetrics {
 }
 
 impl JsonRpcMetrics {
-    pub fn new(registry: &prometheus::Registry) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry) -> Self {
         Self {
             get_objects_limit: register_histogram_with_registry!(
                 "json_rpc_get_objects_limit",
@@ -313,7 +313,7 @@ impl JsonRpcMetrics {
     }
 
     pub fn new_for_tests() -> Self {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         Self::new(&registry)
     }
 }

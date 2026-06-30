@@ -21,7 +21,6 @@ use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::Notify
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{GasCostSummary, TransactionKind};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
@@ -332,7 +331,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v.into()))
@@ -344,7 +343,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v))
@@ -472,7 +471,7 @@ impl CheckpointStore {
         if let Some((last_local_summary, _)) = self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
         {
@@ -1664,10 +1663,8 @@ impl CheckpointBuilder {
                 }];
 
                 Some(EndOfEpochData {
-                    next_epoch_committee: committee.voting_rights,
-                    next_epoch_protocol_version: ProtocolVersion::new(
-                        system_state_obj.protocol_version(),
-                    ),
+                    next_epoch_committee: committee.committee_members(),
+                    next_epoch_protocol_version: system_state_obj.protocol_version(),
                     epoch_commitments,
                     epoch_supply_change,
                 })
@@ -2094,7 +2091,7 @@ impl CheckpointAggregator {
             .store
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(seq, _)| seq + 1)
@@ -2716,7 +2713,7 @@ mod tests {
 
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
-    use iota_protocol_config::{Chain, ProtocolConfig};
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
         GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
     };

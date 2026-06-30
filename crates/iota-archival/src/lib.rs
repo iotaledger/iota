@@ -46,7 +46,7 @@ use iota_types::{
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 

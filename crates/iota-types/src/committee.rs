@@ -11,6 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 pub use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::validator::ValidatorCommitteeMember;
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
@@ -84,6 +85,30 @@ impl Committee {
             expanded_keys,
             index_map,
         }
+    }
+
+    /// Build a committee for `epoch` from a [`ValidatorCommitteeMember`]
+    /// list.
+    pub fn from_committee_members(epoch: EpochId, members: &[ValidatorCommitteeMember]) -> Self {
+        Self::new(
+            epoch,
+            members
+                .iter()
+                .map(|member| (member.public_key.into(), member.stake))
+                .collect(),
+        )
+    }
+
+    /// The committee's voting rights expressed as a
+    /// [`ValidatorCommitteeMember`] list used by `EndOfEpochData`.
+    pub fn committee_members(&self) -> Vec<ValidatorCommitteeMember> {
+        self.voting_rights
+            .iter()
+            .map(|(name, stake)| ValidatorCommitteeMember {
+                public_key: (*name).into(),
+                stake: *stake,
+            })
+            .collect()
     }
 
     /// Normalize the given weights to TOTAL_VOTING_POWER and create the
@@ -528,18 +553,14 @@ impl CommitteeChainVerifier {
             .as_ref()
             .expect("checked before verification");
 
-        self.committee = Committee::new(
+        self.committee = Committee::from_committee_members(
             self.committee
                 .epoch
                 .checked_add(1)
                 .ok_or(IotaError::AdvanceEpoch {
                     error: "epoch number overflow".to_string(),
                 })?,
-            end_of_epoch_data
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect(),
+            &end_of_epoch_data.next_epoch_committee,
         );
         Ok(verified)
     }
@@ -643,8 +664,8 @@ mod test {
                 .expect("test summary must certify")
         };
         let handing_forward = Some(EndOfEpochData {
-            next_epoch_committee: committee.voting_rights.clone(),
-            next_epoch_protocol_version: 1.into(),
+            next_epoch_committee: committee.committee_members(),
+            next_epoch_protocol_version: 1,
             epoch_commitments: Vec::new(),
             epoch_supply_change: 0,
         });

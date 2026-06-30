@@ -294,9 +294,10 @@ impl WriteStore for RocksDbStore {
             ..
         }) = checkpoint.end_of_epoch_data.as_ref()
         {
-            let next_committee = next_epoch_committee.iter().cloned().collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                next_epoch_committee,
+            );
             self.try_insert_committee(committee)?;
         }
 

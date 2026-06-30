@@ -104,7 +104,7 @@ impl CommitteeStore {
         Ok(self
             .tables
             .committee_map
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             // unwrap safe because we guarantee there is at least a genesis epoch

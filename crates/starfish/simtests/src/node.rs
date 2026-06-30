@@ -17,7 +17,7 @@ use eyre::Result;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommitDigest, CommitIndex,

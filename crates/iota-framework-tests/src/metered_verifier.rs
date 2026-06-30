@@ -19,7 +19,7 @@ use iota_types::{
 };
 use iota_verifier::meter::IotaVerifierMeter;
 use move_bytecode_verifier_meter::Scope;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 fn build(path: &Path) -> IotaResult<CompiledPackage> {
     let mut config = iota_move_build::BuildConfig::new_for_testing();

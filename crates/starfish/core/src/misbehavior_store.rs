@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, Committee};
 

@@ -72,7 +72,7 @@ use itertools::izip;
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use nonempty::NonEmpty;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use prometheus::IntCounter;
+use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
@@ -1436,7 +1436,7 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .running_root_state_hash
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?)
     }
@@ -4853,7 +4853,7 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .builder_checkpoint_summary
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, s)| s))
@@ -4875,7 +4875,7 @@ impl AuthorityPerEpochStore {
             let seq = self
                 .tables()?
                 .builder_checkpoint_summary
-                .reversed_safe_iter_with_bounds(None, None)?
+                .safe_range_iter_reversed(..)
                 .next()
                 .transpose()?
                 .map(|(seq, s)| (seq, s.summary));
@@ -4933,7 +4933,7 @@ impl AuthorityPerEpochStore {
         Ok(self
             .tables()?
             .pending_checkpoint_signatures
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|((_, index), _)| index)
