@@ -645,7 +645,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     match response {
                         Ok(blocks) => {
                             let requested = blocks_guard.block_refs.len();
-                            let returned = blocks.len();
                             // Include processing/verification time so the
                             // responsiveness latency spans fetch and verify,
                             // consistent with the commit syncer.
@@ -664,8 +663,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 "live",
                                 misbehavior_store.clone(),
                             ).await {
-                                Ok(delivered) => {
-                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, returned, delivered, latency + process_started.elapsed());
+                                Ok(matched_requested) => {
+                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, matched_requested, latency + process_started.elapsed());
                                 }
                                 Err(err) => {
                                     context.peer_responsiveness.record_failure_with_timeout(
@@ -739,7 +738,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         // Verify all the fetched block headers
-        let block_headers = Handle::current()
+        let requested_block_refs = requested_blocks_guard.block_refs.clone();
+        let (block_headers, matched_requested) = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
                 let verified_cache = verified_cache.clone();
@@ -755,6 +755,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         peer_index,
                         &sync_method,
                         &misbehavior_store,
+                        requested_block_refs,
                     )
                 }
             })
@@ -800,8 +801,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             DataSource::HeaderSynchronizer,
             |header| header.round(),
         );
-        let delivered = block_headers.len();
-
         // Now send them to core for processing. Ignore the returned missing blocks as
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
@@ -844,7 +843,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
         }
 
-        Ok(delivered)
+        Ok(matched_requested)
     }
 
     fn get_highest_accepted_rounds(
@@ -870,12 +869,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer_index: AuthorityIndex,
         sync_method: &str,
         misbehavior_store: &MisbehaviorStore,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        requested_block_refs: BTreeSet<BlockRef>,
+    ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, usize)> {
         let mut verified_block_headers = Vec::new();
         let mut skipped_count = 0u64;
+        let requested_digests: HashSet<_> = requested_block_refs
+            .into_iter()
+            .map(|block_ref| block_ref.digest)
+            .collect();
+        let mut matched_requested_digests = HashSet::new();
 
         for serialized_block_header in serialized_block_headers {
             let block_header_digest = VerifiedBlockHeader::compute_digest(&serialized_block_header);
+            if requested_digests.contains(&block_header_digest) {
+                matched_requested_digests.insert(block_header_digest);
+            }
             // Check if this block header has already been verified
             if verified_cache.lock().get(&block_header_digest).is_some() {
                 skipped_count += 1;
@@ -945,7 +953,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .inc_by(skipped_count);
         }
 
-        Ok(verified_block_headers)
+        Ok((verified_block_headers, matched_requested_digests.len()))
     }
 
     async fn fetch_block_headers_request(
@@ -1006,33 +1014,23 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
     }
 
     /// Feeds a header fetch outcome into the per-peer responsiveness signal.
-    /// `latency` spans fetch and verification. `returned` is what the peer
-    /// sent, `delivered` what survived dedup against the verified cache and the
-    /// far-future drop. A peer that returned nothing is a goodput failure; a
-    /// response whose headers were all already known still did its job and is
-    /// credited with its measured latency; a partial response scales the
-    /// recorded latency by the shortfall so a peer cannot look fast by
-    /// returning fewer headers than requested.
+    /// `latency` spans fetch and verification. `matched_requested` counts
+    /// unique requested headers returned by the peer, including headers that
+    /// were already in the verified cache. Additional ancestors remain useful
+    /// to the synchronizer but do not improve the peer's responsiveness score.
     fn record_header_fetch_responsiveness(
         context: &Context,
         peer: AuthorityIndex,
         requested: usize,
-        returned: usize,
-        delivered: usize,
+        matched_requested: usize,
         latency: Duration,
     ) {
-        if returned == 0 {
+        if matched_requested == 0 {
             context
                 .peer_responsiveness
                 .record_failure(DataSource::HeaderSynchronizer, peer);
-        } else if delivered == 0 {
-            context.peer_responsiveness.record_success(
-                DataSource::HeaderSynchronizer,
-                peer,
-                latency,
-            );
         } else {
-            let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
+            let shortfall_factor = (requested as f64 / matched_requested as f64).max(1.0);
             context.peer_responsiveness.record_success(
                 DataSource::HeaderSynchronizer,
                 peer,
@@ -1350,8 +1348,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let mut total_fetched = 0;
                 for (blocks_guard, serialized_fetched_block_headers, peer, latency) in results {
                     let requested = blocks_guard.block_refs.len();
-                    let returned = serialized_fetched_block_headers.len();
-                    total_fetched += returned;
+                    total_fetched += serialized_fetched_block_headers.len();
 
                     // Include processing/verification time so the responsiveness
                     // latency spans fetch and verify, consistent with the commit
@@ -1374,8 +1371,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     )
                     .await
                     {
-                        Ok(delivered) => {
-                            Self::record_header_fetch_responsiveness(&context, peer, requested, returned, delivered, latency + process_started.elapsed());
+                        Ok(matched_requested) => {
+                            Self::record_header_fetch_responsiveness(&context, peer, requested, matched_requested, latency + process_started.elapsed());
                         }
                         Err(err) => {
                             context.peer_responsiveness.record_failure_with_timeout(
@@ -3492,7 +3489,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(result_second.unwrap(), 0);
+        assert_eq!(result_second.unwrap(), expected_block_refs.len());
 
         // Verify NO block headers were sent to core on the second call
         // because they were already in the LruCache
@@ -3543,9 +3540,7 @@ mod tests {
             in_window.serialized().clone(),
             far_future.serialized().clone(),
         ];
-        let refs = [in_window.reference(), far_future.reference()]
-            .into_iter()
-            .collect::<BTreeSet<_>>();
+        let refs = [in_window.reference()].into_iter().collect::<BTreeSet<_>>();
 
         let peer_index = AuthorityIndex::new_for_test(2);
         let inflight_blocks_map = InflightBlockHeadersMap::new();

@@ -83,15 +83,11 @@ impl SyncMethod {
 }
 
 /// Outcome of a successful fetch from one authority, used to feed the
-/// per-peer responsiveness signal. `received` is what the peer returned;
-/// `delivered` is what survived local processing (dedup / already-locked) and
-/// may be smaller than both `received` and `requested`; `latency` is the
-/// network fetch time of the request.
+/// per-peer responsiveness signal.
 struct FetchStats {
     latency: Duration,
     requested: usize,
-    received: usize,
-    delivered: usize,
+    matched_requested: usize,
 }
 
 /// Records when the transaction synchronizer failed for the last time when
@@ -815,30 +811,20 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         // Await all authority requests to complete, feeding the per-peer
         // responsiveness signal. The recorded latency spans fetch and
-        // verification. A delivering fetch records that latency scaled up by the
-        // inverse of the delivered fraction (a shortfall penalty), so a peer
-        // cannot look fast by replying quickly with little. A peer that returned
-        // transactions which were all locally deduped/already-locked still did
-        // its job and is credited with its measured latency. A peer that
-        // returned nothing is a goodput failure; an error/timeout is a failure
-        // that additionally drives the existing f+1 exclusion via
-        // `last_failure_by_peer`.
+        // verification. A successful fetch records that latency scaled up by
+        // the fraction of requested transactions it returned, so unrelated or
+        // partial responses cannot improve a peer's rank. An empty response is
+        // a goodput failure; an error/timeout additionally drives the existing
+        // f+1 exclusion via `last_failure_by_peer`.
         while let Some((peer, result)) = request_futures.next().await {
             match result {
-                Ok(stats) if stats.delivered > 0 => {
+                Ok(stats) if stats.matched_requested > 0 => {
                     let shortfall_factor =
-                        (stats.requested as f64 / stats.delivered as f64).max(1.0);
+                        (stats.requested as f64 / stats.matched_requested as f64).max(1.0);
                     context.peer_responsiveness.record_success(
                         DataSource::TransactionSynchronizer,
                         peer,
                         stats.latency.mul_f64(shortfall_factor),
-                    );
-                }
-                Ok(stats) if stats.received > 0 => {
-                    context.peer_responsiveness.record_success(
-                        DataSource::TransactionSynchronizer,
-                        peer,
-                        stats.latency,
                     );
                 }
                 Ok(_) => {
@@ -900,7 +886,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             "Transactions from {total_requested} blocks requested, fetched from {total_fetched} blocks"
         );
 
-        let delivered = Self::process_fetched_transactions(
+        let matched_requested = Self::process_fetched_transactions(
             fetched_serialized_transactions,
             peer,
             transactions_guard,
@@ -913,8 +899,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         Ok(FetchStats {
             latency: started.elapsed(),
             requested: total_requested,
-            received: total_fetched,
-            delivered,
+            matched_requested,
         })
     }
 
@@ -1040,6 +1025,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 peer_index,
             ));
         }
+        let requested_transaction_refs = requested_transactions_guard.transactions_refs.clone();
 
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -1061,6 +1047,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let committed_transaction_ref = GenericTransactionRef::TransactionRef(
                         serialized_transactions.transaction_ref,
                     );
+                    if !requested_transaction_refs.contains(&committed_transaction_ref) {
+                        return Err(ConsensusError::UnexpectedTransactionForRequest {
+                            peer: peer_index,
+                            received: committed_transaction_ref,
+                        });
+                    }
                     serialized_transactions_map.insert(
                         committed_transaction_ref,
                         serialized_transactions.serialized_transactions,
@@ -1120,7 +1112,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .join(", "),
         );
 
-        let delivered = transactions.len();
+        let matched_requested = transactions.len();
 
         // Add the transactions to the core
         core_dispatcher
@@ -1132,7 +1124,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // processed
         drop(requested_transactions_guard);
 
-        Ok(delivered)
+        Ok(matched_requested)
     }
 }
 
@@ -1981,6 +1973,71 @@ mod tests {
 
         // Clean up
         handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn fast_sync_rejects_unrequested_transaction_response() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+
+        let requested_header =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+        let requested_ref = GenericTransactionRef::from(requested_header.transaction_ref());
+
+        let transactions = vec![Transaction::new(vec![7; 32])];
+        let serialized_transactions = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+        let mut encoder = create_encoder(&context);
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let unrequested_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(2, 0)
+                .set_commitment(commitment)
+                .build(),
+        );
+        let unrequested_ref = GenericTransactionRef::from(unrequested_header.transaction_ref());
+        let response = Bytes::from(
+            bcs::to_bytes(&SerializedTransactionsV2 {
+                transaction_ref: unrequested_header.transaction_ref(),
+                serialized_transactions,
+            })
+            .unwrap(),
+        );
+
+        let inflight = InflightTransactionsMap::new();
+        let active_requests = InflightActiveRequests::new();
+        let (transactions_guard, _active_request_guard) = inflight
+            .lock_transactions_and_active_request(
+                [requested_ref].into_iter().collect(),
+                peer,
+                1,
+                SyncMethod::Live,
+                active_requests,
+            )
+            .unwrap();
+
+        let error = TransactionsSynchronizer::<MockNetworkClient, MockCoreThreadDispatcher>::process_fetched_transactions(
+            vec![response],
+            peer,
+            transactions_guard,
+            Arc::new(MockCoreThreadDispatcher::new()),
+            context,
+            SyncMethod::Live,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ConsensusError::UnexpectedTransactionForRequest {
+                peer: error_peer,
+                received,
+            } if error_peer == peer && received == unrequested_ref
+        ));
     }
 
     #[tokio::test]
