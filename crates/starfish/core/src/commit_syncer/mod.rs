@@ -483,6 +483,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 ///   Vec<CommittedSubDag>) for fast)
 /// - `F`: Fetch function type
 /// - `Fut`: Future returned by fetch function
+/// - `G`: Delivered-commit-count extractor type
 ///
 /// # Parameters
 /// - `inner`: Shared context and dependencies
@@ -490,21 +491,26 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 /// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
 ///   regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
+/// - `delivered_commits_fn`: Number of commits delivered by a successful fetch,
+///   used to scale the recorded responsiveness latency by the delivery
+///   shortfall so a peer cannot look fast by returning only a prefix
 ///
 /// # Returns
 /// Tuple of (end_commit_index, fetched_data)
 #[cfg_attr(test, tracing::instrument(skip_all, fields(authority = %inner.context.own_index)))]
-pub(crate) async fn fetch_loop<C, T, F, Fut>(
+pub(crate) async fn fetch_loop<C, T, F, Fut, G>(
     inner: Arc<Inner<C>>,
     commit_range: CommitRange,
     fetch_timeout_multiplier: u32,
     fetch_once_fn: F,
+    delivered_commits_fn: G,
 ) -> (CommitIndex, T)
 where
     C: NetworkClient,
     T: Send,
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
+    G: Fn(&T) -> usize,
 {
     // Individual request base timeout.
     #[cfg(not(test))]
@@ -590,7 +596,27 @@ where
             .await
             {
                 Ok(Ok(data)) => {
-                    responsiveness.record_success(fetch_kind, authority, started.elapsed());
+                    // Scale the recorded latency up by the delivery shortfall so
+                    // a peer cannot look fast by returning only a prefix of the
+                    // requested commits. A response is capped at
+                    // `max_commits_per_response`, so the requested count is
+                    // clamped to that cap; the unreturned tail is requeued, not
+                    // a goodput failure.
+                    let requested = commit_range
+                        .size()
+                        .min(inner.sync_type.max_commits_per_response(&inner.context));
+                    let delivered = delivered_commits_fn(&data);
+                    let latency = started.elapsed();
+                    if delivered == 0 {
+                        responsiveness.record_success(fetch_kind, authority, latency);
+                    } else {
+                        let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
+                        responsiveness.record_success(
+                            fetch_kind,
+                            authority,
+                            latency.mul_f64(shortfall_factor),
+                        );
+                    }
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
