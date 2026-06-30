@@ -523,18 +523,14 @@ async fn access_clock_object_test() {
 
     let mut attempt = 0;
     loop {
-        let checkpoint = test_cluster
-            .fullnode_handle
-            .iota_node
-            .with_async(|node| async {
-                node.state()
-                    .get_transaction_checkpoint_for_tests(
-                        &digest,
-                        &node.state().epoch_store_for_testing(),
-                    )
-                    .unwrap()
-            })
-            .await;
+        let checkpoint = test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_transaction_checkpoint_for_tests(
+                    &digest,
+                    &node.state().epoch_store_for_testing(),
+                )
+                .unwrap()
+        });
         let Some(checkpoint) = checkpoint else {
             attempt += 1;
             if attempt > 30 {
