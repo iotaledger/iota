@@ -41,11 +41,6 @@ use crate::{dag_state::DataSource, metrics::Metrics};
 /// keeps every peer's measurement fresh.
 const EXPLORE_PROBABILITY: f64 = 0.05;
 
-/// Transaction peers above this effective latency are known-slow for the
-/// commit-to-execution path; unknown peers rank ahead of them to keep discovery
-/// alive.
-const TRANSACTIONS_UNKNOWN_BEATS_LATENCY_MS: f64 = 750.0;
-
 /// A candidate is "fast" when its effective latency is within this multiple of
 /// the fastest candidate's.
 const FAST_BUCKET_RATIO: f64 = 2.0;
@@ -322,7 +317,7 @@ impl PeerResponsiveness {
                 .collect()
         };
 
-        let buckets_by_position = Self::buckets(source, &scores);
+        let buckets_by_position = Self::default_buckets(&scores);
         let mut buckets: std::collections::BTreeMap<AuthorityIndex, u8> =
             std::collections::BTreeMap::new();
         for (peer, bucket) in candidates.iter().zip(buckets_by_position.iter()) {
@@ -334,13 +329,6 @@ impl PeerResponsiveness {
         // buckets come first while preserving the shuffled intra-bucket order.
         candidates.shuffle(rng);
         candidates.sort_by_key(|peer| buckets.get(peer).copied().unwrap_or(1));
-    }
-
-    fn buckets(source: DataSource, scores: &[Option<f64>]) -> Vec<u8> {
-        match source {
-            DataSource::TransactionSynchronizer => Self::transaction_buckets(scores),
-            _ => Self::default_buckets(scores),
-        }
     }
 
     fn default_buckets(scores: &[Option<f64>]) -> Vec<u8> {
@@ -357,35 +345,6 @@ impl PeerResponsiveness {
         latencies
             .into_iter()
             .map(|latency| Self::relative_latency_bucket(latency, best))
-            .collect()
-    }
-
-    fn transaction_buckets(scores: &[Option<f64>]) -> Vec<u8> {
-        let Some(best) = scores
-            .iter()
-            .filter_map(|score| *score)
-            .reduce(f64::min)
-            .map(|latency| latency.max(MIN_LATENCY_MS))
-        else {
-            return vec![0; scores.len()];
-        };
-
-        scores
-            .iter()
-            .map(|score| match score {
-                Some(latency) => {
-                    let relative_bucket = Self::relative_latency_bucket(*latency, best);
-                    if relative_bucket <= 1 && *latency <= TRANSACTIONS_UNKNOWN_BEATS_LATENCY_MS {
-                        relative_bucket
-                    } else {
-                        3
-                    }
-                }
-                // Unknown transaction peers rank after measured fast/medium
-                // peers, but before measured slow peers so they keep a recovery
-                // and discovery path.
-                None => 2,
-            })
             .collect()
     }
 
@@ -714,13 +673,35 @@ mod tests {
     }
 
     #[test]
-    fn transactions_prioritize_low_latency_peers_ahead_of_unknown_tail() {
-        let pr = responsiveness(50);
-        for (peer, latency) in [(1, 150), (2, 250), (3, 300), (4, 450)] {
-            pr.record_success(DataSource::TransactionSynchronizer, idx(peer), ms(latency));
-        }
-
-        assert_transactions_top_four_are_low_latency_most_of_the_time(&pr);
+    fn transactions_treat_untried_peers_like_other_kinds() {
+        // Bucketing is uniform across kinds: an untried transaction peer is
+        // scored at the neutral prior and bucketed relative to the fastest
+        // peer, exactly like every other fetch kind, rather than being forced
+        // behind measured peers.
+        let pr = responsiveness(6);
+        // The fastest measured peer at 150ms puts the neutral prior (250ms) in
+        // the fast bucket, so untried peers compete for the lead.
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(150));
+        // idx(2)..=idx(5) are untried.
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5)];
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            10_000,
+            11,
+        );
+        let untried_leads: usize = [2u8, 3, 4, 5]
+            .iter()
+            .map(|p| *counts.get(&idx(*p)).unwrap_or(&0))
+            .sum();
+        // Sharing the fast bucket, untried peers lead a large share of rounds;
+        // the removed transaction overlay would have capped them near the 5%
+        // exploration floor.
+        assert!(
+            untried_leads as f64 / 10_000.0 > 0.5,
+            "untried transaction peers should compete for the lead: {untried_leads}"
+        );
     }
 
     #[test]
