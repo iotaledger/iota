@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 use clap::{CommandFactory, FromArgMatches};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
-    config::{Command, IndexerConfig},
+    config::{Command, IndexerConfig, RestoreCommand},
     db::{
         check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
@@ -15,7 +15,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
-    restore::start,
+    restore::{available_epochs, start},
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
@@ -38,6 +38,19 @@ async fn main() -> Result<(), IndexerError> {
         &mut IndexerConfig::command().version(VERSION).get_matches(),
     )
     .unwrap_or_else(|e| e.exit());
+
+    // `restore available-epochs` does not require a DB connection pool
+    if let Command::Restore {
+        network,
+        command: RestoreCommand::AvailableEpochs,
+    } = &opts.command
+    {
+        let epochs = available_epochs(*network).await?;
+        let json =
+            serde_json::to_string(&epochs).map_err(|e| IndexerError::Serde(e.to_string()))?;
+        println!("{json}");
+        return Ok(());
+    }
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
     iota_metrics::init_metrics(&registry);
@@ -138,13 +151,17 @@ async fn main() -> Result<(), IndexerError> {
             let total_range = start..=end;
             BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
         }
-        Command::Restore {
-            network,
-            epoch,
-            staging_path,
-            genesis_path,
-            num_parallel_downloads,
-        } => {
+        Command::Restore { network, command } => {
+            let RestoreCommand::Run {
+                staging_path,
+                genesis_path,
+                epoch,
+                num_parallel_downloads,
+            } = command
+            else {
+                // `available-epochs` is handled before the DB pool is created.
+                return Ok(());
+            };
             let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
                 std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN)
             });

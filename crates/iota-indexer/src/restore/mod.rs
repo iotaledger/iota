@@ -9,4 +9,4 @@ mod setup;
 mod verify;
 
 pub use orchestration::start;
-pub use setup::Network;
+pub use setup::{Network, available_epochs};

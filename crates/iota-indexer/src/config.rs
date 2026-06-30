@@ -299,9 +299,18 @@ pub enum Command {
     },
     /// Bootstrap the Indexer database from a formal snapshot.
     Restore {
-        /// Network to download the snapshot for.
+        /// Target network.
         #[arg(long)]
         network: Network,
+        #[command(subcommand)]
+        command: RestoreCommand,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum RestoreCommand {
+    /// Start restoring from a formal snapshot of the target network.
+    Run {
         /// Local directory used to stage the downloaded MANIFEST and `.ref`
         /// files.
         #[arg(long)]
@@ -319,6 +328,8 @@ pub enum Command {
         #[arg(long)]
         num_parallel_downloads: Option<NonZeroUsize>,
     },
+    /// Print the epochs for which there is an available formal snapshot.
+    AvailableEpochs,
 }
 
 pub const DEFAULT_PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours

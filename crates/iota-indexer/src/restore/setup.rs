@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, path::Path, sync::Arc};
+use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc};
 
 use anyhow::{anyhow, bail};
 use clap::ValueEnum;
@@ -16,7 +16,7 @@ use iota_storage::object_store::{
 };
 use tracing::info;
 
-use crate::types::IndexerResult;
+use crate::{errors::IndexerError, types::IndexerResult};
 
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
@@ -89,6 +89,23 @@ pub(crate) async fn setup_reader(
     Ok((reader, epoch))
 }
 
+/// Returns the epochs for which there is an available formal snapshot of the
+/// network.
+///
+/// # Errors
+///
+/// Returns an error if the read client cannot be built, or the root MANIFEST
+/// cannot be fetched or parsed.
+pub async fn available_epochs(network: Network) -> IndexerResult<Vec<u64>> {
+    let remote_store = FormalSnapshotStore::new(network)?;
+    let mut epochs = remote_store
+        .available_epochs()
+        .await
+        .map_err(|e| IndexerError::Restore(format!("failed to read available epochs: {e}")))?;
+    epochs.sort_unstable_by_key(|&epoch| Reverse(epoch));
+    Ok(epochs)
+}
+
 /// Read client for a network's public formal snapshot store.
 struct FormalSnapshotStore {
     config: ObjectStoreConfig,
@@ -116,14 +133,23 @@ impl FormalSnapshotStore {
     /// Returns the latest epoch with a formal snapshot available in the remote
     /// store, according to the root MANIFEST.
     async fn latest_available_epoch(&self) -> Result<u64, anyhow::Error> {
+        self.available_epochs()
+            .await?
+            .into_iter()
+            .max()
+            .ok_or(anyhow!("No snapshot found in manifest"))
+    }
+
+    /// Returns the epochs with a formal snapshot available in the remote store,
+    /// according to the root MANIFEST.
+    async fn available_epochs(&self) -> Result<Vec<u64>, anyhow::Error> {
         let manifest_contents = self.store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
         let root_manifest = RootManifest::from_bytes(&manifest_contents)?;
-        root_manifest
+        Ok(root_manifest
             .available_epochs
             .iter()
             .map(|(epoch, _)| *epoch)
-            .max()
-            .ok_or(anyhow!("No snapshot found in manifest"))
+            .collect())
     }
 
     /// Verifies that the formal snapshot upload for the given epoch has
