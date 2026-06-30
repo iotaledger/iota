@@ -21117,7 +21117,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of peers measured for this fetch kind grouped into fast/medium/slow latency buckets (relative to the fastest measured peer). Use the Filters variable to scope to one host; buckets stack to the count of measured peers.",
+          "description": "Expected per-fetch latency over peers measured for this fetch kind under uniform (random peer, the behaviour without ranking) vs responsiveness-weighted selection. The gap is the latency the ranking saves; equal lines mean peers are homogeneous and ranking is not helping. Use the Filters variable to scope to one host.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21130,7 +21130,7 @@
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 60,
+                "fillOpacity": 10,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -21148,7 +21148,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "normal"
+                  "mode": "none"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -21168,49 +21168,34 @@
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "ms"
             },
             "overrides": [
               {
                 "matcher": {
                   "id": "byRegexp",
-                  "options": "/^fast/"
+                  "options": "/^uniform/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^weighted/"
                 },
                 "properties": [
                   {
                     "id": "color",
                     "value": {
                       "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^medium/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^slow/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
                       "mode": "fixed"
                     }
                   }
@@ -21245,14 +21230,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_peer_responsiveness_peers_in_bucket{kind=\"Transactions synchronizer\"}",
+              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Transactions synchronizer\"}",
               "instant": false,
-              "legendFormat": "{{bucket}} @ {{host}}",
+              "legendFormat": "{{selection}} @ {{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Transaction synchronizer \u2014 peers by latency bucket",
+          "title": "Transaction synchronizer \u2014 expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -21260,7 +21245,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of peers measured for this fetch kind grouped into fast/medium/slow latency buckets (relative to the fastest measured peer). Use the Filters variable to scope to one host; buckets stack to the count of measured peers.",
+          "description": "Expected per-fetch latency over peers measured for this fetch kind under uniform (random peer, the behaviour without ranking) vs responsiveness-weighted selection. The gap is the latency the ranking saves; equal lines mean peers are homogeneous and ranking is not helping. Use the Filters variable to scope to one host.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21273,7 +21258,7 @@
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 60,
+                "fillOpacity": 10,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -21291,7 +21276,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "normal"
+                  "mode": "none"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -21311,49 +21296,34 @@
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "ms"
             },
             "overrides": [
               {
                 "matcher": {
                   "id": "byRegexp",
-                  "options": "/^fast/"
+                  "options": "/^uniform/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^weighted/"
                 },
                 "properties": [
                   {
                     "id": "color",
                     "value": {
                       "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^medium/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^slow/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
                       "mode": "fixed"
                     }
                   }
@@ -21388,14 +21358,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_peer_responsiveness_peers_in_bucket{kind=\"Commit syncer\"}",
+              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Commit syncer\"}",
               "instant": false,
-              "legendFormat": "{{bucket}} @ {{host}}",
+              "legendFormat": "{{selection}} @ {{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Commit syncer \u2014 peers by latency bucket",
+          "title": "Commit syncer \u2014 expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -21403,7 +21373,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of peers measured for this fetch kind grouped into fast/medium/slow latency buckets (relative to the fastest measured peer). Use the Filters variable to scope to one host; buckets stack to the count of measured peers.",
+          "description": "Expected per-fetch latency over peers measured for this fetch kind under uniform (random peer, the behaviour without ranking) vs responsiveness-weighted selection. The gap is the latency the ranking saves; equal lines mean peers are homogeneous and ranking is not helping. Use the Filters variable to scope to one host.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21416,7 +21386,7 @@
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 60,
+                "fillOpacity": 10,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -21434,7 +21404,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "normal"
+                  "mode": "none"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -21454,49 +21424,34 @@
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "ms"
             },
             "overrides": [
               {
                 "matcher": {
                   "id": "byRegexp",
-                  "options": "/^fast/"
+                  "options": "/^uniform/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^weighted/"
                 },
                 "properties": [
                   {
                     "id": "color",
                     "value": {
                       "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^medium/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^slow/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
                       "mode": "fixed"
                     }
                   }
@@ -21531,14 +21486,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_peer_responsiveness_peers_in_bucket{kind=\"Fast commit syncer\"}",
+              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Fast commit syncer\"}",
               "instant": false,
-              "legendFormat": "{{bucket}} @ {{host}}",
+              "legendFormat": "{{selection}} @ {{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Fast commit syncer \u2014 peers by latency bucket",
+          "title": "Fast commit syncer \u2014 expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -21546,7 +21501,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of peers measured for this fetch kind grouped into fast/medium/slow latency buckets (relative to the fastest measured peer). Use the Filters variable to scope to one host; buckets stack to the count of measured peers.",
+          "description": "Expected per-fetch latency over peers measured for this fetch kind under uniform (random peer, the behaviour without ranking) vs responsiveness-weighted selection. The gap is the latency the ranking saves; equal lines mean peers are homogeneous and ranking is not helping. Use the Filters variable to scope to one host.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21559,7 +21514,7 @@
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 60,
+                "fillOpacity": 10,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -21577,7 +21532,7 @@
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
-                  "mode": "normal"
+                  "mode": "none"
                 },
                 "thresholdsStyle": {
                   "mode": "off"
@@ -21597,49 +21552,34 @@
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "ms"
             },
             "overrides": [
               {
                 "matcher": {
                   "id": "byRegexp",
-                  "options": "/^fast/"
+                  "options": "/^uniform/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^weighted/"
                 },
                 "properties": [
                   {
                     "id": "color",
                     "value": {
                       "fixedColor": "green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^medium/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "yellow",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byRegexp",
-                  "options": "/^slow/"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
                       "mode": "fixed"
                     }
                   }
@@ -21674,14 +21614,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_peer_responsiveness_peers_in_bucket{kind=\"Header synchronizer\"}",
+              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Header synchronizer\"}",
               "instant": false,
-              "legendFormat": "{{bucket}} @ {{host}}",
+              "legendFormat": "{{selection}} @ {{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Header synchronizer \u2014 peers by latency bucket",
+          "title": "Header synchronizer \u2014 expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         }
       ],
