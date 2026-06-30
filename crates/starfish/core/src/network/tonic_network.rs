@@ -641,7 +641,7 @@ impl ChannelPool {
             Some(network_keypair.private_key().into_inner()),
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
-            .unwrap()
+            .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
             .connect_timeout(timeout)
             .initial_connection_window_size(Some(buffer_size as u32))
             .initial_stream_window_size(Some(buffer_size as u32 / 2))
@@ -1350,7 +1350,9 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, String> {
 
     match (iter.next(), iter.next()) {
         (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
-        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => {
+            Ok(format!("{}", SocketAddrV6::new(ipaddr, port, 0, 0)))
+        }
         (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
             Ok(format!("{hostname}:{port}"))
         }
