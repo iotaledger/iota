@@ -35,7 +35,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -1193,9 +1193,13 @@ def stop_spammer(cfg, proc: subprocess.Popen[str] | None) -> None:
         proc.wait(timeout=5)
 
 
-def run_loop(cfg, prefix: str, final_prefix: str) -> None:
+def run_loop(cfg, prefix: str, final_prefix: str) -> str:
     """Sleep for cfg.run_duration with a progress bar, saving validator logs
-    every cfg.log_interval seconds and once more at the end."""
+    every cfg.log_interval seconds and once more at the end.
+
+    Returns the timestamp string used for the final per-validator archives
+    (`{final_prefix}-<ts>-validator-<i>.log`) so callers can pass it on to
+    `post_run_canary`."""
     log(_phase_banner(
         f"Running for {cfg.run_duration}s (logs every {cfg.log_interval}s)", "RUN",
     ))
@@ -1218,6 +1222,125 @@ def run_loop(cfg, prefix: str, final_prefix: str) -> None:
         prefix=f"{final_prefix}-{ts}",
         latest=False,
     )
+    return ts
+
+
+# Correctness-failure markers grepped from per-validator archives.
+_CANARY_MARKER_RE = re.compile(
+    r"Split brain detected|"
+    r"Local checkpoint fork detected|"
+    r"WrongBlockHeaderVersionForFlag|"
+    r"panicked at"
+)
+# Leading UTC timestamp on every iota-node log line.
+_VAL_LINE_TS_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\b"
+)
+# `network-fuzz.sh` emits one of these per validator at each mid-run restart.
+_FUZZ_STOP_RE = re.compile(
+    r"^(\S+)\s+Stopping validator-(\d+)\b"
+)
+
+
+def post_run_canary(
+    log_dir: Path,
+    archive_prefix: str,
+    archive_ts: str,
+    fuzz_log_path: Path | None,
+    num_validators: int,
+    *,
+    grace_seconds: int = 30,
+) -> None:
+    """Post-run analysis that classifies panic/fork/split-brain markers in
+    per-validator archives, filtering shutdown-race noise by time-window
+    correlation.
+
+    A panic in validator-N's archive is treated as expected shutdown noise
+    iff its timestamp falls within `grace_seconds` of a
+    `Stopping validator-N for ...` event in the fuzz log. The grace window
+    covers the tokio runtime-drop duration, during which receivers may be
+    cancelled before senders and the `.expect(...)` assertions on closed
+    channels fire.
+
+    Any marker that does not fall in such a window is logged as an
+    "unknown" hit and counts toward a `Canary FAILURE` verdict.
+
+    If `fuzz_log_path` is None, no shutdown windows are derived; every
+    marker is treated as unknown. Use this for orchestrators that never
+    restart validators mid-run (e.g. benchmark).
+    """
+    # Locate per-validator archives written by `run_loop`.
+    archives = [
+        log_dir / f"{archive_prefix}-{archive_ts}-validator-{i}.log"
+        for i in range(1, num_validators + 1)
+    ]
+    archives = [p for p in archives if p.exists()]
+    if not archives:
+        log(f"  Canary: no validator archives found at "
+            f"{log_dir}/{archive_prefix}-{archive_ts}-validator-*.log; "
+            "skipping.")
+        return
+
+    # Parse fuzz log for per-validator stop timestamps.
+    stop_windows: dict[int, list[tuple[datetime, datetime]]] = {}
+    if fuzz_log_path is not None and fuzz_log_path.exists():
+        grace = timedelta(seconds=grace_seconds)
+        for line in fuzz_log_path.read_text().splitlines():
+            m = _FUZZ_STOP_RE.match(line)
+            if not m:
+                continue
+            try:
+                ts = datetime.fromisoformat(m.group(1))
+            except ValueError:
+                continue
+            ts_utc = ts.astimezone(timezone.utc)
+            idx = int(m.group(2))
+            stop_windows.setdefault(idx, []).append((ts_utc, ts_utc + grace))
+
+    def _in_shutdown_window(idx: int, ts: datetime) -> bool:
+        for lo, hi in stop_windows.get(idx, ()):
+            if lo <= ts <= hi:
+                return True
+        return False
+
+    filtered = 0
+    unknown: list[str] = []
+    for archive in archives:
+        idx = int(archive.stem.rsplit("-validator-", 1)[1])
+        for lineno, line in enumerate(archive.read_text().splitlines(), 1):
+            if not _CANARY_MARKER_RE.search(line):
+                continue
+            ts_match = _VAL_LINE_TS_RE.match(line)
+            if not ts_match:
+                # Marker on a line without a timestamp (continuation of a
+                # multi-line panic message). Skip; the first line of the
+                # panic carries the timestamp and is what we classify on.
+                continue
+            try:
+                ts = datetime.fromisoformat(ts_match.group(1))
+            except ValueError:
+                continue
+            # All iota-node timestamps are UTC ("Z" suffix), so the resulting
+            # datetime is already tz-aware in UTC.
+            if _in_shutdown_window(idx, ts):
+                filtered += 1
+            else:
+                # Trim long stack-trace lines for the summary log.
+                snippet = line[:240] + ("..." if len(line) > 240 else "")
+                unknown.append(f"{archive.name}:{lineno}: {snippet}")
+
+    if not unknown and filtered == 0:
+        log(f"  Canary CLEAN: no panic/fork/split-brain markers in "
+            f"{len(archives)} validator archive(s).")
+    elif not unknown:
+        log(f"  Canary CLEAN: {filtered} marker(s) filtered as expected "
+            "shutdown-race noise (in fuzz-stop windows); no unknown.")
+    else:
+        log(f"  {_C.RED}Canary FAILURE{_C.RESET}: {len(unknown)} "
+            "unknown marker(s) outside expected shutdown windows "
+            f"({filtered} other marker(s) filtered as shutdown noise):")
+        for entry in unknown:
+            log(f"    {entry}")
 
 
 def network_stats(num_validators: int) -> None:
