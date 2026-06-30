@@ -34,13 +34,12 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
         CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
-        FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointSummary, CheckpointSummaryExt, CheckpointSummaryResponse, CheckpointTimestamp,
+        EndOfEpochData, FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
@@ -1694,7 +1693,7 @@ impl CheckpointBuilder {
                 .copied()
                 .collect();
 
-            let summary = CheckpointSummary::new(
+            let summary = CheckpointSummary::new_with_protocol_config(
                 self.epoch_store.protocol_config(),
                 epoch,
                 sequence_number,

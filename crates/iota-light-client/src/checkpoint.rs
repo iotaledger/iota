@@ -18,7 +18,7 @@ use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::{Committee, CommitteeChainVerifier},
-    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummaryExt, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
 use prometheus_filtered::Registry;
@@ -516,7 +516,7 @@ mod tests {
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{CheckpointContents, CheckpointSummary},
+        messages_checkpoint::{CheckpointContents, CheckpointSummary, CheckpointSummaryExt},
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
@@ -555,7 +555,7 @@ mod tests {
     fn test_checkpoint_read_write() {
         let (config, _temp_dir) = create_test_config();
         let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             0,

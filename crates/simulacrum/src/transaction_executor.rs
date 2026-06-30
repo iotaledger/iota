@@ -15,7 +15,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummaryExt},
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects,
         QuorumDriverError,

@@ -25,6 +25,7 @@ use iota_types::{
     iota_system_state::{
         IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
+    messages_checkpoint::CheckpointSummaryExt,
     object::Object,
     parse_iota_struct_tag,
 };

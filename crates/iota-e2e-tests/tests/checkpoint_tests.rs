@@ -12,6 +12,7 @@ use std::{
 
 use iota_macros::{register_fail_point, register_fail_point_if, sim_test};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
+use iota_types::messages_checkpoint::CheckpointSummaryExt;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 use tracing::info;

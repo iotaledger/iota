@@ -1484,6 +1484,7 @@ mod tests {
         message_envelope::Envelope,
         messages_checkpoint::{
             CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
+            CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,
@@ -1639,7 +1640,7 @@ mod tests {
         seq: CheckpointSequenceNumber,
         contents: &CheckpointContents,
     ) -> CertifiedCheckpointSummary {
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             seq,

@@ -62,7 +62,7 @@ use iota_types::{
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+    messages_checkpoint::{CheckpointCommitment, CheckpointSummaryExt, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,

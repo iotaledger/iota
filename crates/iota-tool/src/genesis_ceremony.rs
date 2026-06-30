@@ -26,7 +26,6 @@ use iota_types::{
     crypto::{
         AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
     },
-    message_envelope::Message,
     multiaddr::Multiaddr,
 };
 

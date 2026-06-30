@@ -13,8 +13,8 @@ use futures::future::BoxFuture;
 use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
-        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, FullCheckpointContents,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     storage::WriteStore,
 };

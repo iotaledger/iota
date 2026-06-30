@@ -686,7 +686,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     .executor
                     .try_get_checkpoint_by_sequence_number(latest_chk)?
                     .unwrap();
-                Ok(Some(format!("{}", chk.data())))
+                Ok(Some(format!("{:?}", chk.data())))
             }
             IotaSubcommand::CreateCheckpoint(CreateCheckpointCommand { count }) => {
                 for _ in 0..count.unwrap_or(1) {

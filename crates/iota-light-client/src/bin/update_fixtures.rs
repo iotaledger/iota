@@ -12,7 +12,9 @@ use iota_light_client::{
     config::Config,
     object_store::CheckpointStore,
 };
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSummaryExt,
+};
 use tokio::fs::create_dir_all;
 use tracing::info;
 

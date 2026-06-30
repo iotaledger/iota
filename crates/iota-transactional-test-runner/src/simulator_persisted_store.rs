@@ -18,7 +18,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
+        CheckpointSummaryExt, VerifiedCheckpoint,
     },
     object::Object,
     storage::{

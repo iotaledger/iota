@@ -17,7 +17,7 @@ use axum::{
     routing::{get, post},
 };
 use http::Method;
-use iota_types::storage::ReadStore;
+use iota_types::{messages_checkpoint::CheckpointSummaryExt, storage::ReadStore};
 use serde::{Deserialize, Serialize};
 use simulacrum::Simulacrum;
 use tower::ServiceBuilder;

@@ -25,7 +25,7 @@ use iota_types::{
         CheckpointData as IotaTypesCheckpointData,
         CheckpointTransaction as IotaTypesCheckpointTransaction,
     },
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummaryExt},
     object::Object,
     storage::error::Kind,
 };

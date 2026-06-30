@@ -25,8 +25,9 @@ use iota_storage::{
     compress,
 };
 use iota_types::{
-    committee::EpochId, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    committee::EpochId,
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummaryExt},
 };
 use object_store::{
     DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt, PutMode,

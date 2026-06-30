@@ -25,7 +25,8 @@ use futures::StreamExt;
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointSummaryExt,
+        VerifiedCheckpoint,
     },
     storage::WriteStore,
 };

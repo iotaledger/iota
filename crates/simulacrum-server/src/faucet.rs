@@ -18,6 +18,7 @@ use iota_faucet::{
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    messages_checkpoint::CheckpointSummaryExt,
     sdk_types::Address,
 };
 use tracing::{info, warn};

@@ -9,7 +9,7 @@ use diesel::{
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    messages_checkpoint::CertifiedCheckpointSummary,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummaryExt},
 };
 
 use crate::{

@@ -24,6 +24,7 @@ use iota_types::{
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummaryExt,
     },
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},

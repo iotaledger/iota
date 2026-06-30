@@ -21,6 +21,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummaryExt,
     },
     object::Object,
     storage::ObjectKey,

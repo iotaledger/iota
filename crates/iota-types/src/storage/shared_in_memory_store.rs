@@ -14,8 +14,8 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,

@@ -19,7 +19,9 @@ use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummaryExt,
+    },
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;

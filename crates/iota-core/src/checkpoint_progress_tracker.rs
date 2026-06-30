@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use iota_types::messages_checkpoint::CheckpointSummaryExt;
 use tracing::info;
 
 use crate::{

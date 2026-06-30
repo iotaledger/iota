@@ -101,8 +101,9 @@ use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
-        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt,
+        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
+        VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{

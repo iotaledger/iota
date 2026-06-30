@@ -18,7 +18,9 @@ use iota_swarm_config::test_utils::{
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    messages_checkpoint::{CheckpointDigest, VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_checkpoint::{
+        CheckpointDigest, CheckpointSummaryExt, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus_filtered::Registry;

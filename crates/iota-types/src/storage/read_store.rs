@@ -16,7 +16,8 @@ use crate::{
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, FullCheckpointContents,
+        VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},

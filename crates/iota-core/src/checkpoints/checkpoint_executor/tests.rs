@@ -12,7 +12,8 @@ use iota_types::{
     committee::ProtocolVersion,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointSummaryExt, ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };

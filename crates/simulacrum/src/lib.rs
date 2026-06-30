@@ -50,7 +50,8 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemState,
     },
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, EndOfEpochData,
+        VerifiedCheckpoint,
     },
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,

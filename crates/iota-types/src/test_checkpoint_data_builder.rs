@@ -23,7 +23,8 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, CheckpointSummaryExt,
+        EndOfEpochData,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -633,7 +634,7 @@ impl TestCheckpointDataBuilder {
 
         self.checkpoint_builder.network_total_transactions += transactions.len() as u64;
 
-        let checkpoint_summary = CheckpointSummary::new(
+        let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             self.checkpoint_builder.epoch,
             self.checkpoint_builder.checkpoint,

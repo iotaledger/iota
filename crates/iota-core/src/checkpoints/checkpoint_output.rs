@@ -8,10 +8,9 @@ use async_trait::async_trait;
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, SignedCheckpointSummary, VerifiedCheckpoint,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };

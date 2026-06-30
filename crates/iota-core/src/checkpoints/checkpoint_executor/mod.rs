@@ -34,7 +34,9 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, VerifiedCheckpoint,
+    },
     transaction::{TransactionDataAPI, TransactionKey, VerifiedTransaction},
 };
 use parking_lot::Mutex;
