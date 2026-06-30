@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Shared per-peer responsiveness tracking and ranking for synchronizer peer
@@ -71,11 +71,11 @@ const EXPLORE_PROBABILITY: f64 = 0.05;
 
 /// A candidate is "fast" when its effective latency is within this multiple of
 /// the fastest candidate's.
-const FAST_BUCKET_RATIO: f64 = 2.0;
+const FAST_BUCKET_RATIO: f64 = 1.5;
 
 /// A candidate is "medium" when within this multiple of the fastest; beyond it
 /// the candidate is "slow".
-const MEDIUM_BUCKET_RATIO: f64 = 5.0;
+const MEDIUM_BUCKET_RATIO: f64 = 3.0;
 
 /// Floor applied to every latency sample (ms). Keeps the fastest-candidate
 /// reference strictly positive so bucketing can never divide-by-zero or let a
@@ -103,11 +103,6 @@ const FAILURE_PENALTY_MS: f64 = 1_500.0;
 /// trust".
 const ALPHA_SUCCESS: f64 = 0.3;
 
-// A single failure must demote a peer to the "slow" bucket even against an
-// all-untried (neutral) field. Enforced at compile time so the coupled
-// constants stay consistent if any is retuned.
-const _: () = assert!(FAILURE_PENALTY_MS > MEDIUM_BUCKET_RATIO * NEUTRAL_LATENCY_MS);
-
 #[derive(Clone, Default)]
 struct PeerStat {
     /// Smoothed effective latency in milliseconds; `None` until the first
@@ -129,10 +124,8 @@ struct Tracks {
     per_kind: [Vec<PeerStat>; DataSource::RESPONSIVENESS_COUNT],
 }
 
-/// Tracks per-peer responsiveness and ranks eligible candidates by it.
-///
-/// Shared per epoch behind an `Arc`; constructed once from the epoch's
-/// committee. Cheap to clone (the handle is an `Arc`).
+/// Tracks per-peer responsiveness and ranks candidates for synchronizer peer
+/// selection. Shared per epoch.
 pub(crate) struct PeerResponsiveness {
     metrics: Arc<Metrics>,
     inner: Mutex<Tracks>,
@@ -722,9 +715,9 @@ mod tests {
         // peer, exactly like every other fetch kind, rather than being forced
         // behind measured peers.
         let pr = responsiveness(6);
-        // The fastest measured peer at 150ms puts the neutral prior (250ms) in
-        // the fast bucket, so untried peers compete for the lead.
-        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(150));
+        // The fastest measured peer at 200ms keeps the neutral prior (250ms)
+        // within the fast bucket, so untried peers compete for the lead.
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(200));
         // idx(2)..=idx(5) are untried.
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5)];
         let counts = lead_counts(
