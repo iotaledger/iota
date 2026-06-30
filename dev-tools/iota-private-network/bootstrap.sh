@@ -18,12 +18,14 @@ NUM_VALIDATORS=4
 EPOCH_DURATION_MS=1200000
 FLAG_SPECIFIED=false
 BENCHMARK_MODE=false
-while getopts "n:e:b" opt; do
+FORCE=false
+while getopts "n:e:bf" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG"; FLAG_SPECIFIED=true ;;
     e) EPOCH_DURATION_MS="$OPTARG"; FLAG_SPECIFIED=true ;;
     b) BENCHMARK_MODE=true; FLAG_SPECIFIED=true ;;
-    *) echo "Usage: $0 [-n num_validators] [-e epoch_duration_ms] [-b]"; exit 1 ;;
+    f) FORCE=true ;;
+    *) echo "Usage: $0 [-n num_validators] [-e epoch_duration_ms] [-b] [-f]"; exit 1 ;;
   esac
 done
 
@@ -247,10 +249,30 @@ main() {
       echo "Please run as root or with sudo"
       exit 1
     fi
-  
+
+  # Refuse to regenerate genesis / wipe data while another experiment runner
+  # holds the shared lock. Same env-var / flag bypass shape as cleanup.sh
+  # and run.sh; orchestrators pass IOTA_EXPERIMENT_LOCK_HELD=1 through sudo
+  # so the runner-internal `sudo ./bootstrap.sh` path skips this check.
+  # Read-only FD + shared flock: see cleanup.sh for the rationale (avoids
+  # false positives under fs.protected_regular).
+  LOCK_PATH="/tmp/iota-experiments.lock"
+  if [ "$FORCE" != "true" ] \
+     && [ "${IOTA_EXPERIMENT_LOCK_HELD:-0}" != "1" ] \
+     && [ -f "$LOCK_PATH" ] \
+     && ! (flock -n -s 9) 9<"$LOCK_PATH" 2>/dev/null; then
+    holder=$(cat "$LOCK_PATH" 2>/dev/null || true)
+    echo "ERROR: another experiment run is active: ${holder:-(holder unknown)}" >&2
+    echo "       Wait for it to finish, or pass -f to override." >&2
+    exit 1
+  fi
+
   [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
 
-  [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh
+  # bootstrap.sh has already gated the lock above; pass -f so the inner
+  # cleanup.sh skips its (now-redundant) check rather than fighting the
+  # same lock we already saw is free.
+  [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh -f
 
   # Generate genesis template if missing
   generate_genesis_template_if_missing

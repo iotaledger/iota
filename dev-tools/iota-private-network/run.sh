@@ -6,13 +6,33 @@
 
 # Default validator count
 NUM_VALIDATORS=4
-while getopts "n:" opt; do
+FORCE=false
+while getopts "n:fh" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+    f) FORCE=true ;;
+    h|*) echo "Usage: $0 [-n num_validators] [-f] <modes...>"; exit 1 ;;
   esac
 done
 shift $((OPTIND -1))
+
+# Refuse to bring up validators on top of another active experiment's
+# network — different docker compose project, same `iota-network` and
+# container names; recreates / port conflicts ensue. Same env-var /
+# explicit-flag bypass shape as cleanup.sh.
+LOCK_PATH="/tmp/iota-experiments.lock"
+# Read-only FD + shared flock: see cleanup.sh for the rationale (avoids
+# false positives under fs.protected_regular when the lock file was left
+# behind by a dead orchestrator from another user).
+if [ "$FORCE" != "true" ] \
+   && [ "${IOTA_EXPERIMENT_LOCK_HELD:-0}" != "1" ] \
+   && [ -f "$LOCK_PATH" ] \
+   && ! (flock -n -s 9) 9<"$LOCK_PATH" 2>/dev/null; then
+  holder=$(cat "$LOCK_PATH" 2>/dev/null || true)
+  echo "ERROR: another experiment run is active: ${holder:-(holder unknown)}" >&2
+  echo "       Wait for it to finish, or pass -f to override." >&2
+  exit 1
+fi
 
 function start_services() {
   services="$1"

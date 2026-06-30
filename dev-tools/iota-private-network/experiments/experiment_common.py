@@ -338,6 +338,12 @@ def acquire_single_run_lock(runner: str) -> None:
     )
     fh.flush()
     _run_lock_fh = fh  # keep the fd open: the flock dies with the process
+    # Signal child processes (bootstrap.sh -> cleanup.sh chain, plus any
+    # direct invocations of cleanup.sh / run.sh from within an orchestrator)
+    # that the shared lock is already held by their parent, so their own
+    # lock-checks should not fire. Default subprocess.run inherits env, so
+    # setting this in os.environ propagates cleanly.
+    os.environ["IOTA_EXPERIMENT_LOCK_HELD"] = "1"
 
 
 def _lock_holder_pid(holder: str) -> int | None:
@@ -739,9 +745,19 @@ def generate_compose_file(
 
 
 def bootstrap_genesis(network_dir: Path, num_validators: int, epoch_ms: int) -> None:
-    """Run bootstrap.sh under sudo (writes the root-owned data dir)."""
+    """Run bootstrap.sh under sudo (writes the root-owned data dir).
+
+    `IOTA_EXPERIMENT_LOCK_HELD=1` is passed as a sudo command-line env
+    assignment so bootstrap.sh's (and its inner cleanup.sh's) lock check
+    bypasses — the orchestrator already holds the shared lock. sudo's
+    default env_reset strips inherited variables, so the explicit cmdline
+    assignment is required (relying on os.environ alone would not survive
+    sudo)."""
     run_timed(
-        ["sudo", "./bootstrap.sh", "-n", str(num_validators), "-e", str(epoch_ms)],
+        [
+            "sudo", "IOTA_EXPERIMENT_LOCK_HELD=1",
+            "./bootstrap.sh", "-n", str(num_validators), "-e", str(epoch_ms),
+        ],
         "Bootstrapping genesis",
         cwd=network_dir,
     )
