@@ -54,6 +54,7 @@ use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     authority_server::{
         StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
+        recent_submission::{RecentSubmissions, recently_resubmitted_error},
         soft_lock::PreConsensusSoftLocks,
     },
     consensus_adapter::ConsensusAdapter,
@@ -92,6 +93,7 @@ impl ValidatorService {
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
         let soft_locks = self.soft_locks.clone();
+        let recent_submissions = self.recent_submissions.clone();
 
         // Run per-tx tasks concurrently, capped by `MAX_CONCURRENT_SUBMIT_TASKS`.
         // Spawning lets CPU-heavy work run across worker threads; `buffer_unordered`
@@ -104,6 +106,7 @@ impl ValidatorService {
                     let consensus_adapter = consensus_adapter.clone();
                     let metrics = metrics.clone();
                     let soft_locks = soft_locks.clone();
+                    let recent_submissions = recent_submissions.clone();
                     spawn_monitored_task!(async move {
                         let tx_digest = *transaction.digest();
                         let (update, weight) = Self::submit_single_tx(
@@ -112,6 +115,7 @@ impl ValidatorService {
                             &metrics,
                             &epoch_store,
                             &soft_locks,
+                            &recent_submissions,
                             transaction,
                         )
                         .await;
@@ -150,6 +154,7 @@ impl ValidatorService {
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         soft_locks: &Arc<PreConsensusSoftLocks>,
+        recent_submissions: &Arc<RecentSubmissions>,
         transaction: Transaction,
     ) -> (TxStatusUpdate, Weight) {
         let tx_digest = *transaction.digest();
@@ -195,6 +200,26 @@ impl ValidatorService {
         {
             return (build_executed(effects), Weight::one());
         }
+
+        // Suppress duplicate resubmissions of in-flight transactions. Placed
+        // before signature verification and validation so amplified
+        // resubmission storms are short-circuited cheaply. Soft locks
+        // (object-keyed) are intentionally idempotent for same-digest
+        // resubmission, so this digest-keyed check is the layer that catches
+        // them. Best-effort: concurrent races may both pass, but consensus
+        // is the authoritative dedup.
+        if let Err(elapsed) = recent_submissions.try_record(tx_digest) {
+            metrics.num_rejected_tx_recently_resubmitted.inc();
+            metrics
+                .recently_submitted_resubmission_interval
+                .observe(elapsed.as_secs_f64());
+            let error = recently_resubmitted_error(tx_digest);
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+        metrics
+            .recently_submitted_cache_size
+            .set(recent_submissions.entry_count() as i64);
 
         // Verify user signature.
         let tx_verif_guard = metrics.tx_verification_latency.start_timer();

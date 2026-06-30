@@ -7,6 +7,7 @@ mod validator_peer;
 mod validator_v2;
 
 pub mod metrics;
+pub mod recent_submission;
 pub mod soft_lock;
 #[cfg(test)]
 mod test_server;
@@ -30,7 +31,7 @@ use tracing::error;
 
 use crate::{
     authority::AuthorityState,
-    authority_server::soft_lock::PreConsensusSoftLocks,
+    authority_server::{recent_submission::RecentSubmissions, soft_lock::PreConsensusSoftLocks},
     consensus_adapter::ConsensusAdapter,
     traffic_controller::{
         ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
@@ -51,6 +52,7 @@ pub struct ValidatorService {
     traffic_controller: Option<Arc<TrafficController>>,
     client_id_source: Option<ClientIdSource>,
     soft_locks: Arc<PreConsensusSoftLocks>,
+    recent_submissions: Arc<RecentSubmissions>,
 }
 
 impl ValidatorService {
@@ -70,6 +72,7 @@ impl ValidatorService {
             traffic_controller,
             client_id_source,
             soft_locks,
+            recent_submissions: Arc::new(RecentSubmissions::new()),
         }
     }
 
@@ -85,6 +88,7 @@ impl ValidatorService {
             traffic_controller: None,
             client_id_source: None,
             soft_locks: Arc::new(PreConsensusSoftLocks::new()),
+            recent_submissions: Arc::new(RecentSubmissions::new()),
         }
     }
 

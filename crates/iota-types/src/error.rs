@@ -515,6 +515,8 @@ pub enum IotaError {
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
+    #[error("Transaction {digest:?} was recently submitted; duplicate resubmission suppressed.")]
+    RecentlyResubmitted { digest: TransactionDigest },
     #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },
     #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{digests:?}]")]
@@ -847,6 +849,10 @@ impl IotaError {
 
             // Transient consensus failure — other validators likely unaffected
             IotaError::FailedToSubmitToConsensus(..) => true,
+
+            // Same digest already in flight — client should wait for the
+            // original to land or retry once the recent-submission window expires.
+            IotaError::RecentlyResubmitted { .. } => true,
 
             // Non retryable error
             IotaError::Execution(..) => false,
