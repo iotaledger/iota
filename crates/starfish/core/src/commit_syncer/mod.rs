@@ -542,6 +542,7 @@ where
         "[{}] Starting to fetch commits in {commit_range:?} ...",
         inner.sync_type.as_str()
     );
+    let responsiveness = &inner.context.peer_responsiveness;
     loop {
         // Attempt to fetch commits and blocks through min(committee size,
         // MAX_NUM_TARGETS) peers.
@@ -565,11 +566,7 @@ where
         // committee order under test.
         if inner.context.parameters.enable_peer_responsiveness_ranking {
             let mut rng = thread_rng();
-            inner.context.peer_responsiveness.prioritize(
-                fetch_kind,
-                &mut target_authorities,
-                &mut rng,
-            );
+            responsiveness.prioritize(fetch_kind, &mut target_authorities, &mut rng);
         } else {
             #[cfg(not(test))]
             target_authorities.shuffle(&mut ThreadRng::default());
@@ -581,7 +578,6 @@ where
 
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
-        let responsiveness = &inner.context.peer_responsiveness;
         for authority in target_authorities {
             let started = Instant::now();
             match tokio::time::timeout(
