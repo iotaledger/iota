@@ -559,8 +559,8 @@ class CheckpointMonitor:
             ("Tx commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p99", "histogram_quantile(0.99, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Proposed blocks/s", "sum(rate(consensus_proposed_blocks[{w}s] @ {t}))", "blk/s", 1.0),
             ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
         ]
