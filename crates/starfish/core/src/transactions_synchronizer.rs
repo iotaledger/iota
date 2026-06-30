@@ -814,11 +814,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         }
 
         // Await all authority requests to complete, feeding the per-peer
-        // responsiveness signal. A delivering fetch records its latency scaled
-        // up by the inverse of the delivered fraction (a shortfall penalty), so
-        // a peer cannot look fast by replying quickly with little. A peer that
-        // returned transactions which were all locally deduped/already-locked
-        // still did its job and is credited with its raw latency. A peer that
+        // responsiveness signal. The recorded latency spans fetch and
+        // verification. A delivering fetch records that latency scaled up by the
+        // inverse of the delivered fraction (a shortfall penalty), so a peer
+        // cannot look fast by replying quickly with little. A peer that returned
+        // transactions which were all locally deduped/already-locked still did
+        // its job and is credited with its measured latency. A peer that
         // returned nothing is a goodput failure; an error/timeout is a failure
         // that additionally drives the existing f+1 exclusion via
         // `last_failure_by_peer`.
@@ -879,7 +880,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             sync_method.get_string(),
         );
 
-        let (fetched_serialized_transactions, transactions_guard, peer, latency) =
+        // Span the whole fetch-and-verify so the responsiveness latency includes
+        // verification time, consistent with the commit syncer.
+        let started = Instant::now();
+        let (fetched_serialized_transactions, transactions_guard, peer) =
             Self::fetch_transactions_request(
                 network_client.clone(),
                 peer,
@@ -907,7 +911,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         .await?;
 
         Ok(FetchStats {
-            latency,
+            latency: started.elapsed(),
             requested: total_requested,
             received: total_fetched,
             delivered,
@@ -924,7 +928,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         request_timeout: Duration,
         context: Arc<Context>,
         sync_method: SyncMethod,
-    ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex, Duration)> {
+    ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex)> {
         // Track concurrent inflight requests
         let inflight_metric = &context
             .metrics
@@ -1008,7 +1012,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 result
             }
         };
-        resp.map(|txs| (txs, transactions_guard, peer, fetch_duration))
+        resp.map(|txs| (txs, transactions_guard, peer))
     }
 
     /// Processes the requested raw fetched transactions from peer `peer_index`.

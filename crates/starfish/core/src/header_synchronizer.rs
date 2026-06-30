@@ -646,6 +646,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         Ok(blocks) => {
                             let requested = blocks_guard.block_refs.len();
                             let returned = blocks.len();
+                            // Include processing/verification time so the
+                            // responsiveness latency spans fetch and verify,
+                            // consistent with the commit syncer.
+                            let process_started = Instant::now();
                             match Self::process_fetched_headers_from_authority(blocks,
                                 peer_index,
                                 blocks_guard,
@@ -661,7 +665,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 misbehavior_store.clone(),
                             ).await {
                                 Ok(delivered) => {
-                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, returned, delivered, latency);
+                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, returned, delivered, latency + process_started.elapsed());
                                 }
                                 Err(err) => {
                                     context.peer_responsiveness.record_failure_with_timeout(
@@ -978,7 +982,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         fail_point_async!("consensus-delay");
 
         // Network latency of this attempt, captured before the retry back-off
-        // sleep below so the responsiveness signal reflects the fetch itself.
+        // sleep below. The caller adds processing/verification time before
+        // recording the responsiveness signal.
         let latency = start.elapsed();
 
         let resp = match resp {
@@ -1001,13 +1006,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
     }
 
     /// Feeds a header fetch outcome into the per-peer responsiveness signal.
-    /// `returned` is what the peer sent, `delivered` what survived dedup
-    /// against the verified cache and the far-future drop. A peer that
-    /// returned nothing is a goodput failure; a response whose headers were
-    /// all already known still did its job and is credited with its raw
-    /// latency; a partial response scales the recorded latency by the
-    /// shortfall so a peer cannot look fast by returning fewer headers than
-    /// requested.
+    /// `latency` spans fetch and verification. `returned` is what the peer
+    /// sent, `delivered` what survived dedup against the verified cache and the
+    /// far-future drop. A peer that returned nothing is a goodput failure; a
+    /// response whose headers were all already known still did its job and is
+    /// credited with its measured latency; a partial response scales the
+    /// recorded latency by the shortfall so a peer cannot look fast by
+    /// returning fewer headers than requested.
     fn record_header_fetch_responsiveness(
         context: &Context,
         peer: AuthorityIndex,
@@ -1348,6 +1353,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     let returned = serialized_fetched_block_headers.len();
                     total_fetched += returned;
 
+                    // Include processing/verification time so the responsiveness
+                    // latency spans fetch and verify, consistent with the commit
+                    // syncer.
+                    let process_started = Instant::now();
                     match Self::process_fetched_headers_from_authority(
                         serialized_fetched_block_headers,
                         peer,
@@ -1366,7 +1375,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .await
                     {
                         Ok(delivered) => {
-                            Self::record_header_fetch_responsiveness(&context, peer, requested, returned, delivered, latency);
+                            Self::record_header_fetch_responsiveness(&context, peer, requested, returned, delivered, latency + process_started.elapsed());
                         }
                         Err(err) => {
                             context.peer_responsiveness.record_failure_with_timeout(
