@@ -14,7 +14,6 @@ use std::{
 use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
-use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 use tracing::debug;
@@ -22,7 +21,7 @@ use tracing::debug;
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
-        VerifiedBlockHeader, VerifiedTransactions, uleb128_len,
+        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -939,10 +938,6 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
         result.push_str(&block.round().to_string());
     }
     result
-}
-
-fn format_block_digests(blocks: &[BlockRef]) -> String {
-    blocks.iter().map(|b| b.to_string()).join(", ")
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

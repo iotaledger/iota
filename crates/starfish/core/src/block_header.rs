@@ -665,6 +665,12 @@ impl fmt::Debug for BlockRef {
     }
 }
 
+/// Formats a slice of block references as a comma-separated list of their
+/// short `Display` form, for debug/log output.
+pub(crate) fn format_block_digests(blocks: &[BlockRef]) -> String {
+    blocks.iter().map(|b| b.to_string()).join(", ")
+}
+
 impl Hash for BlockRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.digest.0[..8]);
@@ -1293,14 +1299,11 @@ impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}([{}];{}ms;[{}]a;{}c)",
+            "{:?}({}ms;[{}]r;[{}]a;{}c)",
             self.reference(),
-            self.ancestors().iter().map(|a| a.to_string()).join(", "),
             self.timestamp_ms(),
-            self.acknowledgments()
-                .iter()
-                .map(|a| a.to_string())
-                .join(", "),
+            format_block_digests(self.ancestors()),
+            format_block_digests(self.acknowledgments()),
             self.commit_votes().len(),
         )
     }
