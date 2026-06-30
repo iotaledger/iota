@@ -401,10 +401,7 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest).await?;
@@ -590,7 +587,7 @@ impl ArchiveReader {
                     .expect("store operation should not fail");
                 Ok::<VerifiedCheckpoint, anyhow::Error>(verified_checkpoint)
             })
-            .map_err(|e| anyhow!("Failed to get verified checkpoint: {:?}", e))
+            .map_err(|e| anyhow!("Failed to get verified checkpoint: {e:?}"))
     }
 
     async fn get_summary_files_for_range(
@@ -605,10 +602,7 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let summary_files: Vec<FileMetadata> = self
@@ -649,10 +643,7 @@ impl ArchiveReader {
         let mut ordered_checkpoints = checkpoints;
         ordered_checkpoints.sort();
         if *ordered_checkpoints.first().unwrap() > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let summary_files: Vec<FileMetadata> = self

@@ -285,9 +285,7 @@ pub(super) fn verify_sender_feature(
         if let Some(obj_sender) = created {
             ensure!(
                 obj_sender == iota_sender_address,
-                "sender mismatch: found {}, expected {}",
-                obj_sender,
-                iota_sender_address
+                "sender mismatch: found {obj_sender}, expected {iota_sender_address}"
             );
         } else {
             bail!("missing sender on object");
@@ -307,9 +305,7 @@ pub(super) fn verify_issuer_feature(
         if let Some(obj_issuer) = created {
             ensure!(
                 obj_issuer == iota_issuer_address,
-                "issuer mismatch: found {}, expected {}",
-                obj_issuer,
-                iota_issuer_address
+                "issuer mismatch: found {obj_issuer}, expected {iota_issuer_address}"
             );
         } else {
             bail!("missing issuer on object");

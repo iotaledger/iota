@@ -39,15 +39,12 @@ macro_rules! as_ref_get_impl {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.get(src)
                     .await
-                    .map_err(|e| anyhow!("Failed to get file {} with error: {:?}", src, e))?
+                    .map_err(|e| anyhow!("Failed to get file {src} with error: {e:?}"))?
                     .bytes()
                     .await
                     .map_err(|e| {
                         anyhow!(
-                            "Failed to collect GET result for file {} into bytes with error: {:?}",
-                            src,
-                            e
-                        )
+                            "Failed to collect GET result for file {src} into bytes with error: {e:?}")
                     })
             }
         }
