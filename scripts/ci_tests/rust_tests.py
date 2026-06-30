@@ -819,8 +819,8 @@ class RustTestOrchestrator:
     # check for unused dependencies with cargo-udeps.
     def run_unused_deps(self) -> int:
         commands = [
-            "cargo +nightly-2026-01-07 ci-udeps --all-features",
-            "cargo +nightly-2026-01-07 ci-udeps --no-default-features"
+            "cargo +nightly-2026-06-29 ci-udeps --all-features",
+            "cargo +nightly-2026-06-29 ci-udeps --no-default-features"
         ]
         
         for cmd in commands:

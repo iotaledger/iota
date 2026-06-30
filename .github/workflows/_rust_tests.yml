@@ -238,10 +238,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Cargo Udeps
-        run: cargo +nightly-2026-01-07 ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps ${{ matrix.flags }}
 
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly-2026-01-07 ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps-external ${{ matrix.flags }}
 
   check-unused-deps-cancel:
     needs: [check-unused-deps]
