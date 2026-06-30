@@ -11,11 +11,12 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
-    ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
-    ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
-    ObjectId, Owner, ProgrammableTransaction, TransactionKind, TransferObjects, TypeTag,
-    VersionAssignment, gas::GasCostSummary,
+    AccountClaimKind, Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2,
+    ChangeEpochV3, ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments,
+    EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
+    GenesisObject, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
+    SmartAccountBuildKind, TransactionKind, TransferObjects, TypeTag, VersionAssignment,
+    gas::GasCostSummary,
 };
 use iota_types::{
     base_types::{EpochId, ObjectRef, SequenceNumber, TransactionDigest},
@@ -481,6 +482,8 @@ pub enum IotaTransactionBlockKind {
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
+    /// A transaction that claims an on-chain account object
+    ClaimAccount(IotaClaimAccountTransaction),
     // .. more transaction types go here
 }
 
@@ -512,6 +515,9 @@ impl Display for IotaTransactionBlockKind {
             }
             Self::EndOfEpochTransaction(_) => {
                 writeln!(writer, "Transaction Kind: End of Epoch Transaction")?;
+            }
+            Self::ClaimAccount(_) => {
+                writeln!(writer, "Transaction Kind: Claim Account")?;
             }
         }
         write!(f, "{writer}")
@@ -594,6 +600,32 @@ impl IotaTransactionBlockKind {
                         .collect(),
                 }))
             }
+            TransactionKind::ClaimAccount(claim_tx) => {
+                let kind = match claim_tx.kind {
+                    AccountClaimKind::SmartAccount(smart) => {
+                        IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
+                            public_key: smart.public_key.to_base64(),
+                            claim_registry_initial_shared_version: smart
+                                .claim_registry_initial_shared_version,
+                            field_count: smart.fields.len() as u64,
+                            build_kind: match smart.build_kind {
+                                SmartAccountBuildKind::Mutable => {
+                                    IotaSmartAccountBuildKind::Mutable
+                                }
+                                SmartAccountBuildKind::Immutable => {
+                                    IotaSmartAccountBuildKind::Immutable
+                                }
+                            },
+                        })
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("unsupported AccountClaimKind variant"));
+                    }
+                };
+                Ok(Self::ClaimAccount(IotaClaimAccountTransaction {
+                    account_kind: kind,
+                }))
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             )
@@ -644,6 +676,7 @@ impl IotaTransactionBlockKind {
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
+            Self::ClaimAccount(_) => "ClaimAccount",
         }
     }
 }
@@ -1945,6 +1978,41 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
             }
         }
     }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaClaimAccountTransaction {
+    pub account_kind: IotaAccountClaimKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum IotaAccountClaimKind {
+    SmartAccount(IotaSmartAccountClaim),
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaSmartAccountClaim {
+    /// Scheme-flagged base64-encoded public key.
+    pub public_key: String,
+
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub claim_registry_initial_shared_version: u64,
+
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub field_count: u64,
+
+    pub build_kind: IotaSmartAccountBuildKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub enum IotaSmartAccountBuildKind {
+    Mutable,
+    Immutable,
 }
 
 #[serde_as]

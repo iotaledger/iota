@@ -17,11 +17,13 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
-    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    AccountClaimKind, Address, Argument, CancelledTransaction, Command,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
+    EndOfEpochTransactionKind, Event, GenesisObject, GenesisTransaction, Identifier, Input,
+    MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, ProgrammableTransaction, Publish,
+    RandomnessRound, RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind,
+    TransferObjects,
+    TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -811,6 +813,16 @@ impl TransactionKindExt for TransactionKind {
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
             Self::Programmable(pt) => Either::Right(Either::Left(pt.shared_input_objects())),
+            Self::ClaimAccount(claim) => match &claim.kind {
+                AccountClaimKind::SmartAccount(smart) => {
+                    Either::Left(Either::Left(iter::once(SharedObjectRef::new(
+                        ObjectId::CLAIM_REGISTRY,
+                        smart.claim_registry_initial_shared_version.into(),
+                        true,
+                    ))))
+                }
+                _ => Either::Right(Either::Right(iter::empty())),
+            },
             _ => Either::Right(Either::Right(iter::empty())),
         }
     }
@@ -829,7 +841,8 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
-            | TransactionKind::EndOfEpoch(_) => vec![],
+            | TransactionKind::EndOfEpoch(_)
+            | TransactionKind::ClaimAccount(_) => vec![],
             TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -878,6 +891,20 @@ impl TransactionKindExt for TransactionKind {
                 after_dedup
             }
             Self::Programmable(p) => return p.input_objects(),
+            Self::ClaimAccount(claim) => match &claim.kind {
+                AccountClaimKind::SmartAccount(smart) => {
+                    vec![InputObjectKind::SharedMoveObject {
+                        id: ObjectId::CLAIM_REGISTRY,
+                        initial_shared_version: smart
+                            .claim_registry_initial_shared_version
+                            .into(),
+                        mutable: true,
+                    }]
+                }
+                _ => unimplemented!(
+                    "a new AccountClaimKind enum variant was added and needs to be handled"
+                ),
+            },
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -919,6 +946,14 @@ impl TransactionKindExt for TransactionKind {
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
+            TransactionKind::ClaimAccount(_) => {
+                fp_ensure!(
+                    config.enable_claim_registry(),
+                    UserInputError::Unsupported(
+                        "claim account transactions require the claim registry feature".to_string()
+                    )
+                );
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -942,6 +977,7 @@ impl TransactionKindExt for TransactionKind {
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpoch(_) => "EndOfEpoch",
+            Self::ClaimAccount(_) => "ClaimAccount",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -1375,7 +1411,10 @@ impl TransactionDataAPI for TransactionData {
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(self.kind(), TransactionKind::Programmable(_)) {
+        if matches!(
+            self.kind(),
+            TransactionKind::Programmable(_) | TransactionKind::ClaimAccount(_)
+        ) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)

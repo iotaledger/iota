@@ -461,6 +461,22 @@ input CheckpointId {
 }
 
 """
+The specific account type being claimed.
+"""
+union ClaimAccountKind = SmartAccountClaimTransaction
+
+"""
+A transaction that creates an Account object via the constrained builder
+pipeline.
+"""
+type ClaimAccountTransaction {
+	"""
+	The specific kind of account being claimed.
+	"""
+	kind: ClaimAccountKind!
+}
+
+"""
 System transaction for creating the `ClaimRegistry` singleton on networks
 that were deployed before the ClaimRegistry was introduced.
 """
@@ -3989,6 +4005,48 @@ type SharedObjectRead {
 }
 
 """
+Selects the terminal builder function.
+"""
+enum SmartAccountBuildKind {
+	"""
+	The account will be a mutable shared object (`build_v1`).
+	"""
+	MUTABLE
+	"""
+	The account will be an immutable frozen object (`build_immutable_v1`).
+	"""
+	IMMUTABLE
+}
+
+"""
+Parameters for the SmartAccount constrained builder pipeline.
+"""
+type SmartAccountClaimTransaction {
+	"""
+	The signature scheme flag byte (0=Ed25519, 1=Secp256k1, 2=Secp256r1,
+	6=Passkey).
+	"""
+	publicKeyScheme: Int!
+	"""
+	The raw public key bytes, base64-encoded.
+	"""
+	publicKeyBytes: Base64!
+	"""
+	Initial shared version of the ClaimRegistry object at 0x10.
+	"""
+	claimRegistryInitialSharedVersion: Int!
+	"""
+	Number of `with_field` calls in this claim (0 means no extra fields).
+	"""
+	fieldCount: Int!
+	"""
+	Whether the resulting SmartAccount object will be mutable (shared) or
+	immutable (frozen).
+	"""
+	buildKind: SmartAccountBuildKind!
+}
+
+"""
 Splits off coins with denominations in `amounts` from `coin`, returning
 multiple results (as many as there are amounts.)
 """
@@ -4588,7 +4646,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ClaimAccountTransaction | ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
 
 """
 An input filter selecting for either system or programmable transactions.
