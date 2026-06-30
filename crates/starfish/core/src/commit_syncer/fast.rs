@@ -1040,7 +1040,6 @@ mod tests {
                 fast_commit_sync_batch_size: 20,
                 enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-                // This test asserts B asks A first to exercise A's voting storage.
                 enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
@@ -1118,7 +1117,6 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
-            // This test asserts B asks A first to exercise A's voting storage.
             enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
@@ -1181,7 +1179,6 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
-            // This test asserts B asks A first to exercise A's voting storage.
             enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
