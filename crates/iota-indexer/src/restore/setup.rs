@@ -3,7 +3,6 @@
 
 use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc};
 
-use anyhow::{anyhow, bail};
 use clap::ValueEnum;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
@@ -90,7 +89,7 @@ pub(crate) async fn setup_reader(
 }
 
 /// Returns the epochs for which there is an available formal snapshot of the
-/// network.
+/// network, in descending order.
 ///
 /// # Errors
 ///
@@ -98,10 +97,7 @@ pub(crate) async fn setup_reader(
 /// cannot be fetched or parsed.
 pub async fn available_epochs(network: Network) -> IndexerResult<Vec<u64>> {
     let remote_store = FormalSnapshotStore::new(network)?;
-    let mut epochs = remote_store
-        .available_epochs()
-        .await
-        .map_err(|e| IndexerError::Restore(format!("failed to read available epochs: {e}")))?;
+    let mut epochs = remote_store.available_epochs().await?;
     epochs.sort_unstable_by_key(|&epoch| Reverse(epoch));
     Ok(epochs)
 }
@@ -132,17 +128,17 @@ impl FormalSnapshotStore {
 
     /// Returns the latest epoch with a formal snapshot available in the remote
     /// store, according to the root MANIFEST.
-    async fn latest_available_epoch(&self) -> Result<u64, anyhow::Error> {
+    async fn latest_available_epoch(&self) -> IndexerResult<u64> {
         self.available_epochs()
             .await?
             .into_iter()
             .max()
-            .ok_or(anyhow!("No snapshot found in manifest"))
+            .ok_or_else(|| IndexerError::Restore("No snapshot found in manifest".to_string()))
     }
 
     /// Returns the epochs with a formal snapshot available in the remote store,
     /// according to the root MANIFEST.
-    async fn available_epochs(&self) -> Result<Vec<u64>, anyhow::Error> {
+    async fn available_epochs(&self) -> IndexerResult<Vec<u64>> {
         let manifest_contents = self.store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
         let root_manifest = RootManifest::from_bytes(&manifest_contents)?;
         Ok(root_manifest
@@ -154,20 +150,20 @@ impl FormalSnapshotStore {
 
     /// Verifies that the formal snapshot upload for the given epoch has
     /// completed.
-    async fn verify_completed_snapshot(&self, epoch: u64) -> Result<(), anyhow::Error> {
+    async fn verify_completed_snapshot(&self, epoch: u64) -> IndexerResult<()> {
         let success_marker = format!("epoch_{epoch}/{SUCCESS_MARKER}");
         // TODO: sort out failure modes of exists
         if exists(&self.store, &get_path(success_marker.as_str())).await {
             Ok(())
         } else {
-            bail!(
+            Err(IndexerError::Restore(format!(
                 "missing success marker at {}/{}",
                 self.config
                     .aws_endpoint
                     .as_deref()
                     .unwrap_or("unknown endpoint"),
                 success_marker
-            )
+            )))
         }
     }
 }
