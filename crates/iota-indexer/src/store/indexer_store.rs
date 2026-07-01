@@ -90,7 +90,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
-        displays: Vec<StoredDisplay>,
+        displays: &[StoredDisplay],
     ) -> Result<(), IndexerError>;
 
     fn persist_objects_in_existing_transaction(
