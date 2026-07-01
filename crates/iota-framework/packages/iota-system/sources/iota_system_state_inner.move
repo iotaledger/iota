@@ -816,8 +816,7 @@ public(package) fun advance_epoch(
     burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
     self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
 
-    // Burn bonds of attestors evicted below the low-bond threshold during
-    // the attestor registry's epoch processing.
+    // Burn bonds of attestors evicted below the low-bond threshold.
     burnt_tokens_amount = burnt_tokens_amount + attestor_evicted_bonds.value();
     self.iota_treasury_cap.burn_balance(attestor_evicted_bonds, ctx);
 
