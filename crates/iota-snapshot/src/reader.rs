@@ -650,13 +650,13 @@ impl ObjectRefIter {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         self.reader.read_exact(&mut buf)?;
         let object_id = &buf[0..OBJECT_ID_BYTES];
-        let sequence_number = &buf[OBJECT_ID_BYTES..OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES]
+        let version = &buf[OBJECT_ID_BYTES..OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES]
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
         let object_ref = ObjectRef::new(
             ObjectId::from_bytes(object_id)?,
-            Version::from_u64(*sequence_number),
+            Version::from_u64(*version),
             ObjectDigest::from_bytes(sha3_digest)?,
         );
         Ok(object_ref)

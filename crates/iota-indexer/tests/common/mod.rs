@@ -259,7 +259,7 @@ pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestC
 async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectId,
-    sequence_number: Version,
+    version: Version,
 ) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -270,7 +270,7 @@ async fn wait_for_object(
 
             if obj_res
                 .data
-                .map(|obj| obj.version == sequence_number)
+                .map(|obj| obj.version == version)
                 .unwrap_or_default()
             {
                 break;
@@ -284,22 +284,14 @@ async fn wait_for_object(
 }
 
 /// Wait for the indexer to catch up to the given object sequence number
-pub async fn indexer_wait_for_object(
-    client: &HttpClient,
-    object_id: ObjectId,
-    sequence_number: Version,
-) {
-    wait_for_object(client, object_id, sequence_number)
+pub async fn indexer_wait_for_object(client: &HttpClient, object_id: ObjectId, version: Version) {
+    wait_for_object(client, object_id, version)
         .await
         .expect("timeout waiting for indexer to catchup to given object's sequence number");
 }
 
-pub async fn node_wait_for_object(
-    cluster: &TestCluster,
-    object_id: ObjectId,
-    sequence_number: Version,
-) {
-    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
+pub async fn node_wait_for_object(cluster: &TestCluster, object_id: ObjectId, version: Version) {
+    wait_for_object(cluster.rpc_client(), object_id, version)
         .await
         .expect("timeout waiting for node to catchup to given object's sequence number");
 }

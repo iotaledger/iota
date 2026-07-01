@@ -869,7 +869,7 @@ impl Display for PastObjectRead {
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({object_id}, asked sequence number {version:?})"
+                    "PastObjectRead::VersionNotFound ({object_id}, asked version {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -879,7 +879,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({object_id}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
+                    "PastObjectRead::VersionTooHigh ({object_id}, asked version {asked_version:?}, latest version {latest_version:?})"
                 )
             }
         }
