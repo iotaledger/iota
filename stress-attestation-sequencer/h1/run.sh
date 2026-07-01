@@ -342,6 +342,28 @@ run_stress() {
   echo
 }
 
+# Capture per-node restart/OOM state + full logs + a WARN/ERROR crash digest into
+# $1, BEFORE any teardown removes the containers. Called for BOTH Run A (before the
+# reset) and Run B (before final cleanup) so the V1-vs-V2 fork/crash comparison is
+# symmetric. RestartCount/OOMKilled from `docker inspect` reveal whether a node
+# crashed during the run; the digest keeps only real WARN/ERROR panics/forks (the
+# level filter drops benign DEBUG "processing aborted (retriable)" TD spam).
+capture_node_state() {
+  local out="$1" c _nodes
+  mkdir -p "$out"
+  mapfile -t _nodes < <(docker ps --format '{{.Names}}' | grep -E '^(validator|fullnode)-[0-9]+$' | sort)
+  : >"$out/_state.log"
+  for c in "${_nodes[@]}"; do
+    docker inspect "$c" --format \
+      '{{.Name}} status={{.State.Status}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}' \
+      >>"$out/_state.log" 2>&1 || true
+    docker logs "$c" >"$out/$c.log" 2>&1 || true
+  done
+  grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$out"/*.log 2>/dev/null |
+    grep -vE ':[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z +(TRACE|DEBUG|INFO) ' \
+      >"$out/_crash.log" || true
+}
+
 # One experiment iteration: cleanup -> bootstrap -> Run A (V1) -> reset ->
 # Run B (V2) -> capture node logs -> stop network, all into a fresh config-gated
 # RESULTS_DIR. Called ITERS times by main below.
@@ -376,6 +398,10 @@ run_one_iteration() {
   # so the runs are cleanly separated. Run A's metrics are already saved.
   echo "${YELLOW}Letting the network run ${PRE_STOP_WAIT_S}s after the scrape before resetting...${RESET}"
   sleep "$PRE_STOP_WAIT_S"
+  # Capture Run A's (V1) node state BEFORE the reset destroys these containers — so
+  # the attestation-OFF flow's fork/crash status is on record (parallels Run B).
+  echo "${BLUE}Capturing Run A (V1) node logs + state -> $(rel "$RESULTS_DIR/run-a-node-logs")/${RESET}"
+  capture_node_state "$RESULTS_DIR/run-a-node-logs"
   reset_network
   echo
 
@@ -401,29 +427,12 @@ run_one_iteration() {
   echo "${BLUE}This iteration's raw data: $(rel "$RESULTS_DIR")${RESET}"
   echo "  - run-a-v1-timeseries.json, run-b-v2-timeseries.json"
 
-  # Capture per-node logs + restart/OOM state BEFORE teardown — `cleanup.sh` runs
-  # `docker compose down`, which removes the containers and their logs, so a crash
-  # (e.g. a validator dying under load) is undebuggable afterward. Note: `docker
-  # logs` shows only the current incarnation; the RestartCount/OOMKilled from
-  # `docker inspect` reveals whether a node restarted/was killed during the run.
-  node_logs="$RESULTS_DIR/node-logs"
-  mkdir -p "$node_logs"
+  # Capture Run B's (V2) per-node logs + restart/OOM state + crash digest BEFORE the
+  # final cleanup (`docker compose down`) removes the containers. Run A's equivalent
+  # is already in run-a-node-logs/ (captured before the reset).
+  node_logs="$RESULTS_DIR/node-logs" # Run B (V2, attestation ON)
   echo "${BLUE}Capturing node logs + state -> $(rel "$node_logs")/${RESET}"
-  mapfile -t _nodes < <(docker ps --format '{{.Names}}' | grep -E '^(validator|fullnode)-[0-9]+$' | sort)
-  : >"$node_logs/_state.log"
-  for c in "${_nodes[@]}"; do
-    docker inspect "$c" --format \
-      '{{.Name}} status={{.State.Status}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}' \
-      >>"$node_logs/_state.log" 2>&1 || true
-    docker logs "$c" >"$node_logs/$c.log" 2>&1 || true
-  done
-  # Quick crash digest across all nodes (panics / fatal / OOM). Drop keyword hits
-  # logged at DEBUG/INFO — e.g. the benign TD "processing aborted (retriable)"
-  # spam that "abort" would otherwise pull in — keeping only WARN/ERROR-level hits
-  # (real panics/forks) plus their level-less backtrace continuation lines.
-  grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$node_logs"/*.log 2>/dev/null |
-    grep -vE ':[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z +(TRACE|DEBUG|INFO) ' \
-      >"$node_logs/_crash.log" || true
+  capture_node_state "$node_logs"
   echo "  - state logs -> $(rel "$node_logs/_state.log")"
   echo "  - crash logs -> $(rel "$node_logs/_crash.log")"
 
