@@ -828,9 +828,8 @@ fn build_upgraded_type_origin_table(
 /// [`ProtocolConfig`].
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProtocolBuildConfig {
-    /// If true, fill the module metadata with view function information and
-    /// enable the verifier to check the correctness of the view function
-    /// attribute.
+    /// Build the module metadata with view function information and enable the
+    /// verifier to check the correctness of the view function attribute.
     pub allow_view_function: bool,
 }
 
