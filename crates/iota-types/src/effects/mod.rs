@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner,
-    UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
+    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner, UnchangedSharedKind,
+    UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
     effects::{
@@ -25,7 +25,7 @@ use crate::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
         default_hash,
     },
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     error::IotaResult,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -91,10 +91,10 @@ impl InputSharedObject {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                ObjectRef::new(*id, *version, Digest::OBJECT_DELETED)
+                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                ObjectRef::new(*id, *version, Digest::OBJECT_CANCELLED)
+                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }
@@ -111,9 +111,9 @@ impl InputSharedObject {
 pub struct ObjectChange {
     pub id: ObjectId,
     pub input_version: Option<Version>,
-    pub input_digest: Option<Digest>,
+    pub input_digest: Option<ObjectDigest>,
     pub output_version: Option<Version>,
-    pub output_digest: Option<Digest>,
+    pub output_digest: Option<ObjectDigest>,
     pub id_operation: IDOperation,
 }
 

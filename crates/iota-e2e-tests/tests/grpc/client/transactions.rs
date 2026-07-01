@@ -3,7 +3,7 @@
 
 use iota_grpc_client::{ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
-use iota_sdk_types::Digest;
+use iota_sdk_types::TransactionDigest;
 
 use super::{
     super::utils::{execute_transaction_and_get_digest, setup_grpc_test},
@@ -15,8 +15,12 @@ async fn get_transactions_scenarios() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Execute transactions upfront for later tests
-    let digest1 = execute_transaction_and_get_digest(&test_cluster).await;
-    let digest2 = execute_transaction_and_get_digest(&test_cluster).await;
+    let digest1: TransactionDigest = execute_transaction_and_get_digest(&test_cluster)
+        .await
+        .into();
+    let digest2: TransactionDigest = execute_transaction_and_get_digest(&test_cluster)
+        .await
+        .into();
     test_cluster.wait_for_checkpoint(3, None).await;
 
     // Test: get single transaction
@@ -87,12 +91,12 @@ async fn get_transactions_scenarios() {
     );
 
     // Test: nonexistent transaction returns not-found error
-    let fake_digest = Digest::new([0u8; 32]);
+    let fake_digest = TransactionDigest::new([0u8; 32]);
     let result = client.get_transactions(&[fake_digest], None).await;
     assert_server_not_found(result);
 
     // Test: mixed valid/invalid returns error
-    let fake_digest = Digest::new([0u8; 32]);
+    let fake_digest = TransactionDigest::new([0u8; 32]);
     let result = client.get_transactions(&[digest1, fake_digest], None).await;
     assert!(
         result.is_err(),
