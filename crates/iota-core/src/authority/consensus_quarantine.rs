@@ -29,7 +29,7 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
-        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
         shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::PendingCheckpoint,
@@ -60,6 +60,11 @@ pub(crate) struct ConsensusCommitOutput {
     congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
     congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
+    // execution-worker debt carried over to the next commit (slots
+    // relative to the next commit's start). `None` when execution-worker
+    // congestion control is inactive.
+    congestion_control_worker_debt: Option<Vec<(u64, u64, u16)>>,
+    congestion_control_randomness_worker_debt: Option<Vec<(u64, u64, u16)>>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -237,6 +242,14 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
+    pub fn set_congestion_control_worker_debt(&mut self, debt: Vec<(u64, u64, u16)>) {
+        self.congestion_control_worker_debt = Some(debt);
+    }
+
+    pub fn set_congestion_control_randomness_worker_debt(&mut self, debt: Vec<(u64, u64, u16)>) {
+        self.congestion_control_randomness_worker_debt = Some(debt);
+    }
+
     pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
     }
@@ -364,6 +377,25 @@ impl ConsensusCommitOutput {
                     )
                 }),
         )?;
+
+        if let Some(debt) = self.congestion_control_worker_debt {
+            batch.insert_batch(
+                &tables.congestion_control_worker_debt,
+                [(
+                    SINGLETON_KEY,
+                    CongestionWorkerDebt::new(self.consensus_round, debt),
+                )],
+            )?;
+        }
+        if let Some(debt) = self.congestion_control_randomness_worker_debt {
+            batch.insert_batch(
+                &tables.congestion_control_randomness_worker_debt,
+                [(
+                    SINGLETON_KEY,
+                    CongestionWorkerDebt::new(self.consensus_round, debt),
+                )],
+            )?;
+        }
 
         if !self.report_state_snapshots.is_empty() {
             batch.insert_batch(
@@ -1144,6 +1176,53 @@ impl ConsensusOutputQuarantine {
                 let debt = debt.saturating_sub(per_commit_limit * num_rounds);
                 (object_id, debt)
             }))
+    }
+
+    /// Loads the execution-worker debt carried over into `current_round`
+    /// (aged for the elapsed commits), to seed the worker concurrency profile.
+    /// Reads the most recent debt from the in-memory quarantine, falling
+    /// back to the last checkpointed value in the epoch store. Returns an empty
+    /// debt when none is recorded.
+    pub(crate) fn load_initial_worker_debt(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        current_round: CommitRound,
+        for_randomness: bool,
+    ) -> IotaResult<Vec<(u64, u64, u16)>> {
+        let tables = epoch_store.tables()?;
+        let per_commit_limit = epoch_store
+            .protocol_config()
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+            .unwrap_or_default();
+
+        // Most recent debt from a not-yet-checkpointed commit, else the
+        // last checkpointed value persisted in the epoch store.
+        let debt = self
+            .output_queue
+            .iter()
+            .rev()
+            .find_map(|output| {
+                let slots = if for_randomness {
+                    &output.congestion_control_randomness_worker_debt
+                } else {
+                    &output.congestion_control_worker_debt
+                };
+                slots
+                    .clone()
+                    .map(|slots| CongestionWorkerDebt::new(output.consensus_round, slots))
+            })
+            .or_else(|| {
+                let db_table = if for_randomness {
+                    &tables.congestion_control_randomness_worker_debt
+                } else {
+                    &tables.congestion_control_worker_debt
+                };
+                db_table.get(&SINGLETON_KEY).expect("db error")
+            });
+
+        Ok(debt
+            .map(|debt| debt.decayed(current_round, per_commit_limit))
+            .unwrap_or_default())
     }
 
     /// Used in testing to load debts. Only looks in the in-memory quarantine.

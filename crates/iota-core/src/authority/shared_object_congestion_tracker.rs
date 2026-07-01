@@ -205,34 +205,35 @@ impl ObjectExecutionSlots {
 /// A contiguous interval `[start_time, end_time)` during which `worker_count`
 /// transactions are scheduled to occupy an execution worker concurrently.
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
-struct WorkerSegment {
+struct WorkerSlot {
     start_time: ExecutionTime,
     end_time: ExecutionTime,
     worker_count: u16,
 }
 
-/// `WorkerOccupancy` models the execution-worker pool as a concurrency profile
+/// `WorkerSlots` models the execution-worker pool as a concurrency profile
 /// over the per-commit timeline: a sparse, sorted list of contiguous busy
-/// segments (gaps between segments have occupancy `0`). It mirrors
-/// `ObjectExecutionSlots` but tracks a worker count (multiplicity) per segment
+/// slots (gaps between slots have worker count `0`). It mirrors
+/// `ObjectExecutionSlots` but tracks a worker count (multiplicity) per slot
 /// instead of a single free/busy lane, so it can enforce "at most `N`
 /// transactions overlapping at any instant". The representation is sparse —
 /// at most two breakpoints per scheduled transaction — so it is suitable for
 /// `TotalGasBudget` mode where durations are large.
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct WorkerOccupancy(Vec<WorkerSegment>);
+struct WorkerSlots(Vec<WorkerSlot>);
 
-impl WorkerOccupancy {
+impl WorkerSlots {
+    #[cfg(test)]
     fn new() -> Self {
         Self(Vec::new())
     }
 
-    /// Appends `[start, end)` with `count` to a segment list, coalescing with
-    /// the previous segment when they are adjacent and share a count, and
+    /// Appends `[start, end)` with `count` to a slot list, coalescing with
+    /// the previous slot when they are adjacent and share a count, and
     /// dropping empty or zero-count pieces. Inputs must arrive in ascending
     /// time order.
-    fn push_segment(
-        segments: &mut Vec<WorkerSegment>,
+    fn push_slot(
+        slots: &mut Vec<WorkerSlot>,
         start: ExecutionTime,
         end: ExecutionTime,
         count: u16,
@@ -240,13 +241,13 @@ impl WorkerOccupancy {
         if count == 0 || start >= end {
             return;
         }
-        if let Some(last) = segments.last_mut() {
+        if let Some(last) = slots.last_mut() {
             if last.end_time == start && last.worker_count == count {
                 last.end_time = end;
                 return;
             }
         }
-        segments.push(WorkerSegment {
+        slots.push(WorkerSlot {
             start_time: start,
             end_time: end,
             worker_count: count,
@@ -255,40 +256,40 @@ impl WorkerOccupancy {
 
     /// Returns the free execution slots in which a new transaction can be
     /// scheduled without exceeding `n` concurrent workers, i.e. the intervals
-    /// of `[0, MAX)` where occupancy is strictly below `n`. The result is a
-    /// valid free-list (sorted, non-overlapping) and can be intersected with
-    /// object free-lists during scheduling.
+    /// of `[0, MAX)` where the worker count is strictly below `n`. The result
+    /// is a valid free-list (sorted, non-overlapping) and can be
+    /// intersected with object free-lists during scheduling.
     ///
-    /// Single pass over the (sorted, disjoint) segments: the free-list is the
-    /// complement of the saturated (`count >= n`) segments within `[0, MAX)`.
-    fn free_slots_below(&self, n: u16) -> ObjectExecutionSlots {
-        let mut free = Vec::new();
+    /// Single pass over the (sorted, disjoint) slots: the free-list is the
+    /// complement of the saturated (`count >= n`) slots within `[0, MAX)`.
+    fn slots_with_worker_available(&self, max_concurrent_workers: u16) -> ObjectExecutionSlots {
+        let mut free_slots = Vec::new();
         let mut cursor = 0;
-        for segment in &self.0 {
-            // Segments below the cap (and the implicit gaps between segments)
-            // remain free, so only saturated segments break the free region.
-            if segment.worker_count >= n {
-                if cursor < segment.start_time {
-                    free.push(ExecutionSlot::new(cursor, segment.start_time));
+        for slot in &self.0 {
+            // Slots below the cap (and the implicit gaps between slots)
+            // remain free, so only saturated slots break the free region.
+            if slot.worker_count >= max_concurrent_workers {
+                if cursor < slot.start_time {
+                    free_slots.push(ExecutionSlot::new(cursor, slot.start_time));
                 }
-                cursor = segment.end_time;
+                cursor = slot.end_time;
             }
         }
         if cursor < MAX_EXECUTION_TIME {
-            free.push(ExecutionSlot::new(cursor, MAX_EXECUTION_TIME));
+            free_slots.push(ExecutionSlot::new(cursor, MAX_EXECUTION_TIME));
         }
-        ObjectExecutionSlots(free)
+        ObjectExecutionSlots(free_slots)
     }
 
-    /// Adds one worker occupancy over `[start_time, start_time + duration)`,
+    /// Increments the worker count over `[start_time, start_time + duration)`,
     /// maintaining the invariant (sorted, disjoint, adjacent-equal-count
-    /// segments merged, no zero-count segments).
+    /// slots merged, no zero-count slots).
     ///
-    /// Single pass over the existing (sorted, disjoint) segments: each is split
+    /// Single pass over the existing (sorted, disjoint) slots: each is split
     /// into its before-, within- and after-`[start, end)` portions (the within
     /// portion getting `+1`), and gaps inside `[start, end)` are emitted with
     /// count `1`. `filled` tracks how far the `[start, end)` region has been
-    /// covered so the inter-segment gaps can be filled in order.
+    /// covered so the inter-slot gaps can be filled in order.
     fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime) {
         let end_time = start_time.saturating_add(duration);
         if start_time >= end_time {
@@ -296,40 +297,97 @@ impl WorkerOccupancy {
         }
 
         let old = std::mem::take(&mut self.0);
-        let mut merged: Vec<WorkerSegment> = Vec::with_capacity(old.len() + 2);
+        let mut merged: Vec<WorkerSlot> = Vec::with_capacity(old.len() + 2);
         // Next position within `[start_time, end_time)` not yet covered, so any
-        // gap between segments inside the range can be emitted with count 1.
+        // gap between slots inside the range can be emitted with count 1.
         let mut filled = start_time;
 
-        for segment in old {
-            let WorkerSegment {
+        for slot in old {
+            let WorkerSlot {
                 start_time: a,
                 end_time: b,
                 worker_count: c,
-            } = segment;
+            } = slot;
 
-            // Gap inside `[start_time, end_time)` preceding this segment.
+            // Gap inside `[start_time, end_time)` preceding this slot.
             if a > filled && filled < end_time {
                 let gap_end = a.min(end_time);
-                Self::push_segment(&mut merged, filled, gap_end, 1);
+                Self::push_slot(&mut merged, filled, gap_end, 1);
                 filled = filled.max(gap_end);
             }
             // Portion before the occupied range: count unchanged.
-            Self::push_segment(&mut merged, a, b.min(start_time), c);
+            Self::push_slot(&mut merged, a, b.min(start_time), c);
             // Portion within the occupied range: count + 1.
             let within_start = a.max(start_time);
             let within_end = b.min(end_time);
             if within_start < within_end {
-                Self::push_segment(&mut merged, within_start, within_end, c.saturating_add(1));
+                Self::push_slot(&mut merged, within_start, within_end, c.saturating_add(1));
                 filled = filled.max(within_end);
             }
             // Portion after the occupied range: count unchanged.
-            Self::push_segment(&mut merged, a.max(end_time), b, c);
+            Self::push_slot(&mut merged, a.max(end_time), b, c);
         }
-        // Trailing gap inside `[start_time, end_time)` after the last segment.
-        Self::push_segment(&mut merged, filled, end_time, 1);
+        // Trailing gap inside `[start_time, end_time)` after the last slot.
+        Self::push_slot(&mut merged, filled, end_time, 1);
 
         self.0 = merged;
+    }
+
+    /// Reconstructs a profile from a stored debt (`(start, end, count)`
+    /// slots). The input is assumed to already satisfy the invariant
+    /// (sorted, disjoint, merged), as produced by [`Self::debt_beyond`] and
+    /// [`Self::decay`].
+    fn from_debt(slots: Vec<(ExecutionTime, ExecutionTime, u16)>) -> Self {
+        Self(
+            slots
+                .into_iter()
+                .map(|(start_time, end_time, worker_count)| WorkerSlot {
+                    start_time,
+                    end_time,
+                    worker_count,
+                })
+                .collect(),
+        )
+    }
+
+    /// Returns the worker slots that extend past
+    /// `max_execution_duration_per_commit`, shifted left so that
+    /// `max_execution_duration_per_commit` becomes time `0`. This is the
+    /// worker work still "running" at the start of the next commit
+    /// and is carried over as its initial worker slots.
+    fn overshoot(
+        &self,
+        max_execution_duration_per_commit: ExecutionTime,
+    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+        self.0
+            .iter()
+            .filter_map(|s| {
+                let start = s.start_time.max(max_execution_duration_per_commit);
+                (start < s.end_time).then(|| {
+                    (
+                        start - max_execution_duration_per_commit,
+                        s.end_time - max_execution_duration_per_commit,
+                        s.worker_count,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    /// Shifts a debt left by `shift`, dropping the portion that falls below
+    /// time `0`. Used to age a stored debt by the budget of the commits
+    /// that elapsed since it was recorded.
+    fn decay(
+        slots: Vec<(ExecutionTime, ExecutionTime, u16)>,
+        shift: ExecutionTime,
+    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+        slots
+            .into_iter()
+            .filter_map(|(start, end, count)| {
+                let end = end.saturating_sub(shift);
+                (end > 0).then(|| (start.saturating_sub(shift), end, count))
+            })
+            .collect()
     }
 }
 
@@ -349,16 +407,19 @@ pub(crate) struct SharedObjectCongestionTracker {
     /// `CongestionControlParameters::max_concurrent_execution_workers`), in
     /// which case every scheduled transaction — including owned-object-only
     /// ones — occupies a worker over its execution interval.
-    worker_occupancy: Option<WorkerOccupancy>,
+    worker_slots: Option<WorkerSlots>,
     congestion_control_parameters: CongestionControlParameters,
 }
 
 impl SharedObjectCongestionTracker {
     /// Create a new `SharedObjectCongestionTracker` for the given
-    /// `CongestionControlParameters` and taking into account
-    /// `initial_object_debts`.
+    /// `CongestionControlParameters`, taking into account the per-object debts
+    /// (`initial_object_debts`) and the execution-worker debt
+    /// (`initial_worker_debt`) carried over from prior commits. The worker debt
+    /// is ignored when execution-worker congestion control is inactive.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
+        initial_worker_debt: Vec<(ExecutionTime, ExecutionTime, u16)>,
         congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
@@ -375,13 +436,13 @@ impl SharedObjectCongestionTracker {
             })
             .collect::<HashMap<_, _>>();
 
-        let worker_occupancy = congestion_control_parameters
+        let worker_slots = congestion_control_parameters
             .max_concurrent_execution_workers()
-            .map(|_| WorkerOccupancy::new());
+            .map(|_| WorkerSlots::from_debt(initial_worker_debt));
 
         Self {
             object_execution_slots,
-            worker_occupancy,
+            worker_slots,
             congestion_control_parameters,
         }
     }
@@ -433,13 +494,13 @@ impl SharedObjectCongestionTracker {
             })
             .collect();
         let worker_free_slots = if check_worker_limit {
-            self.worker_occupancy
+            self.worker_slots
                 .as_ref()
                 .zip(
                     self.congestion_control_parameters
                         .max_concurrent_execution_workers(),
                 )
-                .map(|(occupancy, n)| occupancy.free_slots_below(n))
+                .map(|(worker_slots, n)| worker_slots.slots_with_worker_available(n))
         } else {
             None
         };
@@ -550,7 +611,7 @@ impl SharedObjectCongestionTracker {
         }
 
         let shared_input_objects = transaction.shared_input_objects();
-        if shared_input_objects.is_empty() && self.worker_occupancy.is_none() {
+        if shared_input_objects.is_empty() && self.worker_slots.is_none() {
             // This is an owned-object-only transaction and execution-worker
             // congestion control is disabled. No need to defer.
             return SequencingResult::Schedule(0);
@@ -683,8 +744,8 @@ impl SharedObjectCongestionTracker {
         // Every scheduled transaction — including owned-object-only ones —
         // occupies an execution worker over its execution interval when
         // execution-worker congestion control is active.
-        if let Some(worker_occupancy) = self.worker_occupancy.as_mut() {
-            worker_occupancy.occupy(start_time, estimated_execution_duration);
+        if let Some(worker_slots) = self.worker_slots.as_mut() {
+            worker_slots.occupy(start_time, estimated_execution_duration);
         }
 
         Some(BumpObjectExecutionSlotsResult::new(
@@ -707,7 +768,7 @@ impl SharedObjectCongestionTracker {
     /// Returns accumulated debts for objects whose budgets have been exceeded
     /// over the course of the commit. Consumes the tracker object, since
     /// this should only be called once after all txs have been processed.
-    pub(super) fn accumulated_debts(
+    pub(super) fn accumulated_object_debts(
         self,
         max_execution_duration_per_commit: u64,
     ) -> Vec<(ObjectId, u64)> {
@@ -720,6 +781,21 @@ impl SharedObjectCongestionTracker {
                 if debt > 0 { Some((obj_id, debt)) } else { None }
             })
             .collect()
+    }
+
+    /// Returns the execution-worker slots that extend past
+    /// `max_execution_duration_per_commit`, shifted to start at time `0`, to be
+    /// carried over as the next commit's initial worker slots. Returns
+    /// `None` when execution-worker congestion control is inactive. Borrows
+    /// (unlike [`Self::accumulated_object_debts`]) so it can be called before
+    /// consuming the tracker for the per-object debts.
+    pub(super) fn accumulated_worker_debt(
+        &self,
+        max_execution_duration_per_commit: u64,
+    ) -> Option<Vec<(ExecutionTime, ExecutionTime, u16)>> {
+        self.worker_slots
+            .as_ref()
+            .map(|worker_slots| worker_slots.overshoot(max_execution_duration_per_commit))
     }
 }
 
@@ -738,6 +814,44 @@ impl CongestionPerObjectDebt {
         match self {
             Self::V1(round, debt) => (round, debt),
         }
+    }
+}
+
+/// The execution-worker debt carried over from a consensus commit: the
+/// worker concurrency profile that extends past the per-commit limit, stored
+/// as `(start, end, count)` slots together with the round in which it was
+/// recorded (so future commits can age it by their elapsed budget).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) enum CongestionWorkerDebt {
+    V1(CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>),
+}
+
+impl CongestionWorkerDebt {
+    pub(super) fn new(round: CommitRound, slots: Vec<(ExecutionTime, ExecutionTime, u16)>) -> Self {
+        Self::V1(round, slots)
+    }
+
+    pub(super) fn into_v1(self) -> (CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>) {
+        match self {
+            Self::V1(round, slots) => (round, slots),
+        }
+    }
+
+    /// Ages the debt recorded at `stored_round` for use at `current_round`,
+    /// shifting it left by the execution budget of the fully-elapsed commits
+    /// (`max_execution_duration_per_commit` per commit).
+    pub(super) fn decayed(
+        self,
+        current_round: CommitRound,
+        max_execution_duration_per_commit: ExecutionTime,
+    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+        let (stored_round, slots) = self.into_v1();
+        // Mirrors the per-object debt aging: the stored debt already
+        // accounts for the budget of its own round, so only fully-elapsed
+        // rounds since then are applied.
+        let num_rounds = current_round.saturating_sub(stored_round).saturating_sub(1);
+        let shift = max_execution_duration_per_commit.saturating_mul(num_rounds);
+        WorkerSlots::decay(slots, shift)
     }
 }
 
@@ -1028,6 +1142,7 @@ pub mod shared_object_test_utils {
     ) -> SharedObjectCongestionTracker {
         SharedObjectCongestionTracker::new(
             init_values.iter().map(|(id, debt)| (*id, *debt)),
+            Vec::new(),
             congestion_control_parameters,
         )
     }
@@ -1937,6 +2052,7 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
+                    Vec::new(),
                     congestion_control_parameters,
                 )
             }
@@ -1950,6 +2066,7 @@ mod object_cost_tests {
                 //        4|            |
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 4), (shared_obj_1, 3)],
+                    Vec::new(),
                     congestion_control_parameters,
                 )
             }
@@ -2049,6 +2166,7 @@ mod object_cost_tests {
                 (shared_obj_0, initial_object_debt),
                 (shared_obj_1, initial_object_debt),
             ],
+            Vec::new(),
             CongestionControlParameters::new_for_test(
                 mode,
                 assign_min_free_execution_slot,
@@ -2060,11 +2178,11 @@ mod object_cost_tests {
             ),
         );
 
-        // Verify that accumulated_debts is empty initially.
-        let accumulated_debts = shared_object_congestion_tracker
+        // Verify that accumulated_object_debts is empty initially.
+        let accumulated_object_debts = shared_object_congestion_tracker
             .clone()
-            .accumulated_debts(max_execution_duration_per_commit);
-        assert!(accumulated_debts.is_empty());
+            .accumulated_object_debts(max_execution_duration_per_commit);
+        assert!(accumulated_object_debts.is_empty());
 
         // Simulate transactions on object 0 that exceed the per-commit limit,
         // taking into account the initial debt.
@@ -2079,47 +2197,47 @@ mod object_cost_tests {
             shared_object_congestion_tracker.bump_object_execution_slots(&tx, initial_object_debt);
         }
 
-        // Verify that accumulated_debts reports the debt for object 0.
-        let accumulated_debts =
-            shared_object_congestion_tracker.accumulated_debts(max_execution_duration_per_commit);
-        assert_eq!(accumulated_debts.len(), 1);
+        // Verify that accumulated_object_debts reports the debt for object 0.
+        let accumulated_object_debts = shared_object_congestion_tracker
+            .accumulated_object_debts(max_execution_duration_per_commit);
+        assert_eq!(accumulated_object_debts.len(), 1);
         match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                assert_eq!(accumulated_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
+                assert_eq!(accumulated_object_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
             }
             PerObjectCongestionControlMode::TotalTxCount => {
-                assert_eq!(accumulated_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
+                assert_eq!(accumulated_object_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
             }
         }
     }
 
     #[test]
-    fn test_worker_occupancy_occupy_and_free_slots() {
-        let mut occupancy = WorkerOccupancy::new();
+    fn test_worker_slots_occupy_and_free_slots() {
+        let mut worker_slots = WorkerSlots::new();
 
-        occupancy.occupy(0, 10); // [0, 10) -> count 1
-        // With a cap of 2 workers, occupancy 1 is below the cap everywhere.
+        worker_slots.occupy(0, 10); // [0, 10) -> count 1
+        // With a cap of 2 workers, worker count 1 is below the cap everywhere.
         assert_eq!(
-            occupancy.free_slots_below(2).0,
+            worker_slots.slots_with_worker_available(2).0,
             vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME)]
         );
         // With a cap of 1 worker, [0, 10) is saturated.
         assert_eq!(
-            occupancy.free_slots_below(1).0,
+            worker_slots.slots_with_worker_available(1).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
-        occupancy.occupy(0, 10); // [0, 10) -> count 2
+        worker_slots.occupy(0, 10); // [0, 10) -> count 2
         assert_eq!(
-            occupancy.free_slots_below(2).0,
+            worker_slots.slots_with_worker_available(2).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
-        // Overlapping occupancy: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
-        occupancy.occupy(5, 10);
+        // Overlapping worker counts: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
+        worker_slots.occupy(5, 10);
         assert_eq!(
-            occupancy.free_slots_below(3).0,
+            worker_slots.slots_with_worker_available(3).0,
             vec![
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME),
@@ -2128,17 +2246,17 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_worker_occupancy_gap_fill_and_coalesce() {
-        let mut occupancy = WorkerOccupancy::new();
+    fn test_worker_slots_gap_fill_and_coalesce() {
+        let mut worker_slots = WorkerSlots::new();
         // Two busy regions separated by a gap [5, 10).
-        occupancy.occupy(0, 5); // [0, 5) -> 1
-        occupancy.occupy(10, 5); // [10, 15) -> 1
+        worker_slots.occupy(0, 5); // [0, 5) -> 1
+        worker_slots.occupy(10, 5); // [10, 15) -> 1
 
         // Occupy across the gap: the gap is filled at count 1 and the existing
         // regions rise to 2 -> [0, 5):2, [5, 10):1, [10, 15):2.
-        occupancy.occupy(0, 15);
+        worker_slots.occupy(0, 15);
         assert_eq!(
-            occupancy.free_slots_below(2).0,
+            worker_slots.slots_with_worker_available(2).0,
             vec![
                 ExecutionSlot::new(5, 10),
                 ExecutionSlot::new(15, MAX_EXECUTION_TIME),
@@ -2146,20 +2264,82 @@ mod object_cost_tests {
         );
 
         // Raising the middle to 2 makes all of [0, 15) count 2, which must
-        // coalesce into a single segment.
-        occupancy.occupy(5, 5); // [5, 10) -> 2
+        // coalesce into a single slot.
+        worker_slots.occupy(5, 5); // [5, 10) -> 2
         assert_eq!(
-            occupancy.0,
-            vec![WorkerSegment {
+            worker_slots.0,
+            vec![WorkerSlot {
                 start_time: 0,
                 end_time: 15,
                 worker_count: 2,
             }]
         );
         assert_eq!(
-            occupancy.free_slots_below(2).0,
+            worker_slots.slots_with_worker_available(2).0,
             vec![ExecutionSlot::new(15, MAX_EXECUTION_TIME)]
         );
+    }
+
+    #[test]
+    fn test_worker_slots_debt_and_decay() {
+        // Worker counts: [0, 5) -> 1, [5, 15) -> 2.
+        let mut worker_slots = WorkerSlots::new();
+        worker_slots.occupy(0, 5);
+        worker_slots.occupy(5, 10);
+        worker_slots.occupy(5, 10);
+
+        // Only the part beyond the per-commit limit (10) carries over, shifted to start
+        // at 0: [10, 15) -> 2 becomes [0, 5) -> 2.
+        let debt = worker_slots.overshoot(10);
+        assert_eq!(debt, vec![(0, 5, 2)]);
+
+        // Aging shifts left and drops anything that reaches time 0.
+        assert_eq!(WorkerSlots::decay(debt.clone(), 2), vec![(0, 3, 2)]);
+        assert_eq!(WorkerSlots::decay(debt.clone(), 5), vec![]);
+        assert_eq!(WorkerSlots::decay(debt, 6), vec![]);
+
+        // `decayed` ages by the fully-elapsed commits' budget:
+        // num_rounds = current - stored - 1, shift = num_rounds * limit.
+        let stored = CongestionWorkerDebt::new(3, vec![(0, 5, 2)]);
+        assert_eq!(stored.clone().decayed(4, 2), vec![(0, 5, 2)]); // 0 elapsed
+        assert_eq!(stored.clone().decayed(5, 2), vec![(0, 3, 2)]); // 1 elapsed
+        assert_eq!(stored.decayed(7, 2), vec![]); // 3 elapsed -> expired
+    }
+
+    #[test]
+    fn test_worker_slots_rollover_seeds_next_commit() {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,
+            Some(1), // max_execution_duration_per_commit (the congestion limit)
+            None,
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+
+        // Seed the tracker as if a prior commit left the single worker busy over
+        // [0, 1) — the carried-over debt.
+        let tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            vec![(0, 1, 1)],
+            congestion_control_parameters,
+        );
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+
+        // An owned-object-only transaction cannot fit within the per-commit
+        // limit of 1 because the carried-over worker debt already fills the single
+        // worker on [0, 1); it is shed for worker congestion.
+        let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(congested_objects.is_empty());
+            }
+            SequencingResult::Schedule(_) => {
+                panic!("expected the tx to be shed due to carried-over worker debt")
+            }
+        }
     }
 
     #[test]
@@ -2175,8 +2355,11 @@ mod object_cost_tests {
         );
         // A single execution worker, which serializes execution.
         congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
-        let mut tracker =
-            SharedObjectCongestionTracker::new(Vec::new(), congestion_control_parameters);
+        let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            Vec::new(),
+            congestion_control_parameters,
+        );
         let previously_deferred = PreviouslyDeferredTransactions::new();
 
         // First owned-object-only transaction: scheduled at time 0.

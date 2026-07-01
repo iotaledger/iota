@@ -102,7 +102,7 @@ use crate::{
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -990,6 +990,14 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
+
+    /// Execution-worker debt carried over from the latest commit
+    /// (singleton, keyed by `SINGLETON_KEY`).
+    congestion_control_worker_debt: DBMap<u64, CongestionWorkerDebt>,
+
+    /// Execution-worker debt carried over for randomness transactions
+    /// (singleton, keyed by `SINGLETON_KEY`).
+    congestion_control_randomness_worker_debt: DBMap<u64, CongestionWorkerDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -3916,6 +3924,11 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
+            self.consensus_quarantine.read().load_initial_worker_debt(
+                self,
+                consensus_commit_info.round,
+                false,
+            )?,
             congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
@@ -3924,6 +3937,11 @@ impl AuthorityPerEpochStore {
                 consensus_commit_info.round,
                 true,
                 &sequenced_randomness_transactions,
+            )?,
+            self.consensus_quarantine.read().load_initial_worker_debt(
+                self,
+                consensus_commit_info.round,
+                true,
             )?,
             congestion_control_parameters,
         );
@@ -4623,13 +4641,26 @@ impl AuthorityPerEpochStore {
             .congestion_control_parameters()
             .max_execution_duration_per_commit()
         {
+            // Carry over the execution-worker debt that runs past the
+            // per-commit limit (computed before the tracker is consumed for
+            // the per-object debts below). `None` when worker control is off.
+            if let Some(debt) = shared_object_congestion_tracker
+                .accumulated_worker_debt(max_execution_duration_per_commit)
+            {
+                output.set_congestion_control_worker_debt(debt);
+            }
+            if let Some(debt) = shared_object_using_randomness_congestion_tracker
+                .accumulated_worker_debt(max_execution_duration_per_commit)
+            {
+                output.set_congestion_control_randomness_worker_debt(debt);
+            }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
-                    .accumulated_debts(max_execution_duration_per_commit),
+                    .accumulated_object_debts(max_execution_duration_per_commit),
             );
             output.set_congestion_control_randomness_object_debts(
                 shared_object_using_randomness_congestion_tracker
-                    .accumulated_debts(max_execution_duration_per_commit),
+                    .accumulated_object_debts(max_execution_duration_per_commit),
             );
         }
 
@@ -5347,7 +5378,7 @@ impl AuthorityPerEpochStore {
                 }
 
                 // This transaction will be scheduled. We update the congestion
-                // tracker (execution slots / worker occupancy) and the suggested
+                // tracker (execution slots / worker slots) and the suggested
                 // gas price calculator when it touches a shared object, or — when
                 // execution-worker congestion control is active — for every
                 // transaction (including owned-object-only ones, which still
