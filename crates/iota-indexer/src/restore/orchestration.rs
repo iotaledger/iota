@@ -64,8 +64,6 @@ pub async fn start(
             .map_err(IndexerError::from),
         verify_state_hash(state_hash_rx, &verified_epoch_info),
     )?;
-    // TODO: persist epochs, checkpoint, chain_identifier. This can be done in
-    // parallel. Small write operations.
     populate_remaining_tables(&pg_indexer_store, verified_epoch_info, snapshot_chain_id).await?;
 
     info!(
