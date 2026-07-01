@@ -1,16 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Argument, Command, ObjectId, TypeTag};
+use iota_sdk_types::{Argument, Command, ObjectId, ObjectReference, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectRef, SequenceNumber},
-    iota_serde::TypeName,
-    transaction::CallArg,
+    IOTA_FRAMEWORK_ADDRESS, base_types::SequenceNumber, iota_serde::TypeName, transaction::CallArg,
 };
 
 // ---------------------------------------------------------------------------
@@ -20,7 +17,7 @@ use crate::{
 pub const CALL_ARG_MODULE_NAME: &IdentStr = ident_str!("ptb_call_arg");
 pub const CALL_ARG_STRUCT_NAME: &IdentStr = ident_str!("CallArg");
 pub const OBJECT_ARG_STRUCT_NAME: &IdentStr = ident_str!("ObjectArg");
-pub const OBJECT_REF_STRUCT_NAME: &IdentStr = ident_str!("ObjectRef");
+pub const OBJECT_REF_STRUCT_NAME: &IdentStr = ident_str!("ObjectReference");
 
 pub const COMMAND_MODULE_NAME: &IdentStr = ident_str!("ptb_command");
 pub const COMMAND_STRUCT_NAME: &IdentStr = ident_str!("Command");
@@ -128,13 +125,13 @@ impl MoveCommand {
 /// by the Move-side `ptb_call_arg::ObjectArg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveObjectArg {
-    ImmOrOwnedObject(ObjectRef),
+    ImmOrOwnedObject(ObjectReference),
     SharedObject {
         id: ObjectId,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
-    Receiving(ObjectRef),
+    Receiving(ObjectReference),
 }
 
 impl MoveObjectArg {

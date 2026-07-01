@@ -41,13 +41,12 @@ use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address, ObjectId, Owner, StructTag,
+    Address, ObjectId, ObjectReference, Owner, StructTag,
     move_package::{MovePackage, UpgradeInfo},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
@@ -1565,7 +1564,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_original_id,
         version: expect_version,
         ..
@@ -2826,14 +2825,14 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_original_id,
         ..
     } = get_new_package_obj_from_response(&publish_response)
         .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
 
     // Get Upgraded Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_upgrade_latest_id,
         version: expect_upgrade_version,
         ..

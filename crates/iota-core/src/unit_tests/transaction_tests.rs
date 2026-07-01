@@ -263,8 +263,8 @@ pub fn init_transfer_transaction(
     sender: Address,
     secret: &AccountKeyPair,
     recipient: Address,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {
@@ -284,7 +284,7 @@ pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
     sender: Address,
     secret: &AccountKeyPair,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {

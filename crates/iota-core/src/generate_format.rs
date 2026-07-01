@@ -345,7 +345,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+            &CallArg::ImmutableOrOwned(iota_sdk_types::ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -361,7 +361,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+            &CallArg::Receiving(iota_sdk_types::ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -553,7 +553,7 @@ fn get_registry() -> Result<Registry> {
                 },
             )]),
             Address::ZERO,
-            vec![iota_types::base_types::ObjectRef::new(
+            vec![iota_sdk_types::ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::default(),

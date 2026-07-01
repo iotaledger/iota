@@ -4,6 +4,7 @@
 //! Example demonstrating the vulnerability if transaction data cryptographic
 //! protection is missed in an abstract account authenticator implementation.
 
+use iota_sdk_types::ObjectReference;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -19,7 +20,6 @@ use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
 };
 use iota_types::{
-    base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{CallArg, Transaction, TransactionData},
@@ -128,9 +128,9 @@ pub async fn create_account(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     unlock_time: u64,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates an abstract account
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -196,7 +196,7 @@ pub async fn create_account(
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
     recipient: Address,
-    account_ref: &ObjectRef,
+    account_ref: &ObjectReference,
 ) -> Result<Transaction> {
     let account_address = account_ref.object_id.into();
 

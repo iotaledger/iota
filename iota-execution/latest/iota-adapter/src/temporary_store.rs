@@ -11,10 +11,12 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, gas::GasCostSummary,
+};
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
+    base_types::{SequenceNumber, TransactionDigest, VersionDigest},
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -77,7 +79,7 @@ pub struct TemporaryStore<'backing> {
 
     /// The set of objects that we may receive during execution. Not guaranteed
     /// to receive all, or any of the objects referenced in this set.
-    receiving_objects: Vec<ObjectRef>,
+    receiving_objects: Vec<ObjectReference>,
 
     // TODO: Now that we track epoch here, there are a few places we don't need to pass it around.
     /// The current epoch.
@@ -98,7 +100,7 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn new(
         store: &'backing dyn BackingStore,
         input_objects: InputObjects,
-        receiving_objects: Vec<ObjectRef>,
+        receiving_objects: Vec<ObjectReference>,
         tx_digest: TransactionDigest,
         protocol_config: &'backing ProtocolConfig,
         cur_epoch: EpochId,

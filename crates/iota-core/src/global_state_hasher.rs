@@ -102,7 +102,7 @@ impl GlobalStateHashStore for InMemoryStorage {
     }
 }
 
-/// Serializable representation of the ObjectRef of an
+/// Serializable representation of the ObjectReference of an
 /// object that has been wrapped
 /// TODO: This can be replaced with ObjectKey.
 #[derive(Serialize, Debug)]

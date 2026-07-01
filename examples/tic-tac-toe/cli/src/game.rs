@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectReference;
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::Owner;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::{SequenceNumber},
     digests::ObjectDigest,
 };
 use serde::Deserialize;
@@ -50,8 +51,8 @@ pub(crate) enum Winner {
 }
 
 impl Game {
-    pub(crate) fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.kind.board().id, self.version, self.digest)
+    pub(crate) fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.kind.board().id, self.version, self.digest)
     }
 }
 

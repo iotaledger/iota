@@ -7,9 +7,9 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::{fatal, sync::notify_read::NotifyRead};
 use iota_config::ExecutionCacheConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -334,10 +334,10 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<Option<ObjectRef>>;
+    ) -> IotaResult<Option<ObjectReference>>;
 
     /// Non-fallible version of `try_get_latest_object_ref_or_tombstone`.
-    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectReference> {
         self.try_get_latest_object_ref_or_tombstone(object_id)
             .expect("storage access failed")
     }
@@ -409,7 +409,7 @@ pub trait ObjectCacheRead: Send + Sync {
     /// indicates this is retriable.
     fn try_multi_get_objects_with_more_accurate_error_return(
         &self,
-        object_refs: &[ObjectRef],
+        object_refs: &[ObjectReference],
     ) -> Result<Vec<Object>, IotaError> {
         let objects = self.try_multi_get_objects_by_key(
             &object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>(),
@@ -445,7 +445,7 @@ pub trait ObjectCacheRead: Send + Sync {
     /// `try_multi_get_objects_with_more_accurate_error_return`.
     fn multi_get_objects_with_more_accurate_error_return(
         &self,
-        object_refs: &[ObjectRef],
+        object_refs: &[ObjectReference],
     ) -> Vec<Object> {
         self.try_multi_get_objects_with_more_accurate_error_return(object_refs)
             .expect("storage access failed")
@@ -574,14 +574,14 @@ pub trait ObjectCacheRead: Send + Sync {
 
     fn try_get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult;
 
     /// Non-fallible version of `try_get_lock`.
     fn get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> ObjectLockStatus {
         self.try_get_lock(obj_ref, epoch_store)
@@ -590,15 +590,16 @@ pub trait ObjectCacheRead: Send + Sync {
 
     // This method is considered "private" - only used by
     // multi_get_objects_with_more_accurate_error_return
-    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectRef>;
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectReference>;
 
     // Check that the given set of objects are live at the given version. This is
     // used as a safety check before execution, and could potentially be deleted
     // or changed to a debug_assert
-    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectReference])
+    -> IotaResult;
 
     /// Non-fallible version of `try_check_owned_objects_are_live`.
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) {
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectReference]) {
         self.try_check_owned_objects_are_live(owned_object_refs)
             .expect("storage access failed")
     }
@@ -1071,7 +1072,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     fn try_acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult;
 
@@ -1079,7 +1080,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) {
         self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
@@ -1088,7 +1089,8 @@ pub trait ExecutionCacheWrite: Send + Sync {
 
     /// Validates that all owned input objects exist and their versions/digests
     /// match the live objects. Does not acquire any locks.
-    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult;
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectReference])
+    -> IotaResult;
 }
 
 pub trait CheckpointCache: Send + Sync {

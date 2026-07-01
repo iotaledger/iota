@@ -9,10 +9,10 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    ObjectId, ProgrammableTransaction,
+    ObjectId, ObjectReference, ProgrammableTransaction,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -43,7 +43,7 @@ pub struct TestRunner {
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
+    pub package: ObjectReference,
 }
 
 impl TestRunner {
@@ -206,7 +206,7 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_with_owned_tx(
         &mut self,
-        owned_obj: ObjectRef,
+        owned_obj: ObjectReference,
         shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
@@ -268,7 +268,7 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_with_owned_tx(
         &mut self,
-        owned_obj: ObjectRef,
+        owned_obj: ObjectReference,
         shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {

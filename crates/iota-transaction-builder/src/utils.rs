@@ -13,10 +13,11 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+    move_package::MovePackage,
 };
 use iota_types::{
-    base_types::{ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
@@ -40,7 +41,7 @@ impl TransactionBuilder {
         gas_budget: u64,
         input_objects: Vec<ObjectId>,
         gas_price: u64,
-    ) -> Result<ObjectRef, anyhow::Error> {
+    ) -> Result<ObjectReference, anyhow::Error> {
         if gas_budget < gas_price {
             bail!(
                 "Gas budget {gas_budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
@@ -89,12 +90,15 @@ impl TransactionBuilder {
     }
 
     /// Get the object references for a list of object IDs
-    pub async fn input_refs(&self, obj_ids: &[ObjectId]) -> Result<Vec<ObjectRef>, anyhow::Error> {
+    pub async fn input_refs(
+        &self,
+        obj_ids: &[ObjectId],
+    ) -> Result<Vec<ObjectReference>, anyhow::Error> {
         let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
         let obj_refs = join_all(handles)
             .await
             .into_iter()
-            .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
+            .collect::<anyhow::Result<Vec<ObjectReference>>>()?;
         Ok(obj_refs)
     }
 
@@ -392,19 +396,20 @@ impl TransactionBuilder {
     }
 
     /// Get the latest object ref for an object.
-    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectRef> {
+    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         // TODO: we should add retrial to reduce the transaction building error rate
         self.get_object_ref_and_type(object_id)
             .await
             .map(|(oref, _)| oref)
     }
 
-    /// Helper function to get the latest ObjectRef (ObjectId, SequenceNumber,
-    /// ObjectDigest) and ObjectType for a provided ObjectId.
+    /// Helper function to get the latest ObjectReference (ObjectId,
+    /// SequenceNumber, ObjectDigest) and ObjectType for a provided
+    /// ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,
         object_id: ObjectId,
-    ) -> anyhow::Result<(ObjectRef, ObjectType)> {
+    ) -> anyhow::Result<(ObjectReference, ObjectType)> {
         let object = self
             .0
             .get_object_with_options(object_id, IotaObjectDataOptions::new().with_type())

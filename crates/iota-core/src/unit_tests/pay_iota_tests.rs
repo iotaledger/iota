@@ -5,9 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference};
 use iota_types::{
-    base_types::{ObjectRef, dbg_addr},
+    base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -410,7 +410,7 @@ async fn execute_pay_iota(
 ) -> PayIotaTransactionBlockExecutionResult {
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let input_coin_refs: Vec<ObjectRef> = input_coin_objects
+    let input_coin_refs: Vec<ObjectReference> = input_coin_objects
         .iter()
         .map(|coin_obj| coin_obj.object_ref())
         .collect();

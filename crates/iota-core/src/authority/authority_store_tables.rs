@@ -77,7 +77,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
+    pub(crate) live_owned_object_markers: DBMap<ObjectReference, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -282,14 +282,14 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
-    ) -> Result<ObjectRef, IotaError> {
+    ) -> Result<ObjectReference, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self.construct_object(object_key, *object)?.object_ref(),
             StoreObject::Deleted => {
-                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
             }
             StoreObject::Wrapped => {
-                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
             }
         };
         Ok(obj_ref)
@@ -299,14 +299,14 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: &StoreObjectWrapper,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some(ObjectRef::new(
+            StoreObject::Deleted => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
                 ObjectDigest::OBJECT_DELETED,
             )),
-            StoreObject::Wrapped => Some(ObjectRef::new(
+            StoreObject::Wrapped => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
                 ObjectDigest::OBJECT_WRAPPED,
@@ -319,7 +319,7 @@ impl AuthorityPerpetualTables {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
 
         if let Some(Ok((object_key, value))) = iterator.next() {
@@ -558,10 +558,12 @@ impl LiveObject {
         }
     }
 
-    pub fn object_reference(&self) -> ObjectRef {
+    pub fn object_reference(&self) -> ObjectReference {
         match self {
             LiveObject::Normal(obj) => obj.object_ref(),
-            LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
+            LiveObject::Wrapped(key) => {
+                ObjectReference::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED)
+            }
         }
     }
 

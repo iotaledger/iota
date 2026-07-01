@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::{IotaError, UserInputError},
@@ -385,10 +385,10 @@ async fn test_simple_conflict() {
 
 /// Two transactions in the same commit reference the same owned object at
 /// different versions, with the stale one ordered first (the scenario from
-/// issue #10922). Because owned-object locks are keyed by the full `ObjectRef`,
-/// the two never falsely conflict; the stale transaction is dropped by the
-/// version check in `handle_transaction_validation_checks` (Check #5) and the
-/// fresh transaction is kept and acquires the lock.
+/// issue #10922). Because owned-object locks are keyed by the full
+/// `ObjectReference`, the two never falsely conflict; the stale transaction is
+/// dropped by the version check in `handle_transaction_validation_checks`
+/// (Check #5) and the fresh transaction is kept and acquires the lock.
 #[sim_test]
 async fn test_stale_version_dropped_fresh_kept() {
     telemetry_subscribers::init_for_testing();
@@ -428,7 +428,7 @@ async fn test_stale_version_dropped_fresh_kept() {
 
     let fresh_ref = object.object_ref();
     // Stale reference: same object id and digest, but the previous version.
-    let stale_ref = ObjectRef::new(object_id, SequenceNumber::from(1), fresh_ref.digest);
+    let stale_ref = ObjectReference::new(object_id, SequenceNumber::from(1), fresh_ref.digest);
 
     let tx_stale = make_transfer_object_transaction(
         stale_ref,
@@ -1409,8 +1409,8 @@ struct LockTierSetup {
     sender: Address,
     sender_key: AccountKeyPair,
     recipient: Address,
-    object_ref: iota_types::base_types::ObjectRef,
-    gas_ref: iota_types::base_types::ObjectRef,
+    object_ref: iota_sdk_types::ObjectReference,
+    gas_ref: iota_sdk_types::ObjectReference,
     rgp: u64,
     _config_guard: OverrideGuard,
 }
@@ -1504,7 +1504,7 @@ impl LockTierSetup {
 /// Seeds a single lock into the consensus quarantine.
 fn seed_quarantined_lock(
     epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    obj_ref: iota_types::base_types::ObjectRef,
+    obj_ref: iota_sdk_types::ObjectReference,
     locker: LockDetails,
 ) {
     let mut output = ConsensusCommitOutput::default();
@@ -1519,7 +1519,7 @@ fn seed_persistent_lock(
     authority: &crate::authority::AuthorityState,
     epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
     verified_tx: VerifiedTransaction,
-    owned_inputs: &[iota_types::base_types::ObjectRef],
+    owned_inputs: &[iota_sdk_types::ObjectReference],
 ) {
     use iota_types::transaction::VerifiedSignedTransaction;
     let signed = VerifiedSignedTransaction::new(

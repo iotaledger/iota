@@ -34,15 +34,15 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
-    ObjectData, ObjectId, ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag,
-    gas::GasCostSummary, move_package::MovePackage,
+    ObjectData, ObjectId, ObjectReference, ProgrammableTransaction, RandomnessRound,
+    TransactionKind, TypeTag, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IOTA_ADDRESS_LENGTH, SequenceNumber, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -1669,7 +1669,7 @@ impl IotaTestAdapter {
             // sender
             Address,
             // gas
-            Vec<ObjectRef>,
+            Vec<ObjectReference>,
         ) -> TransactionData,
     ) -> Transaction {
         let sender = self.get_sender(sender);
@@ -1678,7 +1678,7 @@ impl IotaTestAdapter {
         })
     }
 
-    fn get_payments(&self, sponsor: &TestAccount, payments: Vec<FakeID>) -> Vec<ObjectRef> {
+    fn get_payments(&self, sponsor: &TestAccount, payments: Vec<FakeID>) -> Vec<ObjectReference> {
         let payments = if payments.is_empty() {
             vec![sponsor.gas]
         } else {
@@ -1709,7 +1709,7 @@ impl IotaTestAdapter {
             // sponsor
             Address,
             // gas
-            Vec<ObjectRef>,
+            Vec<ObjectReference>,
         ) -> TransactionData,
     ) -> Transaction {
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));

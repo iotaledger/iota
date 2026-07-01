@@ -4,6 +4,7 @@
 //! Example demonstrating how to protect an abstract account authenticator
 //! inputs from being tampered.
 
+use iota_sdk_types::ObjectReference;
 use std::str::FromStr;
 
 use anyhow::{Result, bail};
@@ -28,7 +29,6 @@ use iota_sdk::{
 };
 use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TypeTag};
 use iota_types::{
-    base_types::ObjectRef,
     crypto::PublicKey,
     move_authenticator::MoveAuthenticatorExt,
     signature::GenericSignature,
@@ -237,9 +237,9 @@ pub async fn create_account(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     pub_key: &PublicKey,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates an abstract account
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -307,7 +307,7 @@ pub async fn create_blacklist(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates a blacklist shared object instance
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -351,8 +351,8 @@ pub async fn create_test_transaction(
     keystore: &mut InMemKeystore,
     publisher: Address,
     recipient: Address,
-    account_ref: &ObjectRef,
-    blacklist_ref: &ObjectRef,
+    account_ref: &ObjectReference,
+    blacklist_ref: &ObjectReference,
 ) -> Result<Transaction> {
     let account_address = account_ref.object_id.into();
 
@@ -407,7 +407,7 @@ pub async fn create_test_transaction(
 /// Swaps the blacklist shared object in the transaction with a new one.
 pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
-    new_blacklist_ref: &ObjectRef,
+    new_blacklist_ref: &ObjectReference,
 ) -> Transaction {
     let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
         new_blacklist_ref.object_id,

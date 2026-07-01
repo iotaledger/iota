@@ -12,8 +12,10 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, Identifier, MoveObjectType, ObjectId, Owner, StructTag, TypeTag};
-pub use iota_sdk_types::{ObjectReference as ObjectRef, Version as SequenceNumber};
+pub use iota_sdk_types::Version as SequenceNumber;
+use iota_sdk_types::{
+    Address, Identifier, MoveObjectType, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -68,8 +70,8 @@ pub trait ConciseableName<'a> {
 
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
-pub fn random_object_ref() -> ObjectRef {
-    ObjectRef::new(
+pub fn random_object_ref() -> ObjectReference {
+    ObjectReference::new(
         ObjectId::random(),
         SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
@@ -179,7 +181,7 @@ pub struct ObjectInfo {
 }
 
 impl ObjectInfo {
-    pub fn new(oref: &ObjectRef, o: &Object) -> Self {
+    pub fn new(oref: &ObjectReference, o: &Object) -> Self {
         Self {
             object_id: oref.object_id,
             version: oref.version,
@@ -202,15 +204,15 @@ impl ObjectInfo {
     }
 }
 
-impl From<ObjectInfo> for ObjectRef {
+impl From<ObjectInfo> for ObjectReference {
     fn from(info: ObjectInfo) -> Self {
-        ObjectRef::new(info.object_id, info.version, info.digest)
+        ObjectReference::new(info.object_id, info.version, info.digest)
     }
 }
 
-impl From<&ObjectInfo> for ObjectRef {
+impl From<&ObjectInfo> for ObjectReference {
     fn from(info: &ObjectInfo) -> Self {
-        ObjectRef::new(info.object_id, info.version, info.digest)
+        ObjectReference::new(info.object_id, info.version, info.digest)
     }
 }
 

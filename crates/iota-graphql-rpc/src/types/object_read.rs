@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::base_types::ObjectRef as NativeObjectRef;
+use iota_sdk_types::ObjectReference as NativeObjectRef;
 
 use crate::types::{iota_address::IotaAddress, object::Object, uint53::UInt53};
 

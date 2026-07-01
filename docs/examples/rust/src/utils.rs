@@ -3,6 +3,7 @@
 
 //! A set of utility functions for the examples.
 
+use iota_sdk_types::ObjectReference;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -20,7 +21,6 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        base_types::ObjectRef,
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
@@ -143,7 +143,7 @@ pub async fn publish_aa_package<Keystore: AccountKeystore>(
     keystore: &mut Keystore,
     publisher: Address,
     package: &str,
-) -> Result<(ObjectId, ObjectRef)> {
+) -> Result<(ObjectId, ObjectReference)> {
     let transaction_response = publish_package(iota_client, keystore, publisher, package).await?;
 
     let package_ref = transaction_response

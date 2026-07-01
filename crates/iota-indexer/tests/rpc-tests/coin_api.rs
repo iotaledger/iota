@@ -15,10 +15,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -833,7 +832,7 @@ async fn mint_trusted_coin(
     address: Address,
     account_keypair: &IotaKeyPair,
     amount: u64,
-) -> Result<ObjectRef, anyhow::Error> {
+) -> Result<ObjectReference, anyhow::Error> {
     let http_client = cluster.rpc_client();
 
     let result: Supply = http_client

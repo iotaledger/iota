@@ -295,7 +295,7 @@ async fn build_shared_object_transaction(
     sender: Address,
     sender_key: &AccountKeyPair,
     gas_object_id: ObjectId,
-    pkg_ref: iota_types::base_types::ObjectRef,
+    pkg_ref: iota_sdk_types::ObjectReference,
 ) -> Transaction {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).await.unwrap();

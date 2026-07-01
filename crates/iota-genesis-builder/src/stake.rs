@@ -7,8 +7,8 @@ use iota_config::genesis::{
     Delegations, TokenAllocation, TokenDistributionSchedule, TokenDistributionScheduleBuilder,
     ValidatorAllocation,
 };
-use iota_sdk_types::Address;
-use iota_types::{base_types::ObjectRef, object::Object};
+use iota_sdk_types::{Address, ObjectReference};
+use iota_types::object::Object;
 
 use crate::stardust::{
     migration::{ExpirationTimestamp, MigrationObjects},
@@ -18,30 +18,30 @@ use crate::stardust::{
 #[derive(Default, Debug, Clone)]
 pub struct GenesisStake {
     token_allocation: Vec<TokenAllocation>,
-    gas_coins_to_destroy: Vec<ObjectRef>,
-    timelocks_to_destroy: Vec<ObjectRef>,
-    timelocks_to_split: Vec<(ObjectRef, u64, Address)>,
+    gas_coins_to_destroy: Vec<ObjectReference>,
+    timelocks_to_destroy: Vec<ObjectReference>,
+    timelocks_to_split: Vec<(ObjectReference, u64, Address)>,
 }
 
 impl GenesisStake {
     /// Take the inner gas-coin objects that must be destroyed.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_gas_coins_to_destroy(&mut self) -> Vec<ObjectRef> {
+    pub fn take_gas_coins_to_destroy(&mut self) -> Vec<ObjectReference> {
         std::mem::take(&mut self.gas_coins_to_destroy)
     }
 
     /// Take the inner timelock objects that must be destroyed.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_timelocks_to_destroy(&mut self) -> Vec<ObjectRef> {
+    pub fn take_timelocks_to_destroy(&mut self) -> Vec<ObjectReference> {
         std::mem::take(&mut self.timelocks_to_destroy)
     }
 
     /// Take the inner timelock objects that must be split.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectRef, u64, Address)> {
+    pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectReference, u64, Address)> {
         std::mem::take(&mut self.timelocks_to_split)
     }
 
@@ -286,7 +286,7 @@ impl GenesisStake {
 #[derive(Default, Debug, Clone)]
 struct AllocationObjects {
     /// The list of objects to destroy for the allocations
-    to_destroy: Vec<ObjectRef>,
+    to_destroy: Vec<ObjectReference>,
     /// The total amount of nanos to be allocated from this
     /// collection of objects.
     amount_nanos: u64,
@@ -301,7 +301,7 @@ struct AllocationObjects {
 #[derive(Default, Debug, Clone)]
 struct SurplusCoin {
     // The reference of the coin to possibly split to get the surplus.
-    coin_object_ref: Option<ObjectRef>,
+    coin_object_ref: Option<ObjectReference>,
     /// The surplus amount for that coin object.
     surplus_nanos: u64,
     /// Possibly indicate a timelock stake expiration.
@@ -317,7 +317,7 @@ impl SurplusCoin {
     pub fn maybe_reuse_surplus(
         &mut self,
         target_amount_nanos: u64,
-    ) -> (Option<ObjectRef>, u64, u64) {
+    ) -> (Option<ObjectReference>, u64, u64) {
         // If the surplus is some, then we can use the surplus nanos
         if self.coin_object_ref.is_some() {
             // If the surplus nanos are less or equal than the target, then use them all and
@@ -336,7 +336,7 @@ impl SurplusCoin {
     }
 
     // Destroy the `CoinSurplus` and take the fields.
-    pub fn take(&mut self) -> (Option<ObjectRef>, u64, u64) {
+    pub fn take(&mut self) -> (Option<ObjectReference>, u64, u64) {
         let surplus = self.surplus_nanos;
         self.surplus_nanos = 0;
         let timestamp = self.timestamp;

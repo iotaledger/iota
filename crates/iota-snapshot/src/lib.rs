@@ -106,14 +106,14 @@ use tokio::time::Instant;
 /// │  magic(0x5EFE5E11) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
-/// │ │         ObjectRef 1      │ │
+/// │ │         ObjectReference 1      │ │
 /// │ ├──────────────────────────┤ │
 /// │ │          ...             │ │
 /// │ ├──────────────────────────┤ │
-/// │ │         ObjectRef N      │ │
+/// │ │         ObjectReference N      │ │
 /// │ └──────────────────────────┘ │
 /// └──────────────────────────────┘
-/// ObjectRef (ObjectId, SequenceNumber, ObjectDigest)
+/// ObjectReference (ObjectId, SequenceNumber, ObjectDigest)
 /// ┌───────────────┬───────────────────┬──────────────┐
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘

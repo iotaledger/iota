@@ -531,7 +531,7 @@ impl Scenario {
             .clone()
     }
 
-    pub fn obj_ref(&self, short_id: u32) -> ObjectRef {
+    pub fn obj_ref(&self, short_id: u32) -> ObjectReference {
         self.object(short_id).object_ref()
     }
 

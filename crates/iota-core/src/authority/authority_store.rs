@@ -600,7 +600,7 @@ impl AuthorityStore {
 
     /// A function that acquires all locks associated with the objects (in order
     /// to avoid deadlocks).
-    fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
+    fn acquire_locks(&self, input_objects: &[ObjectReference]) -> Vec<MutexGuard> {
         self.mutex_table
             .acquire_locks(input_objects.iter().map(|object_ref| object_ref.digest))
     }
@@ -695,7 +695,7 @@ impl AuthorityStore {
     /// Insert an object directly into the store, and also update relevant
     /// tables NOTE: does not handle transaction lock.
     /// This is used to insert genesis objects
-    fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
+    fn insert_object_direct(&self, object_ref: ObjectReference, object: &Object) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
 
         // Insert object
@@ -953,7 +953,7 @@ impl AuthorityStore {
     pub fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
@@ -1026,7 +1026,7 @@ impl AuthorityStore {
     /// this object
     pub(crate) fn get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
         if self
@@ -1056,7 +1056,7 @@ impl AuthorityStore {
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<ObjectRef> {
+    ) -> IotaResult<ObjectReference> {
         let mut iterator = self
             .perpetual_tables
             .live_owned_object_markers
@@ -1085,7 +1085,7 @@ impl AuthorityStore {
     /// least one of the objects.
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at
     /// least one object lock is not initialized     at the given version.
-    pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> IotaResult {
+    pub fn check_owned_objects_are_live(&self, objects: &[ObjectReference]) -> IotaResult {
         let live_markers = self
             .perpetual_tables
             .live_owned_object_markers
@@ -1111,7 +1111,7 @@ impl AuthorityStore {
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         AuthorityStore::initialize_live_object_markers(
             &self.perpetual_tables.live_owned_object_markers,
@@ -1121,9 +1121,9 @@ impl AuthorityStore {
     }
 
     pub fn initialize_live_object_markers(
-        live_object_marker_table: &DBMap<ObjectRef, ()>,
+        live_object_marker_table: &DBMap<ObjectReference, ()>,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         trace!(?objects, "initialize_live_object_markers");
 
@@ -1138,7 +1138,7 @@ impl AuthorityStore {
     fn delete_live_object_markers(
         &self,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         trace!(?objects, "delete_live_object_markers");
         write_batch.delete_batch(
@@ -1152,7 +1152,7 @@ impl AuthorityStore {
     pub(crate) fn reset_locks_and_live_markers_for_test(
         &self,
         transactions: &[TransactionDigest],
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
         epoch_store: &AuthorityPerEpochStore,
     ) {
         for tx in transactions {
@@ -1304,7 +1304,7 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         self.perpetual_tables
             .get_latest_object_ref_or_tombstone(object_id)
     }
@@ -1314,7 +1314,7 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_if_alive(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
             Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
             _ => Ok(None),
@@ -1805,5 +1805,5 @@ pub type IotaLockResult = IotaResult<ObjectLockStatus>;
 pub enum ObjectLockStatus {
     Initialized,
     LockedToTx { locked_by_tx: LockDetails }, // no need to use wrapper, not stored or serialized
-    LockedAtDifferentVersion { locked_ref: ObjectRef },
+    LockedAtDifferentVersion { locked_ref: ObjectReference },
 }
