@@ -211,8 +211,7 @@ impl Signer<Signature> for IotaKeyPair {
 
 // By-reference conversions into [`IotaKeyPair`], so the per-scheme keypairs
 // (and `IotaKeyPair` itself) can be passed to the signing helpers, which are
-// generic over `impl Into<IotaKeyPair>`. The orphan rule is satisfied because
-// `IotaKeyPair` is local.
+// generic over `impl Into<IotaKeyPair>`.
 impl From<&Ed25519KeyPair> for IotaKeyPair {
     fn from(kp: &Ed25519KeyPair) -> Self {
         IotaKeyPair::Ed25519(kp.copy())
