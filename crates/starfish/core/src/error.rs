@@ -177,6 +177,9 @@ pub(crate) enum ConsensusError {
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
+    #[error("Missing block header for {block_ref}")]
+    MissingBlockHeader { block_ref: BlockRef },
+
     #[error(
         "Invalid overlap indices: overlap_start={overlap_start}, overlap_end={overlap_end}, references_len={references_len}"
     )]
