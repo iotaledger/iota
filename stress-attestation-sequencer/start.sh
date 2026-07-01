@@ -38,10 +38,14 @@ export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION=
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE="${MODE:-TotalComputationUnits}"
 
 # Node log level — docker-compose forwards this to validators + fullnode (its
-# &common-env RUST_LOG). Stress runs default to WARN: DEBUG emits a per-transaction
-# log line on every node, which balloons node-logs to GBs under load. Fork/crash
-# evidence is ERROR, so WARN keeps it. Override for debugging, e.g. NODE_LOG=info.
-export IOTA_NODE_RUST_LOG="${NODE_LOG:-warn}"
+# &common-env RUST_LOG). Default is the compose default (iota_core=debug etc.): the
+# per-tx digests + "passed post-consensus validation" + object-version lines it
+# emits are what let us pin down checkpoint forks (which txs a node dropped). Only
+# exported when NODE_LOG is set, so unset => compose default (DEBUG). For large
+# matrix runs where DEBUG balloons node-logs to GBs, pass NODE_LOG=warn.
+if [[ -n "${NODE_LOG:-}" ]]; then
+  export IOTA_NODE_RUST_LOG="$NODE_LOG"
+fi
 
 # Optional numeric limits: only exported when provided, so the protocol
 # version's own value stands otherwise (avoids pinning a baseline by accident).
