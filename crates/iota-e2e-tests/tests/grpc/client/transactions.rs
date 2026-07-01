@@ -15,12 +15,8 @@ async fn get_transactions_scenarios() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Execute transactions upfront for later tests
-    let digest1: TransactionDigest = execute_transaction_and_get_digest(&test_cluster)
-        .await
-        .into();
-    let digest2: TransactionDigest = execute_transaction_and_get_digest(&test_cluster)
-        .await
-        .into();
+    let digest1: TransactionDigest = execute_transaction_and_get_digest(&test_cluster).await;
+    let digest2: TransactionDigest = execute_transaction_and_get_digest(&test_cluster).await;
     test_cluster.wait_for_checkpoint(3, None).await;
 
     // Test: get single transaction
