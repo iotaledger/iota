@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    ops::RangeInclusive,
+};
 
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
@@ -417,36 +420,9 @@ impl Checkpoint {
             ));
         }
 
-        // Reject cursors outside the available range. Below the lower bound means data
-        // was pruned in the middle of pagination; above the upper bound means the
-        // cursor is malformed.
-        let validate_cursor = |name: &str, cursor: Option<&Cursor>| -> Result<Option<u64>, Error> {
-            let Some(cursor) = cursor else {
-                return Ok(None);
-            };
-            let seq = cursor.sequence_number;
-            if seq < absolute_lo_incl {
-                return Err(Error::DataPruned(format!(
-                    "`{name}` cursor (seq {seq}) is below the available range {available_range:?}"
-                )));
-            }
-            if seq > absolute_hi_incl {
-                return Err(Error::Client(format!(
-                    "`{name}` cursor (seq {seq}) is above the available range {available_range:?}"
-                )));
-            }
-            Ok(Some(seq))
-        };
-        // Narrow the range using cursors, keeping in mind cursors are exclusive.
-        let page_lo_incl = validate_cursor("after", page.after())?
-            .map_or(absolute_lo_incl, |s| s.saturating_add(1));
-        let page_hi_incl = validate_cursor("before", page.before())?
-            .map_or(absolute_hi_incl, |s| s.saturating_sub(1));
-
-        let page_range = page_lo_incl..=page_hi_incl;
-        if page_range.is_empty() {
+        let Some(page_range) = page.narrow_to_available_range(&available_range)? else {
             return Ok(Connection::new(false, false));
-        }
+        };
 
         // Take `limit` sequence numbers from the appropriate end of the page range.
         let limit = page.limit();
@@ -515,6 +491,63 @@ impl Checkpointed for Cursor {
 }
 
 impl ScanLimited for Cursor {}
+
+impl Page<Cursor> {
+    /// Narrow page range to the `available` range and return the inclusive
+    /// range this page should cover, or `None` if the range is empty.
+    ///
+    /// A cursor below `available.start()` returns `Error::DataPruned` (the
+    /// data was pruned since the cursor was issued). A cursor above
+    /// `available.end()` returns `Error::Client` (the cursor is malformed).
+    /// When `after > before` the range is empty and no error is returned.
+    fn narrow_to_available_range(
+        &self,
+        available: &RangeInclusive<u64>,
+    ) -> Result<Option<RangeInclusive<u64>>, Error> {
+        let lo = *available.start();
+        let hi = *available.end();
+
+        let after = self.after().map(|c| c.sequence_number);
+        let before = self.before().map(|c| c.sequence_number);
+
+        // If `after > before`, the range is empty; skip cursor validation.
+        if let (Some(after), Some(before)) = (after, before) {
+            if after > before {
+                return Ok(None);
+            }
+        }
+
+        let ensure_in_available_range = |name: &str, seq: u64| -> Result<(), Error> {
+            if seq < lo {
+                return Err(Error::DataPruned(format!(
+                    "`{name}` cursor (seq {seq}) is below the available range {available:?}"
+                )));
+            }
+            if seq > hi {
+                return Err(Error::Client(format!(
+                    "`{name}` cursor (seq {seq}) is above the available range {available:?}"
+                )));
+            }
+            Ok(())
+        };
+        if let Some(seq) = after {
+            ensure_in_available_range("after", seq)?;
+        }
+        if let Some(seq) = before {
+            ensure_in_available_range("before", seq)?;
+        }
+
+        // Cursors are exclusive.
+        let page_lo = after.map(|seq| seq.saturating_add(1)).unwrap_or(lo);
+        let page_hi = before.map(|seq| seq.saturating_sub(1)).unwrap_or(hi);
+        let range = page_lo..=page_hi;
+        if range.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(range))
+        }
+    }
+}
 
 impl Loader<SeqNumKey> for Db {
     type Value = Checkpoint;
