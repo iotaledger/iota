@@ -57,7 +57,7 @@ impl Restore for PgIndexerStore {
 
         let persist_tasks = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
         futures::future::try_join_all(persist_tasks)
             .await
             .map_err(|e| {

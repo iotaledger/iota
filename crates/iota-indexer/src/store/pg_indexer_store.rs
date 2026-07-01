@@ -269,7 +269,7 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    pub(crate) fn persist_changed_objects(
+    pub(crate) fn persist_live_objects(
         &self,
         objects: Vec<LiveObject>,
     ) -> Result<(), IndexerError> {
@@ -2198,7 +2198,7 @@ impl IndexerStore for PgIndexerStore {
         let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
         let mutation_futures = mutation_chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
