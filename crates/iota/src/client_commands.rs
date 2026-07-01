@@ -1974,18 +1974,15 @@ impl IotaClientCommands {
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
-                let chain_id = context
-                    .get_client()
-                    .await?
-                    .read_api()
-                    .get_chain_identifier()
-                    .await?;
+                let client = context.get_client().await?;
+                let chain_id = client.read_api().get_chain_identifier().await?;
+                let protocol_config = client.read_api().get_protocol_config(None).await?;
                 let compiled_package = BuildConfig {
                     config: build_config,
                     run_bytecode_verifier: true,
                     print_diags_to_stderr: true,
                     chain_id: Some(chain_id),
-                    protocol_build_config: ProtocolBuildConfig::default(),
+                    protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
                 }
                 .build(&package_path)?;
 
