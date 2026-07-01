@@ -1166,14 +1166,12 @@ mod tests {
             "Test pre-condition: carrier and shard-source blocks must differ"
         );
 
-        // GIVEN: a ShardWithProof whose block_ref points to shard_source (V1 variant,
-        // transaction_ref_enabled = false).
+        // GIVEN: a ShardWithProof whose block_ref points to shard_source.
         let shard_with_proof = ShardWithProof::new(
             vec![0u8; 32],
             vec![],
             shard_source_ref,
             shard_source.transactions_commitment(),
-            false,
         );
 
         // WHEN: build transaction messages using the carrier block together with a

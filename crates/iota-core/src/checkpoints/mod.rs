@@ -1608,13 +1608,7 @@ impl CheckpointBuilder {
                         "Decrease of checkpoint timestamp, possibly due to epoch change. Sequence: {}, previous: {}, current: {}",
                         sequence_number, last_checkpoint.timestamp_ms, timestamp_ms,
                     );
-                    if self
-                        .epoch_store
-                        .protocol_config()
-                        .consensus_median_timestamp_with_checkpoint_enforcement()
-                    {
-                        timestamp_ms = last_checkpoint.timestamp_ms;
-                    }
+                    timestamp_ms = last_checkpoint.timestamp_ms;
                 }
             }
 

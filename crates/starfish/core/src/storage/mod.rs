@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -18,7 +18,6 @@ use crate::{
     CommitIndex,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
-    context::Context,
     error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -27,15 +26,11 @@ use crate::{
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()>;
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
-    fn read_blocks(
-        &self,
-        refs: &[BlockRef],
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Read and get verified block headers for the given refs.
     fn read_verified_block_headers(
@@ -77,7 +72,6 @@ pub(crate) trait Store: Send + Sync {
         &self,
         authority: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
@@ -90,7 +84,6 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     fn scan_block_references_by_author(
@@ -109,19 +102,12 @@ pub(crate) trait Store: Send + Sync {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let refs = if context.protocol_config.consensus_fast_commit_sync() {
-            self.scan_transaction_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        } else {
-            self.scan_block_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        };
+        let refs = self
+            .scan_transaction_references_by_author(author, start_round)?
+            .into_iter()
+            .map(GenericTransactionRef::from)
+            .collect::<Vec<_>>();
         Ok(self
             .read_verified_transactions(&refs)?
             .into_iter()
