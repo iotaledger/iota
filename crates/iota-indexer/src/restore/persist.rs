@@ -8,21 +8,17 @@ use iota_snapshot::{FileMetadata, VerifiedEpochInfo, reader::LiveObjectIter, res
 use iota_storage::SHA3_BYTES;
 use iota_types::{digests::ChainIdentifier, iota_system_state::IotaSystemStateTrait};
 use itertools::Itertools;
+use strum::IntoEnumIterator;
 
 use crate::{
     chunk,
     errors::{IndexerError, IndexerResult},
-    ingestion::{
-        common::{
-            persist::{CommitterTables, CommitterWatermark},
-            prepare::LiveObject,
-        },
-        primary::persist::EpochToCommit,
-    },
+    ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
     models::{
         checkpoints::StoredChainIdentifier,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
     },
+    pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore},
     types::IndexedCheckpoint,
 };
@@ -166,8 +162,10 @@ async fn populate_epochs(
 /// with setting the checkpoint watermark to the last checkpoint of the snapshot
 /// epoch.
 ///
-/// Finally we populate `protocol_configs` and `feature_flags` up to the
-/// protocol version that the snapshot epoch corresponds to.
+/// Finally we populate `protocol_configs`, `feature_flags` up to the
+/// protocol version that the snapshot epoch corresponds to, and the
+/// `watermarks` table with the lower bounds associated with the epoch following
+/// the snapshot.
 pub(crate) async fn populate_remaining_tables(
     store: &PgIndexerStore,
     verified_epoch_info: VerifiedEpochInfo,
@@ -182,12 +180,17 @@ pub(crate) async fn populate_remaining_tables(
         &snapshot_epoch_boundary.last_checkpoint_contents,
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
-    let pruning_watermark = CommitterWatermark::from(&sync_watermark);
+    let pruning_watermarks = PrunableTable::iter()
+        .map(|table| (table, sync_watermark.epoch + 1))
+        .collect();
     tokio::try_join!(
         populate_epochs(store, verified_epoch_info),
         populate_chain_id(store, snapshot_chain_id),
         store.persist_checkpoints(vec![sync_watermark]),
-        store.update_watermarks_upper_bound::<CommitterTables>(pruning_watermark)
     )?;
-    populate_procotol_and_feature_flags(store, snapshot_chain_id).await
+    tokio::try_join!(
+        populate_procotol_and_feature_flags(store, snapshot_chain_id),
+        store.update_watermarks_lower_bound(pruning_watermarks)
+    )?;
+    Ok(())
 }
