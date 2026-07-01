@@ -465,7 +465,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV3 {
         self.v2.epoch_duration_ms()
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.v2.get_validator_addresses()
     }
 
@@ -477,8 +477,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV3 {
         self.v2.get_iota_committee()
     }
 
-    fn get_consensus_committee(&self) -> ConsensusCommittee {
-        self.v2.get_consensus_committee()
+    fn committee_validators(&self) -> &[EpochStartValidatorInfoV1] {
+        self.v2.committee_validators()
     }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
@@ -559,7 +559,7 @@ mod test {
     #[test]
     fn test_v3_wraps_v2_and_carries_attestors() {
         let attestors = vec![EpochStartAttestorInfoV1 {
-            attestor_address: IotaAddress::ZERO,
+            attestor_address: Address::ZERO,
             attestor_pubkey: vec![0u8; 33],
         }];
 

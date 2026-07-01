@@ -8,13 +8,12 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Address, Identifier, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
     crypto::{PublicKey, SignatureScheme},
     dynamic_field::{derive_dynamic_field_id, get_dynamic_field_from_store},
     error::IotaError,
@@ -42,7 +41,7 @@ impl MoveTypeTagTrait for AttestorRegistryKey {
 /// Mirror of `iota_system::attestor_registry::AttestorV1`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AttestorV1 {
-    pub attestor_address: IotaAddress,
+    pub attestor_address: Address,
     /// flag byte || raw pubkey bytes (plain schemes only).
     pub attestor_pubkey: Vec<u8>,
     pub next_epoch_attestor_pubkey: Option<Vec<u8>>,
@@ -85,7 +84,7 @@ pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
 /// `EpochStartSystemStateV3`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct EpochStartAttestorInfoV1 {
-    pub attestor_address: IotaAddress,
+    pub attestor_address: Address,
     pub attestor_pubkey: Vec<u8>,
 }
 
@@ -96,7 +95,7 @@ pub struct EpochStartAttestorInfoV1 {
 pub struct AttestorSet {
     epoch: u64,
     entries: Vec<EpochStartAttestorInfoV1>,
-    index_by_address: HashMap<IotaAddress, u32>,
+    index_by_address: HashMap<Address, u32>,
 }
 
 impl AttestorSet {
@@ -133,7 +132,7 @@ impl AttestorSet {
         self.entries.get(index as usize)
     }
 
-    pub fn by_address(&self, address: &IotaAddress) -> Option<(u32, &EpochStartAttestorInfoV1)> {
+    pub fn by_address(&self, address: &Address) -> Option<(u32, &EpochStartAttestorInfoV1)> {
         let idx = *self.index_by_address.get(address)?;
         Some((idx, &self.entries[idx as usize]))
     }
@@ -145,7 +144,7 @@ impl AttestorSet {
 
 /// Deterministic object ID of the registry dynamic field on the system
 /// state wrapper.
-pub fn derive_attestor_registry_object_id() -> Result<ObjectID, bcs::Error> {
+pub fn derive_attestor_registry_object_id() -> Result<ObjectId, bcs::Error> {
     derive_dynamic_field_id(
         IOTA_SYSTEM_STATE_OBJECT_ID,
         &AttestorRegistryKey::get_type_tag(),
@@ -199,7 +198,7 @@ mod tests {
     fn attestor_registry_v1_bcs_round_trip() {
         let registry = AttestorRegistryV1 {
             active_attestors: vec![AttestorV1 {
-                attestor_address: IotaAddress::ZERO,
+                attestor_address: Address::ZERO,
                 attestor_pubkey: vec![0u8; 33],
                 next_epoch_attestor_pubkey: None,
                 bond: Balance::new(2_000_000_000_000),
@@ -278,11 +277,11 @@ mod tests {
     fn attestor_set_lookups_agree() {
         let entries = vec![
             EpochStartAttestorInfoV1 {
-                attestor_address: IotaAddress::from_bytes([1u8; 32]).unwrap(),
+                attestor_address: Address::from_bytes([1u8; 32]).unwrap(),
                 attestor_pubkey: vec![0u8; 33],
             },
             EpochStartAttestorInfoV1 {
-                attestor_address: IotaAddress::from_bytes([2u8; 32]).unwrap(),
+                attestor_address: Address::from_bytes([2u8; 32]).unwrap(),
                 attestor_pubkey: vec![1u8; 34],
             },
         ];
