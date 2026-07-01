@@ -417,9 +417,13 @@ run_one_iteration() {
       >>"$node_logs/_state.log" 2>&1 || true
     docker logs "$c" >"$node_logs/$c.log" 2>&1 || true
   done
-  # Quick crash digest across all nodes (panics / fatal / OOM).
-  grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$node_logs"/*.log \
-    >"$node_logs/_crash.log" 2>/dev/null || true
+  # Quick crash digest across all nodes (panics / fatal / OOM). Drop keyword hits
+  # logged at DEBUG/INFO — e.g. the benign TD "processing aborted (retriable)"
+  # spam that "abort" would otherwise pull in — keeping only WARN/ERROR-level hits
+  # (real panics/forks) plus their level-less backtrace continuation lines.
+  grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$node_logs"/*.log 2>/dev/null |
+    grep -vE ':[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z +(TRACE|DEBUG|INFO) ' \
+      >"$node_logs/_crash.log" || true
   echo "  - state logs -> $(rel "$node_logs/_state.log")"
   echo "  - crash logs -> $(rel "$node_logs/_crash.log")"
 
