@@ -323,7 +323,6 @@ public(package) fun advance_epoch(
     let mut evicted_bonds = balance::zero<IOTA>();
 
     // --- 1. Combined exits ---
-    // Collect eviction indices (bond below threshold).
     let low_bond_threshold: u64 = protocol_config::get_attr(ATTESTOR_LOW_BOND_THRESHOLD_PARAM);
     let mut exit_indices = vector<u64>[];
     let mut eviction_flags = vector<bool>[];
@@ -341,9 +340,7 @@ public(package) fun advance_epoch(
             eviction_flags.push_back(false);
         }
     };
-    // Sort the (index, flag) pairs ascending (insertion sort; list is
-    // tiny), then pop from the back so vector::remove indices stay valid
-    // (validator_set::process_pending_removals mechanics).
+    // Sort ascending, then remove from the back so indices stay valid.
     let mut i = 1;
     while (i < exit_indices.length()) {
         let mut j = i;

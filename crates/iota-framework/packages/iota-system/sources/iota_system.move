@@ -625,11 +625,8 @@ fun advance_epoch(
     // ValidatorV1 will make a special system call with sender set as 0x0.
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
 
-    // Process the attestor registry boundary first. The registry lives on
-    // the wrapper UID, so its mutable borrow must complete before we borrow
-    // the inner system state. Evicted bonds are returned here and burned
-    // inside the inner advance_epoch (keeping `burnt_tokens_amount`
-    // accounting accurate).
+    // Registry lives on the wrapper UID, so process it before borrowing the
+    // inner state; evicted bonds are burned inside the inner advance_epoch.
     let attestor_evicted_bonds = if (
         dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key())
     ) {
