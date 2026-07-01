@@ -91,7 +91,6 @@ use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryID, RegistryService,
-    hardware_metrics::register_hardware_metrics,
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
@@ -385,9 +384,6 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
-        // Register hardware metrics.
-        register_hardware_metrics(&registry_service, &config.db_path)
-            .expect("Failed registering hardware metrics");
         // Register uptime metric
         prometheus_registry
             .register(iota_metrics::uptime_metric(

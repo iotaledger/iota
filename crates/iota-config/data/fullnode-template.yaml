@@ -21,8 +21,7 @@ authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 1
 
-# Switch on/off of Prometheus metric groups.
-# The default is that all groups are enabled.
+# Switch Prometheus metric groups on/off. Everything defaults to enabled.
 # metrics:
 #   groups:
 #     consensus: true
@@ -35,3 +34,4 @@ authority-store-pruning-config:
 #     storage: true
 #     rpc: true
 #     epoch: true
+#     hardware: true

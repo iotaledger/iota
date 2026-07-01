@@ -1,15 +1,18 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Predefined groupings of the node's Prometheus metrics and the mapping from
-//! each group to the modules that register its metrics.
+//! Predefined groupings of the node's Prometheus metrics.
 //!
-//! Grouping keys are based on the module path of the metrics, not by the name
-//! of metrics. Because module paths are stable, and metric names are not.
+//! Most groups are filter-based: they key on the module path of the metrics
+//! (not the metric name, because module paths are stable and names are not) and
+//! are rendered into a `METRICS_FILTER`-style string via
+//! [`MetricGroups::to_filter_string`].
 //!
-//! Metrics registered as a `prometheus` `Collector` (e.g. the `hw` hardware
-//! metrics) bypass the filtering macros entirely, so they are unaffected by
-//! these groups.
+//! The `hw` hardware metrics are registered as a `prometheus` `Collector` and
+//! so bypass the filtering macros entirely. They cannot be filtered, only
+//! registered or not, so the `hardware` group is a plain on/off switch read at
+//! registration time and does not appear in
+//! [`MetricGroups::to_filter_string`].
 
 use serde::{Deserialize, Serialize};
 
@@ -73,6 +76,8 @@ pub struct MetricGroups {
     ///
     /// Modules: `iota_core::epoch::epoch_metrics`.
     pub epoch: bool,
+    /// Host hardware metrics (CPU / memory / disk). Registered as a collector.
+    pub hardware: bool,
 }
 
 impl Default for MetricGroups {
@@ -90,13 +95,14 @@ impl Default for MetricGroups {
             storage: true,
             rpc: true,
             epoch: true,
+            hardware: true,
         }
     }
 }
 
 impl MetricGroups {
-    /// Maps each group's enabled flag to the module paths whose metrics it
-    /// covers.
+    /// Maps each filter-based group's enabled flag to the module paths whose
+    /// metrics it covers.
     fn group_modules(&self) -> [(bool, &'static [&'static str]); 10] {
         [
             (
@@ -203,6 +209,12 @@ mod tests {
             "typed_store=off,iota_storage=off,iota_core::db_checkpoint_handler=off,\
              iota_core::epoch::epoch_metrics=off"
         );
+
+        let groups = MetricGroups {
+            hardware: false,
+            ..Default::default()
+        };
+        assert_eq!(groups.to_filter_string(), "");
     }
 
     #[test]
@@ -213,6 +225,7 @@ mod tests {
         assert!(groups.consensus);
         assert!(groups.execution);
         assert!(!groups.traffic_control);
+        assert!(groups.hardware);
         assert_eq!(
             groups.to_filter_string(),
             "iota_core::traffic_controller=off"
