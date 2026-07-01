@@ -1258,6 +1258,18 @@ _FUZZ_STOP_RE = re.compile(
 )
 
 
+def _parse_iso_utc(ts_str: str) -> datetime:
+    """Parse an ISO-8601 timestamp to a tz-aware UTC datetime, accepting a
+    trailing `Z` UTC marker (normalized to `+00:00` before parsing). A
+    timestamp without an offset is assumed to be UTC."""
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    ts = datetime.fromisoformat(ts_str)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
 def post_run_canary(
     log_dir: Path,
     archive_prefix: str,
@@ -1306,10 +1318,9 @@ def post_run_canary(
             if not m:
                 continue
             try:
-                ts = datetime.fromisoformat(m.group(1))
+                ts_utc = _parse_iso_utc(m.group(1))
             except ValueError:
                 continue
-            ts_utc = ts.astimezone(timezone.utc)
             idx = int(m.group(2))
             stop_windows.setdefault(idx, []).append((ts_utc, ts_utc + grace))
 
@@ -1333,11 +1344,9 @@ def post_run_canary(
                 # panic carries the timestamp and is what we classify on.
                 continue
             try:
-                ts = datetime.fromisoformat(ts_match.group(1))
+                ts = _parse_iso_utc(ts_match.group(1))
             except ValueError:
                 continue
-            # All iota-node timestamps are UTC ("Z" suffix), so the resulting
-            # datetime is already tz-aware in UTC.
             if _in_shutdown_window(idx, ts):
                 filtered += 1
             else:
