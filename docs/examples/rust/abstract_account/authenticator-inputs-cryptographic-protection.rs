@@ -12,10 +12,8 @@ use docs_examples::utils::{
     request_tokens_from_faucet,
 };
 use fastcrypto::{
-    ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
-    traits::Authenticator,
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
@@ -383,12 +381,11 @@ pub async fn create_test_transaction(
     message.extend_from_slice(bcs::to_bytes(&raw_value)?.as_slice());
     let message_hash = Sha256::digest(message.as_slice()).digest;
 
-    let hex_encoded_signature: String =
-        Hex::encode(keystore.sign_hashed(&publisher, &message_hash)?)
-            .chars()
-            .skip(2) // flag prefix length
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+    let hex_encoded_signature: String = Hex::encode(
+        keystore
+            .sign_hashed(&publisher, &message_hash)?
+            .signature_bytes(),
+    );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(

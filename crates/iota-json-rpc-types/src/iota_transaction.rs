@@ -19,7 +19,6 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{EpochId, SequenceNumber, TransactionDigest},
-    crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},

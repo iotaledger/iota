@@ -190,7 +190,8 @@ impl GenericSignature {
     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
         match self {
             GenericSignature::Signature(s) => {
-                let bytes = s.public_key_bytes();
+                let public_key = s.to_public_key();
+                let bytes = public_key.as_ref();
                 match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {

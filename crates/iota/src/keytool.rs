@@ -500,9 +500,11 @@ impl KeyToolCommand {
                 };
                 let decoded = match signature {
                     GenericSignature::Signature(s) => {
-                        let pk_bytes = s.public_key_bytes();
-                        let pk = PublicKey::try_from_bytes(s.signature_scheme(), pk_bytes)
-                            .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
+                        let pk = PublicKey::try_from_bytes(
+                            s.signature_scheme(),
+                            s.to_public_key().as_ref(),
+                        )
+                        .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
                         let address = Address::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));

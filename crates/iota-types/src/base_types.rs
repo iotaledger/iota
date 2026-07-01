@@ -244,12 +244,10 @@ impl TryFrom<&GenericSignature> for Address {
         match sig {
             GenericSignature::Signature(sig) => {
                 let scheme = sig.signature_scheme();
-                let pub_key_bytes = sig.public_key_bytes();
-                let pub_key = PublicKey::try_from_bytes(scheme, pub_key_bytes).map_err(|_| {
-                    IotaError::InvalidSignature {
+                let pub_key = PublicKey::try_from_bytes(scheme, sig.to_public_key().as_ref())
+                    .map_err(|_| IotaError::InvalidSignature {
                         error: "Cannot parse pubkey".to_string(),
-                    }
-                })?;
+                    })?;
                 Ok(Address::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.committee().into()),

@@ -11,11 +11,7 @@ use docs_examples::utils::{
     create_transaction_data, execute_ptb, execute_transaction, get_coin, publish_aa_package,
     request_tokens_from_faucet,
 };
-use fastcrypto::{
-    ed25519::Ed25519Signature,
-    encoding::{Encoding, Hex},
-    traits::Authenticator,
-};
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
@@ -408,12 +404,11 @@ pub async fn create_test_transaction(
         false,
     ));
 
-    let hex_encoded_signature: String =
-        Hex::encode(keystore.sign_hashed(&publisher, tx_digest.as_ref())?)
-            .chars()
-            .skip(2) // flag prefix length
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+    let hex_encoded_signature: String = Hex::encode(
+        keystore
+            .sign_hashed(&publisher, tx_digest.as_ref())?
+            .signature_bytes(),
+    );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(

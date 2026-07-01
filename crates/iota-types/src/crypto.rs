@@ -749,11 +749,9 @@ pub trait IotaPublicKey: VerifyingKey {
 }
 
 /// Node-only behaviour layered on top of the SDK [`Signature`]
-/// (`iota_sdk_types::SimpleSignature`): byte/scheme accessors, construction
-/// from a signer, and intent-message verification.
+/// (`iota_sdk_types::SimpleSignature`): the node [`SignatureScheme`] accessor,
+/// construction from a signer, and intent-message verification.
 pub trait IotaSignature: Sized {
-    fn signature_bytes(&self) -> &[u8];
-    fn public_key_bytes(&self) -> &[u8];
     /// The node [`SignatureScheme`] of this signature.
     ///
     /// Named distinctly from the SDK's inherent `SimpleSignature::scheme()`
@@ -794,24 +792,6 @@ pub trait IotaSignature: Sized {
 }
 
 impl IotaSignature for Signature {
-    fn signature_bytes(&self) -> &[u8] {
-        match self {
-            Signature::Ed25519 { signature, .. } => signature.as_ref(),
-            Signature::Secp256k1 { signature, .. } => signature.as_ref(),
-            Signature::Secp256r1 { signature, .. } => signature.as_ref(),
-            _ => unimplemented!("a new SimpleSignature variant was added and needs to be handled"),
-        }
-    }
-
-    fn public_key_bytes(&self) -> &[u8] {
-        match self {
-            Signature::Ed25519 { public_key, .. } => public_key.as_ref(),
-            Signature::Secp256k1 { public_key, .. } => public_key.as_ref(),
-            Signature::Secp256r1 { public_key, .. } => public_key.as_ref(),
-            _ => unimplemented!("a new SimpleSignature variant was added and needs to be handled"),
-        }
-    }
-
     fn signature_scheme(&self) -> SignatureScheme {
         match self {
             Signature::Ed25519 { .. } => SignatureScheme::ED25519,
@@ -837,12 +817,7 @@ impl IotaSignature for Signature {
 
         // `SimpleVerifier` only checks the signature against its embedded public
         // key, so the signer/author binding is enforced here.
-        let address: Address = match self {
-            Signature::Ed25519 { public_key, .. } => (*public_key).into(),
-            Signature::Secp256k1 { public_key, .. } => (*public_key).into(),
-            Signature::Secp256r1 { public_key, .. } => (*public_key).into(),
-            _ => unimplemented!("a new SimpleSignature variant was added and needs to be handled"),
-        };
+        let address: Address = self.to_public_key().into();
         if author != address {
             return Err(IotaError::IncorrectSigner {
                 error: format!("Incorrect signer, expected {author}, got {address}"),
