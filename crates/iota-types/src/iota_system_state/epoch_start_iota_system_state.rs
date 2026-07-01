@@ -499,7 +499,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV3 {
         self.v2.epoch_duration_ms()
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.v2.get_validator_addresses()
     }
 
@@ -791,7 +791,7 @@ mod test {
     #[test]
     fn test_v3_wraps_v2_and_carries_attestors() {
         let attestors = vec![EpochStartAttestorInfoV1 {
-            attestor_address: IotaAddress::ZERO,
+            attestor_address: Address::ZERO,
             attestor_pubkey: vec![0u8; 33],
         }];
 
