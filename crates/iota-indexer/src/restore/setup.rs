@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc};
+use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc, time::Duration};
 
 use clap::ValueEnum;
 use indicatif::MultiProgress;
@@ -11,8 +11,9 @@ use iota_snapshot::reader::StateSnapshotReaderV1;
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, RootManifest, exists, get_path},
+    util::{MANIFEST_FILENAME, RootManifest, get_path},
 };
+use reqwest::StatusCode;
 use tracing::info;
 
 use crate::{errors::IndexerError, types::IndexerResult};
@@ -20,6 +21,8 @@ use crate::{errors::IndexerError, types::IndexerResult};
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 const DEVNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.devnet.iota.cafe";
+
+const VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, strum_macros::AsRefStr, ValueEnum)]
 #[strum(serialize_all = "lowercase")]
@@ -142,21 +145,46 @@ impl FormalSnapshotStore {
 
     /// Verifies that the formal snapshot upload for the given epoch has
     /// completed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the store cannot be reached, or if the snapshot
+    /// upload is incomplete.
     async fn verify_completed_snapshot(&self, epoch: u64) -> IndexerResult<()> {
-        let success_marker = format!("epoch_{epoch}/{SUCCESS_MARKER}");
-        // TODO: sort out failure modes of exists
-        if exists(&self.store, &get_path(success_marker.as_str())).await {
-            Ok(())
-        } else {
-            Err(IndexerError::Restore(format!(
-                "missing success marker at {}/{}",
-                self.config
-                    .aws_endpoint
-                    .as_deref()
-                    .unwrap_or("unknown endpoint"),
-                success_marker
-            )))
-        }
+        let aws_endpoint = self
+            .config
+            .aws_endpoint
+            .as_ref()
+            .expect("formal snapshots should be hosted on S3");
+        let success_marker_url = format!("{aws_endpoint}/epoch_{epoch}/{SUCCESS_MARKER}");
+        let client = reqwest::Client::new();
+
+        let backoff = backoff::ExponentialBackoff {
+            max_elapsed_time: Some(VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS),
+            ..Default::default()
+        };
+        backoff::future::retry(backoff, async || {
+            let status = client
+                .get(&success_marker_url)
+                .send()
+                .await
+                .map_err(|e| {
+                    backoff::Error::transient(IndexerError::Restore(format!(
+                        "failed to query success marker at {success_marker_url}: {e}"
+                    )))
+                })?
+                .status();
+            match status {
+                status if status.is_success() => Ok(()),
+                StatusCode::NOT_FOUND => Err(backoff::Error::permanent(IndexerError::Restore(
+                    format!("missing success marker at {success_marker_url}"),
+                ))),
+                status => Err(backoff::Error::transient(IndexerError::Restore(format!(
+                    "unexpected {status} querying success marker at {success_marker_url}"
+                )))),
+            }
+        })
+        .await
     }
 }
 
