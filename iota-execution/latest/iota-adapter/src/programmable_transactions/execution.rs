@@ -33,9 +33,9 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttributeV2, MovePackageExt, RuntimeModuleMetadata, UpgradeCap, UpgradePolicy,
-            UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules_with_metadata,
-            normalize_modules_with_metadata,
+            IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -1100,7 +1100,7 @@ mod checked {
             iota_verifier::verifier::iota_verify_module_unmetered(
                 module,
                 &BTreeMap::new(),
-                Some(context.protocol_config),
+                ProtocolBuildConfig::from(context.protocol_config),
             )?;
         }
 

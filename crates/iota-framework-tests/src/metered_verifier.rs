@@ -16,6 +16,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     error::{IotaError, IotaResult},
     metrics::BytecodeVerifierMetrics,
+    move_package::ProtocolBuildConfig,
 };
 use iota_verifier::meter::IotaVerifierMeter;
 use move_bytecode_verifier_meter::Scope;
@@ -51,6 +52,7 @@ fn test_metered_move_bytecode_verifier() {
         &verifier_config,
         &mut meter,
         &bytecode_verifier_metrics,
+        ProtocolBuildConfig::default(),
     );
     let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
     assert!(r.is_ok());
@@ -130,6 +132,7 @@ fn test_metered_move_bytecode_verifier() {
         &verifier_config,
         &mut meter,
         &bytecode_verifier_metrics,
+        ProtocolBuildConfig::default(),
     );
     let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
 
@@ -221,6 +224,7 @@ fn test_metered_move_bytecode_verifier() {
             &verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
+            ProtocolBuildConfig::default(),
         )
         .expect("Verification should not timeout");
 
@@ -248,6 +252,7 @@ fn test_meter_system_packages() {
             &verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
+            ProtocolBuildConfig::default(),
         )
         .unwrap_or_else(|_| {
             panic!(
@@ -320,6 +325,7 @@ fn test_build_and_verify_programmability_examples() {
             &verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
+            ProtocolBuildConfig::default(),
         )
         .unwrap_or_else(|_| {
             panic!(

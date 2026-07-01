@@ -23,6 +23,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+        move_package::ProtocolBuildConfig,
         storage::ChildObjectResolver,
     };
     use iota_verifier::{
@@ -172,7 +173,7 @@ mod checked {
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
         metrics: &Arc<BytecodeVerifierMetrics>,
-        protocol_config: Option<&ProtocolConfig>,
+        protocol_build_config: ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         // run the Move verifier
         for module in modules.iter() {
@@ -181,7 +182,7 @@ mod checked {
                 .start_timer();
 
             if let Err(e) =
-                verify_module_timeout_only(module, verifier_config, meter, protocol_config)
+                verify_module_timeout_only(module, verifier_config, meter, protocol_build_config)
             {
                 // We only checked that the failure was due to timeout
                 // Discard success timer, but record timeout/failure timer
@@ -221,7 +222,7 @@ mod checked {
         module: &CompiledModule,
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
-        protocol_config: Option<&ProtocolConfig>,
+        protocol_build_config: ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         meter.enter_scope(module.self_id().name().as_str(), Scope::Module);
 
@@ -249,7 +250,7 @@ mod checked {
             module,
             &BTreeMap::new(),
             meter,
-            protocol_config,
+            protocol_build_config,
         ) {
             return Err(err.into());
         }

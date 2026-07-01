@@ -7,7 +7,7 @@
 use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::Result;
-use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks, ProtocolBuildConfig};
 use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use tempfile::tempdir;
@@ -224,6 +224,7 @@ fn genesis_build_configuration() -> BuildConfig {
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None,
+        protocol_build_config: ProtocolBuildConfig::default(),
     }
 }
 

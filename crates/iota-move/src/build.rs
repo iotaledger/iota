@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{BuildConfig, implicit_deps};
+use iota_move_build::{BuildConfig, ProtocolBuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
@@ -73,8 +73,9 @@ impl Build {
             run_bytecode_verifier: true,
             print_diags_to_stderr: true,
             chain_id,
+            protocol_build_config: ProtocolBuildConfig::default(),
         }
-        .build(rerooted_path, None)?;
+        .build(rerooted_path)?;
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();

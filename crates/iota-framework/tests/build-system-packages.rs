@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::Result;
 use capitalize::Capitalize;
-use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_move_build::{BuildConfig, IotaPackageHooks, ProtocolBuildConfig};
 use iota_types::supported_protocol_versions::ProtocolConfig;
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
@@ -114,6 +114,7 @@ fn build_packages(
         "move-stdlib",
         "stardust",
         config,
+        None,
     );
 }
 
@@ -135,32 +136,36 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
-    .build(stdlib_path, protocol_config)
+    .build(stdlib_path)
     .unwrap();
     let framework_pkg = BuildConfig {
         config: config.clone(),
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
-    .build(iota_framework_path, protocol_config)
+    .build(iota_framework_path)
     .unwrap();
     let system_pkg = BuildConfig {
         config: config.clone(),
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
-    .build(iota_system_path, protocol_config)
+    .build(iota_system_path)
     .unwrap();
     let stardust_pkg = BuildConfig {
         config,
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
-    .build(stardust_path, protocol_config)
+    .build(stardust_path)
     .unwrap();
 
     let move_stdlib = stdlib_pkg.get_stdlib_modules();

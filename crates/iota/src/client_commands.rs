@@ -33,9 +33,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, build_from_resolution_graph, check_conflicting_addresses,
-    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
-    implicit_deps,
+    BuildConfig, CompiledPackage, ProtocolBuildConfig, build_from_resolution_graph,
+    check_conflicting_addresses, check_invalid_dependencies, check_unpublished_dependencies,
+    gather_published_ids, implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
@@ -1979,6 +1979,7 @@ impl IotaClientCommands {
                     run_bytecode_verifier: true,
                     print_diags_to_stderr: true,
                     chain_id: Some(chain_id),
+                    protocol_build_config: ProtocolBuildConfig::default(),
                 }
                 .build(&package_path)?;
 
@@ -2058,10 +2059,16 @@ async fn compile_package_simple(
         run_bytecode_verifier: false,
         print_diags_to_stderr: false,
         chain_id: chain_id.clone(),
+        protocol_build_config: ProtocolBuildConfig::default(),
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
-    let mut compiled_package =
-        build_from_resolution_graph(resolution_graph, false, false, chain_id)?;
+    let mut compiled_package = build_from_resolution_graph(
+        resolution_graph,
+        false,
+        false,
+        chain_id,
+        ProtocolBuildConfig::default(),
+    )?;
     pkg_tree_shake(read_api, false, &mut compiled_package).await?;
 
     Ok(compiled_package)
@@ -2150,6 +2157,7 @@ pub(crate) async fn compile_package(
     skip_dependency_verification: bool,
 ) -> Result<CompiledPackage, anyhow::Error> {
     let protocol_config = read_api.get_protocol_config(None).await?;
+    let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
 
     build_config.implicit_dependencies =
         implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
@@ -2162,6 +2170,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id: chain_id.clone(),
+        protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
@@ -2177,6 +2186,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id,
+        protocol_build_config,
     )?;
 
     pkg_tree_shake(

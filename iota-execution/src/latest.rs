@@ -32,6 +32,7 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
+    move_package::ProtocolBuildConfig,
     storage::BackingStore,
     transaction::{CheckedInputObjects, GasData},
 };
@@ -319,7 +320,7 @@ impl verifier::Verifier for Verifier<'_> {
             &self.config,
             meter,
             self.metrics,
-            Some(protocol_config),
+            ProtocolBuildConfig::from(protocol_config),
         )
     }
 }

@@ -27,8 +27,8 @@ mod checked {
         id::ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         move_package::{
-            IotaAttribute, IotaAttributeV2, PackageMetadata, RuntimeModuleMetadata,
-            RuntimeModuleMetadataWrapper,
+            IotaAttributeV1, IotaAttributeV2, PackageMetadata, ProtocolBuildConfig,
+            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
         },
     };
     use move_binary_format::{
@@ -232,7 +232,9 @@ mod checked {
                                 ExecutionErrorKind::VmVerificationOrDeserializationError,
                             )
                         })?
-                        .try_from_bcs_bytes(Some(context.protocol_config))
+                        .try_into_runtime_module_metadata(ProtocolBuildConfig::from(
+                            context.protocol_config,
+                        ))
                         .map_err(|_| {
                             ExecutionError::from_kind(
                                 ExecutionErrorKind::VmVerificationOrDeserializationError,
@@ -251,7 +253,7 @@ mod checked {
                             // Check attributes
                             for attribute in fn_attributes {
                                 match attribute {
-                                    IotaAttribute::Authenticator(attribute)
+                                    IotaAttributeV1::Authenticator(attribute)
                                         if attribute.version == 1 =>
                                     {
                                         let contains =
