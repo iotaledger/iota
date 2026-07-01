@@ -167,6 +167,7 @@ pub async fn verify_package(
     };
     let client = IotaClientBuilder::default().build(network_url).await?;
     let chain_id = client.read_api().get_chain_identifier().await?;
+    let protocol_config = client.read_api().get_protocol_config(None).await?;
     let mut config =
         resolve_lock_file_path(MoveBuildConfig::default(), Some(package_path.as_ref()))?;
     config.lint_flag = LintFlag::LEVEL_NONE;
@@ -177,7 +178,7 @@ pub async fn verify_package(
         run_bytecode_verifier: false, // no need to run verifier if code is on-chain
         print_diags_to_stderr: false,
         chain_id: Some(chain_id),
-        protocol_build_config: ProtocolBuildConfig::default(),
+        protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
     };
     let compiled_package = build_config.build(package_path.as_ref())?;
 
