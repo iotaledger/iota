@@ -537,7 +537,10 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        CommitConsumerMonitor, CommittedSubDag, block_header::GENESIS_ROUND, commit::CommitIndex,
+        CommitConsumerMonitor, CommittedSubDag,
+        block_header::GENESIS_ROUND,
+        commit::CommitIndex,
+        storage::{Store, WriteBatch},
         transaction::NoopTransactionVerifier,
     };
 
@@ -583,6 +586,108 @@ pub(crate) mod tests {
         assert_eq!(authority.context().committee.size(), 1);
 
         authority.stop().await;
+    }
+
+    /// Disabling the fast commit syncer locally (protocol flag still on) is a
+    /// supported operator escape hatch: the node must start and run on the
+    /// regular commit syncer alone.
+    #[tokio::test]
+    async fn starts_with_fast_commit_syncer_disabled() {
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
+        let registry = Registry::new();
+
+        let temp_dir = TempDir::new().unwrap();
+        let parameters = Parameters {
+            db_path: temp_dir.keep(),
+            enable_fast_commit_syncer: false,
+            ..Default::default()
+        };
+        let txn_verifier = NoopTransactionVerifier {};
+
+        let own_index = committee.to_authority_index(0).unwrap();
+        let protocol_keypair = keypairs[own_index].1.clone();
+        let network_keypair = keypairs[own_index].0.clone();
+
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender, 0);
+
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let authority = ConsensusAuthority::start(
+            0,
+            own_index,
+            committee,
+            parameters,
+            protocol_config,
+            protocol_keypair,
+            network_keypair,
+            Arc::new(Clock::default()),
+            Arc::new(txn_verifier),
+            commit_consumer,
+            registry,
+            0,
+        )
+        .await;
+
+        assert_eq!(authority.context().own_index, own_index);
+        authority.stop().await;
+    }
+
+    /// A node interrupted mid-fast-sync (durable `fast_sync_ongoing` flag set)
+    /// that restarts with the fast commit syncer disabled has no way to finish
+    /// recovery, so startup must fail loudly instead of hanging silently.
+    #[tokio::test]
+    #[should_panic(expected = "fast_sync_ongoing set but enable_fast_commit_syncer is disabled")]
+    async fn refuses_to_start_when_fast_sync_interrupted_and_syncer_disabled() {
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
+        let registry = Registry::new();
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.keep();
+
+        // Seed the durable flag as if the node had crashed mid-fast-sync.
+        {
+            let store = RocksDBStore::new(db_path.to_str().unwrap());
+            store
+                .write(WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert!(store.read_fast_sync_ongoing().unwrap());
+        }
+
+        let parameters = Parameters {
+            db_path,
+            enable_fast_commit_syncer: false,
+            ..Default::default()
+        };
+        let txn_verifier = NoopTransactionVerifier {};
+
+        let own_index = committee.to_authority_index(0).unwrap();
+        let protocol_keypair = keypairs[own_index].1.clone();
+        let network_keypair = keypairs[own_index].0.clone();
+
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender, 0);
+
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let _authority = ConsensusAuthority::start(
+            0,
+            own_index,
+            committee,
+            parameters,
+            protocol_config,
+            protocol_keypair,
+            network_keypair,
+            Arc::new(Clock::default()),
+            Arc::new(txn_verifier),
+            commit_consumer,
+            registry,
+            0,
+        )
+        .await;
     }
 
     /// This test checks that an authority can be restarted and still get synced
