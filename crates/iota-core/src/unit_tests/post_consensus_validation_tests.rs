@@ -2010,3 +2010,101 @@ async fn test_v2_cost_out_of_bounds() {
         );
     }
 }
+
+/// A `UserTransactionV2` whose owned input references a version that is NOT in
+/// the local object store is dropped post-consensus via the input-load branch
+/// of `check_coin_deny_list_for_attested_tx` (Check #6) — i.e.
+/// `read_objects_for_validation` returns `ObjectNotFound`, which falls to the
+/// `_ =>` "input load (likely stale attestation)" arm, NOT a deny-list
+/// violation.
+///
+/// This is the root cause of the checkpoint fork we reproduced: the keep/drop
+/// decision is a function of LOCAL store state (whether the referenced input
+/// version is present yet). Two honest validators that differ only in that —
+/// e.g. one whose predecessor tx has committed its output and one whose has not
+/// — build different checkpoint roots for the same sequenced set, diverge on
+/// `content_digest`, and the lagging node hits the fatal fork panic in
+/// `checkpoints/mod.rs`. Here the store state is set directly, so a single
+/// validator's drop is reproduced deterministically, with no race.
+///
+/// Checks #4/#5 do not load objects by version (see the Check #5 comment:
+/// "version freshness is validated later in Check #6"), so an absent input
+/// survives to the Check #6 input load — exactly where the fork-causing drop
+/// happens.
+///
+/// The correct behavior is to DEFER/retain the tx until its input arrives (the
+/// producer is sequenced ahead, so it will), never to drop on a transient miss.
+/// This test asserts that, so it is RED against today's code (which drops ->
+/// forks) and turns GREEN once the fix stops dropping on a transient
+/// `ObjectNotFound`.
+#[sim_test]
+async fn test_v2_transient_missing_input_must_not_drop() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+
+    // Reference the object at version+1 — the version a predecessor tx WOULD have
+    // produced but that is absent from this node's store.
+    // `read_objects_for_validation` (step 1 of
+    // `check_coin_deny_list_for_attested_tx`) returns ObjectNotFound for it.
+    let absent_ref = ObjectRef::new(
+        object_ref.object_id,
+        object_ref.version.next().unwrap(),
+        object_ref.digest,
+    );
+
+    // `computation_units` inside the Check #3 attestation budget — above the cost
+    // floor (~1000) and below the max (~100000) — so the tx passes the attestation
+    // checks and reaches the Check #6 input load rather than being dropped earlier.
+    let tx =
+        make_transfer_object_transaction(absent_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v2(
+        tx,
+        starfish_config::AuthorityIndex::new_for_test(0),
+        10_000,
+    )];
+
+    let (dropped, _locks, _user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    // FIX INVARIANT (RED until implemented): a transient input-load miss must NOT
+    // drop a sequenced V2 tx. Today it drops via
+    // check_coin_deny_list_for_attested_tx (ObjectNotFound -> "input load
+    // (likely stale attestation)"); because that decision depends on local
+    // store timing, it diverges checkpoint roots across validators -> fatal
+    // fork. The tx must instead be deferred until its input is available. This
+    // assertion fails now and passes once the drop is removed.
+    assert!(
+        dropped.is_empty(),
+        "transient ObjectNotFound must NOT drop a sequenced UserTransactionV2 -- a \
+         per-node drop forks the checkpoint; the tx should be deferred until its \
+         input arrives. Got dropped={:?}",
+        dropped,
+    );
+}
