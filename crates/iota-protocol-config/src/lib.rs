@@ -1419,6 +1419,17 @@ pub struct ProtocolConfig {
     /// Number of committed subdags between leader-schedule recomputations.
     /// When unset, defaults to 300.
     consensus_commits_per_schedule: Option<u32>,
+
+    /// Minimum bond, in NANOS, required to register as an attestor.
+    min_attestor_joining_bond: Option<u64>,
+
+    /// Minimum bond, in NANOS, an active attestor must hold at an epoch
+    /// boundary; below it the remaining bond is burned and the attestor is
+    /// evicted.
+    attestor_low_bond_threshold: Option<u64>,
+
+    /// Maximum number of attestors (active + pending) in the registry.
+    max_attestor_count: Option<u64>,
 }
 
 // feature flags
@@ -2428,6 +2439,9 @@ impl ProtocolConfig {
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
             consensus_commits_per_schedule: None,
+            min_attestor_joining_bond: None,
+            attestor_low_bond_threshold: None,
+            max_attestor_count: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2988,6 +3002,14 @@ impl ProtocolConfig {
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
                     // iota_system via a new iota_system::protocol_config
                     // module.
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Attestor registry parameters (devnet only for now),
+                        // read from Move via get_attr.
+                        cfg.min_attestor_joining_bond = Some(2_000_000_000_000);
+                        cfg.attestor_low_bond_threshold = Some(1_000_000_000_000);
+                        cfg.max_attestor_count = Some(1_000);
+                    }
                 }
                 // Use this template when making changes:
                 //
