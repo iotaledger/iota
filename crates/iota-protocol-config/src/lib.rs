@@ -1407,6 +1407,10 @@ pub struct ProtocolConfig {
     // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    /// Number of committed subdags between leader-schedule recomputations.
+    /// When unset, defaults to 300.
+    consensus_commits_per_schedule: Option<u32>,
 }
 
 // feature flags
@@ -1796,6 +1800,15 @@ impl ProtocolConfig {
 
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn commits_per_schedule(&self) -> u32 {
+        if cfg!(msim) {
+            // Exercise faster leader-schedule rotation in simtests.
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300))
+        } else {
+            self.consensus_commits_per_schedule.unwrap_or(300)
+        }
     }
 }
 
@@ -2397,6 +2410,7 @@ impl ProtocolConfig {
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
+            consensus_commits_per_schedule: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3207,6 +3221,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
+        self.consensus_commits_per_schedule = Some(val);
     }
 }
 

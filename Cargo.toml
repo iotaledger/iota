@@ -348,6 +348,7 @@ static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
+sysinfo = "0.39"
 tabled = { version = "0.12" }
 tap = "1.0.1"
 tempfile = "3.20.0"
@@ -442,6 +443,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "60f2aed417eca3daad4ed8d957ea62a44a0d20cc", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "60f2aed417eca3daad4ed8d957ea62a44a0d20cc", default-features = false }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "60f2aed417eca3daad4ed8d957ea62a44a0d20cc", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }

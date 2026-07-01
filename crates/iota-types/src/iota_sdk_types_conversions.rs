@@ -392,6 +392,16 @@ pub fn type_tag_sdk_to_core(value: &TypeTag) -> move_core_types::language_storag
     }
 }
 
+pub fn identifier_core_to_sdk(value: &move_core_types::identifier::IdentStr) -> Identifier {
+    Identifier::new_unchecked(value.as_str())
+}
+
+pub fn identifier_sdk_to_core(value: &Identifier) -> move_core_types::identifier::Identifier {
+    // SAFETY: an SDK `Identifier` is an already-validated Move identifier; preserve
+    // it verbatim without re-validation.
+    unsafe { move_core_types::identifier::Identifier::new_unchecked(value.as_str()) }
+}
+
 pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructTag) -> StructTag {
     let move_core_types::language_storage::StructTag {
         address,
@@ -401,8 +411,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new_unchecked(module.as_str());
-    let name = Identifier::new_unchecked(name.as_str());
+    let module = identifier_core_to_sdk(module);
+    let name = identifier_core_to_sdk(name);
     let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }
@@ -410,8 +420,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
 pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let address =
         move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
-    let module = move_core_types::identifier::Identifier::new(value.module().as_str()).unwrap();
-    let name = move_core_types::identifier::Identifier::new(value.name().as_str()).unwrap();
+    let module = identifier_sdk_to_core(value.module());
+    let name = identifier_sdk_to_core(value.name());
     let type_params = value
         .type_params()
         .iter()

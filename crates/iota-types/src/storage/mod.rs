@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, move_package::MovePackage};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -38,6 +38,7 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
+    iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -337,7 +338,7 @@ pub fn get_module(
             package
                 .move_package()
                 .serialized_module_map()
-                .get(&Identifier::new_unchecked(module_id.name().as_str()))
+                .get(&identifier_core_to_sdk(module_id.name()))
                 .cloned()
         }))
 }

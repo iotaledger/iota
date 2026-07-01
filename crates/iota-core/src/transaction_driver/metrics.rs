@@ -15,33 +15,34 @@ const SUBMIT_TRANSACTION_RETRIES_BUCKETS: &[f64] = &[
 
 #[derive(Clone)]
 pub struct TransactionDriverMetrics {
-    pub(crate) settlement_finality_latency: HistogramVec,
+    pub(crate) settlement_finality_latency: Histogram,
     pub(crate) drive_transaction_errors: IntCounterVec,
-    pub(crate) total_transactions_submitted: IntCounterVec,
+    pub(crate) total_transactions_submitted: IntCounter,
     pub(crate) submit_transaction_retries: Histogram,
-    pub(crate) submit_transaction_latency: HistogramVec,
+    pub(crate) submit_transaction_latency: Histogram,
     pub(crate) validator_submit_transaction_errors: IntCounterVec,
     pub(crate) validator_submit_transaction_successes: IntCounterVec,
     pub(crate) executed_transactions: IntCounter,
-    pub(crate) rejection_acks: IntCounterVec,
-    pub(crate) expiration_acks: IntCounterVec,
+    pub(crate) rejection_acks: IntCounter,
+    pub(crate) expiration_acks: IntCounter,
     pub(crate) effects_digest_mismatches: IntCounter,
     pub(crate) transaction_retries: HistogramVec,
-    pub(crate) certified_effects_ack_latency: HistogramVec,
-    pub(crate) certified_effects_ack_attempts: IntCounterVec,
-    pub(crate) certified_effects_ack_successes: IntCounterVec,
+    pub(crate) certified_effects_ack_latency: Histogram,
+    pub(crate) certified_effects_ack_attempts: IntCounter,
+    pub(crate) certified_effects_ack_successes: IntCounter,
     pub(crate) validator_selections: IntCounterVec,
     pub(crate) submit_amplification_factor: Histogram,
     pub(crate) latency_check_runs: IntCounter,
+    pub(crate) skip_cert_corroborated_rejections: IntCounter,
+    pub(crate) skip_cert_corroboration_unreachable: IntCounter,
 }
 
 impl TransactionDriverMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            settlement_finality_latency: register_histogram_vec_with_registry!(
+            settlement_finality_latency: register_histogram_with_registry!(
                 "transaction_driver_settlement_finality_latency",
                 "Settlement finality latency observed from transaction driver",
-                &["ping"],
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -49,14 +50,13 @@ impl TransactionDriverMetrics {
             drive_transaction_errors: register_int_counter_vec_with_registry!(
                 "transaction_driver_drive_transaction_errors",
                 "Number of errors observed from drive_transaction() attempts.",
-                &["error_type", "ping"],
+                &["error_type"],
                 registry,
             )
             .unwrap(),
-            total_transactions_submitted: register_int_counter_vec_with_registry!(
+            total_transactions_submitted: register_int_counter_with_registry!(
                 "transaction_driver_total_transactions_submitted",
                 "Total number of transactions submitted through the transaction driver",
-                &["ping"],
                 registry,
             )
             .unwrap(),
@@ -67,12 +67,11 @@ impl TransactionDriverMetrics {
                 registry,
             )
             .unwrap(),
-            submit_transaction_latency: register_histogram_vec_with_registry!(
+            submit_transaction_latency: register_histogram_with_registry!(
                 "transaction_driver_submit_transaction_latency",
                 "Time in seconds to successfully submit a transaction to a validator.\n\
                 Includes all retries and measures from the start of submission\n\
                 until a validator accepts the transaction.",
-                &["ping"],
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -80,14 +79,14 @@ impl TransactionDriverMetrics {
             validator_submit_transaction_errors: register_int_counter_vec_with_registry!(
                 "transaction_driver_validator_submit_transaction_errors",
                 "Number of submit transaction errors by validator",
-                &["validator", "error_type", "ping"],
+                &["validator", "error_type"],
                 registry,
             )
             .unwrap(),
             validator_submit_transaction_successes: register_int_counter_vec_with_registry!(
                 "transaction_driver_validator_submit_transaction_successes",
                 "Number of successful submit transactions by validator",
-                &["validator", "ping"],
+                &["validator"],
                 registry,
             )
             .unwrap(),
@@ -97,17 +96,15 @@ impl TransactionDriverMetrics {
                 registry,
             )
             .unwrap(),
-            rejection_acks: register_int_counter_vec_with_registry!(
+            rejection_acks: register_int_counter_with_registry!(
                 "transaction_driver_rejected_acks",
                 "Number of rejection acknowledgments observed by the transaction driver",
-                &["ping"],
                 registry,
             )
             .unwrap(),
-            expiration_acks: register_int_counter_vec_with_registry!(
+            expiration_acks: register_int_counter_with_registry!(
                 "transaction_driver_expiration_acks",
                 "Number of expiration acknowledgments observed by the transaction driver",
-                &["ping"],
                 registry,
             )
             .unwrap(),
@@ -120,37 +117,34 @@ impl TransactionDriverMetrics {
             transaction_retries: register_histogram_vec_with_registry!(
                 "transaction_driver_transaction_retries",
                 "Number of retries per transaction attempt in drive_transaction",
-                &["result", "ping"],
+                &["result"],
                 SUBMIT_TRANSACTION_RETRIES_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
-            certified_effects_ack_latency: register_histogram_vec_with_registry!(
+            certified_effects_ack_latency: register_histogram_with_registry!(
                 "transaction_driver_certified_effects_ack_latency",
                 "Latency in seconds for getting certified effects acknowledgment",
-                &["ping"],
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
-            certified_effects_ack_attempts: register_int_counter_vec_with_registry!(
+            certified_effects_ack_attempts: register_int_counter_with_registry!(
                 "transaction_driver_certified_effects_ack_attempts",
                 "Total number of transactions that went through certified effects ack process",
-                &["ping"],
                 registry,
             )
             .unwrap(),
-            certified_effects_ack_successes: register_int_counter_vec_with_registry!(
+            certified_effects_ack_successes: register_int_counter_with_registry!(
                 "transaction_driver_certified_effects_ack_successes",
                 "Number of successful certified effects acknowledgments",
-                &["ping"],
                 registry,
             )
             .unwrap(),
             validator_selections: register_int_counter_vec_with_registry!(
                 "transaction_driver_validator_selections",
                 "Number of times each validator was selected for transaction submission",
-                &["validator", "ping"],
+                &["validator"],
                 registry,
             )
             .unwrap(),
@@ -164,6 +158,18 @@ impl TransactionDriverMetrics {
             latency_check_runs: register_int_counter_with_registry!(
                 "transaction_driver_latency_check_runs",
                 "Number of times the latency check runs",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroborated_rejections: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroborated_rejections",
+                "Number of times skip-certification corroboration confirmed a single-validator rejection with f+1 stake",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroboration_unreachable: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroboration_unreachable",
+                "Number of times skip-certification corroboration concluded the f+1 rejection threshold was unreachable and triggered a retriable error",
                 registry,
             )
             .unwrap(),

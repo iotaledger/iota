@@ -644,7 +644,7 @@ mod tests {
             context.clone(),
             Arc::new(MemStore::new()),
         )));
-        const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
+        const NUM_OF_COMMITS_PER_SCHEDULE: u32 = 10;
         let leader_schedule = Arc::new(
             LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
                 .with_num_commits_per_schedule(NUM_OF_COMMITS_PER_SCHEDULE),

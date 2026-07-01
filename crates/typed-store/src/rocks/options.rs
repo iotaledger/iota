@@ -5,8 +5,9 @@
 use std::{collections::BTreeMap, env};
 
 use rocksdb::{BlockBasedOptions, Cache, ReadOptions};
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tap::TapFallible;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 // Write buffer size per RocksDB instance can be set via the env var below.
 // If the env var is not set, use the default value in MiB.
@@ -56,6 +57,127 @@ impl ReadWriteOptions {
 pub struct DBOptions {
     pub options: rocksdb::Options,
     pub rw_options: ReadWriteOptions,
+}
+
+/// Write options tuned for one-shot bulk ingestion into a freshly created
+/// store.
+pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
+    let mut opts = rocksdb::WriteOptions::default();
+    opts.disable_wal(true);
+    opts
+}
+
+/// RocksDB options tuned for one-shot bulk ingestion into a freshly created
+/// store, e.g. initial index building, inserting the genesis snapshot, or
+/// restoring a formal snapshot.
+pub struct BulkIngestionOptions {
+    pub db_options: rocksdb::Options,
+    pub column_family_options: DBOptions,
+    pub batch_size_limit: usize,
+}
+
+pub fn bulk_ingestion_options() -> BulkIngestionOptions {
+    let total_memory_bytes = available_memory_bytes();
+    let num_cpus = num_cpus::get();
+
+    let mut db_options = rocksdb::Options::default();
+
+    // `unordered_write` gives a large speedup for bulk writes; relaxed write
+    // ordering is acceptable because the store is rebuilt from scratch on
+    // failure.
+    db_options.set_unordered_write(true);
+
+    // Allow CPU-intensive flushing to use all cores.
+    db_options.set_max_background_jobs(num_cpus as i32);
+
+    // Upper bound on memtable memory across all column families: 80% of RAM.
+    // Large memtables give flushing threads enough buffer to keep up with the
+    // writers so the CPUs stay busy.
+    let db_write_buffer_size = (total_memory_bytes as f64 * 0.8) as usize;
+    db_options.set_db_write_buffer_size(db_write_buffer_size);
+
+    // Per-column-family options: Create options with compactions disabled and large
+    // write buffers. Each CF can use up to 25% of system RAM, but total is
+    // still limited by set_db_write_buffer_size configured above.
+    let mut column_family_options = default_db_options();
+    column_family_options
+        .options
+        .set_disable_auto_compactions(true);
+
+    // Disable the write backpressure that kicks in as L0 files build up: `-1`
+    // turns off the compaction and slowdown triggers, and the stop trigger is
+    // pushed out of reach. These are per-column-family options, so they must be
+    // set here rather than on `db_options` to reach the index CFs. Compaction
+    // itself is disabled above, so no L0 files are ever compacted away.
+    column_family_options
+        .options
+        .set_level_zero_file_num_compaction_trigger(-1);
+    column_family_options
+        .options
+        .set_level_zero_slowdown_writes_trigger(-1);
+    column_family_options
+        .options
+        .set_level_zero_stop_writes_trigger(i32::MAX);
+
+    let cf_memory_budget = (total_memory_bytes as f64 * 0.25) as usize;
+    const MIN_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64 MiB
+    // More CPUs means more parallel flushing capacity, so target more buffers,
+    // but never shrink a buffer below the minimum.
+    let target_buffer_count = num_cpus.max(2);
+    let buffer_size = (cf_memory_budget / target_buffer_count).max(MIN_BUFFER_SIZE);
+    let buffer_count = (cf_memory_budget / buffer_size).clamp(2, target_buffer_count) as i32;
+    column_family_options
+        .options
+        .set_write_buffer_size(buffer_size);
+    column_family_options
+        .options
+        .set_max_write_buffer_number(buffer_count);
+
+    // Calculate batch size limit: default to half the buffer size or 128MB,
+    // whichever is smaller
+    let batch_size_limit = (buffer_size / 2).min(1 << 27);
+
+    debug!(
+        total_memory_bytes,
+        num_cpus,
+        db_write_buffer_size,
+        buffer_size,
+        buffer_count,
+        batch_size_limit,
+        "configured bulk ingestion options"
+    );
+
+    BulkIngestionOptions {
+        db_options,
+        column_family_options,
+        batch_size_limit,
+    }
+}
+
+/// Available memory in bytes, honoring cgroup limits in containerized
+/// environments and falling back to total system memory.
+fn available_memory_bytes() -> u64 {
+    // `RefreshKind::nothing().with_memory(..)` avoids collecting other, slower
+    // stats.
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
+    );
+    sys.refresh_memory();
+
+    if let Some(cgroup_limits) = sys.cgroup_limits() {
+        // `total_memory` is 0 when there is no cgroup limit.
+        if cgroup_limits.total_memory > 0 {
+            debug!(
+                limit = cgroup_limits.total_memory,
+                "using cgroup memory limit"
+            );
+            return cgroup_limits.total_memory;
+        }
+    }
+
+    let total = sys.total_memory();
+    debug!(total, "using total system memory");
+    total
 }
 
 #[derive(Clone)]

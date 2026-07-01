@@ -52,14 +52,6 @@ fn recover_leader_swap_table(
     )
 }
 
-/// The window where the schedule change takes place in consensus. It
-/// represents number of committed sub dags.
-/// TODO: move this to protocol config
-#[cfg(not(msim))]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
-#[cfg(msim)]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
-
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -67,20 +59,21 @@ pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
 pub(crate) struct LeaderSchedule {
     pub leader_swap_table: Arc<RwLock<LeaderSwapTable>>,
     context: Arc<Context>,
-    num_commits_per_schedule: u64,
+    num_commits_per_schedule: u32,
 }
 
 impl LeaderSchedule {
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
+        let num_commits_per_schedule = context.protocol_config.commits_per_schedule();
         Self {
             context,
-            num_commits_per_schedule: CONSENSUS_COMMITS_PER_SCHEDULE,
+            num_commits_per_schedule,
             leader_swap_table: Arc::new(RwLock::new(leader_swap_table)),
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u64) -> Self {
+    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u32) -> Self {
         self.num_commits_per_schedule = num_commits_per_schedule;
         self
     }
@@ -119,7 +112,7 @@ impl LeaderSchedule {
         &self,
         dag_state: Arc<RwLock<DagState>>,
     ) -> usize {
-        let subdag_count = dag_state.read().scoring_subdags_count() as u64;
+        let subdag_count = dag_state.read().scoring_subdags_count() as u32;
 
         // In the normal online flow, `scoring_subdag` is cleared every time we
         // update the schedule, so its size stays within `num_commits_per_schedule`.
@@ -319,7 +312,7 @@ impl LeaderSchedule {
             return Ok(());
         }
 
-        let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
+        let range_start = range_end.saturating_sub(self.num_commits_per_schedule - 1);
         let commit_range = CommitRange::new(range_start..=range_end);
 
         let reputation_scores = ReputationScores::from_scores_desc(

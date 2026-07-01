@@ -181,7 +181,10 @@ use crate::{
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
+    overload_monitor::{
+        AuthorityOverloadInfo, compute_graduated_load_shedding_percentage,
+        overload_monitor_accept_tx,
+    },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
     traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
@@ -293,17 +296,22 @@ pub struct AuthorityMetrics {
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
     pub(crate) authority_overload_status: IntGauge,
-    pub(crate) authority_load_shedding_percentage: IntGauge,
+    /// Percentage of transactions shed due to consensus queue length.
+    pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
+    /// This authority's locally computed load shedding percentage, taken as the
+    /// max of its latency/rate-based, transaction-manager-queue-based, and
+    /// writeback-cache-backpressure signals.
+    pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
-    /// Post processing metrics
+    // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_indexed: IntCounter,
     post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
-    /// Consensus handler metrics
+    // Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
     pub consensus_handler_transaction_sizes: HistogramVec,
     pub consensus_handler_num_low_scoring_authorities: IntGauge,
@@ -311,7 +319,20 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit because
+    /// post-consensus conflict/lock validation rejected them. Distinct from
+    /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit by
+    /// post-consensus load shedding, i.e. probabilistically rejected at the
+    /// quorum `consensus_handler_load_shedding_percentage` rate.
+    pub consensus_handler_load_shedding_dropped_transactions: IntCounter,
+    /// Stake-weighted quorum (2f+1) load shedding percentage enforced on user
+    /// transactions in the most recent consensus commit. This is the cluster
+    /// value actually applied post-consensus, as opposed to this authority's
+    /// own `authority_load_shedding_percentage`. 0 when the P-COOL flow is
+    /// disabled.
+    pub consensus_handler_load_shedding_percentage: IntGauge,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -549,9 +570,14 @@ impl AuthorityMetrics {
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry)
                 .unwrap(),
-            authority_load_shedding_percentage: register_int_gauge_with_registry!(
+            local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
-                "The percentage of transactions is shed when the authority is in load shedding mode.",
+                "This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
+                registry)
+                .unwrap(),
+            consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_queue_load_shedding_percentage",
+                "Percentage of transactions shed due to consensus queue length. Separate admission-control signal, not an input to authority_load_shedding_percentage.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
@@ -726,6 +752,16 @@ impl AuthorityMetrics {
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_load_shedding_dropped_transactions",
+                "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_handler_load_shedding_percentage",
+                "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the P-COOL flow is disabled.",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
@@ -1179,42 +1215,110 @@ impl AuthorityState {
             .check_system_overload_at_execution
     }
 
+    /// Checks system overload conditions before accepting a transaction.
+    ///
+    /// In certificate-less (P-COOL) mode: only checks consensus
+    /// queue overload, since execution-based overload will be handled
+    /// post-consensus.
+    ///
+    /// In certificate mode: runs all checks — authority overload
+    /// (execution latency), transaction manager (execution queue),
+    /// consensus adapter (queue limit), and writeback cache backpressure.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx_data: &SenderSignedData,
         do_authority_overload_check: bool,
+        pcool_flow_enabled: bool,
     ) -> IotaResult {
-        if do_authority_overload_check {
-            self.check_authority_overload(tx_data).tap_err(|_| {
-                self.update_overload_metrics("execution_queue");
-            })?;
-        }
-        self.transaction_manager
-            .check_execution_overload(self.overload_config(), tx_data)
-            .tap_err(|_| {
-                self.update_overload_metrics("execution_pending");
-            })?;
-        consensus_adapter.check_consensus_overload().tap_err(|_| {
-            self.update_overload_metrics("consensus");
-        })?;
+        if pcool_flow_enabled {
+            // Graduated shedding: 0% to 100% as consensus queue fills from soft
+            // to hard limit.
+            self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("consensus");
+                })?;
 
-        let pending_tx_count = self
-            .get_cache_commit()
-            .approximate_pending_transaction_count();
-        if pending_tx_count
-            > self
-                .config
-                .execution_cache_config
-                .writeback_cache
-                .backpressure_threshold_for_rpc()
-        {
-            return Err(IotaError::ValidatorOverloadedRetryAfter {
-                retry_after_secs: 10,
-            });
+            // NOTE: graduated shedding at 100% already rejects everything at or above
+            // `max_pending_transactions`, so the queue-length part of the check below
+            // is redundant but harmless. But `check_consensus_overload()` should be
+            // kept here because it also verifies that `submit_semaphore` has permits
+            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
+            // separate concurrency limit not covered by the graduated shedding.
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
+            })?;
+        } else {
+            if do_authority_overload_check {
+                self.check_authority_overload(tx_data).tap_err(|_| {
+                    self.update_overload_metrics("execution_queue");
+                })?;
+            }
+            self.transaction_manager
+                .check_execution_overload(self.overload_config(), tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("execution_pending");
+                })?;
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
+            })?;
+
+            let pending_tx_count = self
+                .get_cache_commit()
+                .approximate_pending_transaction_count();
+            if pending_tx_count
+                > self
+                    .config
+                    .execution_cache_config
+                    .writeback_cache
+                    .backpressure_threshold_for_rpc()
+            {
+                return Err(IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 10,
+                });
+            }
         }
 
         Ok(())
+    }
+
+    /// Rejects `tx_data` via graduated shedding based on consensus queue
+    /// length. Scales from 0% at the soft limit to 100% at
+    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
+    /// for probabilistic rejection (shedding percentage < 100%, via
+    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
+    /// for unconditional rejection (shedding percentage >= 100%). Updates
+    /// `consensus_queue_load_shedding_percentage` metric.
+    fn check_consensus_queue_graduated_limits(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx_data: &SenderSignedData,
+    ) -> IotaResult {
+        let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
+
+        let shedding_pct = compute_graduated_load_shedding_percentage(
+            num_inflight_txs,
+            consensus_adapter.max_pending_transactions(),
+            consensus_adapter.graduated_load_shedding_soft_limit_pct(),
+        );
+
+        self.metrics
+            .consensus_queue_load_shedding_percentage
+            .set(shedding_pct as i64);
+
+        if shedding_pct == 0 {
+            return Ok(());
+        }
+
+        // At/above the hard limit, rejection is unconditional (not
+        // probabilistic), so the seed-rotation retry hint of
+        // `ValidatorOverloadedRetryAfter` doesn't apply - return the
+        // capacity-bound error instead.
+        if shedding_pct >= 100 {
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
+        }
+
+        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
     }
 
     fn check_authority_overload(&self, tx_data: &SenderSignedData) -> IotaResult {
@@ -1224,7 +1328,7 @@ impl AuthorityState {
 
         let load_shedding_percentage = self
             .overload_info
-            .load_shedding_percentage
+            .local_load_shedding_percentage
             .load(Ordering::Relaxed);
         overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
     }
@@ -5816,7 +5920,7 @@ impl RandomnessRoundReceiver {
             tokio::select! {
                 maybe_recv = self.randomness_rx.recv() => {
                     if let Some((epoch, round, bytes)) = maybe_recv {
-                        self.handle_new_randomness(epoch, round, bytes);
+                        self.handle_new_randomness(epoch, round, bytes).await;
                     } else {
                         break;
                     }
@@ -5828,7 +5932,9 @@ impl RandomnessRoundReceiver {
     }
 
     #[instrument(level = "debug", skip_all, fields(?epoch, ?round))]
-    fn handle_new_randomness(&self, epoch: EpochId, round: RandomnessRound, bytes: Vec<u8>) {
+    async fn handle_new_randomness(&self, epoch: EpochId, round: RandomnessRound, bytes: Vec<u8>) {
+        fail_point_async!("randomness-delay");
+
         let epoch_store = self.authority_state.load_epoch_store_one_call_per_task();
         if epoch_store.epoch() != epoch {
             warn!(

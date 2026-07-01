@@ -47,6 +47,7 @@ impl TransactionExecutorTrait for TransactionExecutor {
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
         _client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let simulacrum = &*self.simulacrum;

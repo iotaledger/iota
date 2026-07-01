@@ -40,7 +40,7 @@ use iota_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
-    committee::{Committee, CommitteeTrait},
+    committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
@@ -66,7 +66,8 @@ use iota_types::{
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKey, VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        TransactionKey, TxValidityCheckContext, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -110,6 +111,7 @@ use crate::{
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
+    authority_server::soft_lock::PreConsensusSoftLocks,
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
         PendingCheckpoint, PendingCheckpointContentsV1, PendingCheckpointInfo,
@@ -129,6 +131,7 @@ use crate::{
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
+    overload_monitor::should_reject_tx,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     post_consensus_validation,
     signature_verifier::*,
@@ -691,6 +694,16 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
+    /// Pre-consensus soft locks for owned objects (P-COOL flow).
+    ///
+    /// Set via `OnceCell` rather than passed through the constructor because
+    /// the same `Arc` instance must be shared with the gRPC `ValidatorService`
+    /// (which acquires locks pre-consensus). The gRPC server is created once
+    /// and persists across epochs, while a new `AuthorityPerEpochStore` is
+    /// created on each epoch change — so the wiring happens after construction
+    /// in `start_epoch_specific_validator_components`. Left empty in tests.
+    soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
+
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
 
@@ -849,6 +862,13 @@ pub struct AuthorityEpochTables {
 
     /// Record of the capabilities advertised by each authority.
     authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
+
+    /// Record of the latest load shedding percentage from each authority,
+    /// received via OverloadNotificationV1 consensus transactions. Keyed by
+    /// AuthorityName, value is the most recently reported percentage
+    /// (0-100). Overwrites on each new notification from the same
+    /// authority.
+    authority_overload_notifications: DBMap<AuthorityName, u8>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -1184,6 +1204,15 @@ impl AuthorityPerEpochStore {
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
+        // Seed the quarantine's in-memory overload-notification cache from the
+        // persisted table. This is the only point we iterate the table; all
+        // subsequent reads are served from memory.
+        let cached_overload_notifications: HashMap<AuthorityName, u8> = tables
+            .authority_overload_notifications
+            .safe_iter()
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()
+            .expect("AuthorityEpochTables should contain valid overload notifications");
+
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
@@ -1212,6 +1241,7 @@ impl AuthorityPerEpochStore {
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
+                cached_overload_notifications,
                 metrics.clone(),
             )),
             parent_path: parent_path.to_path_buf(),
@@ -1228,6 +1258,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
+            soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1395,6 +1426,13 @@ impl AuthorityPerEpochStore {
 
     pub fn epoch(&self) -> EpochId {
         self.committee.epoch
+    }
+
+    pub fn tx_validity_check_context(&self) -> TxValidityCheckContext<'_> {
+        TxValidityCheckContext {
+            config: &self.protocol_config,
+            epoch: self.epoch(),
+        }
     }
 
     pub fn get_state_hash_for_checkpoint(
@@ -1780,6 +1818,19 @@ impl AuthorityPerEpochStore {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
             .await
+    }
+
+    /// Sets the pre-consensus soft lock table. Called once during validator
+    /// setup. Gating on `enable_pcool_flow` is the caller's
+    /// responsibility — when the flow is disabled, releases simply produce no
+    /// digests so the `OnceCell` may stay empty harmlessly.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance.
+    pub fn set_soft_locks(&self, soft_locks: Arc<PreConsensusSoftLocks>) {
+        self.soft_locks
+            .set(soft_locks)
+            .expect("soft_locks should only be set once");
     }
 
     pub async fn notify_read_running_root(
@@ -2815,6 +2866,76 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Loads the current overload notifications keyed by authority. Served from
+    /// the consensus quarantine's in-memory cache of the persisted
+    /// `authority_overload_notifications` table, with every queued
+    /// (processed-but-not-yet-flushed) `ConsensusCommitOutput`'s notifications
+    /// overlaid on top.
+    pub(crate) fn load_overload_notifications(&self) -> IotaResult<HashMap<AuthorityName, u8>> {
+        Ok(self
+            .consensus_quarantine
+            .read()
+            .current_overload_notifications())
+    }
+
+    /// Returns the load shedding percentage `authority` last broadcasted or 0
+    /// if it has not sent a notification this epoch.
+    pub fn load_overload_notification(&self, authority: &AuthorityName) -> IotaResult<u8> {
+        Ok(self
+            .load_overload_notifications()?
+            .get(authority)
+            .copied()
+            .unwrap_or(0))
+    }
+
+    /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
+    /// received via OverloadNotificationV1 consensus transactions. Authorities
+    /// that have not sent a notification are assumed to have a percentage of 0.
+    pub fn get_quorum_load_shedding_percentage(&self) -> IotaResult<u8> {
+        let notifications = self.load_overload_notifications()?;
+        Ok(self.compute_quorum_load_shedding_percentage(&notifications))
+    }
+
+    /// Computes the stake-weighted 2f+1 percentile from an in-memory
+    /// notifications map. Used both by `get_quorum_load_shedding_percentage`
+    /// and by the consensus commit pre-pass that overlays in-batch
+    /// `OverloadNotificationV1` entries on top of the persisted state.
+    pub(crate) fn compute_quorum_load_shedding_percentage(
+        &self,
+        notifications: &HashMap<AuthorityName, u8>,
+    ) -> u8 {
+        let committee = self.committee();
+
+        // Build a vec of (percentage, stake) for every committee member.
+        // Default to 0% for authorities that haven't reported.
+        let mut weighted_values: Vec<(u8, StakeUnit)> = committee
+            .members()
+            .map(|(authority, stake)| {
+                let percentage = notifications.get(authority).copied().unwrap_or(0);
+                (percentage, *stake)
+            })
+            .collect();
+
+        // Sort ascending by percentage.
+        weighted_values.sort_by_key(|(percentage, _)| *percentage);
+
+        // Walk from lowest to highest, accumulating stake. The value where
+        // cumulative stake first reaches the quorum threshold (2f+1) is the result.
+        let quorum_threshold = committee.quorum_threshold();
+        let mut accumulated_stake: StakeUnit = 0;
+
+        for (percentage, stake) in weighted_values {
+            accumulated_stake += stake;
+            if accumulated_stake >= quorum_threshold {
+                return percentage;
+            }
+        }
+
+        // Unreachable with a valid committee (total stake >= quorum threshold),
+        // but return 0 as a safe fallback.
+        0
+    }
+
     pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
         self.consensus_quarantine
             .read()
@@ -2867,6 +2988,21 @@ impl AuthorityPerEpochStore {
             .write()
             .push_consensus_output(output, self)
             .expect("push_consensus_output should not fail");
+    }
+
+    /// Advances the quarantine's in-memory overload-notification cache, as the
+    /// commit flush loop does for a real commit. Tests that write the
+    /// `authority_overload_notifications` table directly (bypassing the flush
+    /// loop) must call this to keep the cache consistent with the table.
+    #[cfg(test)]
+    pub(crate) fn apply_overload_notification_to_cache_for_test(
+        &self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.consensus_quarantine
+            .write()
+            .apply_cached_overload_notification_for_test(authority, percentage);
     }
 
     fn process_user_signatures<'a>(
@@ -3140,6 +3276,26 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                ..
+            }) => {
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "OverloadNotificationV1 authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+                if *percentage > 100 {
+                    warn!(
+                        "OverloadNotificationV1 from {:?} has invalid percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    return None;
+                }
+            }
             SequencedConsensusTransactionKind::System(_) => {}
         }
         Some(VerifiedSequencedConsensusTransaction(transaction))
@@ -3186,16 +3342,102 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         let enable_pcool = self.protocol_config.enable_pcool_flow();
+
+        // Post-consensus load shedding: compute the drop percentage once before
+        // the loop so user transactions can be dropped inline during categorization.
+        // `OverloadNotificationV1` transactions from this commit are layered on
+        // top of the persisted notifications now to ensure immediate response to new
+        // notifications which are not yet registered in persistent storage rather than
+        // the previous round's values. The recorder call inside
+        // `process_consensus_transactions` is gated by
+        // `should_accept_consensus_certs`; this overlay mirrors that gate so
+        // the overlaid set matches the set that will be flushed.
+        let drop_percentage = if enable_pcool {
+            let mut notifications = self.load_overload_notifications()?;
+            if self
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_consensus_certs()
+            {
+                for tx in &verified_transactions {
+                    if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                        kind:
+                            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                        ..
+                    }) = &tx.0.transaction
+                    {
+                        notifications.insert(*authority, *percentage);
+                    }
+                }
+            }
+            self.compute_quorum_load_shedding_percentage(&notifications) as u32
+        } else {
+            0
+        };
+        authority_metrics
+            .consensus_handler_load_shedding_percentage
+            .set(drop_percentage as i64);
+        let drop_seed = consensus_commit_info.round;
+
+        // Transactions dropped by post-consensus load shedding in this commit.
+        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
+        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
+        // consensus-submission semaphore slot is released.
+        let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
+            // In the P-COOL flow, randomness transactions are separated
+            // later in the flow to preserve ordering in conflict resolution, so
+            // should be included with the regular transactions here.
             } else if !enable_pcool && tx.0.is_user_tx_with_randomness() {
+                // Only user-originated transactions are eligible for load shedding
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
+                            continue;
+                        }
+                    }
+                }
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
+                // Only user-originated transactions are eligible for load shedding
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
+                            continue;
+                        }
+                    }
+                }
                 current_commit_sequenced_consensus_transactions.push(tx);
             }
+        }
+        if !load_shedding_dropped.is_empty() {
+            self.dropped_tx_status_cache
+                .insert_and_notify(&load_shedding_dropped);
         }
 
         let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
@@ -3317,8 +3559,11 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
+        // Also collects all UserTransactionV1 digests for soft lock release
+        // after the consensus output is quarantined.
+        let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
-            let (dropped, owned_object_locks) =
+            let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
@@ -3326,6 +3571,7 @@ impl AuthorityPerEpochStore {
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
+            soft_lock_release_tx_digests = soft_lock_digests;
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
@@ -3554,6 +3800,29 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+
+        // Release pre-consensus soft locks now that permanent locks are visible
+        // in the quarantine. Both accepted and rejected transactions are
+        // released: accepted ones now hold permanent locks, rejected ones need
+        // their non-conflicting owned objects freed for new transactions.
+        //
+        // If the P-COOL flow produced digests to release but the OnceCell
+        // was never wired, that's a startup bug — locks would leak until TTL
+        // expiry. Log at `error!` so alerts fire; tests that exercise the
+        // P-COOL path without a validator service take this branch
+        // harmlessly.
+        if !soft_lock_release_tx_digests.is_empty() {
+            if let Some(soft_locks) = self.soft_locks.get() {
+                soft_locks.release_for_batch(&soft_lock_release_tx_digests);
+            } else {
+                error!(
+                    count = soft_lock_release_tx_digests.len(),
+                    "P-COOL flow produced soft-lock release digests but \
+                         soft_locks OnceCell was never set — wiring bug in \
+                         start_epoch_specific_validator_components"
+                );
+            }
+        }
 
         // Only after batch is written, notify checkpoint service to start building any
         // new pending checkpoints.
@@ -4582,6 +4851,28 @@ impl AuthorityPerEpochStore {
                     suggested_gas_price_calculator,
                     authority_metrics,
                 )
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                ..
+            }) => {
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received OverloadNotificationV1 from {:?} with percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    output.record_overload_notification(*authority, *percentage);
+                } else {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))

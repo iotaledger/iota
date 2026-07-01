@@ -45,7 +45,9 @@ use iota_core::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
     },
     authority_client::NetworkAuthorityClient,
-    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    authority_server::{
+        ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks,
+    },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
@@ -71,7 +73,7 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::overload_monitor,
+    overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     storage::{GrpcReadStore, RocksDbStore},
@@ -161,9 +163,19 @@ pub mod metrics;
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
-    consensus_manager: ConsensusManager,
+    /// Handle for the consensus queue overload monitor task, present only
+    /// when the certificate-less (P-COOL) flow is enabled. The
+    /// task self-terminates via `Weak` references; this handle exists purely
+    /// for ownership clarity.
+    consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
+    /// Handle for the soft-lock expiry sweep task. The task self-terminates
+    /// via a `Weak` reference; this handle exists purely for ownership clarity.
+    soft_lock_sweep_handle: JoinHandle<()>,
+    overload_notifier_handle: Option<JoinHandle<()>>,
+    consensus_manager: Arc<ConsensusManager>,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -281,6 +293,51 @@ impl IotaNode {
             ServerVersion::new("iota-node", "unknown"),
         )
         .await
+    }
+
+    /// Starts a background task that polls the authority's load shedding
+    /// percentage and broadcasts changes to other validators via consensus.
+    /// Returns the task handle if the feature flag is enabled, or `None`
+    /// otherwise.
+    fn start_overload_notifier(
+        config: &NodeConfig,
+        state: Arc<AuthorityState>,
+        epoch_store: Arc<AuthorityPerEpochStore>,
+        consensus_adapter: Arc<ConsensusAdapter>,
+    ) -> Option<JoinHandle<()>> {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
+            return None;
+        }
+
+        let poll_interval = config.authority_overload_config.overload_monitor_interval;
+        let authority_name = state.name;
+
+        Some(spawn_monitored_task!(async move {
+            // Seed from the percentage this authority last broadcasted
+            let mut last_notified_percentage: u32 = epoch_store
+                .load_overload_notification(&authority_name)
+                .unwrap_or(0) as u32;
+            loop {
+                tokio::time::sleep(poll_interval).await;
+                let current = state
+                    .overload_info
+                    .local_load_shedding_percentage
+                    .load(std::sync::atomic::Ordering::Relaxed);
+                if current != last_notified_percentage {
+                    last_notified_percentage = current;
+                    let transaction = ConsensusTransaction::new_overload_notification_v1(
+                        authority_name,
+                        current as u8,
+                    );
+                    if let Err(e) = consensus_adapter.submit(transaction, None, &epoch_store) {
+                        tracing::warn!(
+                            "Failed to submit overload notification to consensus: {:?}",
+                            e
+                        );
+                    }
+                }
+            }
+        }))
     }
 
     pub async fn start_async(
@@ -1168,13 +1225,13 @@ impl IotaNode {
             client.clone(),
             checkpoint_store.clone(),
         ));
-        let consensus_manager = ConsensusManager::new(
+        let consensus_manager = Arc::new(ConsensusManager::new(
             &config,
             consensus_config,
             registry_service,
             &validator_registry,
             client,
-        );
+        ));
 
         // This only gets started up once, not on every epoch. (Make call to remove
         // every epoch.)
@@ -1185,14 +1242,39 @@ impl IotaNode {
             &validator_registry,
         );
 
+        let soft_locks = Arc::new(if config.enable_soft_locking {
+            PreConsensusSoftLocks::new()
+        } else {
+            info!("pre-consensus soft-locking disabled via node config");
+            PreConsensusSoftLocks::disabled()
+        });
+
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
+        let validator_service_metrics = Arc::new(ValidatorServiceMetrics::new(&validator_registry));
+
+        // Spawn the soft-lock sweep once for the lifetime of this validator
+        // instance. The task holds only a `Weak<PreConsensusSoftLocks>` so it
+        // stops itself automatically: each iteration it tries to upgrade the
+        // weak reference, and when all strong `Arc` owners have been dropped
+        // (i.e. `ValidatorComponents` is destructured and the old epoch store
+        // is released after an epoch transition that removes us from the
+        // committee) the upgrade returns `None` and the loop exits. No explicit
+        // `abort()` is needed. The same `Arc<PreConsensusSoftLocks>` is reused
+        // across epoch transitions (see `start_epoch_specific_validator_components`),
+        // so the task keeps running uninterrupted while the node remains a validator.
+        let soft_lock_sweep_handle = PreConsensusSoftLocks::spawn_sweep(
+            Arc::downgrade(&soft_locks),
+            validator_service_metrics.clone(),
+        );
 
         let validator_server_handle = Self::start_grpc_validator_service(
             &config,
             state.clone(),
             consensus_adapter.clone(),
             &validator_registry,
+            soft_locks.clone(),
+            validator_service_metrics.clone(),
         )
         .await?;
 
@@ -1214,6 +1296,27 @@ impl IotaNode {
             None
         };
 
+        // Starts a monitor that periodically refreshes the
+        // `consensus_queue_load_shedding_percentage` metric. Without this, the
+        // metric goes stale once gRPC traffic stops (the only other update
+        // path is `AuthorityState::check_consensus_queue_graduated_limits`, called on
+        // each inbound tx). Used in the certificate-less (P-COOL)
+        // mode.
+        let consensus_queue_overload_monitor_handle =
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                let consensus_queue_monitor_authority_state = Arc::downgrade(&state);
+                let consensus_queue_monitor_consensus_adapter = Arc::downgrade(&consensus_adapter);
+                let consensus_queue_monitor_interval =
+                    config.authority_overload_config.overload_monitor_interval;
+                Some(spawn_monitored_task!(consensus_queue_overload_monitor(
+                    consensus_queue_monitor_authority_state,
+                    consensus_queue_monitor_consensus_adapter,
+                    consensus_queue_monitor_interval,
+                )))
+            } else {
+                None
+            };
+
         Self::start_epoch_specific_validator_components(
             &config,
             state.clone(),
@@ -1226,8 +1329,11 @@ impl IotaNode {
             consensus_store_pruner,
             global_state_hasher,
             backpressure_manager,
+            soft_locks,
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
+            soft_lock_sweep_handle,
             checkpoint_metrics,
             iota_tx_validator_metrics,
             validator_registry_id,
@@ -1245,12 +1351,15 @@ impl IotaNode {
         epoch_store: Arc<AuthorityPerEpochStore>,
         state_sync_handle: state_sync::Handle,
         randomness_handle: randomness::Handle,
-        consensus_manager: ConsensusManager,
+        consensus_manager: Arc<ConsensusManager>,
         consensus_store_pruner: ConsensusStorePruner,
         global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
+        consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
+        soft_lock_sweep_handle: JoinHandle<()>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
@@ -1274,6 +1383,13 @@ impl IotaNode {
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
 
+        // Wire pre-consensus soft locks to the epoch store so that
+        // post-consensus processing can release locks once permanent locks are
+        // quarantined. Clear stale locks from the previous epoch and spawn a
+        // background sweep task.
+        soft_locks.clear();
+        epoch_store.set_soft_locks(soft_locks.clone());
+
         let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
             Box::new(consensus_adapter.clone()),
@@ -1295,32 +1411,57 @@ impl IotaNode {
             backpressure_manager,
         );
 
-        info!("Starting consensus manager");
+        info!("Starting consensus manager asynchronously");
 
-        consensus_manager
-            .start(
-                config,
+        // Spawn consensus startup asynchronously to avoid blocking other components
+        tokio::spawn({
+            let config = config.clone();
+            let epoch_store = epoch_store.clone();
+            let iota_tx_validator = IotaTxValidator::new(
                 epoch_store.clone(),
-                consensus_handler_initializer,
-                IotaTxValidator::new(
-                    epoch_store.clone(),
-                    checkpoint_service.clone(),
-                    state.transaction_manager().clone(),
-                    iota_tx_validator_metrics.clone(),
-                ),
-            )
-            .await;
-        let consensus_replay_waiter = consensus_manager.replay_waiter();
+                checkpoint_service.clone(),
+                state.transaction_manager().clone(),
+                iota_tx_validator_metrics.clone(),
+            );
+            let consensus_manager = consensus_manager.clone();
+            async move {
+                consensus_manager
+                    .start(
+                        &config,
+                        epoch_store,
+                        consensus_handler_initializer,
+                        iota_tx_validator,
+                    )
+                    .await;
+            }
+        });
+        let replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let checkpoint_service_tasks = checkpoint_service.spawn(consensus_replay_waiter).await;
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
+            None
+        } else {
+            Some(replay_waiter)
+        };
+        let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
+
+        let overload_notifier_handle = Self::start_overload_notifier(
+            config,
+            state.clone(),
+            epoch_store.clone(),
+            consensus_adapter.clone(),
+        );
 
         Ok(ValidatorComponents {
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
+            soft_lock_sweep_handle,
+            overload_notifier_handle,
             consensus_manager,
             consensus_store_pruner,
             consensus_adapter,
+            soft_locks,
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1405,6 +1546,7 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
+            consensus_config.graduated_load_shedding_soft_limit_pct(),
         )
     }
 
@@ -1413,12 +1555,15 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
+        soft_locks: Arc<PreConsensusSoftLocks>,
+        validator_service_metrics: Arc<ValidatorServiceMetrics>,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
             consensus_adapter,
-            Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
+            validator_service_metrics,
             config.policy_config.clone().map(|p| p.client_id_source),
+            soft_locks,
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();
@@ -1804,9 +1949,13 @@ impl IotaNode {
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
                 validator_overload_monitor_handle,
+                consensus_queue_overload_monitor_handle,
+                soft_lock_sweep_handle,
+                overload_notifier_handle,
                 consensus_manager,
                 consensus_store_pruner,
                 consensus_adapter,
+                soft_locks,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
@@ -1814,6 +1963,11 @@ impl IotaNode {
             }) = validator_components_lock_guard.take()
             {
                 info!("Reconfiguring the validator.");
+                // Cancel the old overload notifier task so a new one can be
+                // started for the next epoch.
+                if let Some(handle) = overload_notifier_handle {
+                    handle.abort();
+                }
                 // Cancel the old checkpoint service tasks.
                 // Waiting for checkpoint builder to finish gracefully is not possible, because
                 // it may wait on transactions while consensus on peers have
@@ -1863,8 +2017,11 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_hasher,
                             self.backpressure_manager.clone(),
+                            soft_locks,
                             validator_server_handle,
                             validator_overload_monitor_handle,
+                            consensus_queue_overload_monitor_handle,
+                            soft_lock_sweep_handle,
                             checkpoint_metrics,
                             iota_tx_validator_metrics,
                             validator_registry_id,

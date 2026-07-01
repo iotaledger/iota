@@ -15,7 +15,7 @@ use std::{
 use arc_swap::ArcSwapOption;
 use eyre::Result;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
-use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use parking_lot::Mutex;
 use prometheus_filtered::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
@@ -30,7 +30,7 @@ use tracing::{info, trace};
 
 /// Restart mode for authority nodes during testing
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum RestartMode {
+pub enum RestartMode {
     /// Erase both consensus DB and node tracking state (fresh start)
     CleanAll,
     /// Keep both consensus DB and node tracking state (crash recovery)
@@ -44,13 +44,11 @@ pub(crate) enum RestartMode {
 }
 
 #[derive(Clone)]
-pub(crate) struct Config {
+pub struct Config {
     pub authority_index: AuthorityIndex,
     pub db_dir: Arc<TempDir>,
     pub committee: Committee,
     pub keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
-    #[expect(dead_code)]
-    pub network_type: ConsensusNetwork,
     pub boot_counter: u64,
     pub clock_drift: BlockTimestampMs,
     pub protocol_config: ProtocolConfig,
@@ -58,7 +56,7 @@ pub(crate) struct Config {
     pub last_processed_commit: CommitIndex,
 }
 
-pub(crate) struct AuthorityNode {
+pub struct AuthorityNode {
     inner: Mutex<Option<AuthorityNodeInner>>,
     config: Config,
     db_dir: Mutex<Arc<TempDir>>,
@@ -396,16 +394,12 @@ impl AuthorityNodeInner {
     }
 }
 
-pub(crate) async fn make_authority(
-    config: Config,
-    commit_consumer: CommitConsumer,
-) -> ConsensusAuthority {
+pub async fn make_authority(config: Config, commit_consumer: CommitConsumer) -> ConsensusAuthority {
     let Config {
         authority_index,
         db_dir,
         committee,
         keypairs,
-        network_type: _,
         boot_counter,
         clock_drift,
         protocol_config,

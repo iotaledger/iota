@@ -8,6 +8,7 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
@@ -122,6 +123,23 @@ impl IotaTxValidator {
 
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
+
+                ConsensusTransactionKind::OverloadNotificationV1(authority_name, _, percentage) => {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "OverloadNotificationV1 not supported at current protocol version"
+                                    .into(),
+                        });
+                    }
+                    if *percentage > 100 {
+                        return Err(IotaError::HandleConsensusTransactionFailure(format!(
+                            "OverloadNotificationV1 with invalid percentage {percentage} from \
+                                authority {}",
+                            authority_name.concise(),
+                        )));
+                    }
+                }
             }
         }
 
@@ -411,6 +429,11 @@ mod tests {
                 // IOTA and the variant is retained only for serialization
                 // compatibility.
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
+
+                // Gated behind `enable_pcool_flow`.
+                ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
+                    Some(config.enable_pcool_flow())
+                }
             }
         }
 
@@ -465,6 +488,10 @@ mod tests {
             (
                 "UserTransactionV1",
                 ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
+            ),
+            (
+                "OverloadNotificationV1",
+                ConsensusTransactionKind::OverloadNotificationV1(authority, 0, 50),
             ),
         ];
 

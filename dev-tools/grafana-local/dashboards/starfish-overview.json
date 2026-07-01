@@ -677,8 +677,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -774,7 +774,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -784,7 +784,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.05, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -795,7 +795,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -806,7 +806,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[5m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -890,7 +890,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -900,7 +900,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.05, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -911,7 +911,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -922,7 +922,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[5m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -1005,7 +1005,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -1109,7 +1109,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1215,7 +1215,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -1331,7 +1331,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -1446,7 +1446,7 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
@@ -1549,7 +1549,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
@@ -1948,8 +1948,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "targets": [
@@ -2045,8 +2045,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "targets": [
@@ -2163,7 +2163,7 @@
               "editorMode": "code",
               "expr": "sum by(host) (rate(transactions_included_in_checkpoint[2m]))",
               "hide": false,
-              "legendFormat": "{{label_name}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "D"
             }
@@ -2244,7 +2244,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2339,7 +2339,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2434,7 +2434,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -2530,8 +2530,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -2626,8 +2626,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -3223,7 +3223,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -3507,8 +3507,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -3612,8 +3612,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -3710,7 +3710,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -3800,7 +3800,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -3891,7 +3891,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5297,7 +5297,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5395,7 +5395,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -5421,7 +5421,7 @@
           "type": "timeseries"
         }
       ],
-      "title": "Starfish RAM",
+      "title": "Starfish In-Memory State",
       "type": "row"
     },
     {
@@ -8077,8 +8077,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -8094,7 +8094,7 @@
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{type}}",
               "range": true,
               "refId": "A",
               "useBackend": false
@@ -8381,7 +8381,7 @@
               "useBackend": false
             }
           ],
-          "title": "Average useful shards by host ",
+          "title": "Average useful shards by host",
           "transformations": [
             {
               "id": "organize",
@@ -8475,7 +8475,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -8575,7 +8575,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -8693,8 +8693,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -8788,8 +8788,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9000,8 +9000,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9095,8 +9095,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9186,11 +9186,11 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9296,8 +9296,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9390,8 +9390,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9488,8 +9488,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9767,8 +9767,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9860,8 +9860,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -9958,8 +9958,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -10001,18 +10001,18 @@
               },
               "mappings": [],
               "thresholds": {
-                "mode": "percentage",
+                "mode": "absolute",
                 "steps": [
                   {
                     "color": "green"
                   },
                   {
                     "color": "#EAB839",
-                    "value": 50
+                    "value": 1
                   },
                   {
                     "color": "red",
-                    "value": 100
+                    "value": 3
                   }
                 ]
               },
@@ -10186,7 +10186,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10280,7 +10280,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10374,7 +10374,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10468,7 +10468,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10567,7 +10567,7 @@
             },
             "tooltip": {
               "mode": "multi",
-              "sort": "none"
+              "sort": "desc"
             }
           },
           "targets": [
@@ -10664,7 +10664,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10676,11 +10676,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "reconstructed_transactions_unknown",
+              "expr": "max by(host) (consensus_reconstructed_transactions_unknown)",
               "fullMetaSearch": false,
               "includeNullMetadata": false,
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
@@ -10762,7 +10762,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -10855,7 +10855,8 @@
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "s"
             },
             "overrides": []
           },
@@ -10874,7 +10875,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -11024,8 +11025,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11222,8 +11223,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11420,8 +11421,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -11523,8 +11524,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "pluginVersion": "10.1.1",
@@ -11543,7 +11544,7 @@
               "refId": "B"
             }
           ],
-          "title": "Median transaction synchronizer fetch latency",
+          "title": "Median transaction synchronizer fetch latency (live)",
           "type": "timeseries"
         },
         {
@@ -11623,8 +11624,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "pluginVersion": "10.1.1",
@@ -11646,7 +11647,7 @@
               "useBackend": false
             }
           ],
-          "title": "Median transaction synchronizer fetch latency",
+          "title": "Median transaction synchronizer fetch latency (periodic)",
           "type": "timeseries"
         },
         {
@@ -11926,8 +11927,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12128,8 +12129,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12221,7 +12222,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -12337,8 +12338,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12535,8 +12536,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12634,8 +12635,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12833,8 +12834,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -12934,8 +12935,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13136,8 +13137,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13237,8 +13238,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13439,8 +13440,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13626,8 +13627,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -13763,8 +13764,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13880,8 +13881,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -13998,8 +13999,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14115,8 +14116,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14330,8 +14331,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14459,8 +14460,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14576,8 +14577,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14693,8 +14694,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14810,8 +14811,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -14927,8 +14928,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15044,8 +15045,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15240,7 +15241,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 625
+            "y": 626
           },
           "id": 128,
           "options": {
@@ -15262,14 +15263,205 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_commit_sync_inflight_fetches",
+              "expr": "consensus_commit_sync_inflight_fetches{source=\"commit_sync\"}",
               "instant": false,
-              "legendFormat": "{{host}}/{{source}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Inflight fetches",
+          "title": "Inflight fetches (regular)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Current number of ongoing fetch tasks. ",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 31,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 626
+          },
+          "id": 412,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "consensus_commit_sync_inflight_fetches{source=\"fast_commit_sync\"}",
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Inflight fetches (fast)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Rate of number of commits fetched from other authorities.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 31,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 634
+          },
+          "id": 129,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "rate(consensus_commit_sync_fetched_commits{source=\"commit_sync\"}[5m])",
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Fetched commits rate (regular)",
           "type": "timeseries"
         },
         {
@@ -15336,9 +15528,9 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 625
+            "y": 634
           },
-          "id": 129,
+          "id": 413,
           "options": {
             "legend": {
               "calcs": [],
@@ -15358,14 +15550,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_commit_sync_fetched_commits[5m]) ",
+              "expr": "rate(consensus_commit_sync_fetched_commits{source=\"fast_commit_sync\"}[5m])",
               "instant": false,
-              "legendFormat": "{{host}}/{{source}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Fetched commits rate",
+          "title": "Fetched commits rate (fast)",
           "type": "timeseries"
         },
         {
@@ -15432,7 +15624,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 633
+            "y": 642
           },
           "id": 130,
           "options": {
@@ -15454,14 +15646,110 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_commit_sync_gap_on_processing[5m]) ",
+              "expr": "rate(consensus_commit_sync_gap_on_processing{source=\"commit_sync\"}[5m])",
               "instant": false,
-              "legendFormat": "{{host}}/{{source}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Commit Sync Gap Retries ",
+          "title": "Commit Sync Gap Retries (regular)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Rate of counts instances where commit sync couldn\u2019t proceed due to a gap in block sequence",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 31,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 642
+          },
+          "id": 414,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "rate(consensus_commit_sync_gap_on_processing{source=\"fast_commit_sync\"}[5m])",
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Commit Sync Gap Retries (fast)",
           "type": "timeseries"
         },
         {
@@ -15520,15 +15808,16 @@
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "s"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 8,
             "w": 12,
-            "x": 12,
-            "y": 633
+            "x": 0,
+            "y": 650
           },
           "id": 133,
           "options": {
@@ -15550,14 +15839,111 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_commit_sync_fetch_once_latency_sum[5m]) / rate(consensus_commit_sync_fetch_once_latency_count[5m])",
+              "expr": "rate(consensus_commit_sync_fetch_once_latency_sum{source=\"commit_sync\"}[5m]) / rate(consensus_commit_sync_fetch_once_latency_count{source=\"commit_sync\"}[5m])",
               "instant": false,
-              "legendFormat": "{{host}}/{{source}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Commit Sync Fetch Once Latency",
+          "title": "Commit Sync Fetch Once Latency (regular)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Average fetch commits from a peer authority.  ",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 650
+          },
+          "id": 415,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "rate(consensus_commit_sync_fetch_once_latency_sum{source=\"fast_commit_sync\"}[5m]) / rate(consensus_commit_sync_fetch_once_latency_count{source=\"fast_commit_sync\"}[5m])",
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Commit Sync Fetch Once Latency (fast)",
           "type": "timeseries"
         },
         {
@@ -15624,7 +16010,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 641
+            "y": 658
           },
           "id": 131,
           "options": {
@@ -15646,14 +16032,206 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_commit_sync_pending_fetches",
+              "expr": "consensus_commit_sync_pending_fetches{source=\"commit_sync\"}",
               "instant": false,
-              "legendFormat": "{{host}}/{{source}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Pending fetches",
+          "title": "Pending fetches (regular)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Number of pending commit ranges queued for fetch. ",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 31,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 658
+          },
+          "id": 416,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "consensus_commit_sync_pending_fetches{source=\"fast_commit_sync\"}",
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Pending fetches (fast)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Rate of fetch failures per authority and error type.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 49,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 666
+          },
+          "id": 134,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "rate(consensus_commit_sync_fetch_once_errors{source=\"commit_sync\"}[5m])",
+              "instant": false,
+              "legendFormat": "{{authority}} / {{error}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Commit Sync Fetch Errors (regular)",
           "type": "timeseries"
         },
         {
@@ -15720,9 +16298,9 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 641
+            "y": 666
           },
-          "id": 134,
+          "id": 417,
           "options": {
             "legend": {
               "calcs": [],
@@ -15742,14 +16320,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_commit_sync_fetch_once_errors[5m])",
+              "expr": "rate(consensus_commit_sync_fetch_once_errors{source=\"fast_commit_sync\"}[5m])",
               "instant": false,
               "legendFormat": "{{authority}} / {{error}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": " Commit Sync Fetch Errors",
+          "title": "Commit Sync Fetch Errors (fast)",
           "type": "timeseries"
         },
         {
@@ -15816,7 +16394,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 649
+            "y": 674
           },
           "id": 330,
           "options": {
@@ -15830,8 +16408,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -15934,7 +16512,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "multi",
@@ -16235,11 +16813,11 @@
               ],
               "displayMode": "list",
               "placement": "right",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
-              "sort": "asc"
+              "mode": "single",
+              "sort": "none"
             }
           },
           "targets": [
@@ -16334,7 +16912,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16535,7 +17113,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "right",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16674,7 +17252,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -16817,7 +17395,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17099,7 +17677,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17381,7 +17959,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17477,7 +18055,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17572,7 +18150,7 @@
               "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -17784,7 +18362,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -17885,7 +18463,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18082,7 +18660,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18183,7 +18761,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18578,7 +19156,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "multi",
+              "mode": "single",
               "sort": "none"
             }
           },
@@ -18766,8 +19344,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -18896,7 +19474,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -19084,8 +19662,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -19306,7 +19884,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
+              "mode": "multi",
               "sort": "desc"
             }
           },
@@ -19425,7 +20003,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
+              "mode": "multi",
               "sort": "desc"
             }
           },
@@ -19745,7 +20323,7 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
+              "mode": "multi",
               "sort": "desc"
             }
           },
@@ -19944,7 +20522,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20034,7 +20612,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20124,7 +20702,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [
@@ -20214,7 +20792,7 @@
             },
             "tooltip": {
               "mode": "single",
-              "sort": "desc"
+              "sort": "none"
             }
           },
           "targets": [

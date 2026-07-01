@@ -19,8 +19,8 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, Identifier, ObjectData, ObjectId, Owner,
-        StructTag, TypeTag, move_package::MovePackage,
+        Address, Argument, CommandArgumentError, Event, ObjectData, ObjectId, Owner, StructTag,
+        TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         balance::Balance,
@@ -28,7 +28,10 @@ mod checked {
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution::{ExecutionResults, ExecutionResultsV1},
-        iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+        iota_sdk_types_conversions::{
+            identifier_core_to_sdk, identifier_sdk_to_core, struct_tag_core_to_sdk,
+            type_tag_core_to_sdk,
+        },
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
         object::{MoveObject, MoveObjectExt, Object, ObjectInner},
@@ -946,7 +949,7 @@ mod checked {
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
                     let package_id = ObjectId::new(module_id.address().into_bytes());
-                    let module = Identifier::new_unchecked(module_id.name().as_str());
+                    let module = identifier_core_to_sdk(module_id.name());
                     let sender = ref_context.borrow().sender();
                     Event {
                         package_id,
@@ -1273,7 +1276,7 @@ mod checked {
 
         let runtime_id = ModuleId::new(
             original_address,
-            move_core_types::identifier::Identifier::new(struct_tag.module().as_str()).unwrap(),
+            identifier_sdk_to_core(struct_tag.module()),
         );
         let data_store = IotaDataStore::new(linkage_view, new_packages);
         let res = vm.get_runtime().load_type(
@@ -1684,8 +1687,7 @@ mod checked {
                     continue;
                 }
 
-                let module =
-                    package.get_module(&Identifier::new_unchecked(module_id.name().as_str()));
+                let module = package.get_module(&identifier_core_to_sdk(module_id.name()));
 
                 if module.is_some() {
                     return module;
