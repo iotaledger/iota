@@ -96,6 +96,24 @@ async fn get(
     })
 }
 
+async fn exists(url: &str, store: &'static str, location: &Path, client: &Client) -> Result<bool> {
+    let request = client.request(Method::HEAD, url);
+    let response = request
+        .send()
+        .await
+        .with_context(|| format!("failed to send HEAD request for {location} to {store}"))?;
+    let status = response.status();
+    if status.is_success() {
+        Ok(true)
+    } else if status == reqwest::StatusCode::NOT_FOUND {
+        Ok(false)
+    } else {
+        Err(anyhow!(
+            "{store} returned unexpected status {status} for {location}"
+        ))
+    }
+}
+
 fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {
     let last_modified = headers
         .get(LAST_MODIFIED)

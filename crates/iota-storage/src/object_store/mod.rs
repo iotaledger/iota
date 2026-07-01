@@ -16,6 +16,9 @@ pub mod util;
 pub trait ObjectStoreGetExt: std::fmt::Display + Send + Sync + 'static {
     /// Return the bytes at given path in object store
     async fn get_bytes(&self, src: &Path) -> Result<Bytes>;
+
+    /// Return whether an object exists at the given path.
+    async fn exists(&self, src: &Path) -> Result<bool>;
 }
 
 macro_rules! as_ref_get_ext_impl {
@@ -24,6 +27,10 @@ macro_rules! as_ref_get_ext_impl {
         impl ObjectStoreGetExt for $type {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.as_ref().get_bytes(src).await
+            }
+
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                self.as_ref().exists(src).await
             }
         }
     };
@@ -46,6 +53,14 @@ macro_rules! as_ref_get_impl {
                         anyhow!(
                             "Failed to collect GET result for file {src} into bytes with error: {e:?}")
                     })
+            }
+
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                match self.head(src).await {
+                    Ok(_) => Ok(true),
+                    Err(object_store::Error::NotFound { .. }) => Ok(false),
+                    Err(e) => Err(anyhow!("Failed to check if file {src} exists with error: {e:?}")),
+                }
             }
         }
     };
