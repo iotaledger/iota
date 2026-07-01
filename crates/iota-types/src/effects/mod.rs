@@ -176,19 +176,19 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
-    /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
+    /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
     fn deleted(&self) -> Vec<ObjectRef>;
 
     /// Objects that were unwrapped and then deleted within this same
     /// transaction (i.e. did not exist as top-level objects either before
     /// or after). References use the post-execution version and the
-    /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
+    /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
     fn unwrapped_then_deleted(&self) -> Vec<ObjectRef>;
 
     /// Objects that existed as top-level objects before this transaction and
     /// have been wrapped inside another object by it (i.e. no longer visible
     /// in the object store as top-level). References use the post-execution
-    /// version and the [`TransactionEffectsDigest::OBJECT_WRAPPED`] tombstone
+    /// version and the [`ObjectDigest::OBJECT_WRAPPED`] tombstone
     /// digest.
     fn wrapped(&self) -> Vec<ObjectRef>;
 
