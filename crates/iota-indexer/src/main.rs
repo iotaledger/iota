@@ -171,6 +171,9 @@ async fn main() -> Result<(), IndexerError> {
                 let mut pool_conn = get_pool_connection(&connection_pool)?;
                 reset_database(&mut pool_conn)?;
             }
+            // resetting the database ensures we start from a clean state.
+            // thus we can accept an unsuccessful completion of the restore, as subsequent
+            // runs rely on the latter predicate.
             let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
             let restore = start(
                 network,
