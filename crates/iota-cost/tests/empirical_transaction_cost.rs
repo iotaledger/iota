@@ -6,15 +6,14 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Address, Identifier, ObjectId, gas::GasCostSummary};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
-    gas::GasCostSummary,
     gas_coin::GAS,
     transaction::{CallArg, SharedObjectRef, TransactionData},
 };
@@ -72,7 +71,7 @@ async fn split_n_tx(
     coin: ObjectRef,
     gas: ObjectRef,
     gas_price: u64,
-    sender: IotaAddress,
+    sender: Address,
 ) -> TransactionData {
     let split_amounts = vec![10u64; n as usize];
     let type_args = vec![GAS::type_tag()];
@@ -119,11 +118,11 @@ async fn create_txes(
     //
     let whole_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(None, IotaAddress::ZERO)
+            .transfer_iota(None, Address::ZERO)
             .build();
     let partial_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(Some(10), IotaAddress::ZERO)
+            .transfer_iota(Some(10), Address::ZERO)
             .build();
     ret.insert(
         CommonTransactionCosts::TransferWholeIotaCoin,
@@ -137,7 +136,7 @@ async fn create_txes(
     // Transfer Whole Coin Object
     //
     let whole_coin_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .transfer(gas_objects.pop().unwrap(), IotaAddress::ZERO)
+        .transfer(gas_objects.pop().unwrap(), Address::ZERO)
         .build();
 
     ret.insert(CommonTransactionCosts::TransferWholeCoin, whole_coin_tx);

@@ -1,0 +1,94 @@
+---
+title: The Single Notarization Object
+description: An explanation of the IOTA Single Notarization Move object and its core concepts.
+tags:
+ - explanation
+ - notarization
+ - single-notarization
+ - getting-started
+---
+
+# Introduction to On Chain Notarization
+
+IOTA Single Notarization enables the creation of immutable, on-chain records for any arbitrary data. This is achieved by storing the data, or a hash of it, inside a dedicated Move object on the IOTA ledger. This process provides a verifiable, timestamped proof of the data's existence and integrity at a specific point in time.
+
+IOTA Single Notarization is composed of two primary packages:
+-   **Notarization Move Package**: The on-chain smart contracts that define the behavior and structure of notarization objects.
+-   **Notarization Client Packages (Rust crate / WASM bindings)**: Client-side packages that provide developers with convenient functions to create, manage, and verify `Single Notarization` objects on the network.
+
+## The `Notarization` Object
+
+The core of the Single Notarization component is the `Notarization` object, a unified Move `struct` that holds the notarized data and its associated metadata. The `Notarization` object is owned by an address allowing easier access control compared to [IOTA Audit Trails](../../audit-trails/index.mdx) being a shared object which needs more complex access control features.
+
+The `Notarization` object is designed to be flexible and supports two distinct methods, `Locked` and `Dynamic`, which are determined by the `method` field upon creation.
+
+```rust
+// A unified notarization type that can be either dynamic or locked
+public struct Notarization<D: store + drop + copy> has key {
+    id: UID,
+    state: State<D>, // The state of the `Notarization` that can be updated
+    immutable_metadata: ImmutableMetadata, // Variant-specific metadata
+    updatable_metadata: Option<String>, // Provides context or additional information for third parties
+    last_state_change_at: u64, // Timestamp of the last state change
+    state_version_count: u64, // Counter for the number of state updates
+    method: NotarizationMethod, // Notarization Method
+}
+```
+
+### Notarization Methods
+
+#### Locked Notarization
+A `Locked Notarization` is designed for creating a permanent, tamper-proof record that cannot be changed after its creation.
+-   **Immutable**: The state and metadata cannot be changed after creation.
+-   **Non-transferable**: It cannot be transferred to other addresses.
+-   **Time-based Destruction**: If `delete_lock` is used, it can only be destroyed after its `delete_lock` expires.
+
+#### Dynamic Notarization
+A `Dynamic Notarization` is designed for use cases where data evolves over time and high availability of the *latest version* is critical.
+-   **Mutable**: The state can be updated by the owner.
+-   **Version Tracking**: Every state update increments a `state_version_count`.
+-   **Transferable**: It can be transferred to a new owner, unless a `transfer_lock` is active.
+
+## Core Data Structures
+
+The `Notarization` object is composed of several smaller `structs` that organize its data and control its behavior.
+
+### The `State` Struct
+This `struct` represents the core content of the notarization that can be updated in the `Dynamic` method.
+
+```rust
+public struct State<D: store + drop + copy> has store, drop, copy {
+    data: D, // The data being notarized
+    metadata: Option<String>, // Mutable metadata that can be updated together with the state data
+}
+```
+
+-   `data`: Holds the `Stored Data` being notarized. `D` is a generic type, allowing storage of different data forms, such as `vector<u8>` or `String`.
+-   `metadata`: An optional string that can be used to describe the current state, for example, to specify a document revision number. It can only be updated together with the `data`.
+
+### Metadata Structs
+Metadata is divided into immutable and updatable parts.
+
+-   **`ImmutableMetadata`**: Contains fields that are set at creation and cannot be changed. This includes the creation timestamp (`created_at`), an optional `description`, and the `locking` configuration.
+-   **`updatable_metadata`**: An optional, arbitrary string that can be updated at any time by the owner without affecting the `state_version_count`.
+-   **`LockMetadata`**: Defines the specific timelock conditions for the notarization, including `update_lock`, `delete_lock`, and `transfer_lock`.
+
+## Timelocks and Access Control
+
+Access to critical functions like destroying or transferring a `Notarization` object is controlled by timelocks. The `TimeLock` `enum` provides
+
+```rust
+public enum TimeLock has store {
+    UnlockAt(u32),      // A lock that unlocks at a specific Unix timestamp
+    UntilDestroyed,     // A lock that is unlocked when the notarization is destroyed
+    None,               // No lock applied
+}
+```
+
+These locks are applied as follows:
+
+-   **`delete_lock`**: Used only in `Locked Notarization`, it prevents the object from being destroyed until the specified `UnlockAt` timestamp is reached.
+    This lock cannot be set to `UntilDestroyed`.
+-   **`transfer_lock`**: Used only in `Dynamic Notarization`, it prevents the object from being transferred until the lock expires.
+-   **`update_lock`**: This is permanently set to `UntilDestroyed` for all `Locked Notarization` objects, ensuring their immutability.
+```

@@ -1,0 +1,178 @@
+---
+title: Delete an Audit Trail
+sidebar_label: Delete an Audit Trail
+description: How to delete an Audit Trail from the IOTA network after removing all its records.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Delete an Audit Trail
+
+This guide shows how to permanently remove an `AuditTrail` object from the IOTA network. A trail can only be deleted once all of its records have been removed.
+
+## Prerequisites
+
+- An existing `AuditTrail` object on the IOTA network containing several (less than 10 for this example) records
+- The trail must not have a delete-trail lock set (see [Configure Locking](./configure-locking.mdx))
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a maintenance-admin wallet that will be delegated the permissions needed to empty and delete the trail.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs#L26-L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L25-L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Role with Deletion Permissions
+
+Define a role that has both `DeleteAllRecords` (to empty the trail) and `DeleteAuditTrail` (to remove the trail itself).
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs#L41-L66
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L37-L45
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Attempt to Delete a Non-Empty Trail
+
+Deleting a trail that still contains records fails. This constraint ensures no data is silently lost.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs#L70-L74
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L49-L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Empty the Trail with Batch Deletion
+
+Remove the records using `delete_records_batch` / `deleteBatch`. The call deletes unlocked records from the front of the trail and returns the sequence numbers it removed; any locked records are skipped. Since this trail has no active delete lock, a single batch empties it — verify the record count reaches zero.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs#L77-L86
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L63-L71
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Delete the Empty Trail
+
+With no records remaining, the trail can now be permanently deleted.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs#L88-L92
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L73-L76
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Attempting to delete a non-empty trail returns an error.
+- After batch-deleting all records, the trail can be successfully deleted.
+- Once deleted, the trail is no longer readable on-chain — any `get()` call returns an error.
+
+:::warning
+Trail deletion is permanent and irreversible. Ensure you have exported or archived any data you need before deleting.
+:::
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/08_delete_audit_trail.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts
+```
+
+</TabItem>
+</Tabs>

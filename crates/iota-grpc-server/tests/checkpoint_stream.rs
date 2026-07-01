@@ -14,13 +14,12 @@ use iota_grpc_client::{
 };
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
-    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
 };
@@ -41,7 +40,7 @@ fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
 /// Create checkpoint data with a transaction from a specific sender.
 fn mock_checkpoint_data_with_sender(
     sequence_number: u64,
-    sender: IotaAddress,
+    sender: Address,
     key: &AccountKeyPair,
 ) -> CheckpointData {
     let gas = random_object_ref();
@@ -596,7 +595,7 @@ async fn test_filter_checkpoints_validation() {
     assert!(result.is_err(), "expected error when no filters are set");
 
     // tx filter without transactions in read_mask should fail
-    let (sender, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, _): (Address, AccountKeyPair) = get_key_pair();
     let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
@@ -629,7 +628,7 @@ async fn test_filter_checkpoints_validation() {
 async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
-    let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let sender_bytes = sender.into_bytes();
 
     // Create a sender filter matching our known sender
@@ -714,7 +713,7 @@ async fn test_filter_checkpoints_streaming() {
             .send_traced(&mock_checkpoint_data(i));
     }
     // Broadcast checkpoint with a different sender (should be skipped)
-    let (other_sender, other_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (other_sender, other_key): (Address, AccountKeyPair) = get_key_pair();
     server_handle
         .checkpoint_data_broadcaster()
         .send_traced(&mock_checkpoint_data_with_sender(
@@ -934,7 +933,7 @@ fn build_checkpoint_transactions_with_events(
                     module: Identifier::from_static("test_module"),
                     sender,
                     type_: StructTag::new(
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                         Identifier::from_static("test_module"),
                         Identifier::from_static("TestEvent"),
                         vec![],

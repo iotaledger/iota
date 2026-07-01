@@ -221,6 +221,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.generate-tag.outputs.iota_ref }}
       - name: Generate release notes
+        shell: bash
         run: |
           new_commit_hash=$(git rev-parse HEAD)
           echo "New commit hash: $new_commit_hash"

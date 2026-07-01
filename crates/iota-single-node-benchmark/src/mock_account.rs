@@ -5,15 +5,16 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_account_key_pair},
     object::Object,
 };
 
 #[derive(Clone)]
 pub struct Account {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub keypair: Arc<AccountKeyPair>,
     pub gas_objects: Arc<Vec<ObjectRef>>,
 }
@@ -24,7 +25,7 @@ pub struct Account {
 pub async fn batch_create_account_and_gas(
     num_accounts: u64,
     gas_object_num_per_account: u64,
-) -> (BTreeMap<IotaAddress, Account>, Vec<Object>) {
+) -> (BTreeMap<Address, Account>, Vec<Object>) {
     let tasks: FuturesUnordered<_> = (0..num_accounts)
         .map(|_| {
             tokio::spawn(async move {
@@ -40,10 +41,7 @@ pub async fn batch_create_account_and_gas(
     let mut genesis_gas_objects = vec![];
     for task in tasks {
         let (sender, keypair, gas_objects) = task.await.unwrap();
-        let gas_object_refs: Vec<_> = gas_objects
-            .iter()
-            .map(|o| o.compute_object_reference())
-            .collect();
+        let gas_object_refs: Vec<_> = gas_objects.iter().map(|o| o.object_ref()).collect();
         accounts.insert(
             sender,
             Account {

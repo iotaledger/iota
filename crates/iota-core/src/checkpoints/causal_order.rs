@@ -228,7 +228,9 @@ mod tests {
     use iota_sdk_types::ObjectId;
     use iota_types::{
         base_types::{ObjectDigest, ObjectRef, SequenceNumber},
-        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
+        },
     };
 
     use super::*;
@@ -307,7 +309,7 @@ mod tests {
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
+        let mut effects = TransactionEffects::new_empty_v1_for_testing(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
         effects
     }

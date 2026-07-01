@@ -117,11 +117,11 @@ impl Executor {
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);
         // let gas_obj_ref =
-        // account.current_coins.last().unwrap().compute_object_reference();
+        // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
         let data = TransactionData::new_module(
             account.initial_data.account.address,
-            gas_object.compute_object_reference(),
+            gas_object.object_ref(),
             modules,
             dep_ids,
             PUBLISH_BUDGET,

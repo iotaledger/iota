@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use aws_config::{BehaviorVersion, Region, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{Client, config::Credentials, primitives::Blob, types::AttributeValue};
 use bytes::Bytes;
@@ -319,6 +319,9 @@ impl KvStoreClient {
         let item_type = key.item_type().to_string();
 
         match key {
+            Key::TransactionDigestsByAddress(_address) => {
+                bail!("unsupported key");
+            }
             Key::Transaction(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }

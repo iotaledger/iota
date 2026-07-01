@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_json_rpc_api::GovernanceReadApiClient;
 use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1,
@@ -28,14 +28,14 @@ impl GovernanceApi {
     }
 
     /// Get a list of delegated stakes for the given address.
-    pub async fn get_stakes(&self, owner: IotaAddress) -> IotaRpcResult<Vec<DelegatedStake>> {
+    pub async fn get_stakes(&self, owner: Address) -> IotaRpcResult<Vec<DelegatedStake>> {
         Ok(self.api.http.get_stakes(owner).await?)
     }
 
     /// Get a list of delegated timelocked stakes for the given address.
     pub async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> IotaRpcResult<Vec<DelegatedTimelockedStake>> {
         Ok(self.api.http.get_timelocked_stakes(owner).await?)
     }

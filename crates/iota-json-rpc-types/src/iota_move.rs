@@ -10,9 +10,8 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::IotaAddress,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
@@ -32,7 +31,7 @@ use serde_with::serde_as;
 use tracing::warn;
 
 use crate::iota_primitives::{
-    IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
+    Address as AddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
 };
 
 pub type IotaMoveTypeParameterIndex = u16;
@@ -421,9 +420,9 @@ pub enum IotaMoveValue {
     Number(u32),
     Bool(bool),
     Address(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     Vector(Vec<IotaMoveValue>),
     String(String),
@@ -505,7 +504,7 @@ impl From<MoveValue> for IotaMoveValue {
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::new(value.into_bytes()))
+                IotaMoveValue::Address(Address::new(value.into_bytes()))
             }
             MoveValue::Variant(MoveVariant {
                 type_,

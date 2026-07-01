@@ -2,16 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, ExecutionError, ExecutionStatus, Identifier};
+use iota_sdk_types::{
+    Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
+    ObjectReference, Owner, TransactionEffects, TransactionKind,
+};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::TransactionEvents,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents},
+    error::{IotaResult, UserInputError},
     gas_coin::GasCoin,
-    object::GAS_VALUE_FOR_TESTING,
+    messages_grpc::TransactionStatus,
+    object::{GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
@@ -20,10 +27,9 @@ use once_cell::sync::Lazy;
 use super::{
     authority_tests::{init_state_with_ids, send_and_confirm_transaction},
     move_integration_tests::build_and_try_publish_test_package,
-    *,
 };
 use crate::authority::{
-    authority_tests::init_state_with_ids_and_object_basics,
+    AuthorityState, authority_tests::init_state_with_ids_and_object_basics,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -102,7 +108,7 @@ async fn test_tx_more_than_maximum_gas_budget() {
 
 async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
 ) -> ObjectId {
@@ -133,7 +139,7 @@ async fn publish_move_random_package(
 }
 
 async fn check_oog_transaction<F>(
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
     function: &'static str,
     args: Vec<CallArg>,
@@ -182,7 +188,7 @@ where
             .get_object(coin_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         gas_coin_refs.push(coin_ref);
     }
     let module = Identifier::from_static("move_random");
@@ -240,7 +246,7 @@ where
 }
 
 // make a `coin_num` coins distributing `gas_amount` across them
-fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+fn make_gas_coins(owner: Address, gas_amount: u64, coin_num: u64) -> Vec<Object> {
     let mut objects = vec![];
     let coin_balance = gas_amount / coin_num;
     for _ in 1..coin_num {
@@ -265,9 +271,9 @@ fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Obj
 // Touch gas coins so that `storage_rebate` is set
 async fn touch_gas_coins(
     authority_state: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     coin_ids: &[ObjectId],
     gas_object_id: ObjectId,
 ) {
@@ -277,7 +283,7 @@ async fn touch_gas_coins(
             .get_object(coin_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         builder.transfer_object(recipient, coin_ref).unwrap();
     }
     let pt = builder.finish();
@@ -286,7 +292,7 @@ async fn touch_gas_coins(
         .get_object(&gas_object_id)
         .await
         .unwrap()
-        .compute_object_reference();
+        .object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let data = TransactionData::new(kind, sender, gas_object_ref, 100_000_000, rgp);
     let tx = to_sender_signed_transaction(data, sender_key);
@@ -557,7 +563,7 @@ async fn test_transfer_iota_insufficient_gas() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, *MAX_GAS_BUDGET);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     authority_state.insert_genesis_object(gas_object).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -598,7 +604,7 @@ async fn test_invalid_gas_owners() {
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let init_object = |o: Object| async {
-        let obj_ref = o.compute_object_reference();
+        let obj_ref = o.object_ref();
         authority_state.insert_genesis_object(o).await;
         obj_ref
     };
@@ -615,13 +621,12 @@ async fn test_invalid_gas_owners() {
         gas_object3.object_id,
     ))
     .await;
-    let non_sender_owned_object =
-        init_object(Object::with_owner_for_testing(IotaAddress::ZERO)).await;
+    let non_sender_owned_object = init_object(Object::with_owner_for_testing(Address::ZERO)).await;
 
     async fn test(
-        good_gas_object: ObjectRef,
-        bad_gas_object: ObjectRef,
-        sender: IotaAddress,
+        good_gas_object: ObjectReference,
+        bad_gas_object: ObjectReference,
+        sender: Address,
         sender_key: &AccountKeyPair,
         authority_state: &AuthorityState,
     ) -> UserInputError {
@@ -854,7 +859,7 @@ async fn test_move_call_gas() -> IotaResult {
         module.clone(),
         function.clone(),
         Vec::new(),
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         args.clone(),
         *MAX_GAS_BUDGET,
         rgp,
@@ -887,7 +892,7 @@ async fn test_move_call_gas() -> IotaResult {
         module.clone(),
         Identifier::from_static("delete"),
         vec![],
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         vec![CallArg::ImmutableOrOwned(created_object_ref)],
         *MAX_GAS_BUDGET,
         rgp,
@@ -934,28 +939,25 @@ async fn test_tx_gas_coins_input_coins() {
         .collect::<Vec<_>>();
     let gas_coin_refs = gas_coins
         .iter()
-        .map(|obj| obj.compute_object_reference())
+        .map(|obj| obj.object_ref())
         .collect::<Vec<_>>();
     authority_state.insert_genesis_objects(&gas_coins).await;
     let coins = (0..260)
         .map(|_| Object::with_owner_for_testing(sender))
         .collect::<Vec<_>>();
-    let coin_refs = coins
-        .iter()
-        .map(|obj| obj.compute_object_reference())
-        .collect::<Vec<_>>();
+    let coin_refs = coins.iter().map(|obj| obj.object_ref()).collect::<Vec<_>>();
     authority_state.insert_genesis_objects(&coins).await;
     let coin = Object::with_owner_for_testing(sender);
-    let coin_ref = coin.compute_object_reference();
+    let coin_ref = coin.object_ref();
     authority_state.insert_genesis_object(coin).await;
 
     async fn run_merge(
         authority_state: &AuthorityState,
-        sender: IotaAddress,
+        sender: Address,
         sender_key: &AccountKeyPair,
-        gas_coin_refs: Vec<ObjectRef>,
-        coin_ref: ObjectRef,
-        coin_refs: Vec<ObjectRef>,
+        gas_coin_refs: Vec<ObjectReference>,
+        coin_ref: ObjectReference,
+        coin_refs: Vec<ObjectReference>,
         rgp: u64,
     ) -> TransactionEffects {
         // build the programmale transaction
@@ -1035,14 +1037,14 @@ async fn execute_transfer_with_price(
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_balance);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     authority_state.insert_genesis_object(gas_object).await;
     let object = authority_state.get_object(&object_id).await.unwrap();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .transfer_object(recipient, object.compute_object_reference())
+            .transfer_object(recipient, object.object_ref())
             .unwrap();
         builder.finish()
     };

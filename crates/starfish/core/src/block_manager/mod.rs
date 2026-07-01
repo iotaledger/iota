@@ -87,6 +87,39 @@ pub(crate) struct BlockManager {
     last_gc_floor_applied: Round,
 }
 
+/// Drops headers/blocks whose round is too far above the accepted frontier to
+/// ever connect, bounding the round horizon retained in the suspender. Sources
+/// not subject to the bound (`DataSource::is_subject_to_far_future_bound`) pass
+/// through unchanged. Each drop is counted in
+/// `dropped_far_future_headers_total` under the source label.
+pub(crate) fn drop_far_future<T>(
+    context: &Context,
+    dag_state: &RwLock<DagState>,
+    items: Vec<T>,
+    source: DataSource,
+    round_of: impl Fn(&T) -> Round,
+) -> Vec<T> {
+    if !source.is_subject_to_far_future_bound() {
+        return items;
+    }
+    let ceiling = dag_state.read().far_future_round_ceiling();
+    let total = items.len();
+    let kept: Vec<T> = items
+        .into_iter()
+        .filter(|item| round_of(item) <= ceiling)
+        .collect();
+    let dropped = (total - kept.len()) as u64;
+    if dropped > 0 {
+        context
+            .metrics
+            .node_metrics
+            .dropped_far_future_headers_total
+            .with_label_values(&[source.as_str()])
+            .inc_by(dropped);
+    }
+    kept
+}
+
 impl BlockManager {
     pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
         Self {
@@ -178,6 +211,9 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
+        let blocks = drop_far_future(&self.context, &self.dag_state, blocks, source, |b| {
+            b.round()
+        });
 
         let block_headers: Vec<_> = blocks
             .iter()
@@ -222,6 +258,10 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
+        let block_headers =
+            drop_far_future(&self.context, &self.dag_state, block_headers, source, |h| {
+                h.round()
+            });
 
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
@@ -1259,6 +1299,188 @@ mod tests {
         assert!(
             block_manager.blocks_to_fetch().is_empty(),
             "old ancestor below gc_floor should not be queued for fetching"
+        );
+    }
+
+    /// A header from a far-future-bounded source whose round is far above the
+    /// accepted frontier is dropped before entering the suspender, so a
+    /// Byzantine peer streaming far-future rounds cannot grow it without bound.
+    #[tokio::test]
+    async fn drops_far_future_headers() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Frontier starts at genesis round 0, so the acceptance ceiling is
+        // `dag_state_cached_rounds + peer_round_ahead_margin`; rounds past it
+        // are dropped. Feed several at once so the metric counts each dropped
+        // header, not one per call (e.g. one per bundle).
+        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+        let far_headers = vec![
+            header(far_round, 1, vec![block_ref(far_round - 1, 0)]),
+            header(far_round + 1, 2, vec![block_ref(far_round, 0)]),
+            header(far_round + 2, 3, vec![block_ref(far_round + 1, 0)]),
+        ];
+
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(far_headers, DataSource::BlockBundleStream);
+
+        assert!(
+            accepted.is_empty(),
+            "far-future headers must not be accepted"
+        );
+        assert!(
+            missing.is_empty(),
+            "far-future ancestors must not be queued to fetch"
+        );
+        assert!(block_manager.suspended_blocks_refs().is_empty());
+        assert!(block_manager.blocks_to_fetch_refs().is_empty());
+        assert_eq!(
+            dag_state.read().highest_accepted_round(),
+            0,
+            "dropped headers must not advance the frontier"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::BlockBundleStream.as_str()])
+                .get(),
+            3,
+            "every dropped header is counted, not one per call"
+        );
+    }
+
+    /// The future-round bound exempts certified/local sources: a far-ahead
+    /// header from the commit syncer (which catches a node up past the bound)
+    /// is still suspended as before, not dropped.
+    #[tokio::test]
+    async fn far_future_bound_exempts_commit_sync() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+
+        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+        let far_header = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
+        let far_ref = far_header.reference();
+
+        let (accepted, _missing) =
+            block_manager.try_accept_block_headers(vec![far_header], DataSource::CommitSyncer);
+
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager.suspended_blocks_refs().contains(&far_ref),
+            "commit-sync headers must not be subject to the future-round bound"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::CommitSyncer.as_str()])
+                .get(),
+            0
+        );
+    }
+
+    /// A header exactly at the ceiling is retained, one round past it is
+    /// dropped, and the bound applies to every far-future-bounded source.
+    #[tokio::test]
+    async fn far_future_bound_ceiling_and_sources() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let ceiling = context.parameters.far_future_round_ceiling(0);
+
+        // Exactly at the ceiling: within bounds, so suspended rather than dropped.
+        {
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state);
+            let at_ceiling = header(ceiling, 1, vec![block_ref(ceiling - 1, 0)]);
+            let at_ceiling_ref = at_ceiling.reference();
+            block_manager.try_accept_block_headers(vec![at_ceiling], DataSource::BlockBundleStream);
+            assert!(
+                block_manager
+                    .suspended_blocks_refs()
+                    .contains(&at_ceiling_ref),
+                "a header exactly at the ceiling must be retained, not dropped"
+            );
+        }
+
+        // One round past the ceiling: dropped for every far-future-bounded source.
+        for source in [
+            DataSource::BlockBundleStream,
+            DataSource::HeaderSynchronizer,
+        ] {
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state);
+            let far = header(ceiling + 1, 1, vec![block_ref(ceiling, 0)]);
+            let (accepted, missing) = block_manager.try_accept_block_headers(vec![far], source);
+            assert!(accepted.is_empty() && missing.is_empty());
+            assert!(
+                block_manager.suspended_blocks_refs().is_empty(),
+                "{} far-future header must be dropped",
+                source.as_str()
+            );
+        }
+    }
+
+    /// The future-round bound also covers the full-block path: a peer-streamed
+    /// block far above the accepted frontier is dropped before its header or
+    /// transactions can enter the suspender.
+    #[tokio::test]
+    async fn drops_far_future_blocks() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+        let h = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
+        let txs = crate::block_header::VerifiedTransactions::new_for_test(
+            &h,
+            vec![crate::block_header::Transaction::new(vec![1u8; 16])],
+        );
+        let block = crate::block_header::VerifiedBlock::new(h, txs);
+
+        let (accepted, missing) =
+            block_manager.try_accept_blocks(vec![block], DataSource::BlockStreaming);
+
+        assert!(accepted.is_empty(), "far-future block must not be accepted");
+        assert!(
+            missing.is_empty(),
+            "far-future ancestors must not be queued to fetch"
+        );
+        assert!(block_manager.suspended_blocks_refs().is_empty());
+        assert_eq!(block_manager.suspended_transactions.len(), 0);
+        assert_eq!(
+            dag_state.read().highest_accepted_round(),
+            0,
+            "dropped block must not advance the frontier"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::BlockStreaming.as_str()])
+                .get(),
+            1
         );
     }
 

@@ -15,14 +15,13 @@ use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use iota_package_management::{
     PublishedAtError, resolve_published_id,
-    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId, move_package::MovePackage};
 use iota_types::{
-    base_types::IotaAddress,
     error::{IotaError, IotaResult},
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
     },
 };
@@ -156,7 +155,7 @@ impl BuildConfig {
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
-            let mod_addr = IotaAddress::new(u.named_module.address.into_bytes());
+            let mod_addr = Address::new(u.named_module.address.into_bytes());
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {
@@ -534,26 +533,26 @@ impl CompiledPackage {
     /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::SYSTEM.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::SYSTEM.as_bytes())
     }
 
     /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::FRAMEWORK.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::FRAMEWORK.as_bytes())
     }
 
     /// Get bytecode modules from the Move stdlib that are used by this package
     pub fn get_stdlib_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STD.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::STD.as_bytes())
     }
 
     /// Get bytecode modules from Stardust that are used by this package
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STARDUST.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == Address::STARDUST.as_bytes())
     }
 
     /// Generate layout schemas for all types declared by this package, as well
@@ -1004,4 +1003,40 @@ pub fn check_conflicting_addresses(
     };
 
     Err(err)
+}
+
+/// Create a set of [Dependencies] from a [SystemPackagesVersion] that resolve
+/// to the system package sources on the local filesystem, relative to this
+/// crate's location in the iota source tree.
+pub fn local_implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    // This relies on the compile-time `CARGO_MANIFEST_DIR` still existing on disk
+    // at runtime, which holds when the binary is built and run on the same host.
+    // `CARGO_MANIFEST_DIR` is `<repo>/crates/iota-move-build`, so the repo root is
+    // two levels up and each system package lives at `<repo>/<repo_path>`.
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("iota-move-build manifest dir should have a grandparent");
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Local(repo_root.join(&package.repo_path)),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
+}
+
+/// Useful for callers (e.g. the `#[sim_test]` static initializer) that don't
+/// have a [SystemPackagesVersion] on hand and just want the framework resolved
+/// from the local checkout.
+pub fn local_implicit_deps_latest() -> Dependencies {
+    local_implicit_deps(latest_system_packages())
 }

@@ -15,11 +15,8 @@ use iota_indexer::{
     },
     schema::{checkpoints, events},
 };
-use iota_sdk_types::{Identifier, ObjectId};
-use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress, event::Event as NativeEvent,
-    parse_iota_struct_tag,
-};
+use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, Identifier, ObjectId};
+use iota_types::parse_iota_struct_tag;
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
@@ -117,7 +114,7 @@ impl Event {
     /// Address of the sender of the event
     #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Result<Option<Address>> {
-        if self.native.sender == NativeIotaAddress::ZERO {
+        if self.native.sender == NativeAddress::ZERO {
             return Ok(None);
         }
 
@@ -301,8 +298,8 @@ impl Event {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
         let checkpointed = CheckpointedEventInfo::from(&stored);
-        let sender = NativeIotaAddress::from_bytes(sender_bytes)
-            .map_err(|e| Error::Internal(e.to_string()))?;
+        let sender =
+            NativeAddress::from_bytes(sender_bytes).map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
             ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)

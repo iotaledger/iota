@@ -11,10 +11,10 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ExecutionStatus, ObjectId, Owner};
+use iota_sdk_types::{Address, ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -27,12 +27,11 @@ use iota_types::{
     },
     execution_config_utils::to_binary_config,
     fp_bail,
-    gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     layout_resolver::LayoutResolver,
-    object::{Data, Object},
+    object::Object,
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
         Storage,
@@ -207,11 +206,13 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| (*id, self.new_effects_object_change(id)))
+            .map(|id| (*id, self.object_change_for_id(id)))
             .collect()
     }
 
-    fn new_effects_object_change(&self, id: &ObjectId) -> EffectsObjectChange {
+    /// Returns the [`EffectsObjectChange`] for `id`, gathered from the
+    /// execution results.
+    fn object_change_for_id(&self, id: &ObjectId) -> EffectsObjectChange {
         let modified_at = self
             .get_object_modified_at(id)
             .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
@@ -376,7 +377,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// otherwise.
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
-        let old_ref = old_object.compute_object_reference();
+        let old_ref = old_object.object_ref();
         debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,
@@ -584,7 +585,7 @@ impl TemporaryStore<'_> {
     // sponsor, or a shared object input
     pub fn check_ownership_invariants(
         &self,
-        sender: &IotaAddress,
+        sender: &Address,
         gas_charger: &mut GasCharger,
         mutable_inputs: &HashSet<ObjectId>,
         is_epoch_change: bool,
@@ -1208,7 +1209,7 @@ impl ResourceResolver for TemporaryStore<'_> {
         };
 
         match &object.data {
-            Data::Struct(m) => {
+            ObjectData::Struct(m) => {
                 assert!(
                     m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \

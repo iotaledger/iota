@@ -132,6 +132,8 @@ iota-rest-kv:
   - "crates/iota-rest-kv/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-rust-sdk:
+  - "crates/iota-rust-sdk/**"
 iota-sdk:
   - "crates/iota-sdk/**"
 iota-simulator:

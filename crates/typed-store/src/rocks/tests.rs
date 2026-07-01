@@ -8,7 +8,7 @@ use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::{reopen, traits::Map};
+use crate::traits::Map;
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -76,35 +76,6 @@ async fn test_reopen() {
         db.contains_key(&123456789)
             .expect("Failed to retrieve item in storage")
     );
-}
-
-#[tokio::test]
-async fn test_reopen_macro() {
-    const FIRST_CF: &str = "First_CF";
-    const SECOND_CF: &str = "Second_CF";
-
-    let tmp_dir = iota_common::tempdir();
-    let rocks = open_cf_opts(
-        tmp_dir.path(),
-        None,
-        MetricConf::default(),
-        &[
-            (FIRST_CF, rocksdb::Options::default()),
-            (SECOND_CF, rocksdb::Options::default()),
-        ],
-    )
-    .unwrap();
-
-    let (db_map_1, db_map_2) = reopen!(&rocks, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
-
-    let keys_vals_cf1 = (1..100).map(|i| (i, i.to_string()));
-    let keys_vals_cf2 = (1..100).map(|i| (i, i.to_string()));
-
-    assert_eq!(db_map_1.cf_name(), FIRST_CF);
-    assert_eq!(db_map_2.cf_name(), SECOND_CF);
-
-    assert!(db_map_1.multi_insert(keys_vals_cf1).is_ok());
-    assert!(db_map_2.multi_insert(keys_vals_cf2).is_ok());
 }
 
 #[tokio::test]

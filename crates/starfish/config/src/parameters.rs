@@ -28,7 +28,8 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between own blocks. This avoids generating too many rounds
+    /// Sustained spacing between own blocks: long-run production never exceeds
+    /// one block per `min_block_delay`. This avoids generating too many rounds
     /// when latency is low. This is especially necessary for tests running
     /// locally. If setting a non-default value, it should be set low enough
     /// to avoid reducing round rate and increasing latency in realistic and
@@ -36,10 +37,20 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_min_block_delay")]
     pub min_block_delay: Duration,
 
-    /// Maximum forward time drift (how far in future) allowed for received
-    /// blocks.
-    #[serde(default = "Parameters::default_max_forward_time_drift")]
-    pub max_forward_time_drift: Duration,
+    /// Soft counterpart of `leader_timeout`: after this duration we are
+    /// willing to propose a block even without a strong-vote quorum, to avoid
+    /// liveness stalls when leader data is slow to propagate. Fires earlier
+    /// than `leader_timeout` and does not force block creation on its own.
+    #[serde(default = "Parameters::default_soft_leader_timeout")]
+    pub soft_leader_timeout: Duration,
+
+    /// Window bounding own block production together with `min_block_delay`:
+    /// idle time accrues budget for bursts of up to `block_rate_window /
+    /// min_block_delay` back-to-back blocks, letting a validator that fell
+    /// behind catch up on rounds instead of skipping them. Set at or below
+    /// `min_block_delay` to disable bursting (fixed spacing between blocks).
+    #[serde(default = "Parameters::default_block_rate_window")]
+    pub block_rate_window: Duration,
 
     /// Number of block headers to fetch per commit sync request.
     #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
@@ -49,13 +60,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_max_transactions_per_commit_sync_fetch")]
     pub max_transactions_per_commit_sync_fetch: usize,
 
-    /// Number of block headers to fetch per periodic or live sync request
-    #[serde(default = "Parameters::default_max_headers_per_regular_sync_fetch")]
-    pub max_headers_per_regular_sync_fetch: usize,
+    /// Number of block headers to fetch per header sync (periodic or live)
+    /// request.
+    #[serde(default = "Parameters::default_max_headers_per_header_sync_fetch")]
+    pub max_headers_per_header_sync_fetch: usize,
 
-    /// Number of transactions to fetch per request.
-    #[serde(default = "Parameters::default_max_transactions_per_regular_sync_fetch")]
-    pub max_transactions_per_regular_sync_fetch: usize,
+    /// Number of transactions to fetch per transaction sync request.
+    #[serde(default = "Parameters::default_max_transactions_per_transaction_sync_fetch")]
+    pub max_transactions_per_transaction_sync_fetch: usize,
 
     /// Time to wait during node start up until the node has synced the last
     /// proposed block via the network peers. When set to `0` the sync
@@ -71,6 +83,12 @@ pub struct Parameters {
     /// being too large can be expensive in memory usage.
     #[serde(default = "Parameters::default_dag_state_cached_rounds")]
     pub dag_state_cached_rounds: u32,
+
+    /// Rounds a header from a far-future-bounded source may lead the locally
+    /// accepted frontier, in addition to `dag_state_cached_rounds`, before it
+    /// is dropped as too far ahead to connect.
+    #[serde(default = "Parameters::default_peer_round_ahead_margin")]
+    pub peer_round_ahead_margin: u32,
 
     // Number of authorities commit syncer fetches in parallel.
     // Both commits in a range and blocks referenced by the commits are fetched per authority.
@@ -125,11 +143,26 @@ pub struct Parameters {
     /// discovered, without affecting protocol-level endpoint availability.
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
+
+    /// Enable adaptive acknowledgment filtering for StarfishSpeed.
+    /// Local heuristic that drops acks for authorities persistently blamed
+    /// by recent strong-vote masks. Effective only when the protocol-level
+    /// `consensus_starfish_speed` flag is also on. Enabled by default;
+    /// operators can disable it locally without a protocol change.
+    #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
+    pub enable_starfish_speed_adaptive_acknowledgments: bool,
+
+    /// Port for the DAG visualizer gRPC server (localhost only).
+    /// When set, starts a debugging server for real-time DAG visualization.
+    /// Only has an effect when the `dag-visualizer` feature is compiled in.
+    /// Disabled by default (None).
+    #[serde(default)]
+    pub dag_visualizer_port: Option<u16>,
 }
 
 impl Parameters {
     pub(crate) fn default_leader_timeout() -> Duration {
-        Duration::from_millis(250)
+        Duration::from_millis(200)
     }
 
     pub(crate) fn default_min_block_delay() -> Duration {
@@ -149,8 +182,38 @@ impl Parameters {
         }
     }
 
-    pub(crate) fn default_max_forward_time_drift() -> Duration {
-        Duration::from_millis(500)
+    pub(crate) fn default_soft_leader_timeout() -> Duration {
+        Duration::from_millis(100)
+    }
+
+    pub(crate) fn default_block_rate_window() -> Duration {
+        Duration::from_secs(2)
+    }
+
+    /// Burst capacity: maximum number of own blocks within `block_rate_window`
+    /// (40 in production, 5 in msim, 8 in tests with the default window).
+    pub fn block_rate_burst(&self) -> u64 {
+        let interval_ms = self.min_block_delay.as_millis().max(1) as u64;
+        (self.block_rate_window.as_millis() as u64 / interval_ms).max(1)
+    }
+
+    /// Highest round a header from a far-future-bounded source may have,
+    /// relative to the accepted `frontier`, to still be close enough to
+    /// connect; headers above this are too far ahead and dropped.
+    pub fn far_future_round_ceiling(&self, frontier: u32) -> u32 {
+        frontier
+            .saturating_add(self.dag_state_cached_rounds)
+            .saturating_add(self.peer_round_ahead_margin)
+    }
+
+    /// Maximum number of block headers served per fetch request, depending on
+    /// whether the request comes from commit sync or the header synchronizer.
+    pub fn max_headers_per_fetch(&self, commit_sync: bool) -> usize {
+        if commit_sync {
+            self.max_headers_per_commit_sync_fetch
+        } else {
+            self.max_headers_per_header_sync_fetch
+        }
     }
 
     // Maximum number of block headers to fetch per commit sync request.
@@ -173,8 +236,9 @@ impl Parameters {
         }
     }
 
-    // Maximum number of block headers to fetch per periodic or live sync request.
-    pub(crate) fn default_max_headers_per_regular_sync_fetch() -> usize {
+    // Maximum number of block headers to fetch per header sync (periodic or
+    // live) request.
+    pub(crate) fn default_max_headers_per_header_sync_fetch() -> usize {
         if cfg!(msim) {
             // Exercise hitting blocks per fetch limit.
             10
@@ -184,8 +248,8 @@ impl Parameters {
         }
     }
 
-    // Maximum number of transactions to fetch per request.
-    pub(crate) fn default_max_transactions_per_regular_sync_fetch() -> usize {
+    // Maximum number of transactions to fetch per transaction sync request.
+    pub(crate) fn default_max_transactions_per_transaction_sync_fetch() -> usize {
         if cfg!(msim) { 10 } else { 1000 }
     }
 
@@ -207,6 +271,10 @@ impl Parameters {
         } else {
             500
         }
+    }
+
+    pub(crate) fn default_peer_round_ahead_margin() -> u32 {
+        1000
     }
 
     pub(crate) fn default_commit_sync_parallel_fetches() -> usize {
@@ -264,6 +332,10 @@ impl Parameters {
         // without waiting for a protocol upgrade.
         true
     }
+
+    pub(crate) fn default_enable_starfish_speed_adaptive_acknowledgments() -> bool {
+        true
+    }
 }
 
 impl Default for Parameters {
@@ -272,18 +344,20 @@ impl Default for Parameters {
             db_path: PathBuf::default(),
             leader_timeout: Parameters::default_leader_timeout(),
             min_block_delay: Parameters::default_min_block_delay(),
-            max_forward_time_drift: Parameters::default_max_forward_time_drift(),
+            soft_leader_timeout: Parameters::default_soft_leader_timeout(),
+            block_rate_window: Parameters::default_block_rate_window(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
             max_transactions_per_commit_sync_fetch:
                 Parameters::default_max_transactions_per_commit_sync_fetch(),
-            max_headers_per_regular_sync_fetch:
-                Parameters::default_max_headers_per_regular_sync_fetch(),
-            max_transactions_per_regular_sync_fetch:
-                Parameters::default_max_transactions_per_regular_sync_fetch(),
+            max_headers_per_header_sync_fetch:
+                Parameters::default_max_headers_per_header_sync_fetch(),
+            max_transactions_per_transaction_sync_fetch:
+                Parameters::default_max_transactions_per_transaction_sync_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
+            peer_round_ahead_margin: Parameters::default_peer_round_ahead_margin(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
@@ -293,6 +367,9 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_starfish_speed_adaptive_acknowledgments:
+                Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
+            dag_visualizer_port: None,
         }
     }
 }

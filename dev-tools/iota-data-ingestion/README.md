@@ -28,8 +28,12 @@ An example of `config.yaml` for the Blob worker:
 # IndexerExecutor config
 #
 path: "./test-checkpoints"
-# IOTA Node gRPC URL
-remote-store-url: "http://localhost:50051"
+# Remote checkpoint store can either be a fullnode gRPC URL or a hybrid historical store.
+remote-store:
+  fullnode-url: "http://localhost:50051"
+  # hybrid:
+  #   historical-url: "https://checkpoints.<NETWORK>.iota.cafe/ingestion/historical"
+  #   live-url: "https://checkpoints.<NETWORK>.iota.cafe/ingestion/live"
 
 # Path to the progress store JSON file.
 #

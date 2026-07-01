@@ -18,7 +18,7 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::{EncodeDecodeBase64, ToFromBytes},
+    traits::EncodeDecodeBase64,
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
@@ -51,32 +51,34 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, TypeTag,
+    Address, Identifier, ObjectId, Owner, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage},
+    gas::GasCostSummary,
+    move_package::MovePackage,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
-    gas::{GasCostSummary, get_gas_balance},
+    gas::get_gas_balance,
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
-    move_package::{MovePackage, UpgradeCap},
+    move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TransactionKindExt,
+        TransactionDataAPI, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;
@@ -127,7 +129,7 @@ pub enum IotaClientCommands {
     /// Add an existing account address to the keystore
     AddAccount {
         /// The object ID of the account
-        address: IotaAddress,
+        address: Address,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_)
         #[arg(long)]
@@ -619,7 +621,7 @@ pub struct GasDataArgs {
     /// not be able to sign and execute transactions that have a sponsor
     /// set.
     #[arg(long)]
-    pub gas_sponsor: Option<IotaAddress>,
+    pub gas_sponsor: Option<Address>,
 }
 
 impl GasDataArgs {
@@ -673,7 +675,7 @@ pub struct TxProcessingArgs {
     /// will fail when using this with `--serialize-signed-transaction` flag if
     /// the private key corresponding to this address is not in keystore.
     #[arg(long, required = false, value_parser)]
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
     /// The fields are: input, effects, events, object_changes,
@@ -928,7 +930,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )?
                 } else {
                     None
@@ -1100,7 +1102,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )?
                 } else {
                     None
@@ -1399,7 +1401,7 @@ impl IotaClientCommands {
                 );
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
-                    .try_collect::<Vec<IotaAddress>>()
+                    .try_collect::<Vec<Address>>()
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
@@ -1454,7 +1456,7 @@ impl IotaClientCommands {
 
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
-                    .try_collect::<Vec<IotaAddress>>()
+                    .try_collect::<Vec<Address>>()
                     .await?;
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
@@ -2814,8 +2816,8 @@ impl PrintableResult for IotaClientCommandResult {}
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddressesOutput {
-    pub active_address: IotaAddress,
-    pub addresses: Vec<(String, IotaAddress, String)>,
+    pub active_address: Address,
+    pub addresses: Vec<(String, Address, String)>,
 }
 
 #[derive(Serialize)]
@@ -2829,7 +2831,7 @@ pub struct DynamicFieldOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddAccountOutput {
-    pub address: IotaAddress,
+    pub address: Address,
     pub alias: String,
 }
 
@@ -2837,7 +2839,7 @@ pub struct AddAccountOutput {
 #[serde(rename_all = "camelCase")]
 pub struct NewAddressOutput {
     pub alias: String,
-    pub address: IotaAddress,
+    pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
     pub key_scheme: SignatureScheme,
@@ -2943,7 +2945,7 @@ impl ObjectsOutput {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum IotaClientCommandResult {
-    ActiveAddress(Option<IotaAddress>),
+    ActiveAddress(Option<Address>),
     ActiveEnv(Option<String>),
     AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
@@ -2961,7 +2963,7 @@ pub enum IotaClientCommandResult {
     Object(IotaObjectResponse),
     Objects(Vec<IotaObjectResponse>),
     RawObject(IotaObjectResponse),
-    RemoveAddress(IotaAddress),
+    RemoveAddress(Address),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
     Sign(SignData),
@@ -3001,7 +3003,7 @@ impl Display for SwitchResponse {
 
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
-    address: IotaAddress,
+    address: Address,
     url: String,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
@@ -3183,12 +3185,12 @@ fn format_balance(
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_payment: Vec<ObjectRef>,
-    sponsor: Option<IotaAddress>,
+    sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_budget = match gas_budget {
@@ -3259,11 +3261,11 @@ pub async fn execute_dry_run(
 /// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
 pub async fn estimate_gas_budget(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     kind: TransactionKind,
     gas_price: u64,
     gas_payment: Vec<ObjectRef>,
-    sponsor: Option<IotaAddress>,
+    sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
     let dry_run =
@@ -3312,7 +3314,7 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 /// dry run, executing, or serializing a transaction and puts it in a function
 /// to reduce code duplication.
 pub(crate) async fn dry_run_or_execute_or_serialize(
-    signer: IotaAddress,
+    signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
     gas_payment: Vec<ObjectRef>,
@@ -3510,12 +3512,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
 async fn execute_dev_inspect(
     context: &mut WalletContext,
-    signer: IotaAddress,
+    signer: Address,
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_objects: Vec<ObjectRef>,
-    gas_sponsor: Option<IotaAddress>,
+    gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3717,7 +3719,7 @@ pub(crate) async fn pkg_tree_shake(
 
 async fn select_coins_for_amount(
     amount: u64,
-    sender: IotaAddress,
+    sender: Address,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<ObjectId>> {
     let mut coins = Vec::new();
@@ -3755,7 +3757,7 @@ async fn select_coins_for_amount(
 /// accounts acting as either sender or gas sponsor.
 pub(crate) async fn build_auth_args_for_signing(
     client: &IotaClient,
-    address: IotaAddress,
+    address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<Option<(Vec<CallArg>, Vec<TypeTag>)>, anyhow::Error> {
@@ -3804,7 +3806,7 @@ pub(crate) async fn resolve_auth_call_args(
 /// Fetches AuthenticatorFunctionRefV1 for a signer.
 pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
-    signer: IotaAddress,
+    signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
     let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
         signer,
@@ -3839,7 +3841,7 @@ pub(crate) async fn fetch_auth_info(
 pub(crate) fn process_auth_args(
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
-    signer: IotaAddress,
+    signer: Address,
 ) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
     let type_args = auth_type_args
         .as_ref()
@@ -3884,7 +3886,7 @@ pub(crate) fn process_auth_args(
 /// Creates a MoveAuthenticator signature for account addresses.
 async fn create_move_authenticator_signature(
     client: &IotaClient,
-    address: IotaAddress,
+    address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
@@ -3910,14 +3912,14 @@ async fn create_move_authenticator_signature(
 
 #[cfg(test)]
 mod tests_process_auth_args {
-    use iota_types::base_types::IotaAddress;
+    use iota_sdk_types::Address;
     use serde_json::Value as JsonValue;
 
     use super::process_auth_args;
 
     #[test]
     fn test_no_args() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let (type_args, json_args) = process_auth_args(None, None, signer).unwrap();
         assert!(type_args.is_empty());
         // Should only contain the signer
@@ -3926,7 +3928,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_simple_hex_arg() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let args = vec!["0xAABBCC".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         // signer + 1 arg
@@ -3939,7 +3941,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_vector_arg() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let args = vec!["[0xAABBCC,0xDDEE]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         assert_eq!(json_args.len(), 2);
@@ -3953,7 +3955,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_triple_nested_vector() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         // Simulates: vector<vector<vector<u8>>> with nested brackets
         let args = vec!["[[0xAA,0xBB],[0xCC]]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
@@ -3977,7 +3979,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_multiple_args_with_nested_vector() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         // Simulates: merkle_root, merkle_proof (vector<vector<u8>>), signature
         let merkle_root = "0xABCD";
         let proof = "[0x1234,0x5678]";
@@ -4008,7 +4010,7 @@ mod tests_process_auth_args {
 
     #[test]
     fn test_type_args() {
-        let signer = IotaAddress::ZERO;
+        let signer = Address::ZERO;
         let type_args = vec!["u64".to_string(), "bool".to_string()];
         let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
         assert_eq!(types.len(), 2);

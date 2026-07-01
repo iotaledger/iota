@@ -4,7 +4,8 @@
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_macros::sim_test;
-use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
+use iota_sdk_types::Address;
+use iota_types::digests::TransactionDigest;
 use test_cluster::TestClusterBuilder;
 
 use crate::{LocalExec, types::ReplayEngineError};
@@ -23,7 +24,7 @@ async fn verify_tx_replay() {
     let tx_data = test_cluster
         .test_transaction_builder()
         .await
-        .transfer_iota(Some(1_000_000_000), IotaAddress::ZERO)
+        .transfer_iota(Some(1_000_000_000), Address::ZERO)
         .build();
     let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
     let tx_digest = response.digest;

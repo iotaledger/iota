@@ -11,19 +11,19 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-    Command, ConsensusDeterminedVersionAssignments, ExecutionError as ExecutionFailureStatus,
-    ExecutionStatus, Identifier, MoveCall, ObjectId, Owner, TransferObjects, TypeTag,
-    VersionAssignment,
+    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
+    ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
+    ObjectId, Owner, ProgrammableTransaction, TransactionKind, TransferObjects, TypeTag,
+    VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{EpochId, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
@@ -34,9 +34,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        CallArg, EndOfEpochTransactionKind, GenesisObject, InputObjectKind,
-        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_binary_format::CompiledModule;
@@ -59,10 +58,10 @@ use crate::{
     iota_gas_cost_summary::IotaGasCostSummary,
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
-        SequenceNumberString as SequenceNumberStringSchema,
-        SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        GenericSignature as GenericSignatureSchema, ObjectId as ObjectIdSchema,
+        SequenceNumberString as SequenceNumberStringSchema, SequenceNumberU64,
+        TypeTag as TypeTagSchema,
     },
     object_changes::ObjectChange,
 };
@@ -981,7 +980,7 @@ impl IotaTransactionBlockEffects {
             transaction_digest,
             status,
             gas_object: OwnedObjectRef {
-                owner: Owner::Address(IotaAddress::random()),
+                owner: Owner::Address(Address::random()),
                 reference: iota_types::base_types::random_object_ref(),
             },
             executed_epoch: 0,
@@ -1271,9 +1270,9 @@ impl Display for IotaTransactionBlockEvents {
 pub struct DevInspectArgs {
     /// The sponsor of the gas for the transaction, might be different from the
     /// sender.
-    #[serde_as(as = "Option<IotaAddressSchema>")]
-    #[schemars(with = "Option<IotaAddressSchema>")]
-    pub gas_sponsor: Option<IotaAddress>,
+    #[serde_as(as = "Option<AddressSchema>")]
+    #[schemars(with = "Option<AddressSchema>")]
+    pub gas_sponsor: Option<Address>,
     /// The gas budget for the transaction.
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
@@ -1621,9 +1620,9 @@ pub struct IotaGasData {
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub payment: Vec<ObjectRef>,
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub owner: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub owner: Address,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub price: u64,
@@ -1659,7 +1658,7 @@ pub enum IotaTransactionBlockData {
 #[enum_dispatch]
 pub trait IotaTransactionBlockDataAPI {
     fn transaction(&self) -> &IotaTransactionBlockKind;
-    fn sender(&self) -> &IotaAddress;
+    fn sender(&self) -> &Address;
     fn gas_data(&self) -> &IotaGasData;
 }
 
@@ -1668,9 +1667,9 @@ pub trait IotaTransactionBlockDataAPI {
 #[serde(rename = "TransactionBlockDataV1", rename_all = "camelCase")]
 pub struct IotaTransactionBlockDataV1 {
     pub transaction: IotaTransactionBlockKind,
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub sender: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub sender: Address,
     pub gas_data: IotaGasData,
 }
 
@@ -1678,7 +1677,7 @@ impl IotaTransactionBlockDataAPI for IotaTransactionBlockDataV1 {
     fn transaction(&self) -> &IotaTransactionBlockKind {
         &self.transaction
     }
-    fn sender(&self) -> &IotaAddress {
+    fn sender(&self) -> &Address {
         &self.sender
     }
     fn gas_data(&self) -> &IotaGasData {
@@ -1830,7 +1829,7 @@ impl Display for IotaTransactionBlock {
                     // the signatures for multisig and zklogin
                     // are not suited to be parsed out. they
                     // should be interpreted as a whole
-                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
+                    _ => Base64::from_bytes(&tx_sig.to_bytes()).encoded(),
                 }
             )]);
         }
@@ -1884,9 +1883,9 @@ pub struct IotaConsensusCommitPrologueV1 {
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
-        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
-        Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumber)>)>,
+        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, serde_with::Same)>)>")]
+        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64)>)>")]
+        Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumberU64)>)>,
     ),
 }
 
@@ -1906,7 +1905,7 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                             cancelled
                                 .version_assignments
                                 .into_iter()
-                                .map(|va| (va.object_id, va.version))
+                                .map(|va| (va.object_id, va.version.into()))
                                 .collect(),
                         )
                     })
@@ -1934,7 +1933,7 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
                                 .into_iter()
                                 .map(|(object_id, version)| VersionAssignment {
                                     object_id,
-                                    version,
+                                    version: version.into(),
                                 })
                                 .collect(),
                         })
@@ -2449,9 +2448,9 @@ pub enum RPCTransactionRequestParams {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferObjectParams {
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub recipient: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub recipient: Address,
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
@@ -2698,30 +2697,30 @@ pub enum TransactionFilter {
     ),
     /// Query by sender address.
     FromAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by recipient address.
     ToAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by sender and recipient address.
     FromAndToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        from: IotaAddress,
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        to: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        from: Address,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        to: Address,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        addr: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        addr: Address,
     },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),
@@ -2855,30 +2854,30 @@ pub enum TransactionFilterV2 {
     ),
     /// Query by sender address.
     FromAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by recipient address.
     ToAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by sender and recipient address.
     FromAndToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        from: IotaAddress,
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        to: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        from: Address,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        to: Address,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        addr: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        addr: Address,
     },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),

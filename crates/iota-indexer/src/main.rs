@@ -78,6 +78,7 @@ async fn main() -> Result<(), IndexerError> {
             if pruning_options.optimistic_pruner_batch_size.is_some() {
                 warn!(
                     "the --optimistic-pruner-batch-size argument is deprecated and no longer used. \
+                     This argument will be removed in v1.29.0. \
                      Optimistic transactions are now pruned by the unified pruner."
                 );
             }
@@ -97,6 +98,8 @@ async fn main() -> Result<(), IndexerError> {
                 store,
                 indexer_metrics,
                 retention_config,
+                pruning_options.pruning_delay_ms,
+                pruning_options.pruning_batch_size,
                 cancel.clone(),
             )
             .await?;

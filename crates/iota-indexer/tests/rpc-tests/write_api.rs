@@ -21,15 +21,14 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -55,9 +54,9 @@ type Signatures = Vec<Base64>;
 const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
 async fn prepare_and_sign_object_transfer_tx(
-    sender: IotaAddress,
+    sender: Address,
     sender_key_pair: AccountKeyPair,
-    receiver: IotaAddress,
+    receiver: Address,
     object_to_transfer: ObjectRef,
     gas: ObjectRef,
 ) -> (TxBytes, Signatures) {
@@ -1001,8 +1000,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         None,
         Some(PruningOptions {
             epochs_to_keep: Some(1),
-            pruning_config_path: None,
-            optimistic_pruner_batch_size: None,
+            ..Default::default()
         }),
     )
     .await;
@@ -1067,7 +1065,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 }
 
 pub(crate) async fn create_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1097,7 +1095,7 @@ pub(crate) async fn create_basic_object(
 }
 
 async fn wrap_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1130,7 +1128,7 @@ async fn wrap_basic_object(
 }
 
 async fn unwrap_basic_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1151,7 +1149,7 @@ async fn unwrap_basic_object(
 }
 
 async fn update_display_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     display_object_id: &ObjectId,
@@ -1179,7 +1177,7 @@ async fn update_display_object(
 }
 
 async fn bump_display_object_version(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     display_object_id: &ObjectId,
@@ -1200,7 +1198,7 @@ async fn bump_display_object_version(
 }
 
 async fn create_counter_object(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1231,7 +1229,7 @@ async fn create_counter_object(
 }
 
 async fn increment_counter(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1253,7 +1251,7 @@ async fn increment_counter(
 }
 
 async fn create_new_bear(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectId,
@@ -1312,7 +1310,7 @@ async fn create_new_bear(
 }
 
 pub(crate) async fn deploy_basics_pkg(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
@@ -1320,7 +1318,7 @@ pub(crate) async fn deploy_basics_pkg(
 }
 
 async fn deploy_bear_pkg(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
@@ -1334,7 +1332,7 @@ async fn deploy_bear_pkg(
 }
 
 async fn deploy_package(
-    address: IotaAddress,
+    address: Address,
     address_kp: &AccountKeyPair,
     client: &HttpClient,
     pkg_path: &str,
@@ -1457,10 +1455,9 @@ fn move_view_function_call() {
 
         // Test mixed object, bool and address arguments.
         let fn_name = format!("{}::wat_counter::has_address_arg", object_ref.object_id);
-        let address = IotaAddress::from_str(
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        )
-        .unwrap();
+        let address =
+            Address::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
         let view_results = client
             .view_function_call(
                 fn_name,

@@ -31,6 +31,7 @@ iota-graphql-rpc = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-keys.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
@@ -48,3 +49,4 @@ msim.workspace = true
 
 [features]
 indexer = ["dep:iota-indexer", "dep:iota-graphql-rpc"]
+dag-visualizer = ["iota-swarm/dag-visualizer"]

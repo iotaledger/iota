@@ -11,17 +11,17 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
-    MoveLocation, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
-    TypeArgumentError, TypeTag,
+    Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
+    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
+    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
+    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
-        TransactionEffectsDigest,
-    },
+    base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
@@ -29,25 +29,22 @@ use iota_types::{
     },
     digests::ConsensusCommitDigest,
     effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
-        TransactionEvents, UnchangedSharedKind,
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
+        TransactionEvents,
     },
-    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
-    move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    object::{Data, MoveObject, MoveObjectExt, ObjectInner},
+    object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
-        ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
-        Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -117,7 +114,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &MoveObjectType::from(StructTag::new(
-                IotaAddress::ZERO,
+                Address::ZERO,
                 Identifier::from_static("m"),
                 Identifier::from_static("T"),
                 Vec::new(),
@@ -226,7 +223,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig1).unwrap();
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
-    // ObjectID and IotaAddress are the same length
+    // ObjectID and Address are the same length
     let oid: ObjectId = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
@@ -258,21 +255,21 @@ fn get_registry() -> Result<Registry> {
     let event = Event {
         package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
-        sender: IotaAddress::ZERO,
+        sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
 
-    // Seed both Data variants. trace_type::<Data> is skipped because the SDK's
-    // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
-    // Identifier's custom serde (DisplayFromStr) is incompatible with
+    // Seed both ObjectData variants. trace_type::<ObjectData> is skipped because
+    // the SDK's MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with,
+    // and Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
     let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
+        .trace_value(&mut samples, &ObjectData::Struct(sample_move_obj))
         .unwrap();
-    let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
+    let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
         upgraded_version: 1u64.into(),
     };
@@ -288,7 +285,7 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
     tracer
-        .trace_value(&mut samples, &Data::Package(sample_move_pkg))
+        .trace_value(&mut samples, &ObjectData::Package(sample_move_pkg))
         .unwrap();
 
     // Trace SDK types with custom serde (ExecutionStatus, ExecutionError,
@@ -376,8 +373,8 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
-        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
-        Owner::Address(IotaAddress::ZERO),
+        ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        Owner::Address(Address::ZERO),
     );
     tracer
         .trace_value(
@@ -427,8 +424,8 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
-        owner: Owner::Address(IotaAddress::ZERO),
+        data: ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        owner: Owner::Address(Address::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,
     };
@@ -438,15 +435,13 @@ fn get_registry() -> Result<Registry> {
     let sample_events = TransactionEvents(vec![Event {
         package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
-        sender: IotaAddress::ZERO,
+        sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();
 
-    tracer
-        .trace_type::<base_types::IotaAddress>(&samples)
-        .unwrap();
+    tracer.trace_type::<Address>(&samples).unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
     // Trace all Command variants explicitly — MoveCall contains Identifier and
@@ -547,7 +542,7 @@ fn get_registry() -> Result<Registry> {
                     system_packages: vec![],
                 },
             )]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             vec![iota_types::base_types::ObjectRef::new(
                 ObjectId::ZERO,
                 1u64.into(),
@@ -579,7 +574,7 @@ fn get_registry() -> Result<Registry> {
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
     let sample_transaction = Transaction::new(sender_data.clone());
-    let sample_effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+    let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),
         effects: sample_effects.clone(),

@@ -4,9 +4,11 @@
 
 mod authority_node;
 mod authority_service;
+mod authority_set;
 mod base_committer;
 mod block_header;
 mod block_manager;
+mod block_rate_limiter;
 mod block_verifier;
 mod commit;
 mod commit_consumer;
@@ -40,6 +42,9 @@ mod transaction;
 pub mod transaction;
 pub(crate) mod transaction_ref;
 mod transactions_synchronizer;
+
+#[cfg(feature = "dag-visualizer")]
+pub mod dag_visualizer;
 
 mod universal_committer;
 

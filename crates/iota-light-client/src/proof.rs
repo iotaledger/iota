@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
+use iota_sdk_types::Event;
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    event::{Event, EventID},
+    event::EventID,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
     object::Object,
     transaction::Transaction,
@@ -211,7 +212,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
         for (object_ref, object) in &proof.targets.objects {
             // Is the given reference correct?
-            if object_ref != &object.compute_object_reference() {
+            if object_ref != &object.object_ref() {
                 bail!("Object reference does not match the object");
             }
 

@@ -5,20 +5,21 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
+    TransactionKind, TypeTag,
+};
 use tap::Pipe;
 
 use crate::{
-    base_types::{
-        ExecutionDigests, IotaAddress, ObjectRef, SequenceNumber, dbg_addr, random_object_ref,
-    },
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
-        TransactionEvents,
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
+        TransactionEffectsExtForTesting, TransactionEvents,
     },
-    event::{Event, SystemEpochInfoEventV2},
+    event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
@@ -27,8 +28,8 @@ use crate::{
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 
@@ -53,7 +54,7 @@ pub struct TestCheckpointDataBuilder {
     /// A map from sender addresses to gas objects they own.
     /// These are created automatically when a transaction is started.
     /// Users of this builder should not need to worry about them.
-    gas_map: HashMap<IotaAddress, ObjectId>,
+    gas_map: HashMap<Address, ObjectId>,
 
     /// The current checkpoint builder.
     /// It is initialized when the builder is created, and is reset when
@@ -135,7 +136,7 @@ impl TestCheckpointDataBuilder {
 
     /// Start creating a new transaction.
     /// `sender_idx` is a convenient representation of the sender's address.
-    /// A proper IotaAddress will be derived from it.
+    /// A proper Address will be derived from it.
     /// It will also create a gas object for the sender if it doesn't already
     /// exist in the live object map. You do not need to create the gas
     /// object yourself.
@@ -148,12 +149,7 @@ impl TestCheckpointDataBuilder {
             self.live_objects.insert(id, gas);
             id
         });
-        let gas_ref = self
-            .live_objects
-            .get(gas_id)
-            .cloned()
-            .unwrap()
-            .compute_object_reference();
+        let gas_ref = self.live_objects.get(gas_id).cloned().unwrap().object_ref();
         self.checkpoint_builder.next_transaction =
             Some(TransactionBuilder::new(sender_idx, gas_ref));
         self
@@ -356,9 +352,7 @@ impl TestCheckpointDataBuilder {
             .expect("Frozen object not found");
 
         assert!(obj.owner().is_immutable());
-        tx_builder
-            .frozen_objects
-            .insert(obj.compute_object_reference());
+        tx_builder.frozen_objects.insert(obj.object_ref());
         self
     }
 
@@ -570,7 +564,7 @@ impl TestCheckpointDataBuilder {
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             1,
             1,
@@ -597,7 +591,7 @@ impl TestCheckpointDataBuilder {
 
         let transaction_events = events.map(TransactionEvents);
 
-        let effects = TransactionEffects::new_empty_v1(*end_of_epoch_tx.digest());
+        let effects = TransactionEffects::new_empty_v1_for_testing(*end_of_epoch_tx.digest());
 
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder
@@ -680,7 +674,7 @@ impl TestCheckpointDataBuilder {
     }
 
     /// Derive an address from an index.
-    pub fn derive_address(address_idx: u8) -> IotaAddress {
+    pub fn derive_address(address_idx: u8) -> Address {
         dbg_addr(address_idx)
     }
 

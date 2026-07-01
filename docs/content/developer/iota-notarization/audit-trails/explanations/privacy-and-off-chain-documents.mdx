@@ -1,0 +1,67 @@
+---
+title: Privacy and Off-Chain Documents
+description: Why storing only cryptographic hashes on-chain is the recommended pattern for IOTA Audit Trails, and how the on-chain/off-chain approach protects sensitive data.
+tags:
+ - explanation
+ - notarization
+ - audit-trails
+---
+
+# Privacy and Off-Chain Documents
+
+Audit Trail records accept arbitrary byte content — it is technically possible to store full documents, raw payloads, or any other data directly on-chain. However, audit trails in real-world scenarios often involve sensitive information — trade invoices, personal health data, employee records, proprietary manufacturing parameters, or contractual terms that parties are legally obligated to keep confidential.
+
+:::warning RECOMMENDATION
+While Audit Trail records can hold arbitrary data, storing sensitive, personal, or confidential information directly on a public ledger is strongly discouraged. Use the on-chain/off-chain pattern described below to protect privacy while preserving verifiability.
+:::
+
+This page explains why storing such data directly on a public ledger is problematic and why the recommended approach is to store only cryptographic hashes on-chain.
+
+---
+
+## The Challenge: Public Ledgers and Confidentiality
+
+A public ledger is transparent by design — every node in the network can read every on-chain object. This transparency is what makes the ledger trustworthy: anyone can independently verify that records have not been tampered with. Since Audit Trail records can contain any data, nothing prevents a developer from writing sensitive content directly to the ledger. Doing so, however, would expose that content to the entire network, creating conflicts with:
+
+- **Data protection regulations** such as the EU General Data Protection Regulation (GDPR), which grants individuals a "right to erasure" that is fundamentally at odds with an immutable ledger where data cannot be deleted.
+- **Trade secret protections** that require organizations to keep proprietary processes and business terms confidential.
+- **Contractual non-disclosure obligations** between trading partners, service providers, and their clients.
+
+The core tension is clear: you need the immutability and verifiability of a public ledger, but you cannot afford to make the actual content publicly visible.
+
+---
+
+## The Recommended Solution: On-Chain Hashes, Off-Chain Documents
+
+Although you *could* store any content in an Audit Trail record, the recommended approach is an **on-chain/off-chain pattern** that separates *proof* from *content*:
+
+- **On-chain (public)**: Instead of the full document, the Audit Trail record stores a cryptographic hash (fingerprint) of the document or data payload, together with metadata such as timestamps, sequence numbers, record tags, and access control state. The hash uniquely identifies the content — any change to the original document, no matter how small, produces a completely different hash.
+- **Off-chain (private)**: The actual documents, files, or data records remain in the organization's own systems — databases, document management platforms, cloud storage, or any other infrastructure under their control.
+
+With this pattern, the public ledger contains only opaque hash values. No observer can reconstruct the original content from the hash alone. Yet any party who possesses the original document can independently recompute the hash and compare it against the on-chain record to verify that the document is authentic, unaltered, and was recorded at the stated time.
+
+---
+
+## Benefits of the On-Chain/Off-Chain Pattern
+
+| Benefit | Description |
+|---------|-------------|
+| **Privacy** | Sensitive content stays in the organization's private infrastructure. The public ledger sees only cryptographic hashes that reveal nothing about the underlying data. |
+| **Regulatory compliance** | Organizations can comply with GDPR, HIPAA, and similar regulations. Off-chain data can be deleted or anonymized as required, while the on-chain hash continues to serve as proof that the record once existed. |
+| **Selective disclosure** | Document holders share the actual content only with parties who need it. Each recipient can verify the document against the on-chain hash, but no one else gains access. |
+| **Scalability** | Large files — PDFs, images, sensor data logs — remain off-chain. The ledger stores only fixed-size hashes, keeping storage deposits low and transaction sizes small. |
+| **Auditability without exposure** | Auditors and regulators can receive documents off-chain and verify their integrity against the on-chain trail, without the documents ever being publicly accessible. |
+
+---
+
+## How It Works in Practice
+
+Consider an international trade scenario where a customs declaration must be recorded on the Audit Trail:
+
+1. The customs broker prepares the declaration document and computes its cryptographic hash.
+2. The broker submits the hash as a record to the Audit Trail, tagged with `"customs"`. The on-chain record contains the hash, a timestamp from the on-chain clock, and a sequence number — rather than the declaration itself.
+3. The broker shares the original document with the importer and the customs authority through a private channel.
+4. Any recipient can hash the received document and compare the result to the on-chain record. A match proves the document is exactly the version that was recorded at the stated time, and that it has not been altered since.
+5. If regulations later require the declaration to be deleted, the broker removes it from their systems. The on-chain hash remains as evidence that a record was made, but the content is no longer recoverable by anyone.
+
+This pattern applies equally to Digital Product Passports, healthcare records, financial audit logs, and any other scenario where verifiability and confidentiality must coexist.

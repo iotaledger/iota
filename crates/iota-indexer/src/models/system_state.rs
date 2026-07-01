@@ -3,9 +3,8 @@
 
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::IotaAddress,
     iota_serde::{BigInt, Readable},
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
@@ -151,9 +150,9 @@ pub struct StoredSystemStateV1 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 #[serde_as]
@@ -291,9 +290,9 @@ pub struct StoredSystemStateV2 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 /// Represent the stored data for IOTA validators.
@@ -302,7 +301,7 @@ pub struct StoredSystemStateV2 {
 #[serde(rename_all = "camelCase")]
 pub struct StoredValidator {
     // Metadata
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     #[serde_as(as = "Base64")]
     pub authority_pubkey_bytes: Vec<u8>,
     #[serde_as(as = "Base64")]

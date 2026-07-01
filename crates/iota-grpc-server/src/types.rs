@@ -16,7 +16,7 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::VersionNumber,
     digests::TransactionDigest,
@@ -686,7 +686,7 @@ impl GrpcReader {
     /// The cursor is exclusive: items *after* the cursor position are returned.
     pub fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {

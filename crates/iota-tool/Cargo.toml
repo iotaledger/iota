@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 # external dependencies
 anemo.workspace = true
-anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anyhow.workspace = true
 bcs.workspace = true
 camino.workspace = true

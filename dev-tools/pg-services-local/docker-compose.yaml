@@ -20,19 +20,15 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
-      # We have already an issue in place to simplify this part, since gRPC will be enabled by default.
-      # https://github.com/iotaledger/iota/issues/10777
-      - sh
-      - -c
-      - |
-        iota-localnet genesis \
-          --epoch-duration-ms=120000 \
-          --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz \
-          --delegator=0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892 &&
-        iota-localnet start \
-          --with-grpc \
-          --with-faucet=0.0.0.0:9123 \
-          --fullnode-rpc-port=9000
+      - iota-localnet
+      - start
+      - --with-faucet=0.0.0.0:9123
+      - --fullnode-rpc-port=9000
+      - --epoch-duration-ms=120000
+      - --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz
+      - --delegator=0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892
+      - --force-regenesis
+      - --with-grpc=0.0.0.0:50051
     expose:
       - 9000
       - 50051

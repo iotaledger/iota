@@ -14,11 +14,14 @@ use iota_config::{
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
+use iota_core::{
+    authority_aggregator::AuthorityAggregatorBuilder,
+    authority_client::{validator::ValidatorAPI, validator_peer::ValidatorPeerAPI},
+};
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -56,7 +59,7 @@ pub enum ToolCommand {
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
         #[arg(long)]
-        address: Option<IotaAddress>,
+        address: Option<Address>,
         /// RPC address to provide the up-to-date committee info
         #[arg(long)]
         fullnode_rpc_url: String,
@@ -623,7 +626,7 @@ impl ToolCommand {
 
                 for (name, (_, client)) in clients {
                     let resp = client
-                        .handle_checkpoint(CheckpointRequest {
+                        .get_checkpoint_v2(CheckpointRequest {
                             sequence_number,
                             request_content: true,
                             certified: true,

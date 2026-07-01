@@ -18,19 +18,18 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, StructTag,
+    Address, Identifier, ObjectId, Owner, ProgrammableTransaction, StructTag, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind, TransactionKindExt,
+        CallArg, InputObjectKind, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKindExt,
     },
 };
 
@@ -170,7 +169,7 @@ impl Client {
         let results = client
             .read_api()
             .dev_inspect_transaction_block(
-                IotaAddress::ZERO,
+                Address::ZERO,
                 TransactionKind::Programmable(builder.finish()),
                 None,
                 None,
@@ -282,7 +281,7 @@ impl Client {
     /// Create a new shared game, between the wallet's active address and the
     /// given `opponent`. Returns the ID of the Game that was created on
     /// success.
-    pub(crate) async fn new_shared_game(&mut self, opponent: IotaAddress) -> Result<ObjectId> {
+    pub(crate) async fn new_shared_game(&mut self, opponent: Address) -> Result<ObjectId> {
         let player = self.wallet.active_address()?;
 
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -313,12 +312,12 @@ impl Client {
 
         // The opponent's address can be derived from their public key, but not vice
         // versa.
-        let opponent = IotaAddress::from(&opponent_key);
+        let opponent = Address::from(&opponent_key);
 
         // A 1-of-2 multisig acts as the admin of the game. The Game object will be
         // transferred to this address once it is created.
         let admin_key = combine_keys(vec![player_key, opponent_key])?;
-        let admin = IotaAddress::from(&admin_key);
+        let admin = Address::from(&admin_key);
         let admin_bytes =
             bcs::to_bytes(&admin_key).context("INTERNAL ERROR: Failed to encode admin key.")?;
 
@@ -396,7 +395,7 @@ impl Client {
 
         let admin_key: MultiSigPublicKey =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
-        let admin = IotaAddress::from(&admin_key);
+        let admin = Address::from(&admin_key);
 
         let data = self
             .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
@@ -536,7 +535,7 @@ impl Client {
 
         let admin_key: MultiSigPublicKey =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
-        let admin = IotaAddress::from(&admin_key);
+        let admin = Address::from(&admin_key);
 
         let data = self
             .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
@@ -595,7 +594,7 @@ impl Client {
     /// Like `build_tx_data_with_sponsor`, but without a sponsor.
     async fn build_tx_data(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         tx: ProgrammableTransaction,
     ) -> Result<TransactionData> {
         self.build_tx_data_with_sponsor(sender, None, tx).await
@@ -608,8 +607,8 @@ impl Client {
     /// s owned objects.
     async fn build_tx_data_with_sponsor(
         &self,
-        sender: IotaAddress,
-        sponsor: Option<IotaAddress>,
+        sender: Address,
+        sponsor: Option<Address>,
         tx: ProgrammableTransaction,
     ) -> Result<TransactionData> {
         let client = self.client().await?;
@@ -683,7 +682,7 @@ impl Client {
     /// objects to the transaction, `tx`.
     async fn select_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         balance: u64,
         tx: &TransactionKind,
     ) -> Result<ObjectRef> {
@@ -710,7 +709,7 @@ impl Client {
     /// it.
     async fn multi_sig_transaction(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         admin_key: MultiSigPublicKey,
         data: TransactionData,
     ) -> Result<Transaction> {

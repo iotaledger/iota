@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use iota_sdk_types::{Identifier, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
     address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
@@ -25,7 +25,6 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::IotaAddress,
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
@@ -546,7 +545,7 @@ fn nft_migration_with_timelock_unlocked() {
         1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
@@ -577,7 +576,7 @@ fn nft_migration_with_timelock_still_locked() {
         1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
@@ -715,7 +714,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         1_000_000,
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &NFT_OUTPUT_MODULE_NAME,
         // Epoch start time is not important for this test.
         0,

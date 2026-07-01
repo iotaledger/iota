@@ -4,8 +4,8 @@
 
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
         verify_proof_of_possession,
@@ -23,7 +23,7 @@ const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 #[serde(rename_all = "kebab-case")]
 pub struct ValidatorInfo {
     pub name: String,
-    pub account_address: IotaAddress,
+    pub account_address: Address,
     pub authority_key: AuthorityPublicKeyBytes,
     pub protocol_key: NetworkPublicKey,
     pub network_key: NetworkPublicKey,
@@ -43,7 +43,7 @@ impl ValidatorInfo {
         &self.name
     }
 
-    pub fn iota_address(&self) -> IotaAddress {
+    pub fn iota_address(&self) -> Address {
         self.account_address
     }
 
@@ -194,7 +194,7 @@ pub struct GenesisValidatorMetadata {
     pub image_url: String,
     pub project_url: String,
 
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
 
     pub gas_price: u64,
     pub commission_rate: u64,

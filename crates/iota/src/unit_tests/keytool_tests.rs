@@ -12,11 +12,11 @@ use fastcrypto::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::{
-    ObjectId,
+    Address, ObjectId,
     crypto::{Intent, IntentScope, PublicKey, UserSignature},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
         IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
@@ -111,7 +111,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Secp256k1 keypair
     let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let addr_secp: IotaAddress = (&kp_secp.public()).into();
+    let addr_secp: Address = (&kp_secp.public()).into();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -135,7 +135,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Ed25519 keypair
     let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
-    let addr_ed: IotaAddress = (&kp_ed.public()).into();
+    let addr_ed: Address = (&kp_ed.public()).into();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -218,8 +218,8 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
         assert_eq!(kp, kp_from_base64);
 
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -298,8 +298,8 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -339,8 +339,8 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -381,8 +381,8 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .await?;
 
         let kp = IotaKeyPair::decode(sk).unwrap();
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
@@ -551,7 +551,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random()],
+        vec![Address::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -602,7 +602,7 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
     let raw_data = Hex::encode_with_format("IOTA");
 
     let verify_sign_raw_output =
-        |output: CommandOutput, expected_address: &IotaAddress, expected_data: &str| {
+        |output: CommandOutput, expected_address: &Address, expected_data: &str| {
             let CommandOutput::SignRaw(sign_raw_data) = output else {
                 panic!("Expected SignRaw output");
             };
@@ -867,13 +867,13 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
             assert_eq!(
                 call_arguments,
                 vec![
-                    "{\"pure\":{\"value\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}}"
+                    "{\"Pure\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}"
                 ]
             );
             assert_eq!(type_arguments, serde_json::json!([]));
             assert_eq!(
                 object_to_authenticate,
-                serde_json::json!({"shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
+                serde_json::json!({"Shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
             );
         }
         _ => panic!("Expected MoveAuthenticator variant"),

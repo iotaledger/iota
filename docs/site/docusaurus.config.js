@@ -321,8 +321,32 @@ const config = {
             },
             {
               from: '/about-iota/iota-wallet/how-to/integrate-ledger',
-              to: '/users/iota-wallet/how-to/import/ledger'
-            }
+              to: '/users/iota-wallet/how-to/import/ledger',
+            },
+            {
+              from: '/developer/iota-notarization/getting-started',
+              to: '/developer/iota-notarization/single-notarization/getting-started',
+            },
+            {
+              from: '/developer/iota-notarization/explanations',
+              to: '/developer/iota-notarization/single-notarization/explanations',
+            },
+            {
+              from: '/developer/iota-notarization/how-tos',
+              to: '/developer/iota-notarization/single-notarization/how-tos',
+            },
+            {
+              from: '/developer/iota-notarization/references',
+              to: '/developer/iota-notarization/single-notarization/references',
+            },
+            {
+              from: '/developer/iota-notarization/how-tos/real-world',
+              to: '/developer/iota-notarization/single-notarization/real-world-examples',
+            },
+            {
+              from: '/operator/extensions/indexer-functions',
+              to: '/operator/extended-data-services/iota-indexer',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {

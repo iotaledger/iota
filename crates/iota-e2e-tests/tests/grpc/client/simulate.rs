@@ -7,10 +7,9 @@ use iota_grpc_client::{
 };
 use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
-use iota_sdk_types::{Command, Transaction};
+use iota_sdk_types::{Address, Command, Transaction};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TransactionDataAPI},
@@ -108,7 +107,7 @@ async fn simulate_transaction_scenarios() {
         .unwrap()
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
-    let fake_recipient = IotaAddress::random();
+    let fake_recipient = Address::random();
     let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();

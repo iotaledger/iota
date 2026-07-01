@@ -35,5 +35,13 @@ tracing.workspace = true
 # internal dependencies
 iota-http.workspace = true
 
+[dev-dependencies]
+# external dependencies
+fastcrypto = { workspace = true, features = ["copy_key"] }
+rand.workspace = true
+
+# internal dependencies
+iota-tls.workspace = true
+
 [lints]
 workspace = true

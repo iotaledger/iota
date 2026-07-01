@@ -20,7 +20,8 @@ mod ingestion_tests {
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
-            objects::{BackwardHistoryObjectStatus, StoredCheckpointedObject, StoredObject},
+            obj_indices::StoredObjectVersion,
+            objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
@@ -31,14 +32,23 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::StructTag;
-    use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
+    use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::{
+        base_types::{ObjectRef, SequenceNumber},
+        crypto::KeypairTraits,
+        effects::{TransactionEffects, TransactionEffectsAPI},
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
 
     use crate::common::{
         backward_history::{find_all_entries_at_checkpoint, find_backward_entry},
-        indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer,
+        indexer_wait_for_checkpoint,
+        object_versions::find_object_versions_at_checkpoint,
+        start_simulacrum_grpc_with_write_indexer,
     };
 
     macro_rules! read_only_blocking {
@@ -83,7 +93,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -135,7 +145,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -173,7 +183,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IotaAddress::FRAMEWORK.as_bytes().to_vec())
+            Some(Address::FRAMEWORK.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -188,7 +198,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -245,7 +255,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -385,7 +395,7 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -432,7 +442,7 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -475,8 +485,8 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute several transfers to create mutations.
-        let recipient1 = IotaAddress::random();
-        let recipient2 = IotaAddress::random();
+        let recipient1 = Address::random();
+        let recipient2 = Address::random();
 
         let (tx1, _) = sim.transfer_txn(recipient1);
         let (_, err) = sim.execute_transaction(tx1).unwrap();
@@ -628,7 +638,7 @@ mod ingestion_tests {
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let recipient1 = IotaAddress::random();
+        let recipient1 = Address::random();
         let (tx1, _) = sim.transfer_txn(recipient1);
         let gas_ref_tx1 = tx1.gas()[0];
         let gas_object_id = gas_ref_tx1.object_id;
@@ -649,7 +659,7 @@ mod ingestion_tests {
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let recipient2 = IotaAddress::random();
+        let recipient2 = Address::random();
         let (tx2, _) = sim.transfer_txn(recipient2);
         let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
@@ -670,7 +680,7 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let recipient3 = IotaAddress::random();
+        let recipient3 = Address::random();
         let (tx3, _) = sim.transfer_txn(recipient3);
         let gas_version_before_tx3 = tx3.gas()[0].version;
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
@@ -702,10 +712,7 @@ mod ingestion_tests {
         // minus one).
         let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
             .expect("created coin 1 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_1_version.as_u64() as i64 - 1
@@ -715,10 +722,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)?
             .expect("created coin 2 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_2_version.as_u64() as i64 - 1
@@ -732,10 +736,7 @@ mod ingestion_tests {
             2,
             "gas object should have 2 backward history entries in cp 1 (one per tx)"
         );
-        assert_eq!(
-            gas_entries[0].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[0].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[0].object_version,
             gas_version_before_tx1.as_u64() as i64
@@ -744,10 +745,7 @@ mod ingestion_tests {
         assert!(gas_entries[0].object_digest.is_some());
         assert!(gas_entries[0].owner_type.is_some());
 
-        assert_eq!(
-            gas_entries[1].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[1].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[1].object_version,
             gas_version_before_tx2.as_u64() as i64
@@ -758,10 +756,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)?
             .expect("created coin 3 must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_3_version.as_u64() as i64 - 1
@@ -769,12 +764,394 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::Active as i16);
         assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
         assert!(entry.serialized_object.is_some());
+
+        Ok(())
+    }
+
+    /// Verify that `objects_version` is populated correctly: one row per output
+    /// object per transaction. Tests repeated mutations of the same object in a
+    /// single checkpoint.
+    #[tokio::test]
+    pub async fn object_versions_ingestion() -> Result<(), IndexerError> {
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().keep();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        // two transfers using the same gas object
+        let (tx1, _) = sim.transfer_txn(Address::random());
+        let gas_object_id = tx1.gas()[0].object_id;
+        let (effects1, err) = sim.execute_transaction(tx1).unwrap();
+        assert!(err.is_none());
+        let gas_after_tx1 = effects1
+            .mutated()
+            .into_iter()
+            .find(|(r, _)| r.object_id == gas_object_id)
+            .expect("gas must be mutated by tx1")
+            .0
+            .version;
+        let created_coin_1 = effects1.created()[0].0;
+
+        let (tx2, _) = sim.transfer_txn(Address::random());
+        let (effects2, err) = sim.execute_transaction(tx2).unwrap();
+        assert!(err.is_none());
+        let gas_after_tx2 = effects2
+            .mutated()
+            .into_iter()
+            .find(|(r, _)| r.object_id == gas_object_id)
+            .expect("gas must be mutated by tx2")
+            .0
+            .version;
+        let created_coin_2 = effects2.created()[0].0;
+
+        sim.create_checkpoint();
+
+        // one more transfer, separate checkpoint
+        let (tx3, _) = sim.transfer_txn(Address::random());
+        let (effects3, err) = sim.execute_transaction(tx3).unwrap();
+        assert!(err.is_none());
+        let gas_after_tx3 = effects3
+            .mutated()
+            .into_iter()
+            .find(|(r, _)| r.object_id == gas_object_id)
+            .expect("gas must be mutated by tx3")
+            .0
+            .version;
+        let created_coin_3 = effects3.created()[0].0;
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 2).await;
+
+        let make_version_row =
+            |id: ObjectId, version: SequenceNumber, cp: i64| StoredObjectVersion {
+                object_id: id.as_bytes().to_vec(),
+                object_version: version.as_u64() as i64,
+                cp_sequence_number: cp,
+            };
+
+        // checkpoint 1: gas mutated twice + two coins created
+        let mut cp1_expected = vec![
+            make_version_row(gas_object_id, gas_after_tx1, 1),
+            make_version_row(gas_object_id, gas_after_tx2, 1),
+            make_version_row(created_coin_1.object_id, created_coin_1.version, 1),
+            make_version_row(created_coin_2.object_id, created_coin_2.version, 1),
+        ];
+        cp1_expected.sort();
+        assert_eq!(
+            find_object_versions_at_checkpoint(&pg_store, 1)?,
+            cp1_expected
+        );
+
+        // checkpoint 2: gas mutated once + one coin created
+        let mut cp2_expected = vec![
+            make_version_row(gas_object_id, gas_after_tx3, 2),
+            make_version_row(created_coin_3.object_id, created_coin_3.version, 2),
+        ];
+        cp2_expected.sort();
+        assert_eq!(
+            find_object_versions_at_checkpoint(&pg_store, 2)?,
+            cp2_expected
+        );
+
+        Ok(())
+    }
+
+    /// Executes transaction in simulacrum, asserts success and returns effects.
+    fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
+        let (sender, key) = sim.with_keystore(|ks| {
+            let (s, k) = ks.accounts().next().unwrap();
+            (*s, k.copy())
+        });
+        assert_eq!(tx_data.sender(), sender);
+        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let (effects, err) = sim.execute_transaction(tx).unwrap();
+        assert!(err.is_none(), "tx failed: {err:?}");
+        effects
+    }
+
+    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectRef {
+        sim.with_store(|s| {
+            s.owned_objects(sender)
+                .find(|o| o.is_gas_coin())
+                .unwrap()
+                .object_ref()
+        })
+    }
+
+    /// Verify `objects_version` ingestion for every wrap/removal effect,
+    /// namely: `wrapped`, `unwrapped`, `deleted`, and
+    /// `unwrapped_then_deleted`.
+    #[tokio::test]
+    pub async fn objects_version_ingestion_wraps_and_removals() -> Result<(), IndexerError> {
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().keep();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let sender = sim.with_keystore(|ks| *ks.accounts().next().unwrap().0);
+        let rgp = sim.reference_gas_price();
+        let module = Identifier::from_static("example");
+
+        // publish package
+        let gas = pick_gas(&sim, sender);
+        let publish_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .publish_examples("simple_warrior")
+                .build(),
+        );
+        let package_id = publish_fx
+            .created()
+            .into_iter()
+            .find(|(_, owner)| matches!(owner, Owner::Immutable))
+            .expect("publish must create an immutable package")
+            .0
+            .object_id;
+        sim.create_checkpoint();
+
+        // mint a Sword
+        let gas = pick_gas(&sim, sender);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let strength = builder.pure(42u8).unwrap();
+        let sword_arg = builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("new_sword"),
+            vec![],
+            vec![strength],
+        );
+        builder.transfer_arg(sender, sword_arg);
+        let mint_sword_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .programmable(builder.finish())
+                .build(),
+        );
+        let sword_v0 = mint_sword_fx
+            .created()
+            .into_iter()
+            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .expect("mint must create the sword")
+            .0;
+        sim.create_checkpoint();
+
+        // cp3: mint a Warrior + equip sword
+        let gas = pick_gas(&sim, sender);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let warrior_arg = builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("new_warrior"),
+            vec![],
+            vec![],
+        );
+        let sword_input = builder.obj(CallArg::ImmutableOrOwned(sword_v0)).unwrap();
+        builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("equip"),
+            vec![],
+            vec![warrior_arg, sword_input],
+        );
+        builder.transfer_arg(sender, warrior_arg);
+        let equip_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .programmable(builder.finish())
+                .build(),
+        );
+        let warrior_v0 = equip_fx
+            .created()
+            .into_iter()
+            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .expect("equip tx must create the warrior")
+            .0;
+        let sword_wrapped_version = equip_fx
+            .wrapped()
+            .into_iter()
+            .find(|r| r.object_id == sword_v0.object_id)
+            .expect("sword must be wrapped in the equip tx")
+            .version;
+        sim.create_checkpoint();
+
+        // cp4: unequip sword
+        let gas = pick_gas(&sim, sender);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let warrior_input = builder.obj(CallArg::ImmutableOrOwned(warrior_v0)).unwrap();
+        let unwrapped_sword_arg = builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("unequip"),
+            vec![],
+            vec![warrior_input],
+        );
+        builder.transfer_arg(sender, unwrapped_sword_arg);
+        let unequip_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .programmable(builder.finish())
+                .build(),
+        );
+        let sword_unwrapped_ref = unequip_fx
+            .unwrapped()
+            .into_iter()
+            .find(|(r, _)| r.object_id == sword_v0.object_id)
+            .expect("sword must be unwrapped in the unequip tx")
+            .0;
+        let warrior_after_unequip = unequip_fx
+            .mutated()
+            .into_iter()
+            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .expect("warrior must be mutated by unequip")
+            .0;
+        sim.create_checkpoint();
+
+        // cp5: equip sword
+        let gas = pick_gas(&sim, sender);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let warrior_input = builder
+            .obj(CallArg::ImmutableOrOwned(warrior_after_unequip))
+            .unwrap();
+        let sword_input = builder
+            .obj(CallArg::ImmutableOrOwned(sword_unwrapped_ref))
+            .unwrap();
+        builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("equip"),
+            vec![],
+            vec![warrior_input, sword_input],
+        );
+        let reequip_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .programmable(builder.finish())
+                .build(),
+        );
+        let sword_rewrapped_version = reequip_fx
+            .wrapped()
+            .into_iter()
+            .find(|r| r.object_id == sword_v0.object_id)
+            .expect("sword must be wrapped in the re-equip tx")
+            .version;
+        let warrior_after_reequip = reequip_fx
+            .mutated()
+            .into_iter()
+            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .expect("warrior must be mutated by re-equip")
+            .0;
+        sim.create_checkpoint();
+
+        // cp6: destroy warrior
+        let gas = pick_gas(&sim, sender);
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let warrior_input = builder
+            .obj(CallArg::ImmutableOrOwned(warrior_after_reequip))
+            .unwrap();
+        builder.programmable_move_call(
+            package_id,
+            module.clone(),
+            Identifier::from_static("destroy_warrior"),
+            vec![],
+            vec![warrior_input],
+        );
+        let destroy_fx = execute_signed(
+            &sim,
+            TestTransactionBuilder::new(sender, gas, rgp)
+                .programmable(builder.finish())
+                .build(),
+        );
+        let warrior_deleted_version = destroy_fx
+            .deleted()
+            .into_iter()
+            .find(|r| r.object_id == warrior_v0.object_id)
+            .expect("warrior must be deleted in destroy_warrior")
+            .version;
+        let sword_unwrapped_deleted_version = destroy_fx
+            .unwrapped_then_deleted()
+            .into_iter()
+            .find(|r| r.object_id == sword_v0.object_id)
+            .expect("sword must be unwrapped_then_deleted in destroy_warrior")
+            .version;
+        sim.create_checkpoint();
+
+        // spin up the indexer
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+        indexer_wait_for_checkpoint(&pg_store, 6).await;
+
+        let assert_present =
+            |rows: &[StoredObjectVersion], id: ObjectId, version: SequenceNumber, label: &str| {
+                assert!(
+                    rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
+                        && r.object_version == version.as_u64() as i64),
+                    "expected {label}; rows: {rows:?}",
+                );
+            };
+
+        // cp3: warrior created (output) + sword wrapped (removed)
+        let cp3 = find_object_versions_at_checkpoint(&pg_store, 3)?;
+        assert_present(
+            &cp3,
+            warrior_v0.object_id,
+            warrior_v0.version,
+            "created warrior in cp3",
+        );
+        assert_present(
+            &cp3,
+            sword_v0.object_id,
+            sword_wrapped_version,
+            "wrapped sword in cp3",
+        );
+
+        // cp4: sword unwrapped (output)
+        let cp4 = find_object_versions_at_checkpoint(&pg_store, 4)?;
+        assert_present(
+            &cp4,
+            sword_v0.object_id,
+            sword_unwrapped_ref.version,
+            "unwrapped sword in cp4",
+        );
+
+        // cp5: sword re-wrapped (removed)
+        let cp5 = find_object_versions_at_checkpoint(&pg_store, 5)?;
+        assert_present(
+            &cp5,
+            sword_v0.object_id,
+            sword_rewrapped_version,
+            "re-wrapped sword in cp5",
+        );
+
+        // cp6: warrior deleted + sword unwrapped_then_deleted (both removed)
+        let cp6 = find_object_versions_at_checkpoint(&pg_store, 6)?;
+        assert_present(
+            &cp6,
+            warrior_v0.object_id,
+            warrior_deleted_version,
+            "deleted warrior in cp6",
+        );
+        assert_present(
+            &cp6,
+            sword_v0.object_id,
+            sword_unwrapped_deleted_version,
+            "unwrapped_then_deleted sword in cp6",
+        );
 
         Ok(())
     }

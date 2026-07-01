@@ -482,7 +482,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             // task will take care syncing whatever is leftover.
                             let missing_block_refs = missing_block_refs
                                 .into_iter()
-                                .take(self.context.parameters.max_headers_per_regular_sync_fetch)
+                                .take(self.context.parameters.max_headers_per_header_sync_fetch)
                                 .collect();
 
                             let blocks_guard = self.inflight_block_headers_map.lock_headers(missing_block_refs, peer_index, SyncMethod::Live);
@@ -647,6 +647,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 peer_index,
                                 blocks_guard,
                                 core_dispatcher.clone(),
+                                dag_state.clone(),
                                 block_verifier.clone(),
                                 verified_cache.clone(),
                                 commit_vote_monitor.clone(),
@@ -688,6 +689,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
+        dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<V>,
         verified_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
@@ -706,12 +708,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             .scope_processing_time
             .with_label_values(&["Synchronizer::process_fetched_blocks"])
             .start_timer();
-        if serialized_headers.len() > context.parameters.max_headers_per_regular_sync_fetch {
+        if serialized_headers.len() > context.parameters.max_headers_per_header_sync_fetch {
             debug!(
                 "Truncating fetched headers from peer {} to max allowed {} blocks",
-                peer_index, context.parameters.max_headers_per_regular_sync_fetch
+                peer_index, context.parameters.max_headers_per_header_sync_fetch
             );
-            serialized_headers.truncate(context.parameters.max_headers_per_regular_sync_fetch);
+            serialized_headers.truncate(context.parameters.max_headers_per_header_sync_fetch);
         }
 
         // Verify all the fetched block headers
@@ -764,6 +766,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .iter()
                 .map(|b| b.reference().to_string())
                 .join(", "),
+        );
+
+        // A peer may volunteer validly-signed headers we never requested, so
+        // bound the response here; the block manager applies the same bound
+        // downstream when these headers are accepted.
+        let block_headers = crate::block_manager::drop_far_future(
+            &context,
+            &dag_state,
+            block_headers,
+            DataSource::HeaderSynchronizer,
+            |header| header.round(),
         );
 
         // Now send them to core for processing. Ignore the returned missing blocks as
@@ -1197,7 +1210,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     inflight_block_headers_map.clone(),
                     network_client,
                     missing_blocks_refs,
-                    dag_state,
+                    dag_state.clone(),
                 )
                 .await;
                 context
@@ -1220,6 +1233,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         peer,
                         blocks_guard,
                         core_dispatcher.clone(),
+                        dag_state.clone(),
                         block_verifier.clone(),
                         verified_cache.clone(),
                         commit_vote_monitor.clone(),
@@ -1330,7 +1344,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let limited_block_refs = block_refs
                     .iter()
                     .copied()
-                    .take(context.parameters.max_headers_per_regular_sync_fetch)
+                    .take(context.parameters.max_headers_per_header_sync_fetch)
                     .collect();
                 (peer, limited_block_refs, "periodic_known")
             })
@@ -1349,7 +1363,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         let limited_block_refs = block_refs
                             .iter()
                             .copied()
-                            .take(context.parameters.max_headers_per_regular_sync_fetch)
+                            .take(context.parameters.max_headers_per_header_sync_fetch)
                             .collect();
                         (peer, limited_block_refs, "periodic_known")
                     })
@@ -1395,7 +1409,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         all_missing_block_headers_refs.shuffle(&mut rng);
 
         let mut block_headers_chunks = all_missing_block_headers_refs
-            .chunks(context.parameters.max_headers_per_regular_sync_fetch);
+            .chunks(context.parameters.max_headers_per_header_sync_fetch);
 
         for peer in random_peers {
             if let Some(chunk) = block_headers_chunks.next() {
@@ -2463,14 +2477,14 @@ mod tests {
         let stub_block_author_1 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(1))
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
         let stub_block_author_2 = stub_block_headers
             .iter()
             .filter(|(block, _)| block.author == AuthorityIndex::new_for_test(2))
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
@@ -2478,7 +2492,7 @@ mod tests {
         // blocks
         let stub_block_author_3 = stub_block_headers
             .iter()
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .map(|(_, block)| block.clone())
             .collect::<Vec<_>>();
 
@@ -2574,7 +2588,7 @@ mod tests {
         let sync_missing_block_round_threshold = context.parameters.commit_sync_batch_size;
         let stub_headers = (sync_missing_block_round_threshold * 2
             ..sync_missing_block_round_threshold * 2
-                + context.parameters.max_headers_per_regular_sync_fetch as u32)
+                + context.parameters.max_headers_per_header_sync_fetch as u32)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks_refs = stub_headers
@@ -2590,7 +2604,7 @@ mod tests {
         // authority = 0, so we are skipped anyway.
         let mut expected_headers = stub_headers
             .iter()
-            .take(context.parameters.max_headers_per_regular_sync_fetch)
+            .take(context.parameters.max_headers_per_header_sync_fetch)
             .cloned()
             .collect::<Vec<_>>();
         network_client
@@ -3103,7 +3117,7 @@ mod tests {
                             .unwrap()
                             .contains(&peer)
                     })
-                    .take(context.parameters.max_headers_per_regular_sync_fetch)
+                    .take(context.parameters.max_headers_per_header_sync_fetch)
                     .cloned()
                     .collect::<Vec<_>>();
                 (peer, verified_block_headers)
@@ -3137,8 +3151,7 @@ mod tests {
         // 4) Stub responses for fetches from additional random peers (1 and 4 in tests)
         network_client
             .stub_fetch_headers_response(
-                all_verified_block_headers
-                    [0..context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[0..context.parameters.max_headers_per_header_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(1),
                 None,
@@ -3147,8 +3160,8 @@ mod tests {
 
         network_client
             .stub_fetch_headers_response(
-                all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
-                    ..2 * context.parameters.max_headers_per_regular_sync_fetch]
+                all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
+                    ..2 * context.parameters.max_headers_per_header_sync_fetch]
                     .to_vec(),
                 AuthorityIndex::new_for_test(4),
                 None,
@@ -3187,7 +3200,7 @@ mod tests {
         let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
         let expected1 = all_verified_block_headers
-            [0..context.parameters.max_headers_per_regular_sync_fetch]
+            [0..context.parameters.max_headers_per_header_sync_fetch]
             .iter()
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
@@ -3197,8 +3210,8 @@ mod tests {
         let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
-            all_verified_block_headers[context.parameters.max_headers_per_regular_sync_fetch
-                ..2 * context.parameters.max_headers_per_regular_sync_fetch]
+            all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
+                ..2 * context.parameters.max_headers_per_header_sync_fetch]
                 .iter()
                 .map(|vb| vb.serialized().clone())
                 .collect::<Vec<_>>();
@@ -3286,6 +3299,7 @@ mod tests {
             peer_index,
             blocks_guard, // The guard is consumed here
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier.clone(),
             verified_cache.clone(),
             commit_vote_monitor.clone(),
@@ -3328,6 +3342,7 @@ mod tests {
             peer_index,
             blocks_guard_second,
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier,
             verified_cache.clone(),
             commit_vote_monitor,
@@ -3358,6 +3373,88 @@ mod tests {
             "Expected {} entries in the LruCache, but got {}",
             expected_block_refs.len(),
             cache_size
+        );
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_drops_far_future() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        // Frontier is genesis round 0; a header one past the ceiling can never
+        // connect and must be dropped, while an in-window header is forwarded.
+        let ceiling = context.parameters.far_future_round_ceiling(0);
+        let in_window = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(60, 0).build());
+        let far_future =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(ceiling + 1, 1).build());
+        let serialized = vec![
+            in_window.serialized().clone(),
+            far_future.serialized().clone(),
+        ];
+        let refs = [in_window.reference(), far_future.reference()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(refs, peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            serialized,
+            peer_index,
+            blocks_guard,
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        // Only the in-window header reaches core; the far-future one is dropped.
+        let added = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(
+            added.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+            vec![in_window.reference()],
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::HeaderSynchronizer.as_str()])
+                .get(),
+            1
         );
     }
 }

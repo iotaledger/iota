@@ -12,3 +12,25 @@ pub use validator::{
 };
 
 include!(concat!(env!("OUT_DIR"), "/validator_method_paths.rs"));
+
+mod validator_v2 {
+    tonic::include_proto!("iota.validator.v2");
+}
+
+pub use validator_v2::{
+    ExecutedStatus, ExpiredStatus, GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse,
+    NotifyCapabilitiesRequest, NotifyCapabilitiesResponse, RejectedStatus, StatusDetail,
+    SubmitTxRequest, SubmittedStatus, TxDigest, TxStatus, TxStatusQuery, status_detail,
+    validator_v2_client::ValidatorV2Client,
+    validator_v2_server::{ValidatorV2, ValidatorV2Server},
+};
+
+mod validator_peer {
+    tonic::include_proto!("iota.validator.peer");
+}
+
+pub use validator_peer::{
+    GetCheckpointRequest, GetCheckpointResponse,
+    validator_peer_client::ValidatorPeerClient,
+    validator_peer_server::{ValidatorPeer, ValidatorPeerServer},
+};

@@ -1,15 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Address, Identifier, ObjectData};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IotaAddress, StructTag,
+    StructTag,
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
     id::UID,
-    object::{Data, Object},
+    object::Object,
 };
 
 pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: Identifier =
@@ -77,7 +77,7 @@ pub struct CoinManagerTreasuryCap {
 
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address() == IotaAddress::FRAMEWORK
+        object_type.address() == Address::FRAMEWORK
             && object_type.module() == &Identifier::COIN_MANAGER_MODULE
             && object_type.name() == &COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }
@@ -93,7 +93,7 @@ impl TryFrom<Object> for CoinManager {
 impl TryFrom<&Object> for CoinManager {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        if let Data::Struct(o) = &object.data {
+        if let ObjectData::Struct(o) = &object.data {
             if o.struct_tag().is_coin_manager() {
                 return CoinManager::from_bcs_bytes(o.contents());
             }

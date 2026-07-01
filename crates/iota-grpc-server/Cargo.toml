@@ -32,6 +32,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-core.workspace = true
 iota-grpc-types.workspace = true
 iota-metrics.workspace = true
 iota-node-storage.workspace = true
