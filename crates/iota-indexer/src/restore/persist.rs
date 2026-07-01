@@ -46,7 +46,7 @@ impl Restore for PgIndexerStore {
         let sha3_digest = hasher.finalize().digest;
         if *expected_checksum != sha3_digest {
             tracing::error!(
-                "Sha does not match! expected: {expected_checksum:?}, actual: {sha3_digest:?}",
+                "sha does not match! expected: {expected_checksum:?}, actual: {sha3_digest:?}",
             );
             anyhow::bail!(
                 "checksum verification failed for bucket/partition: {}/{}",
