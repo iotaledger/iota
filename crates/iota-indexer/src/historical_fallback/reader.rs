@@ -273,8 +273,9 @@ impl HistoricalFallbackReader {
     /// and preserves its order; missing entries become `None`.
     ///
     /// # NOTE
-    /// As with [`Self::checkpoints`], `StoredCheckpoint.successful_tx_num` is
-    /// hardcoded to 0 in fallback-returned data.
+    /// As with [`checkpoints`](Self::checkpoints),
+    /// `StoredCheckpoint.successful_tx_num` is hardcoded to 0 in
+    /// fallback-returned data.
     pub(crate) async fn checkpoints_by_digests(
         &self,
         digests: Vec<CheckpointDigest>,
