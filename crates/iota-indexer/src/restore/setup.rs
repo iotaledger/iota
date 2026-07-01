@@ -88,22 +88,8 @@ pub(crate) async fn setup_reader(
     Ok((reader, epoch))
 }
 
-/// Returns the epochs for which there is an available formal snapshot of the
-/// network, in descending order.
-///
-/// # Errors
-///
-/// Returns an error if the read client cannot be built, or the root MANIFEST
-/// cannot be fetched or parsed.
-pub async fn available_epochs(network: Network) -> IndexerResult<Vec<u64>> {
-    let remote_store = FormalSnapshotStore::new(network)?;
-    let mut epochs = remote_store.available_epochs().await?;
-    epochs.sort_unstable_by_key(|&epoch| Reverse(epoch));
-    Ok(epochs)
-}
-
 /// Read client for a network's public formal snapshot store.
-struct FormalSnapshotStore {
+pub struct FormalSnapshotStore {
     config: ObjectStoreConfig,
     store: Arc<dyn ObjectStoreGetExt>,
 }
@@ -115,7 +101,7 @@ impl FormalSnapshotStore {
     ///
     /// Returns an error if the network is not `mainnet` or `testnet`, or if the
     /// client cannot be constructed.
-    fn new(network: Network) -> IndexerResult<Self> {
+    pub fn new(network: Network) -> IndexerResult<Self> {
         let aws_endpoint = match network {
             Network::Mainnet => MAINNET_FORMAL_SNAPSHOT_ENDPOINT,
             Network::Testnet => TESTNET_FORMAL_SNAPSHOT_ENDPOINT,
@@ -136,16 +122,23 @@ impl FormalSnapshotStore {
             .ok_or_else(|| IndexerError::Restore("No snapshot found in manifest".to_string()))
     }
 
-    /// Returns the epochs with a formal snapshot available in the remote store,
-    /// according to the root MANIFEST.
-    async fn available_epochs(&self) -> IndexerResult<Vec<u64>> {
+    /// Returns the epochs for which there is an available formal snapshot of
+    /// the ntwork, in descending order.
+    ///
+    /// # Errors
+    ///
+    /// Return an error if the read client cannot be build, or the root MANIFEST
+    /// cannot be fetched or parsed.
+    pub async fn available_epochs(&self) -> IndexerResult<Vec<u64>> {
         let manifest_contents = self.store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
         let root_manifest = RootManifest::from_bytes(&manifest_contents)?;
-        Ok(root_manifest
+        let mut epochs: Vec<_> = root_manifest
             .available_epochs
             .iter()
             .map(|(epoch, _)| *epoch)
-            .collect())
+            .collect();
+        epochs.sort_by_key(|&epoch| Reverse(epoch));
+        Ok(epochs)
     }
 
     /// Verifies that the formal snapshot upload for the given epoch has

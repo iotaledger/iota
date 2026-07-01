@@ -15,7 +15,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
-    restore::{available_epochs, start},
+    restore::{FormalSnapshotStore, start},
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
@@ -45,7 +45,9 @@ async fn main() -> Result<(), IndexerError> {
         command: RestoreCommand::AvailableEpochs,
     } = &opts.command
     {
-        let epochs = available_epochs(*network).await?;
+        let epochs = FormalSnapshotStore::new(*network)?
+            .available_epochs()
+            .await?;
         let json =
             serde_json::to_string(&epochs).map_err(|e| IndexerError::Serde(e.to_string()))?;
         println!("{json}");
