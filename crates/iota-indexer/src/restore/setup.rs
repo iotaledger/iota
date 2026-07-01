@@ -99,8 +99,7 @@ impl FormalSnapshotStore {
     ///
     /// # Errors
     ///
-    /// Returns an error if the network is not `mainnet` or `testnet`, or if the
-    /// client cannot be constructed.
+    /// Returns an error if the client cannot be constructed.
     pub fn new(network: Network) -> IndexerResult<Self> {
         let aws_endpoint = match network {
             Network::Mainnet => MAINNET_FORMAL_SNAPSHOT_ENDPOINT,
