@@ -46,7 +46,7 @@ async fn test_object_wrapping_unwrapping() {
     .await;
 
     let gas_version = authority.get_object(&gas).await.unwrap().version();
-    let create_child_version = SequenceNumber::lamport_increment([gas_version]).unwrap();
+    let create_child_version = Version::lamport_increment([gas_version]).unwrap();
 
     // Create a Child object.
     let effects = call_move(
@@ -74,11 +74,9 @@ async fn test_object_wrapping_unwrapping() {
     } = effects.created()[0].0;
     assert_eq!(child_object_ref_version, create_child_version);
 
-    let wrapped_version = SequenceNumber::lamport_increment([
-        child_object_ref_version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let wrapped_version =
+        Version::lamport_increment([child_object_ref_version, effects.gas_object().0.version])
+            .unwrap();
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -126,11 +124,9 @@ async fn test_object_wrapping_unwrapping() {
     } = effects.created()[0].0;
     assert_eq!(parent_object_ref_version, wrapped_version);
 
-    let unwrapped_version = SequenceNumber::lamport_increment([
-        parent_object_ref_version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let unwrapped_version =
+        Version::lamport_increment([parent_object_ref_version, effects.gas_object().0.version])
+            .unwrap();
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -166,7 +162,7 @@ async fn test_object_wrapping_unwrapping() {
     check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
     let child_object_ref = effects.unwrapped()[0].0;
 
-    let rewrap_version = SequenceNumber::lamport_increment([
+    let rewrap_version = Version::lamport_increment([
         parent_object_ref_version,
         child_object_ref.version,
         effects.gas_object().0.version,
@@ -208,11 +204,9 @@ async fn test_object_wrapping_unwrapping() {
     let child_object_ref = effects.wrapped()[0];
     let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
 
-    let deleted_version = SequenceNumber::lamport_increment([
-        parent_object_ref.version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let deleted_version =
+        Version::lamport_increment([parent_object_ref.version, effects.gas_object().0.version])
+            .unwrap();
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(

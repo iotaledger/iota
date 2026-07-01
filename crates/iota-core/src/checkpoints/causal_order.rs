@@ -225,9 +225,9 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, Version};
     use iota_types::{
-        base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+        base_types::{ObjectDigest, ObjectRef},
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
         },
@@ -265,17 +265,17 @@ mod tests {
         let obj_digest = ObjectDigest::new(Default::default());
         e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
-            SequenceNumber::from_u64(1),
+            Version::from_u64(1),
             obj_digest,
         )));
         e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
-            SequenceNumber::from_u64(1),
+            Version::from_u64(1),
             obj_digest,
         )));
         e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(ObjectRef::new(
             o(1),
-            SequenceNumber::from_u64(1),
+            Version::from_u64(1),
             obj_digest,
         )));
 

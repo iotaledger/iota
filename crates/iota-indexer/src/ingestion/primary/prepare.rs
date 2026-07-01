@@ -12,9 +12,8 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
@@ -682,7 +681,7 @@ impl PrimaryWorker {
 
 pub struct InMemObjectCache {
     id_map: HashMap<ObjectId, Object>,
-    seq_map: HashMap<(ObjectId, SequenceNumber), Object>,
+    seq_map: HashMap<(ObjectId, Version), Object>,
 }
 
 impl InMemObjectCache {
@@ -698,7 +697,7 @@ impl InMemObjectCache {
         self.seq_map.insert((obj.id(), obj.version()), obj);
     }
 
-    pub fn get(&self, id: &ObjectId, version: Option<&SequenceNumber>) -> Option<&Object> {
+    pub fn get(&self, id: &ObjectId, version: Option<&Version>) -> Option<&Object> {
         if let Some(version) = version {
             self.seq_map.get(&(*id, *version))
         } else {
@@ -774,11 +773,7 @@ impl InMemTxChanges {
 impl ObjectProvider for InMemTxChanges {
     type Error = IndexerError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object = self
             .object_cache
             .get(id, Some(version))
@@ -797,7 +792,7 @@ impl ObjectProvider for InMemTxChanges {
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
         let object = self

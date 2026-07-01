@@ -15,9 +15,9 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind, Version};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -36,7 +36,7 @@ pub(crate) trait DataFetcher {
     /// Fetch the specified versions of objects
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the latest versions of objects
@@ -60,7 +60,7 @@ pub(crate) trait DataFetcher {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError>;
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError>;
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError>;
 
@@ -130,7 +130,7 @@ impl DataFetcher for Fetchers {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_versioned(objects).await,
@@ -171,7 +171,7 @@ impl DataFetcher for Fetchers {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_loaded_child_objects(tx_digest).await,
             Fetchers::NodeStateDump(q) => q.get_loaded_child_objects(tx_digest).await,
@@ -489,7 +489,7 @@ impl DataFetcher for RemoteFetcher {
     async fn get_loaded_child_objects(
         &self,
         _: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         Ok(vec![])
     }
 
@@ -707,7 +707,7 @@ pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngi
 #[derive(Clone)]
 pub struct NodeStateDumpFetcher {
     pub node_state_dump: NodeStateDump,
-    pub object_ref_pool: BTreeMap<(ObjectId, SequenceNumber), Object>,
+    pub object_ref_pool: BTreeMap<(ObjectId, Version), Object>,
     pub latest_object_version_pool: BTreeMap<ObjectId, Object>,
 
     // Used when we need to fetch data from remote such as
@@ -761,7 +761,7 @@ impl NodeStateDumpFetcher {
 impl DataFetcher for NodeStateDumpFetcher {
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|(id, version)| {
@@ -823,7 +823,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_loaded_child_objects(
         &self,
         _tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         Ok(self
             .node_state_dump
             .loaded_child_objects

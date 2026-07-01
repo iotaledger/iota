@@ -6,9 +6,8 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Address, Argument, Owner};
+use iota_sdk_types::{Address, Argument, Owner, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     move_package::UpgradePolicy,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -408,20 +407,20 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::Parser
 
 #[derive(Clone, Debug)]
 pub enum IotaExtraValueArgs {
-    Object(FakeID, Option<SequenceNumber>),
+    Object(FakeID, Option<Version>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 #[derive(Clone)]
 pub enum IotaValue {
     MoveValue(MoveValue),
-    Object(FakeID, Option<SequenceNumber>),
-    ObjVec(Vec<(FakeID, Option<SequenceNumber>)>),
+    Object(FakeID, Option<Version>),
+    ObjVec(Vec<(FakeID, Option<Version>)>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 impl IotaExtraValueArgs {
@@ -460,7 +459,7 @@ impl IotaExtraValueArgs {
     fn parse_receiving_or_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
         ident_name: &str,
-    ) -> anyhow::Result<(FakeID, Option<SequenceNumber>)> {
+    ) -> anyhow::Result<(FakeID, Option<Version>)> {
         let contents = parser.advance(ValueToken::Ident)?;
         ensure!(contents == ident_name);
         parser.advance(ValueToken::LParen)?;
@@ -485,7 +484,7 @@ impl IotaExtraValueArgs {
             parser.advance(ValueToken::AtSign)?;
             let v_str = parser.advance(ValueToken::Number)?;
             let (v, _) = parse_u64(v_str)?;
-            Some(SequenceNumber::from_u64(v))
+            Some(Version::from_u64(v))
         } else {
             None
         };
@@ -505,7 +504,7 @@ impl IotaValue {
         }
     }
 
-    fn assert_object(self) -> (FakeID, Option<SequenceNumber>) {
+    fn assert_object(self) -> (FakeID, Option<Version>) {
         match self {
             IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
             IotaValue::Object(id, version) => (id, version),
@@ -518,7 +517,7 @@ impl IotaValue {
 
     fn resolve_object(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<Object> {
         let id = match test_adapter.fake_to_real_object_id(fake_id) {
@@ -539,7 +538,7 @@ impl IotaValue {
 
     fn receiving_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -548,7 +547,7 @@ impl IotaValue {
 
     fn read_shared_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -566,7 +565,7 @@ impl IotaValue {
 
     fn object_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;

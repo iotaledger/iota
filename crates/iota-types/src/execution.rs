@@ -4,12 +4,12 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{Argument, Event, ObjectData, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Argument, Event, ObjectData, ObjectId, Owner, TypeTag, Version};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     digests::{ObjectDigest, TransactionDigest},
     object::{MoveObjectExt, Object},
     storage::BackingPackageStore,
@@ -24,7 +24,7 @@ use crate::{
 ///    as a read-only shared object.
 /// 3. The transaction digest of the previous transaction that used this shared
 ///    object mutably or took it by value.
-pub type DeletedSharedObjectInfo = (ObjectId, SequenceNumber, bool, TransactionDigest);
+pub type DeletedSharedObjectInfo = (ObjectId, Version, bool, TransactionDigest);
 
 /// A sequence of information about deleted shared objects in the transaction's
 /// inputs.
@@ -34,12 +34,12 @@ pub type DeletedSharedObjects = Vec<DeletedSharedObjectInfo>;
 pub enum SharedInput {
     Existing(ObjectRef),
     Deleted(DeletedSharedObjectInfo),
-    Cancelled((ObjectId, SequenceNumber)),
+    Cancelled((ObjectId, Version)),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DynamicallyLoadedObjectMetadata {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub owner: Owner,
     pub storage_rebate: u64,
@@ -105,7 +105,7 @@ impl ExecutionResultsV1 {
 
     pub fn update_version_and_previous_tx(
         &mut self,
-        lamport_version: SequenceNumber,
+        lamport_version: Version,
         prev_tx: TransactionDigest,
         input_objects: &BTreeMap<ObjectId, Object>,
     ) {
@@ -141,7 +141,7 @@ impl ExecutionResultsV1 {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
-                        SequenceNumber::default(),
+                        Version::default(),
                         "Initial version should be blank before this point for {id}",
                     );
                     *initial_shared_version = lamport_version;
@@ -155,7 +155,7 @@ impl ExecutionResultsV1 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));
                     debug_assert!(
-                        *initial_shared_version == SequenceNumber::default()
+                        *initial_shared_version == Version::default()
                             || *initial_shared_version == *previous_initial_shared_version
                     );
 

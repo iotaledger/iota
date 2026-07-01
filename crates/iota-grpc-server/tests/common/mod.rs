@@ -13,9 +13,8 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -171,7 +170,7 @@ impl iota_types::storage::ObjectStore for MockGrpcStateReader {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        _version: SequenceNumber,
+        _version: Version,
     ) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
     }

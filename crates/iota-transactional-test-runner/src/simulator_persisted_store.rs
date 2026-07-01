@@ -7,10 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, Version};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectRef, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -69,8 +69,8 @@ pub struct PersistedStoreInner {
     last_checkpoints_per_epoch: DBMap<EpochId, CheckpointSequenceNumber>,
 
     // Object data
-    live_objects: DBMap<ObjectId, SequenceNumber>,
-    objects: DBMap<ObjectId, BTreeMap<SequenceNumber, Object>>,
+    live_objects: DBMap<ObjectId, Version>,
+    objects: DBMap<ObjectId, BTreeMap<Version, Object>>,
 }
 
 impl PersistedStore {
@@ -185,7 +185,7 @@ impl SimulatorStore for PersistedStore {
         self.get_object_at_version(id, version)
     }
 
-    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object> {
         self.read_write
             .objects
             .get(id)
@@ -367,7 +367,7 @@ impl ChildObjectResolver for PersistedStore {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match SimulatorStore::get_object(self, child) {
             None => return Ok(None),
@@ -397,7 +397,7 @@ impl ChildObjectResolver for PersistedStore {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let recv_object = match SimulatorStore::get_object(self, receiving_object_id) {

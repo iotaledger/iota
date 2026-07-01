@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
+use iota_sdk_types::Version;
 use iota_types::{
-    base_types::SequenceNumber,
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     global_state_hash::GlobalStateHash,
@@ -158,7 +158,7 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectId, SequenceNumber>,
+    pub(crate) object_tombstones: DBMap<ObjectId, Version>,
 }
 
 impl AuthorityPrunerTables {
@@ -245,7 +245,7 @@ impl AuthorityPerpetualTables {
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut iter = self.objects.safe_range_iter_reversed(
             ObjectKey::min_for_id(&object_id)..=ObjectKey(object_id, version),
@@ -410,7 +410,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_newer_object_keys(
         &self,
-        object: &(ObjectId, SequenceNumber),
+        object: &(ObjectId, Version),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self
@@ -551,7 +551,7 @@ impl LiveObject {
         }
     }
 
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         match self {
             LiveObject::Normal(obj) => obj.version(),
             LiveObject::Wrapped(key) => key.1,

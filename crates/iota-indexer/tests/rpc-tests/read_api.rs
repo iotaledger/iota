@@ -21,13 +21,13 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, ObjectId, Version};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -1487,7 +1487,7 @@ fn try_get_past_object_object_not_exists() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_id = ObjectId::random();
-        let version = SequenceNumber::default();
+        let version = Version::default();
 
         let result = client
             .try_get_past_object(object_id, version.into(), None)
@@ -1655,7 +1655,7 @@ fn try_get_past_object_object_deleted() {
         let deleted_version = nft_object_ref.version.next().unwrap();
 
         let result = client
-            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
+            .try_get_object_before_version(nft_object_id, Version::MAX_VALID_EXCL)
             .await
             .expect("rpc call should succeed");
 
@@ -1723,9 +1723,9 @@ fn try_multi_get_past_objects() {
         let object_1 = ObjectId::random();
         let object_2 = ObjectId::random();
         let object_3 = ObjectId::random();
-        let version_1 = SequenceNumber::default();
-        let version_2 = SequenceNumber::default();
-        let version_3 = SequenceNumber::default();
+        let version_1 = Version::default();
+        let version_2 = Version::default();
+        let version_3 = Version::default();
 
         let requests = vec![
             IotaGetPastObjectRequest {

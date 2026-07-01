@@ -31,11 +31,11 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
+    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, TransactionDigest, TxContext},
+    base_types::{ExecutionDigests, ObjectRef, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -1300,11 +1300,11 @@ fn create_genesis_transaction(
             .into_iter()
             .map(|mut object| {
                 if let Some(o) = object.data.as_opt_mut_struct() {
-                    o.decrement_version_to(SequenceNumber::MIN_VALID_INCL);
+                    o.decrement_version_to(Version::MIN_VALID_INCL);
                 }
 
                 if let Owner::Shared(initial_shared_version) = &mut object.owner {
-                    *initial_shared_version = SequenceNumber::MIN_VALID_INCL;
+                    *initial_shared_version = Version::MIN_VALID_INCL;
                 }
 
                 let object = object.into_inner();

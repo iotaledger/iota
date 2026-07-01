@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_types::base_types::SequenceNumber;
+use iota_sdk_types::Version;
 use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 
@@ -25,8 +25,8 @@ pub enum CacheResult<T> {
 
 /// CachedVersionMap is a map from version to value, with the additional
 /// constraints:
-/// - The key (SequenceNumber) must be monotonically increasing for each insert.
-///   If a key is inserted that is less than the previous key, it results in an
+/// - The key (Version) must be monotonically increasing for each insert. If a
+///   key is inserted that is less than the previous key, it results in an
 ///   assertion failure.
 /// - Similarly, only the item with the least key can be removed.
 /// - The intent of these constraints is to ensure that there are never gaps in
@@ -34,7 +34,7 @@ pub enum CacheResult<T> {
 ///   to both the highest and lowest (first and last) entries.
 #[derive(Debug)]
 pub struct CachedVersionMap<V> {
-    values: VecDeque<(SequenceNumber, V)>,
+    values: VecDeque<(Version, V)>,
 }
 
 impl<V> Default for CachedVersionMap<V> {
@@ -50,7 +50,7 @@ impl<V> CachedVersionMap<V> {
         self.values.is_empty()
     }
 
-    pub fn insert(&mut self, version: SequenceNumber, value: V) {
+    pub fn insert(&mut self, version: Version, value: V) {
         if !self.values.is_empty() {
             let back = self.values.back().unwrap().0;
             assert!(
@@ -63,12 +63,12 @@ impl<V> CachedVersionMap<V> {
 
     pub fn all_versions_lt_or_eq_descending<'a>(
         &'a self,
-        version: &'a SequenceNumber,
-    ) -> impl Iterator<Item = &'a (SequenceNumber, V)> {
+        version: &'a Version,
+    ) -> impl Iterator<Item = &'a (Version, V)> {
         self.values.iter().rev().filter(move |(v, _)| v <= version)
     }
 
-    pub fn get(&self, version: &SequenceNumber) -> Option<&V> {
+    pub fn get(&self, version: &Version) -> Option<&V> {
         for (v, value) in self.values.iter().rev() {
             match v.cmp(version) {
                 Ordering::Less => return None,
@@ -81,12 +81,12 @@ impl<V> CachedVersionMap<V> {
     }
 
     /// returns the newest (highest) version in the map
-    pub fn get_highest(&self) -> Option<&(SequenceNumber, V)> {
+    pub fn get_highest(&self) -> Option<&(Version, V)> {
         self.values.back()
     }
 
     /// returns the oldest (lowest) version in the map
-    pub fn get_least(&self) -> Option<&(SequenceNumber, V)> {
+    pub fn get_least(&self) -> Option<&(Version, V)> {
         self.values.front()
     }
 
@@ -98,7 +98,7 @@ impl<V> CachedVersionMap<V> {
     }
 
     // remove the value if it is the first element in values.
-    pub fn pop_oldest(&mut self, version: &SequenceNumber) -> Option<V> {
+    pub fn pop_oldest(&mut self, version: &Version) -> Option<V> {
         let oldest = self.values.pop_front()?;
         // if this assert fails it indicates we are committing transaction data out
         // of causal order
@@ -299,13 +299,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_types::base_types::SequenceNumber;
+    use iota_sdk_types::Version;
 
     use super::*;
 
-    // Helper function to create a SequenceNumber for simplicity
-    fn seq(num: u64) -> SequenceNumber {
-        SequenceNumber::from(num)
+    // Helper function to create a Version for simplicity
+    fn seq(num: u64) -> Version {
+        Version::from(num)
     }
 
     #[test]

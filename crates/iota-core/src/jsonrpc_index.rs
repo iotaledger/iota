@@ -19,12 +19,10 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, Version};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{
-        ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest, TxSequenceNumber,
-    },
+    base_types::{ObjectDigest, ObjectInfo, ObjectRef, TransactionDigest, TxSequenceNumber},
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
     effects::TransactionEvents,
@@ -86,7 +84,7 @@ pub struct ObjectIndexChanges {
 
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct CoinInfo {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub balance: u64,
     pub previous_transaction: TransactionDigest,

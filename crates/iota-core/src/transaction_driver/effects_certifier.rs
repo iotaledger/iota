@@ -1079,9 +1079,8 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use iota_sdk_types::{Address, ExecutionStatus, GasCostSummary, ObjectId, Owner};
+    use iota_sdk_types::{Address, ExecutionStatus, GasCostSummary, ObjectId, Owner, Version};
     use iota_types::{
-        base_types::SequenceNumber,
         committee::Committee,
         digests::TransactionDigest,
         effects::{
@@ -1620,16 +1619,10 @@ mod tests {
         // it (output, at the lamport version 2).
         let object_id = ObjectId::random();
         let owner = Owner::Address(Address::ZERO);
-        let input_object = Object::with_id_owner_version_for_testing(
-            object_id,
-            SequenceNumber::from_u64(1),
-            owner,
-        );
-        let output_object = Object::with_id_owner_version_for_testing(
-            object_id,
-            SequenceNumber::from_u64(2),
-            owner,
-        );
+        let input_object =
+            Object::with_id_owner_version_for_testing(object_id, Version::from_u64(1), owner);
+        let output_object =
+            Object::with_id_owner_version_for_testing(object_id, Version::from_u64(2), owner);
         let input_ref = input_object.object_ref();
         let output_ref = output_object.object_ref();
         let effects = TransactionEffects::new_from_execution_v1(

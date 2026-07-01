@@ -27,7 +27,7 @@ use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -37,7 +37,7 @@ use iota_storage::{
     },
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectRef},
     global_state_hash::GlobalStateHash,
 };
 use object_store::path::Path;
@@ -656,7 +656,7 @@ impl ObjectRefIter {
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
         let object_ref = ObjectRef::new(
             ObjectId::from_bytes(object_id)?,
-            SequenceNumber::from_u64(*sequence_number),
+            Version::from_u64(*sequence_number),
             ObjectDigest::from_bytes(sha3_digest)?,
         );
         Ok(object_ref)

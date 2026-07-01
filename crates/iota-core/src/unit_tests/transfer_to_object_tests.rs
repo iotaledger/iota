@@ -6,9 +6,10 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
+    Version,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -432,7 +433,7 @@ async fn test_tto_invalid_receiving_arguments() {
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, SequenceNumber::MAX_VALID_EXCL, x.digest)),
+                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (

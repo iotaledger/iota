@@ -113,7 +113,7 @@ use tokio::time::Instant;
 /// │ │         ObjectRef N      │ │
 /// │ └──────────────────────────┘ │
 /// └──────────────────────────────┘
-/// ObjectRef (ObjectId, SequenceNumber, ObjectDigest)
+/// ObjectRef (ObjectId, Version, ObjectDigest)
 /// ┌───────────────┬───────────────────┬──────────────┐
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘

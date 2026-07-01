@@ -46,7 +46,7 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, Owner, RandomnessRound,
-    StructTag, TransactionExpiration, TransactionKind, TypeTag,
+    StructTag, TransactionExpiration, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -68,8 +68,7 @@ use iota_types::{
     },
     auth_context::AuthContextData,
     base_types::{
-        AuthorityName, ConciseableName, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        VersionNumber,
+        AuthorityName, ConciseableName, ObjectInfo, ObjectRef, ObjectType, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
@@ -4025,7 +4024,7 @@ impl AuthorityState {
     pub fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<PastObjectRead> {
         // Firstly we see if the object ever existed by getting its latest data
         let Some(obj_ref) = self
@@ -4079,7 +4078,7 @@ impl AuthorityState {
     fn read_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
             .get_object_cache_reader()
@@ -4109,11 +4108,7 @@ impl AuthorityState {
         Ok(layout)
     }
 
-    fn get_owner_at_version(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<Owner> {
+    fn get_owner_at_version(&self, object_id: &ObjectId, version: Version) -> IotaResult<Owner> {
         self.get_object_store()
             .try_get_object_by_key(object_id, version)?
             .ok_or_else(|| {
@@ -5629,7 +5624,7 @@ impl AuthorityState {
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,
-        auth_account_object_seq_number: Option<SequenceNumber>,
+        auth_account_object_seq_number: Option<Version>,
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,

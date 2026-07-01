@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{SequenceNumber, TransactionDigest},
+    base_types::TransactionDigest,
     committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     digests::TransactionEffectsDigest,
@@ -44,7 +44,7 @@ pub enum ObjectInfoRequestKind {
     /// This is used only for debugging purpose and will not work as a generic
     /// solution since we don't keep around all historic object versions.
     /// No production code should depend on this kind.
-    PastObjectInfoDebug(SequenceNumber),
+    PastObjectInfoDebug(Version),
 }
 
 /// Layout generation options -- you can either generate or not generate the
@@ -70,7 +70,7 @@ pub struct ObjectInfoRequest {
 impl ObjectInfoRequest {
     pub fn past_object_info_debug_request(
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         generate_layout: LayoutGenerationOption,
     ) -> Self {
         ObjectInfoRequest {

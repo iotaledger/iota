@@ -54,7 +54,6 @@ use serde_with::{Bytes, serde_as};
 
 use crate::{
     Address,
-    base_types::SequenceNumber,
     collection_types::{Entry, VecMap},
     derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
@@ -175,7 +174,7 @@ pub trait MovePackageExt: Sized + move_package_ext::Sealed {
     ) -> Result<MovePackage, ExecutionError>;
 
     fn new_system(
-        version: SequenceNumber,
+        version: Version,
         modules: &[CompiledModule],
         dependencies: impl IntoIterator<Item = ObjectId>,
     ) -> MovePackage;
@@ -183,7 +182,7 @@ pub trait MovePackageExt: Sized + move_package_ext::Sealed {
     fn from_module_iter_with_type_origin_table<'p>(
         storage_id: ObjectId,
         self_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
         type_origin_table: Vec<TypeOrigin>,
@@ -271,7 +270,7 @@ impl MovePackageExt for MovePackage {
     }
 
     fn new_system(
-        version: SequenceNumber,
+        version: Version,
         modules: &[CompiledModule],
         dependencies: impl IntoIterator<Item = ObjectId>,
     ) -> MovePackage {
@@ -296,7 +295,7 @@ impl MovePackageExt for MovePackage {
                 //
                 // This reason, coupled with the fact that system packages can only depend on each
                 // other, mean that their own linkage tables always report a version of zero.
-                upgraded_version: SequenceNumber::default(),
+                upgraded_version: Version::default(),
             };
             (dep, info)
         }));
@@ -324,7 +323,7 @@ impl MovePackageExt for MovePackage {
     fn from_module_iter_with_type_origin_table<'p>(
         storage_id: ObjectId,
         self_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
         type_origin_table: Vec<TypeOrigin>,
@@ -378,7 +377,7 @@ impl MovePackageExt for MovePackage {
     /// function will always return the `Package ID`/`Storage ID` of the first
     /// package version in the version chain.
     fn original_package_id(&self) -> ObjectId {
-        if self.version == SequenceNumber::OBJECT_START {
+        if self.version == Version::OBJECT_START {
             // for a non-upgraded package, original ID is just the package ID
             return self.id;
         }

@@ -4,8 +4,8 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
-use iota_types::base_types::{ObjectDigest, ObjectRef, SequenceNumber};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
+use iota_types::base_types::{ObjectDigest, ObjectRef};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -32,7 +32,7 @@ pub enum ObjectChange {
         package_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -55,7 +55,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -77,10 +77,10 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        previous_version: SequenceNumber,
+        previous_version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -99,7 +99,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
     },
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
@@ -115,7 +115,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
     },
     /// Unwrapped object
     #[serde(rename_all = "camelCase")]
@@ -134,7 +134,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -156,7 +156,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -217,7 +217,7 @@ impl ObjectChange {
         }
     }
 
-    pub fn mask_for_test(&mut self, new_version: SequenceNumber, new_digest: ObjectDigest) {
+    pub fn mask_for_test(&mut self, new_version: Version, new_digest: ObjectDigest) {
         match self {
             ObjectChange::Published {
                 version, digest, ..

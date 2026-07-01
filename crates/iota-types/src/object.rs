@@ -11,7 +11,7 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag,
+    Address, MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag, Version,
     move_package::MovePackage,
 };
 pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner};
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectRef, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{
@@ -41,7 +41,7 @@ pub mod bounded_visitor;
 pub mod option_visitor;
 
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
-pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
+pub const OBJECT_START_VERSION: Version = Version::from_u64(1);
 
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectId::LENGTH;
@@ -54,18 +54,18 @@ mod move_object_ext {
 pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
     fn new_from_execution(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError>;
     fn new_from_execution_with_limit(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError>;
-    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self;
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self;
+    fn new_gas_coin(version: Version, id: ObjectId, value: u64) -> Self;
+    fn new_coin(coin_type: TypeTag, version: Version, id: ObjectId, value: u64) -> Self;
     fn get_coin_value_unchecked(&self) -> u64;
     fn set_coin_value_unchecked(&mut self, value: u64);
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
@@ -79,8 +79,8 @@ pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
         new_contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<(), ExecutionError>;
-    fn increment_version_to(&mut self, next: SequenceNumber);
-    fn decrement_version_to(&mut self, prev: SequenceNumber);
+    fn increment_version_to(&mut self, next: Version);
+    fn decrement_version_to(&mut self, prev: Version);
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
     fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
@@ -100,7 +100,7 @@ impl MoveObjectExt for MoveObject {
     /// `contents`.
     fn new_from_execution(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError> {
@@ -116,7 +116,7 @@ impl MoveObjectExt for MoveObject {
     /// `contents`. It allows to set a `max_move_object_size` for that.
     fn new_from_execution_with_limit(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError> {
@@ -131,7 +131,7 @@ impl MoveObjectExt for MoveObject {
         Self::new(tag.into(), version, contents).map_err(ExecutionError::invariant_violation)
     }
 
-    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self {
+    fn new_gas_coin(version: Version, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -143,7 +143,7 @@ impl MoveObjectExt for MoveObject {
         .unwrap()
     }
 
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self {
+    fn new_coin(coin_type: TypeTag, version: Version, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -236,7 +236,7 @@ impl MoveObjectExt for MoveObject {
 
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
-    fn increment_version_to(&mut self, next: SequenceNumber) {
+    fn increment_version_to(&mut self, next: Version) {
         debug_assert!(
             self.version() < next,
             "Not an increment: {} to {next}",
@@ -246,7 +246,7 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Sets the version to a lower value (checked in debug).
-    fn decrement_version_to(&mut self, prev: SequenceNumber) {
+    fn decrement_version_to(&mut self, prev: Version) {
         debug_assert!(
             prev < self.version(),
             "Not a decrement: {} to {prev}",
@@ -449,7 +449,7 @@ impl Object {
     /// the object ID is not a known system package.
     pub fn new_system_package(
         modules: &[CompiledModule],
-        version: SequenceNumber,
+        version: Version,
         dependencies: Vec<ObjectId>,
         previous_transaction: TransactionDigest,
     ) -> Self {
@@ -694,11 +694,7 @@ impl Object {
         Self::with_id_owner_gas_for_testing(id, owner, GAS_VALUE_FOR_TESTING)
     }
 
-    pub fn with_id_owner_version_for_testing(
-        id: ObjectId,
-        version: SequenceNumber,
-        owner: Owner,
-    ) -> Self {
+    pub fn with_id_owner_version_for_testing(id: ObjectId, version: Version, owner: Owner) -> Self {
         let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
@@ -822,12 +818,12 @@ pub enum PastObjectRead {
     /// The object exists and is found with this version
     VersionFound(ObjectRef, Object, Option<MoveStructLayout>),
     /// The object exists but not found with this version
-    VersionNotFound(ObjectId, SequenceNumber),
+    VersionNotFound(ObjectId, Version),
     /// The asked object version is higher than the latest
     VersionTooHigh {
         object_id: ObjectId,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        asked_version: Version,
+        latest_version: Version,
     },
 }
 

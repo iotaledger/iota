@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::{IotaError, UserInputError},
@@ -409,7 +409,7 @@ async fn test_stale_version_dropped_fresh_kept() {
     // stale and absent from the store.
     let object = Object::with_id_owner_version_for_testing(
         object_id,
-        SequenceNumber::from(2),
+        Version::from(2),
         Owner::Address(sender),
     );
 
@@ -428,7 +428,7 @@ async fn test_stale_version_dropped_fresh_kept() {
 
     let fresh_ref = object.object_ref();
     // Stale reference: same object id and digest, but the previous version.
-    let stale_ref = ObjectRef::new(object_id, SequenceNumber::from(1), fresh_ref.digest);
+    let stale_ref = ObjectRef::new(object_id, Version::from(1), fresh_ref.digest);
 
     let tx_stale = make_transfer_object_transaction(
         stale_ref,

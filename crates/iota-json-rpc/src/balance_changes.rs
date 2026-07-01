@@ -9,9 +9,9 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, TypeTag, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -90,8 +90,8 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
 
 pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    modified_at_version: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
-    all_mutated: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
+    modified_at_version: &[(ObjectId, Version, Option<ObjectDigest>)],
+    all_mutated: &[(ObjectId, Version, Option<ObjectDigest>)],
 ) -> Result<Vec<BalanceChange>, E> {
     // 1. subtract all input coins
     let balances = fetch_coins(object_provider, modified_at_version)
@@ -130,7 +130,7 @@ pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
 
 async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    objects: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
+    objects: &[(ObjectId, Version, Option<ObjectDigest>)],
 ) -> Result<Vec<(Owner, TypeTag, u64)>, E> {
     let mut all_mutated_coins = vec![];
     for (id, version, digest_opt) in objects {
@@ -162,21 +162,17 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
 #[async_trait]
 pub trait ObjectProvider {
     type Error;
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error>;
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error>;
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error>;
 }
 
 pub struct ObjectProviderCache<P> {
-    object_cache: RwLock<BTreeMap<(ObjectId, SequenceNumber), Object>>,
-    last_version_cache: RwLock<BTreeMap<(ObjectId, SequenceNumber), SequenceNumber>>,
+    object_cache: RwLock<BTreeMap<(ObjectId, Version), Object>>,
+    last_version_cache: RwLock<BTreeMap<(ObjectId, Version), Version>>,
     provider: P,
 }
 
@@ -253,11 +249,7 @@ where
 {
     type Error = P::Error;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         if let Some(o) = self.object_cache.read().await.get(&(*id, *version)) {
             return Ok(o.clone());
         }
@@ -272,7 +264,7 @@ where
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         if let Some(version) = self.last_version_cache.read().await.get(&(*id, *version)) {
             return Ok(self.get_object(id, version).await.ok());

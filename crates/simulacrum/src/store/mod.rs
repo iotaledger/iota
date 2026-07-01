@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     committee::{Committee, EpochId},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -55,7 +55,7 @@ pub trait SimulatorStore:
 
     fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 

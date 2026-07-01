@@ -10,11 +10,8 @@ use iota_json_rpc_types::{
     iota_primitives::{Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
-    iota_serde::BigInt,
-};
+use iota_sdk_types::{ObjectId, Version};
+use iota_types::{base_types::TransactionDigest, iota_serde::BigInt};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for reading transaction related data such as transaction
@@ -119,7 +116,7 @@ pub trait ReadApi {
         /// the ID of the queried object
         object_id: ObjectId,
         /// the version of the queried object
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past

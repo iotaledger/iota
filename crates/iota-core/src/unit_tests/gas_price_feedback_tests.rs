@@ -10,10 +10,10 @@ use iota_protocol_config::{
 use iota_sdk_types::{
     Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
     ExecutionStatus, ObjectId, ProgrammableTransaction, TransactionKind, UnchangedSharedKind,
-    VersionAssignment,
+    Version, VersionAssignment,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
@@ -659,14 +659,14 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         )
                         .unwrap(),
@@ -678,14 +678,14 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         )
                         .unwrap(),
@@ -748,7 +748,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             (
                 tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
                     .unwrap()
@@ -757,7 +757,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             (
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
                     .unwrap()
@@ -797,7 +797,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             (
                 tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
                     .unwrap()
@@ -806,7 +806,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             (
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
                     .unwrap()
@@ -818,7 +818,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
 
 // Test that everything works well if the gas price feedback mechanism is
 // turned off: specifically, old `ExecutionCancelledDueToSharedObjectCongestion`
-// and `SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
+// and `Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
 #[sim_test]
 async fn gas_price_feedback_mechanism_is_turned_off() {
     let num_gas_objects = 2;
@@ -881,11 +881,11 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                    Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
                 VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+                    Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
             ],
         }];
@@ -958,13 +958,13 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             (
                 tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                    version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 }
             ),
             (
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                    version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 }
             ),
         ]
@@ -1038,17 +1038,13 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
-                        expected_suggested_gas_price,
-                    )
-                    .unwrap(),
+                    Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                        .unwrap(),
                 ),
                 VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
-                        expected_suggested_gas_price,
-                    )
-                    .unwrap(),
+                    Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                        .unwrap(),
                 ),
             ],
         }];
@@ -1108,7 +1104,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             (
                 tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
@@ -1117,7 +1113,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             (
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
@@ -1278,17 +1274,13 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
-                        expected_suggested_gas_price,
-                    )
-                    .unwrap(),
+                    Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                        .unwrap(),
                 ),
                 VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
-                        expected_suggested_gas_price,
-                    )
-                    .unwrap(),
+                    Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                        .unwrap(),
                 ),
             ],
         }];
@@ -1358,7 +1350,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             (
                 tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
@@ -1367,7 +1359,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             (
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
@@ -1464,7 +1456,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 digest: *certificates[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                    Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
                     .unwrap(),
@@ -1474,7 +1466,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 digest: *certificates[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                    Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
                     .unwrap(),
@@ -1485,14 +1477,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
@@ -1504,14 +1496,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
@@ -1523,14 +1515,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
@@ -1542,14 +1534,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
@@ -1561,14 +1553,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
@@ -1631,7 +1623,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             vec![(
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2
                     )
                     .unwrap()
@@ -1674,7 +1666,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 (
                     tester.shared_counter_1.object_id,
                     UnchangedSharedKind::Cancelled {
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
                         .unwrap()
@@ -1683,7 +1675,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 (
                     tester.shared_counter_2.object_id,
                     UnchangedSharedKind::Cancelled {
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
                         .unwrap()
@@ -1788,7 +1780,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 digest: *certificates[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                    Version::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
                     .unwrap(),
@@ -1798,7 +1790,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 digest: *certificates[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                    Version::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
                     .unwrap(),
@@ -1809,14 +1801,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
@@ -1828,14 +1820,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
@@ -1847,14 +1839,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         )
                         .unwrap(),
@@ -1866,14 +1858,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
@@ -1885,14 +1877,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         tester.shared_counter_2.object_id,
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                        Version::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
@@ -1953,7 +1945,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             vec![(
                 tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled {
-                    version: SequenceNumber::new_congested_with_suggested_gas_price(
+                    version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
@@ -2003,7 +1995,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 (
                     tester.shared_counter_1.object_id,
                     UnchangedSharedKind::Cancelled {
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
                         .unwrap()
@@ -2012,7 +2004,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 (
                     tester.shared_counter_2.object_id,
                     UnchangedSharedKind::Cancelled {
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
                         .unwrap()

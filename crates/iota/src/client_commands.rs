@@ -51,7 +51,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -61,7 +61,7 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
@@ -2850,7 +2850,7 @@ pub struct NewAddressOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub obj_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2904,7 +2904,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub object_type: String,
 }

@@ -21,7 +21,7 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
     GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -1416,7 +1416,7 @@ impl TransactionDataAPI for TransactionData {
                 owner: sender,
                 objects: vec![ObjectRef::new(
                     ObjectId::ZERO,
-                    SequenceNumber::default(),
+                    Version::default(),
                     ObjectDigest::MIN,
                 )],
                 budget: 0,
@@ -2521,7 +2521,7 @@ impl VerifiedTransaction {
         epoch: u64,
         randomness_round: RandomnessRound,
         random_bytes: Vec<u8>,
-        randomness_obj_initial_shared_version: SequenceNumber,
+        randomness_obj_initial_shared_version: Version,
     ) -> Self {
         RandomnessStateUpdate {
             epoch,
@@ -2683,7 +2683,7 @@ pub enum InputObjectKind {
     // A Move object that's shared and mutable.
     SharedMoveObject {
         id: ObjectId,
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
         mutable: bool,
     },
 }
@@ -2697,7 +2697,7 @@ impl InputObjectKind {
         }
     }
 
-    pub fn version(&self) -> Option<SequenceNumber> {
+    pub fn version(&self) -> Option<Version> {
         match self {
             Self::MovePackage(..) => None,
             Self::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.version),
@@ -2838,9 +2838,9 @@ pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
     // that deleted it.
-    DeletedSharedObject(SequenceNumber, TransactionDigest),
+    DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
-    CancelledTransactionSharedObject(SequenceNumber),
+    CancelledTransactionSharedObject(Version),
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2935,7 +2935,7 @@ impl ObjectReadResult {
         self.deletion_info().is_some()
     }
 
-    pub fn deletion_info(&self) -> Option<(SequenceNumber, TransactionDigest)> {
+    pub fn deletion_info(&self) -> Option<(Version, TransactionDigest)> {
         match &self.object {
             ObjectReadResultKind::DeletedSharedObject(v, tx) => Some((*v, *tx)),
             _ => None,
@@ -3070,14 +3070,14 @@ impl InputObjects {
 
     // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, SequenceNumber)> {
+    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, Version)> {
         let mut contains_cancelled = false;
         let mut cancel_reason = None;
         let mut cancelled_objects = Vec::new();
         for obj in &self.objects {
             if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
                 contains_cancelled = true;
-                if version.is_congested() || version == SequenceNumber::RANDOMNESS_UNAVAILABLE {
+                if version.is_congested() || version == Version::RANDOMNESS_UNAVAILABLE {
                     // Verify we don't have multiple cancellation reasons.
                     assert!(cancel_reason.is_none() || cancel_reason == Some(version));
                     cancel_reason = Some(version);
@@ -3192,7 +3192,7 @@ impl InputObjects {
     /// The version to set on objects created by the computation that `self` is
     /// input to. Guaranteed to be strictly greater than the versions of all
     /// input objects and objects received in the transaction.
-    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectRef]) -> SequenceNumber {
+    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectRef]) -> Version {
         let input_versions = self
             .objects
             .iter()
@@ -3209,7 +3209,7 @@ impl InputObjects {
                     .map(|object_ref| object_ref.version),
             );
 
-        SequenceNumber::lamport_increment(input_versions).unwrap()
+        Version::lamport_increment(input_versions).unwrap()
     }
 
     pub fn object_kinds(&self) -> impl Iterator<Item = &InputObjectKind> {

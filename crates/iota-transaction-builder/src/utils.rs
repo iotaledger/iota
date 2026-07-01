@@ -399,7 +399,7 @@ impl TransactionBuilder {
             .map(|(oref, _)| oref)
     }
 
-    /// Helper function to get the latest ObjectRef (ObjectId, SequenceNumber,
+    /// Helper function to get the latest ObjectRef (ObjectId, Version,
     /// ObjectDigest) and ObjectType for a provided ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,

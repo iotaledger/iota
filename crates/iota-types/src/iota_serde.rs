@@ -281,11 +281,8 @@ where
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct SequenceNumber(u64);
 
-impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
-    fn serialize_as<S>(
-        value: &crate::base_types::SequenceNumber,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl SerializeAs<iota_sdk_types::Version> for SequenceNumber {
+    fn serialize_as<S>(value: &iota_sdk_types::Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -294,13 +291,13 @@ impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     }
 }
 
-impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumber {
-    fn deserialize_as<D>(deserializer: D) -> Result<crate::base_types::SequenceNumber, D::Error>
+impl<'de> DeserializeAs<'de, iota_sdk_types::Version> for SequenceNumber {
+    fn deserialize_as<D>(deserializer: D) -> Result<iota_sdk_types::Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let b = BigInt::deserialize(deserializer)?;
-        Ok(crate::base_types::SequenceNumber::from_u64(*b))
+        Ok(iota_sdk_types::Version::from_u64(*b))
     }
 }
 

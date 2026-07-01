@@ -11,10 +11,12 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectData, ObjectId, Owner, Version, gas::GasCostSummary,
+};
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
+    base_types::{ObjectRef, TransactionDigest, VersionDigest},
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -60,7 +62,7 @@ pub struct TemporaryStore<'backing> {
     input_objects: BTreeMap<ObjectId, Object>,
     /// The version to assign to all objects written by the transaction using
     /// this store.
-    lamport_timestamp: SequenceNumber,
+    lamport_timestamp: Version,
     mutable_input_refs: BTreeMap<ObjectId, (VersionDigest, Owner)>, // Inputs that are mutable
     execution_results: ExecutionResultsV1,
     /// Objects that were loaded during execution (dynamic fields + received
@@ -414,7 +416,7 @@ impl<'backing> TemporaryStore<'backing> {
         // transaction's lamport timestamp is strictly greater than all versions
         // witnessed by the transaction).
         debug_assert!(
-            object.is_immutable() || object.version() == SequenceNumber::MIN_VALID_INCL,
+            object.is_immutable() || object.version() == Version::MIN_VALID_INCL,
             "Created mutable objects should not have a version set",
         );
         let id = object.id();
@@ -844,7 +846,7 @@ impl TemporaryStore<'_> {
     fn get_input_iota(
         &self,
         id: &ObjectId,
-        expected_version: SequenceNumber,
+        expected_version: Version,
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<u64, ExecutionError> {
         if let Some(obj) = self.input_objects.get(id) {
@@ -1054,7 +1056,7 @@ impl ChildObjectResolver for TemporaryStore<'_> {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let obj_opt = self.execution_results.written_objects.get(child);
         if obj_opt.is_some() {
@@ -1070,7 +1072,7 @@ impl ChildObjectResolver for TemporaryStore<'_> {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         // You should never be able to try and receive an object after deleting it or

@@ -4,9 +4,9 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, Version};
 use iota_types::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key, base_types::SequenceNumber,
+    account_abstraction::account::AuthenticatorFunctionRefV1Key,
     dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -65,7 +65,7 @@ pub fn receive_object_internal(
         transfer_receive_object_internal_cost_params.transfer_receive_object_internal_cost_base
     );
     let child_ty = ty_args.pop().unwrap();
-    let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
+    let child_receiver_sequence_number: Version = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
     let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());

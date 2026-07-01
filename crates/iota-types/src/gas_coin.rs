@@ -7,13 +7,12 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::{ObjectData, ObjectId};
+use iota_sdk_types::{ObjectData, ObjectId, Version};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Supply,
-    base_types::SequenceNumber,
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     object::{MoveObject, MoveObjectExt, Object},
@@ -81,7 +80,7 @@ mod checked {
             bcs::to_bytes(&self).unwrap()
         }
 
-        pub fn to_object(&self, version: SequenceNumber) -> MoveObject {
+        pub fn to_object(&self, version: Version) -> MoveObject {
             MoveObject::new_gas_coin(version, *self.id(), self.value())
         }
 

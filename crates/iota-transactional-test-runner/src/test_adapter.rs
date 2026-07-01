@@ -35,14 +35,14 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
     ObjectData, ObjectId, ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag,
-    gas::GasCostSummary, move_package::MovePackage,
+    Version, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IOTA_ADDRESS_LENGTH, ObjectRef, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -721,7 +721,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     latest_epoch,
                     RandomnessRound::new(randomness_round),
                     random_bytes,
-                    SequenceNumber::from_u64(randomness_initial_version),
+                    Version::from_u64(randomness_initial_version),
                 );
 
                 self.execute_txn(tx.into()).await?;
@@ -1995,7 +1995,7 @@ impl IotaTestAdapter {
         })
     }
 
-    fn get_object(&self, id: &ObjectId, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
+    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
             ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {

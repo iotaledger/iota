@@ -12,11 +12,11 @@ use fastcrypto::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::{
-    Address, ObjectId,
+    Address, ObjectId, Version,
     crypto::{Intent, IntentScope, PublicKey, UserSignature},
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectRef},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
         IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
@@ -544,7 +544,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Create a dummy TransactionData
     let gas = ObjectRef::new(
         ObjectId::random(),
-        SequenceNumber::default(),
+        Version::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;

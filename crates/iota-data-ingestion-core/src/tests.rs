@@ -14,11 +14,11 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectId, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+    Address, ObjectId, RandomnessStateUpdate, TransactionKind, Version, gas::GasCostSummary,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
@@ -442,10 +442,10 @@ async fn basic_flow_with_custom_callback() {
             epoch: 0,
             randomness_round: 0.into(),
             random_bytes: vec![],
-            randomness_obj_initial_shared_version: SequenceNumber::default(),
+            randomness_obj_initial_shared_version: Version::default(),
         }),
         Address::random(),
-        ObjectRef::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        ObjectRef::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
         0,
         0,
     );

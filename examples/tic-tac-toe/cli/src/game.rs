@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::Version;
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::Owner;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::{ObjectRef},
     digests::ObjectDigest,
 };
 use serde::Deserialize;
@@ -17,7 +18,7 @@ use crate::board::Board;
 pub(crate) struct Game {
     pub kind: GameKind,
     pub owner: Owner,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub winner: Winner,
 }

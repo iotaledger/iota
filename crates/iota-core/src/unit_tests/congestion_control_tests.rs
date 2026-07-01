@@ -9,9 +9,9 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
@@ -215,7 +215,7 @@ async fn commit_and_execute_transaction(
     sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
-    shared_objects: &[(ObjectId, SequenceNumber)],
+    shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectRef,
     gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
@@ -418,13 +418,11 @@ async fn test_congestion_control_execution_cancellation() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )
         ]
     );
@@ -641,8 +639,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.input_shared_objects(),
         vec![InputSharedObject::Cancelled(
             shared_object_2.object_id,
-            SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
-                .unwrap()
+            Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price).unwrap()
         ),]
     );
 
@@ -784,17 +781,13 @@ async fn test_congestion_control_debt_tracking() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-                .unwrap()
+                Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                    .unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-                .unwrap()
+                Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                    .unwrap()
             )
         ]
     );

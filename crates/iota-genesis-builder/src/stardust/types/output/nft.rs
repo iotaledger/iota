@@ -6,13 +6,13 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, Version};
 use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{SequenceNumber, TxContext},
+    base_types::TxContext,
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{MoveObject, MoveObjectExt, Object},
@@ -164,7 +164,7 @@ pub trait NftExt {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object>;
 }
 
@@ -254,7 +254,7 @@ impl NftExt for Nft {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
         let move_nft_object = {
@@ -294,7 +294,7 @@ pub trait NftOutputExt {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object>;
 }
@@ -331,7 +331,7 @@ impl NftOutputExt for NftOutput {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.

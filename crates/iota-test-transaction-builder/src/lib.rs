@@ -16,10 +16,11 @@ use iota_sdk::{
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, Owner, ProgrammableTransaction, TransactionKind, TypeTag,
+    Version,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
@@ -115,7 +116,7 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
@@ -133,7 +134,7 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
@@ -151,7 +152,7 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
@@ -203,7 +204,7 @@ impl TestTransactionBuilder {
     pub fn call_emit_random(
         self,
         package_id: ObjectId,
-        randomness_initial_shared_version: SequenceNumber,
+        randomness_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
@@ -629,7 +630,7 @@ pub async fn increment_counter(
     gas_object_id: Option<ObjectId>,
     package_id: ObjectId,
     counter_id: ObjectId,
-    initial_shared_version: SequenceNumber,
+    initial_shared_version: Version,
 ) -> IotaTransactionBlockResponse {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()

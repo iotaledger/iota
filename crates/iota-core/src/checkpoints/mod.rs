@@ -2784,7 +2784,7 @@ mod tests {
         GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
     };
     use iota_types::{
-        base_types::{SequenceNumber, TransactionEffectsDigest},
+        base_types::TransactionEffectsDigest,
         crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
@@ -2816,7 +2816,7 @@ mod tests {
                 ObjectData::Package(
                     MovePackage::new(
                         ObjectId::random(),
-                        SequenceNumber::default(),
+                        iota_sdk_types::Version::default(),
                         BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this

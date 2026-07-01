@@ -8,9 +8,9 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, Version};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, SequenceNumber, address_from_iota_pub_key},
+    base_types::{AuthorityName, ObjectRef, address_from_iota_pub_key},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     digests::TransactionDigest,
@@ -55,8 +55,8 @@ pub struct InMemoryStore {
     historical_system_states: HashMap<EpochId, iota_types::iota_system_state::IotaSystemState>,
 
     // Object data
-    live_objects: HashMap<ObjectId, SequenceNumber>,
-    objects: HashMap<ObjectId, BTreeMap<SequenceNumber, Object>>,
+    live_objects: HashMap<ObjectId, Version>,
+    objects: HashMap<ObjectId, BTreeMap<Version, Object>>,
 }
 
 impl InMemoryStore {
@@ -124,7 +124,7 @@ impl InMemoryStore {
         self.get_object_at_version(id, *version)
     }
 
-    pub fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<&Object> {
+    pub fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<&Object> {
         self.objects
             .get(id)
             .and_then(|versions| versions.get(&version))
@@ -287,7 +287,7 @@ impl ChildObjectResolver for InMemoryStore {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match crate::store::SimulatorStore::get_object(self, child) {
             None => return Ok(None),
@@ -317,7 +317,7 @@ impl ChildObjectResolver for InMemoryStore {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let recv_object = match crate::store::SimulatorStore::get_object(self, receiving_object_id)
@@ -577,7 +577,7 @@ impl SimulatorStore for InMemoryStore {
         self.get_object(id).cloned()
     }
 
-    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object> {
         self.get_object_at_version(id, version).cloned()
     }
 

@@ -7,9 +7,9 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::{fatal, sync::notify_read::NotifyRead};
 use iota_config::ExecutionCacheConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, ObjectRef, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -359,11 +359,11 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// Non-fallible version of `try_get_object_by_key`.
-    fn get_object_by_key(&self, object_id: &ObjectId, version: SequenceNumber) -> Option<Object> {
+    fn get_object_by_key(&self, object_id: &ObjectId, version: Version) -> Option<Object> {
         self.try_get_object_by_key(object_id, version)
             .expect("storage access failed")
     }
@@ -379,14 +379,10 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    fn try_object_exists_by_key(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<bool>;
+    fn try_object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> IotaResult<bool>;
 
     /// Non-fallible version of `try_object_exists_by_key`.
-    fn object_exists_by_key(&self, object_id: &ObjectId, version: SequenceNumber) -> bool {
+    fn object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> bool {
         self.try_object_exists_by_key(object_id, version)
             .expect("storage access failed")
     }
@@ -559,14 +555,14 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// Non-fallible version of `try_find_object_lt_or_eq_version`.
     fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> Option<Object> {
         self.try_find_object_lt_or_eq_version(object_id, version)
             .expect("storage access failed")
@@ -617,7 +613,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>>;
 
@@ -625,7 +621,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> Option<MarkerValue> {
         self.try_get_marker_value(object_id, version, epoch_id)
@@ -637,14 +633,14 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>>;
+    ) -> IotaResult<Option<(Version, MarkerValue)>>;
 
     /// Non-fallible version of `try_get_latest_marker`.
     fn get_latest_marker(
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> Option<(SequenceNumber, MarkerValue)> {
+    ) -> Option<(Version, MarkerValue)> {
         self.try_get_latest_marker(object_id, epoch_id)
             .expect("storage access failed")
     }
@@ -655,7 +651,7 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, TransactionDigest)>> {
+    ) -> IotaResult<Option<(Version, TransactionDigest)>> {
         match self.try_get_latest_marker(object_id, epoch_id)? {
             Some((version, MarkerValue::SharedDeleted(digest))) => Ok(Some((version, digest))),
             _ => Ok(None),
@@ -667,7 +663,7 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> Option<(SequenceNumber, TransactionDigest)> {
+    ) -> Option<(Version, TransactionDigest)> {
         self.try_get_last_shared_object_deletion_info(object_id, epoch_id)
             .expect("storage access failed")
     }
@@ -677,7 +673,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<TransactionDigest>> {
         match self.try_get_marker_value(object_id, version, epoch_id)? {
@@ -691,7 +687,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> Option<TransactionDigest> {
         self.try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch_id)
@@ -701,7 +697,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_have_received_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
         match self.try_get_marker_value(object_id, version, epoch_id)? {
@@ -714,7 +710,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn have_received_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> bool {
         self.try_have_received_object_at_version(object_id, version, epoch_id)
@@ -724,7 +720,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_have_deleted_owned_object_at_version_or_after(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
         match self.try_get_latest_marker(object_id, epoch_id)? {
@@ -740,7 +736,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn have_deleted_owned_object_at_version_or_after(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> bool {
         self.try_have_deleted_owned_object_at_version_or_after(object_id, version, epoch_id)

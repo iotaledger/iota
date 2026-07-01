@@ -17,13 +17,11 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    digests::TransactionDigest,
+    base_types::ObjectRef, digests::TransactionDigest,
     messages_checkpoint::CheckpointSequenceNumber,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::CallArg,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use rand::{SeedableRng, rngs::StdRng};
@@ -1446,7 +1444,7 @@ async fn try_get_past_object_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_past_obj = http_client
-        .try_get_past_object(ObjectId::ZERO, SequenceNumber::from_u64(1).into(), None)
+        .try_get_past_object(ObjectId::ZERO, Version::from_u64(1).into(), None)
         .await
         .unwrap();
 
@@ -1463,7 +1461,7 @@ async fn try_get_past_object_version_too_high() {
 
     let fullnode_objects = cluster.get_owned_objects(address, None).await.unwrap();
 
-    let seq_num = SequenceNumber::from_u64(5);
+    let seq_num = Version::from_u64(5);
     for object in fullnode_objects.iter() {
         let object_id = object.object_id().unwrap();
 
@@ -1473,7 +1471,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && SequenceNumber::from(asked_version) == seq_num && SequenceNumber::from(latest_version) == 1)
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && Version::from(asked_version) == seq_num && Version::from(latest_version) == 1)
         );
     }
 }
@@ -1506,13 +1504,13 @@ async fn try_get_past_object_version_not_found() {
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .filter(|object_ref| object_ref.version > SequenceNumber::from_u64(2))
+                .filter(|object_ref| object_ref.version > Version::from_u64(2))
                 .map(|object_ref| object_ref.object_id)
                 .collect::<Vec<ObjectId>>()
         })
         .collect::<Vec<_>>();
 
-    let seq_num = SequenceNumber::from_u64(2);
+    let seq_num = Version::from_u64(2);
     let mut at_least_one_version_not_found = false;
 
     for mutated_obj_id in mutated_objects {
@@ -1532,7 +1530,7 @@ async fn try_get_past_object_version_not_found() {
                 .unwrap();
 
             assert!(
-                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && SequenceNumber::from(seq_number) == seq_num)
+                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && Version::from(seq_number) == seq_num)
             );
 
             at_least_one_version_not_found = true;
@@ -1635,7 +1633,7 @@ async fn try_get_past_object_deleted() {
         1
     );
 
-    let seq_num = SequenceNumber::from_u64(4);
+    let seq_num = Version::from_u64(4);
     let rpc_past_obj = http_client
         .try_get_past_object(created_object_id, seq_num.into(), None)
         .await
@@ -1712,7 +1710,7 @@ async fn try_get_object_before_version_not_exists() {
     let http_client = cluster.rpc_client();
 
     let rpc_obj_before_ver = http_client
-        .try_get_object_before_version(ObjectId::ZERO, SequenceNumber::from_u64(1))
+        .try_get_object_before_version(ObjectId::ZERO, Version::from_u64(1))
         .await
         .unwrap();
 

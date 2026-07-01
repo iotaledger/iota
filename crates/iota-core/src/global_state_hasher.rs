@@ -7,9 +7,8 @@ use std::sync::Arc;
 use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -108,12 +107,12 @@ impl GlobalStateHashStore for InMemoryStorage {
 #[derive(Serialize, Debug)]
 pub struct WrappedObject {
     id: ObjectId,
-    wrapped_at: SequenceNumber,
+    wrapped_at: Version,
     digest: ObjectDigest,
 }
 
 impl WrappedObject {
-    pub fn new(id: ObjectId, wrapped_at: SequenceNumber) -> Self {
+    pub fn new(id: ObjectId, wrapped_at: Version) -> Self {
         Self {
             id,
             wrapped_at,

@@ -5,10 +5,10 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, Version};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
-    base_types::{ObjectDigest, SequenceNumber},
+    base_types::ObjectDigest,
     gas_coin::GasCoin,
     object::{MoveObject, MoveObjectExt},
     parse_iota_struct_tag,
@@ -29,7 +29,7 @@ fn test_move_value_to_iota_coin() {
     let value = 10000;
     let coin = GasCoin::new(id, value);
 
-    let move_object = MoveObject::new_gas_coin(SequenceNumber::default(), id, value);
+    let move_object = MoveObject::new_gas_coin(Version::default(), id, value);
     let layout = GasCoin::layout();
 
     let move_struct = move_object.to_move_struct(&layout).unwrap();

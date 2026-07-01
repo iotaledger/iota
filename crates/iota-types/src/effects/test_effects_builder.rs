@@ -4,10 +4,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, gas::GasCostSummary};
+use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, Version, gas::GasCostSummary};
 
 use crate::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::ObjectRef,
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
@@ -23,15 +23,15 @@ pub struct TestEffectsBuilder {
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
-    shared_input_versions: BTreeMap<ObjectId, SequenceNumber>,
+    shared_input_versions: BTreeMap<ObjectId, Version>,
     events_digest: Option<TransactionEventsDigest>,
     created_objects: Vec<(ObjectId, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
-    mutated_objects: Vec<(ObjectId, SequenceNumber, Owner)>,
+    mutated_objects: Vec<(ObjectId, Version, Owner)>,
     /// Objects that are deleted: (ID, old version).
-    deleted_objects: Vec<(ObjectId, SequenceNumber)>,
+    deleted_objects: Vec<(ObjectId, Version)>,
     /// Objects that are wrapped: (ID, old version).
-    wrapped_objects: Vec<(ObjectId, SequenceNumber)>,
+    wrapped_objects: Vec<(ObjectId, Version)>,
     /// Objects that are unwrapped: (ID, new owner).
     unwrapped_objects: Vec<(ObjectId, Owner)>,
     /// Immutable objects that are read.
@@ -59,10 +59,7 @@ impl TestEffectsBuilder {
         self
     }
 
-    pub fn with_shared_input_versions(
-        mut self,
-        versions: BTreeMap<ObjectId, SequenceNumber>,
-    ) -> Self {
+    pub fn with_shared_input_versions(mut self, versions: BTreeMap<ObjectId, Version>) -> Self {
         assert!(self.shared_input_versions.is_empty());
         self.shared_input_versions = versions;
         self
@@ -84,7 +81,7 @@ impl TestEffectsBuilder {
     pub fn with_mutated_objects(
         mut self,
         // Object ID, old version, and new owner.
-        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version, Owner)>,
     ) -> Self {
         self.mutated_objects.extend(objects);
         self
@@ -92,7 +89,7 @@ impl TestEffectsBuilder {
 
     pub fn with_wrapped_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version)>,
     ) -> Self {
         self.wrapped_objects.extend(objects);
         self
@@ -108,7 +105,7 @@ impl TestEffectsBuilder {
 
     pub fn with_deleted_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version)>,
     ) -> Self {
         self.deleted_objects.extend(objects);
         self
@@ -290,8 +287,8 @@ impl TestEffectsBuilder {
         )
     }
 
-    fn get_lamport_version(&self) -> SequenceNumber {
-        SequenceNumber::lamport_increment(
+    fn get_lamport_version(&self) -> Version {
+        Version::lamport_increment(
             self.transaction
                 .transaction_data()
                 .input_objects()

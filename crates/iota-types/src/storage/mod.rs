@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, Version, move_package::MovePackage};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -33,7 +33,7 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::{ObjectRef, TransactionDigest, VersionNumber},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
@@ -47,13 +47,8 @@ use crate::{
 /// A potential input to a transaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKey {
-    VersionedObject {
-        id: ObjectId,
-        version: SequenceNumber,
-    },
-    Package {
-        id: ObjectId,
-    },
+    VersionedObject { id: ObjectId, version: Version },
+    Package { id: ObjectId },
 }
 
 impl InputKey {
@@ -64,7 +59,7 @@ impl InputKey {
         }
     }
 
-    pub fn version(&self) -> Option<SequenceNumber> {
+    pub fn version(&self) -> Option<Version> {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
             InputKey::Package { .. } => None,
@@ -136,13 +131,13 @@ pub enum MarkerValue {
 /// and hence won't have the old sequence number.
 #[derive(Debug)]
 pub enum DeleteKindWithOldVersion {
-    Normal(SequenceNumber),
+    Normal(Version),
     UnwrapThenDelete,
-    Wrap(SequenceNumber),
+    Wrap(Version),
 }
 
 impl DeleteKindWithOldVersion {
-    pub fn old_version(&self) -> Option<SequenceNumber> {
+    pub fn old_version(&self) -> Option<Version> {
         match self {
             DeleteKindWithOldVersion::Normal(version) | DeleteKindWithOldVersion::Wrap(version) => {
                 Some(*version)
@@ -178,7 +173,7 @@ pub trait ChildObjectResolver {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// `receiving_object_id` must have an `Address` ownership equal to
@@ -191,7 +186,7 @@ pub trait ChildObjectResolver {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>>;
 }
@@ -399,7 +394,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(
             self.as_ref(),
@@ -412,7 +407,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -430,7 +425,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &S {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
@@ -438,7 +433,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &S {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -456,7 +451,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
@@ -464,7 +459,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
