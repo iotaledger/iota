@@ -180,33 +180,36 @@ def dlt(a, b):
 
 
 def crash_incidents(results_dir):
-    """Scan per-iteration node-logs/_state.log for a validator that crashed,
-    restarted, or was OOM-killed — an H4 failure the timeseries counters don't
-    capture. run.sh writes one line per node:
+    """Scan per-iteration _state.log for a validator that crashed, restarted, or was
+    OOM-killed — an H4 failure the timeseries counters don't capture. run.sh writes
+    one line per node:
       /validator-1 status=running restarts=0 oom=false exit=0
-    Returns a list of human-readable strings for any non-clean node."""
+    BOTH runs are scanned: Run A (attestation OFF) in run-a-node-logs/, Run B (ON) in
+    node-logs/. Returns human-readable strings for any non-clean node, tagged V1/V2 —
+    so an attestation-only fork (V2 only, V1 clean) is visible at a glance."""
     incidents = []
-    for sp in sorted(
-        glob.glob(os.path.join(results_dir, "*", "node-logs", "_state.log"))
-    ):
-        itr = sp.split(os.sep)[-3]  # results/<LABEL>/<iter-NNN>/node-logs/_state.log
-        try:
-            lines = open(sp).read().splitlines()
-        except Exception as e:  # noqa: BLE001
-            print(f"WARN: cannot read {sp}: {e}", file=sys.stderr)
-            continue
-        for line in lines:
-            toks = line.split()
-            if not toks:
+    for subdir, run in (("run-a-node-logs", "V1"), ("node-logs", "V2")):
+        for sp in sorted(
+            glob.glob(os.path.join(results_dir, "*", subdir, "_state.log"))
+        ):
+            itr = sp.split(os.sep)[-3]  # results/<LABEL>/<iter-NNN>/<subdir>/_state.log
+            try:
+                lines = open(sp).read().splitlines()
+            except Exception as e:  # noqa: BLE001
+                print(f"WARN: cannot read {sp}: {e}", file=sys.stderr)
                 continue
-            kv = dict(t.split("=", 1) for t in toks if "=" in t)
-            restarts = int(kv.get("restarts", "0") or 0)
-            oom = kv.get("oom", "false") == "true"
-            status = kv.get("status", "")
-            if restarts > 0 or oom or status not in ("running", ""):
-                incidents.append(
-                    f"{itr} {toks[0]}: status={status} restarts={restarts} oom={oom}"
-                )
+            for line in lines:
+                toks = line.split()
+                if not toks:
+                    continue
+                kv = dict(t.split("=", 1) for t in toks if "=" in t)
+                restarts = int(kv.get("restarts", "0") or 0)
+                oom = kv.get("oom", "false") == "true"
+                status = kv.get("status", "")
+                if restarts > 0 or oom or status not in ("running", ""):
+                    incidents.append(
+                        f"[{run}] {itr} {toks[0]}: status={status} restarts={restarts} oom={oom}"
+                    )
     return incidents
 
 
@@ -285,7 +288,8 @@ def main():
         L += [
             "> [!CAUTION]",
             "> H4 FAILED — a safety violation occurred. Treat any H1/H2/H3 numbers from",
-            "> these runs as suspect until investigated (node-logs/, _crash.log).",
+            "> these runs as suspect until investigated (run-a-node-logs/ = V1,",
+            "> node-logs/ = V2, plus each dir's _crash.log).",
         ]
         if nonzero:
             L += [
@@ -297,7 +301,7 @@ def main():
             ]
             L += [f"| {label} | {fmt(va)} | {fmt(vb)} |" for label, va, vb in nonzero]
         if incidents:
-            L += ["", "Validator crash / restart / OOM (node-logs/_state.log):", ""]
+            L += ["", "Validator crash / restart / OOM (V1=run-a-node-logs, V2=node-logs):", ""]
             L += [f"- {x}" for x in incidents]
     with open(out, "w") as f:
         f.write("\n".join(L) + "\n")
