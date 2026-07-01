@@ -928,7 +928,13 @@ where
     }
 
     pub fn clone_authority_aggregator(&self) -> Arc<AuthorityAggregator<A>> {
-        self.quorum_driver().authority_aggregator().load_full()
+        // Under pcool the quorum driver is absent and the aggregator lives on
+        // the transaction driver instead.
+        if let Some(td) = &self.transaction_driver {
+            td.authority_aggregator().load_full()
+        } else {
+            self.quorum_driver().authority_aggregator().load_full()
+        }
     }
 
     pub fn subscribe_to_effects_queue(&self) -> Receiver<QuorumDriverEffectsQueueResult> {
