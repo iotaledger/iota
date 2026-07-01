@@ -7255,7 +7255,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 }
 
 /// Tests graduated load shedding based on the consensus queue length
-/// in the white-flag (certificate-less) path of
+/// in the P-COOL (certificate-less) path of
 /// [`AuthorityState::check_system_overload`]. Verifies that:
 /// - below soft limit: all transactions are accepted
 /// - between soft and hard limit: some transactions are rejected
@@ -7302,8 +7302,8 @@ async fn test_consensus_queue_graduated_load_shedding() {
         rgp,
     );
 
-    let white_flag_flow_enabled = true;
-    // Does not matter in the white-flag flow.
+    let pcool_flow_enabled = true;
+    // Does not matter in the P-COOL flow.
     let do_authority_overload_check = false;
 
     // Below and at soft limit, all transactions should be accepted.
@@ -7313,7 +7313,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
             &consensus_adapter,
             tx.data(),
             do_authority_overload_check,
-            white_flag_flow_enabled,
+            pcool_flow_enabled,
         );
 
         assert!(
@@ -7338,7 +7338,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
             &consensus_adapter,
             tx.data(),
             do_authority_overload_check,
-            white_flag_flow_enabled,
+            pcool_flow_enabled,
         );
 
         assert_eq!(
@@ -7360,7 +7360,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         }
     }
 
-    // Verify that with `white_flag_flow_enabled = false` (certificate flow),
+    // Verify that with `pcool_flow_enabled = false` (certificate flow),
     // the consensus graduated shedding does NOT apply - only the binary
     // hard cutoff runs.
     consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64);

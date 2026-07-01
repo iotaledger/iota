@@ -371,50 +371,48 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// With the white-flag flow enabled, `WaitForLocalExecution` takes the
+/// With the P-COOL flow enabled, `WaitForLocalExecution` takes the
 /// skip-effect-certification path inside the orchestrator. The single-
 /// validator response tagged `UncertifiedSingleValidator` must be upgraded
 /// to `Checkpointed(epoch, seq)` by the local-cache reconciliation before
 /// being returned to the caller — otherwise the safety guard at the end of
 /// `execute_transaction_block` would reject the response as
 /// `QuorumDriverInternal`.
-/// Drop-guard that clears the white-flag env vars on scope exit, so a test
+/// Drop-guard that clears the P-COOL env vars on scope exit, so a test
 /// that enables the flow does not contaminate sibling tests sharing the same
 /// process (e.g. when run via `cargo nextest` with `--test-threads`).
 #[must_use = "drop the guard at the end of the test to restore env vars"]
-struct WhiteFlagEnvGuard;
+struct PcoolEnvGuard;
 
-impl Drop for WhiteFlagEnvGuard {
+impl Drop for PcoolEnvGuard {
     fn drop(&mut self) {
-        // SAFETY: paired with `enable_white_flag_env`; both calls run on the
+        // SAFETY: paired with `enable_pcool_env`; both calls run on the
         // test thread before/after the cluster is alive.
         unsafe {
             std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var(
-                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
-            );
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
         }
     }
 }
 
-fn enable_white_flag_env() -> WhiteFlagEnvGuard {
+fn enable_pcool_env() -> PcoolEnvGuard {
     // SAFETY: set before spawning the test cluster; env vars are the only
-    // reliable way to flip the white-flag protocol flag inside validator
+    // reliable way to flip the P-COOL protocol flag inside validator
     // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
     // does not propagate to spawned tasks outside msim).
     unsafe {
         std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
         std::env::set_var(
-            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
             "true",
         );
     }
-    WhiteFlagEnvGuard
+    PcoolEnvGuard
 }
 
 #[sim_test]
 async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_white_flag_env();
+    let _env_guard = enable_pcool_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -472,11 +470,11 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
     Ok(())
 }
 
-/// With the white-flag flow enabled, a caller that did *not* ask for events
+/// With the P-COOL flow enabled, a caller that did *not* ask for events
 /// or input/output objects must not receive them.
 #[sim_test]
 async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_white_flag_env();
+    let _env_guard = enable_pcool_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -536,7 +534,7 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
 /// page on-call for a routine availability dip.
 #[sim_test]
 async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_white_flag_env();
+    let _env_guard = enable_pcool_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config

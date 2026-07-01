@@ -693,7 +693,7 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
-    /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
+    /// Pre-consensus soft locks for owned objects (P-COOL flow).
     ///
     /// Set via `OnceCell` rather than passed through the constructor because
     /// the same `Arc` instance must be shared with the gRPC `ValidatorService`
@@ -1820,7 +1820,7 @@ impl AuthorityPerEpochStore {
     }
 
     /// Sets the pre-consensus soft lock table. Called once during validator
-    /// setup. Gating on `enable_white_flag_flow` is the caller's
+    /// setup. Gating on `enable_pcool_flow` is the caller's
     /// responsibility — when the flow is disabled, releases simply produce no
     /// digests so the `OnceCell` may stay empty harmlessly.
     ///
@@ -3387,7 +3387,7 @@ impl AuthorityPerEpochStore {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            // In the white-flag flow, randomness transactions are separated
+            // In the P-COOL flow, randomness transactions are separated
             // later in the flow to preserve ordering in conflict resolution, so
             // should be included with the regular transactions here.
             } else if !enable_pcool && tx.0.is_user_tx_with_randomness() {
@@ -3805,10 +3805,10 @@ impl AuthorityPerEpochStore {
         // released: accepted ones now hold permanent locks, rejected ones need
         // their non-conflicting owned objects freed for new transactions.
         //
-        // If the white-flag flow produced digests to release but the OnceCell
+        // If the P-COOL flow produced digests to release but the OnceCell
         // was never wired, that's a startup bug — locks would leak until TTL
         // expiry. Log at `error!` so alerts fire; tests that exercise the
-        // white-flag path without a validator service take this branch
+        // P-COOL path without a validator service take this branch
         // harmlessly.
         if !soft_lock_release_tx_digests.is_empty() {
             if let Some(soft_locks) = self.soft_locks.get() {
@@ -3816,7 +3816,7 @@ impl AuthorityPerEpochStore {
             } else {
                 error!(
                     count = soft_lock_release_tx_digests.len(),
-                    "white-flag flow produced soft-lock release digests but \
+                    "P-COOL flow produced soft-lock release digests but \
                          soft_locks OnceCell was never set — wiring bug in \
                          start_epoch_specific_validator_components"
                 );
