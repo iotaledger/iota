@@ -789,7 +789,7 @@ pub async fn get_latest_available_epoch(
         .get_bytes(&get_path(MANIFEST_FILENAME))
         .await?;
     let root_manifest: Manifest = serde_json::from_slice(&manifest_contents)
-        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
+        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {err}"))?;
     let epoch = root_manifest
         .available_epochs
         .iter()
@@ -1019,10 +1019,10 @@ pub async fn download_db_snapshot(
     // We rely on the top level MANIFEST file which contains all valid epochs
     let manifest_contents = remote_store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
     let root_manifest: Manifest = serde_json::from_slice(&manifest_contents)
-        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
+        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {err}"))?;
 
     if !root_manifest.epoch_exists(epoch) {
-        bail!("Epoch dir {} doesn't exist on the remote store", epoch);
+        bail!("Epoch dir {epoch} doesn't exist on the remote store");
     }
 
     let epoch_path = format!("epoch_{epoch}");
@@ -1031,7 +1031,7 @@ pub async fn download_db_snapshot(
     let manifest_file = epoch_dir.child(MANIFEST_FILENAME);
     let epoch_manifest_contents =
         String::from_utf8(remote_store.get_bytes(&manifest_file).await?.to_vec())
-            .map_err(|err| anyhow!("Error parsing {}/MANIFEST from bytes: {}", epoch_path, err))?;
+            .map_err(|err| anyhow!("Error parsing {epoch_path}/MANIFEST from bytes: {err}"))?;
 
     let epoch_manifest =
         PerEpochManifest::deserialize_from_newline_delimited(&epoch_manifest_contents);

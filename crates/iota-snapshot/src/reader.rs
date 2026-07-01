@@ -117,13 +117,13 @@ impl StateSnapshotReaderV1 {
         // Verifies MANIFEST
         let snapshot_version = manifest.snapshot_version();
         if snapshot_version != 1u8 {
-            bail!("Unexpected snapshot version: {}", snapshot_version);
+            bail!("Unexpected snapshot version: {snapshot_version}");
         }
         if manifest.address_length() as usize > ObjectId::LENGTH {
             bail!("Max possible address length is: {}", ObjectId::LENGTH);
         }
         if manifest.epoch() != epoch {
-            bail!("Download manifest is not for epoch: {}", epoch,);
+            bail!("Download manifest is not for epoch: {epoch}");
         }
         // Stores the objects and references FileMetadata in MANIFEST to the local
         // directory
@@ -600,7 +600,7 @@ impl StateSnapshotReaderV1 {
         manifest_reader.rewind()?;
         let magic = manifest_reader.read_u32::<BigEndian>()?;
         if magic != MANIFEST_FILE_MAGIC {
-            bail!("Unexpected magic byte: {}", magic);
+            bail!("Unexpected magic byte: {magic}");
         }
         // Gets the sha3 digest from the end of the file
         manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
@@ -616,11 +616,7 @@ impl StateSnapshotReaderV1 {
         hasher.update(&content_buf);
         let computed_digest = hasher.finalize().digest;
         if computed_digest != sha3_digest {
-            bail!(
-                "Checksum: {:?} don't match: {:?}",
-                computed_digest,
-                sha3_digest
-            );
+            bail!("Checksum: {computed_digest:?} don't match: {sha3_digest:?}");
         }
         manifest_reader.rewind()?;
         manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
@@ -640,7 +636,7 @@ impl ObjectRefIter {
         let mut reader = file_metadata.file_compression.decompress(&file_path)?;
         let magic = reader.read_u32::<BigEndian>()?;
         if magic != REFERENCE_FILE_MAGIC {
-            bail!("Unexpected magic string in REFERENCE file: {:?}", magic)
+            bail!("Unexpected magic string in REFERENCE file: {magic:?}")
         } else {
             Ok(ObjectRefIter { reader })
         }
@@ -680,7 +676,7 @@ impl LiveObjectIter {
         let mut reader = file_metadata.file_compression.bytes_decompress(bytes)?;
         let magic = reader.read_u32::<BigEndian>()?;
         if magic != OBJECT_FILE_MAGIC {
-            bail!("Unexpected magic string in object file: {:?}", magic)
+            bail!("Unexpected magic string in object file: {magic:?}")
         } else {
             Ok(LiveObjectIter { reader })
         }
