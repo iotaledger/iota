@@ -405,25 +405,45 @@ pub async fn validate_and_resolve_conflicts(
                 if e.is_storage_or_epoch_error() {
                     return Err(e);
                 }
-                // The helper performs two distinct steps; surface which one
-                // failed so triage doesn't mistake a stale-attestation input
-                // for an actual deny-list violation.
-                let reason = match &e {
+                // The helper performs two distinct steps: loading the owned
+                // inputs at their referenced versions, then the objective
+                // deny-list check. Only the second is safe to act on here.
+                match &e {
                     IotaError::UserInput {
                         error:
                             UserInputError::CoinTypeGlobalPause { .. }
                             | UserInputError::AddressDeniedForCoin { .. },
-                    } => "coin deny-list re-check",
-                    _ => "input load (likely stale attestation)",
-                };
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "UserTransactionV2 failed post-consensus {reason}, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
+                    } => {
+                        // Objective violation: the on-chain `DenyList` is
+                        // consensus-agreed, so every validator that loaded the
+                        // inputs reaches the same verdict. Safe to drop.
+                        warn!(
+                            ?digest,
+                            error = ?e,
+                            "UserTransactionV2 failed post-consensus coin deny-list re-check, dropping"
+                        );
+                        dropped.push((digest, e));
+                        keep[i] = false;
+                        continue;
+                    }
+                    // The input load could not complete - e.g. a sequenced
+                    // predecessor's output has not been executed on this node yet
+                    // (`ObjectNotFound`). That outcome is per-node and
+                    // timing-dependent; dropping here would make checkpoint
+                    // membership non-deterministic and fork the chain. Keep the
+                    // transaction: its inputs are guaranteed present at execution
+                    // (dependency order), where a globally-paused coin or a denied
+                    // recipient is still caught deterministically. A sender denied
+                    // only after attestation is not re-checked at execution, so
+                    // skipping the drop narrows that case to best-effort.
+                    _ => {
+                        debug!(
+                            ?digest,
+                            error = ?e,
+                            "UserTransactionV2 coin deny-list inputs not yet available post-consensus; keeping for execution"
+                        );
+                    }
+                }
             }
         }
 
