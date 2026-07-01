@@ -573,8 +573,6 @@ pub enum IotaError {
     RuntimeModuleMetadataDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
-    #[error("RuntimeModuleMetadata wrong version")]
-    RuntimeModuleMetadataWrongVersion { error: String },
 
     // Client side error
     #[error("Too many authority errors were detected for {action}: {errors:?}")]

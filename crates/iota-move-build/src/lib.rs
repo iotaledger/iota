@@ -413,13 +413,27 @@ fn fill_metadata(
                 };
                 runtime_metadata.add_function_attribute(fn_name.to_string(), attribute);
             };
-            if protocol_build_config.allow_view_function
-                && is_view_function_from_fn_info(fn_name, module, fn_info_map)
-            {
-                runtime_metadata.add_function_attribute(
-                    fn_name.to_string(),
-                    IotaAttribute::V2(IotaAttributeV2::view_attribute()),
-                );
+            if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
+                if protocol_build_config.allow_view_function {
+                    runtime_metadata.add_function_attribute(
+                        fn_name.to_string(),
+                        IotaAttribute::V2(IotaAttributeV2::view_attribute()),
+                    );
+                } else {
+                    // The `View` attribute only exists in V2 (dynamic) runtime
+                    // metadata, gated behind the
+                    // `package_metadata_with_dynamic_module_metadata` protocol
+                    // feature. When it is off we drop the attribute rather than emit
+                    // metadata a not-yet-upgraded validator cannot deserialize, but
+                    // warn since the function will not be recorded as a view function.
+                    eprintln!(
+                        "warning: function '{}::{}' is marked `#[view]`, but the target \
+                        network protocol does not support view-function metadata; the `View` \
+                        attribute will not be published",
+                        module.name(),
+                        fn_name,
+                    );
+                }
             }
         }
         if !runtime_metadata.is_empty() {
