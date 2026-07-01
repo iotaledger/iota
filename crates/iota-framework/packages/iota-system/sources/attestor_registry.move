@@ -5,7 +5,7 @@
 /// transaction attestations. Anyone can register a dedicated attestor
 /// signing key by locking a bond; registrations, deregistrations and key
 /// rotations take effect at epoch boundaries. An active attestor whose bond
-/// falls below `ATTESTOR_LOW_BOND_THRESHOLD` at an epoch boundary has its
+/// falls below the low-bond threshold at an epoch boundary has its
 /// remaining bond burned and is evicted.
 ///
 /// The registry is stored as a dynamic field on the `IotaSystemState`
@@ -19,17 +19,12 @@ use iota::balance::{Self, Balance};
 use iota::coin;
 use iota::event;
 use iota::iota::IOTA;
+use iota_system::protocol_config;
 
-/// Minimum deposit required when registering as an attestor.
-/// Planned to move into the protocol config once
-/// `iota::protocol_config` supports reading parameters.
-const MIN_ATTESTOR_JOINING_BOND: u64 = 2_000_000_000_000; // 2,000 IOTA
-/// Minimum bond an active attestor must hold at each epoch boundary.
-/// Below it the remaining bond is burned and the attestor evicted.
-const ATTESTOR_LOW_BOND_THRESHOLD: u64 = 1_000_000_000_000; // 1,000 IOTA
-/// Hard cap on registry size (active + pending); the whole registry lives
-/// in a single object, so growth must be bounded.
-const MAX_ATTESTOR_COUNT: u64 = 1_000;
+// Protocol config parameter names, read via `protocol_config::get_attr`.
+const MIN_ATTESTOR_JOINING_BOND_PARAM: vector<u8> = b"min_attestor_joining_bond";
+const ATTESTOR_LOW_BOND_THRESHOLD_PARAM: vector<u8> = b"attestor_low_bond_threshold";
+const MAX_ATTESTOR_COUNT_PARAM: vector<u8> = b"max_attestor_count";
 
 const EFeatureNotEnabled: u64 = 0;
 const EBondTooLow: u64 = 1;
@@ -122,23 +117,14 @@ public struct AttestorKeyRotatedEvent has copy, drop {
     new_pubkey: vector<u8>,
 }
 
-// === Feature gating (TEMPORARY MOCK) ===
-//
-// TODO(attestor-registry): replace this mock with a real protocol feature
-// flag check is possible from within iota-system.
-// The intended call is:
-//   protocol_config::is_feature_enabled(b"enable_validator_attestation")
-// For now the feature is unconditionally treated as enabled so the registry
-// can be exercised.
-fun is_validator_attestation_enabled(): bool {
-    true
-}
-
 /// Aborts unless the validator-attestation protocol feature is enabled on
 /// this chain. Gates all user-facing registry entry points; epoch
 /// processing is deliberately ungated.
 public(package) fun assert_feature_enabled() {
-    assert!(is_validator_attestation_enabled(), EFeatureNotEnabled);
+    assert!(
+        protocol_config::is_feature_enabled(b"enable_validator_attestation"),
+        EFeatureNotEnabled,
+    );
 }
 
 // === Construction ===
@@ -180,9 +166,13 @@ public(package) fun register(
     sender: address,
     current_epoch: u64,
 ) {
-    assert!(bond.value() >= MIN_ATTESTOR_JOINING_BOND, EBondTooLow);
     assert!(
-        self.active_attestors.length() + self.pending_active.length() < MAX_ATTESTOR_COUNT,
+        bond.value() >= protocol_config::get_attr(MIN_ATTESTOR_JOINING_BOND_PARAM),
+        EBondTooLow,
+    );
+    assert!(
+        self.active_attestors.length() + self.pending_active.length()
+            < protocol_config::get_attr(MAX_ATTESTOR_COUNT_PARAM),
         ETooManyAttestors,
     );
     validate_attestor_pubkey(attestor_pubkey);
@@ -334,10 +324,11 @@ public(package) fun advance_epoch(
 
     // --- 1. Combined exits ---
     // Collect eviction indices (bond below threshold).
+    let low_bond_threshold: u64 = protocol_config::get_attr(ATTESTOR_LOW_BOND_THRESHOLD_PARAM);
     let mut exit_indices = vector<u64>[];
     let mut eviction_flags = vector<bool>[];
     self.active_attestors.length().do!(|i| {
-        if (self.active_attestors[i].bond.value() < ATTESTOR_LOW_BOND_THRESHOLD) {
+        if (self.active_attestors[i].bond.value() < low_bond_threshold) {
             exit_indices.push_back(i);
             eviction_flags.push_back(true);
         }

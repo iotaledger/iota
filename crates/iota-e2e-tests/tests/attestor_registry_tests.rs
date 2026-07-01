@@ -1,31 +1,33 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end tests for the attestor registry lifecycle.
+//! End-to-end tests for the attestor registry.
 //!
-//! This file is intentionally separate from `attestation_tests.rs`: that file
-//! sets `enable_white_flag_flow` process-wide via `ProtocolEnvOverride`, which
-//! would leak into these tests (env vars are process-global) and route
-//! execution through the WFF path that lacks a `QuorumDriverHandler`. Keeping
-//! the registry tests in their own test binary isolates them from that env
-//! mutation. The registry feature gate is currently a mock that is always
-//! enabled, so no protocol overrides are needed here.
+//! `register_attestor` is gated on `enable_validator_attestation`. This test
+//! verifies the gate end-to-end with the feature disabled (its default).
+//!
+//! The happy path (registration activating across a reconfiguration and
+//! surfacing in the epoch store's `AttestorSet`) is not exercised here:
+//! enabling `enable_validator_attestation` also requires `enable_pcool_flow`
+//! and switches on `TotalComputationUnits` per-object congestion control,
+//! which cancels writes to the shared system-state object (0x5) in a test
+//! cluster. That path is covered by the Move unit tests and will be
+//! integration-tested once the feature flag is enabled in a protocol version.
 
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_macros::sim_test;
-use iota_types::{base_types::ObjectID, transaction::CallArg};
+use iota_types::{IOTA_SYSTEM_PACKAGE_ID, transaction::CallArg};
 use test_cluster::TestClusterBuilder;
 
-/// Registering an attestor lands it pending; after one epoch boundary it is
-/// active and exposed through the epoch store's `AttestorSet` at index 0.
+/// With `enable_validator_attestation` off (the default), `register_attestor`
+/// must abort with `EFeatureNotEnabled`.
 #[sim_test]
-async fn test_attestor_registry_lifecycle() {
+async fn test_register_attestor_rejected_when_feature_disabled() {
     telemetry_subscribers::init_for_testing();
 
     let test_cluster = TestClusterBuilder::new().build().await;
     let sender = test_cluster.get_address_0();
 
-    // Use one gas coin for gas and a separate whole coin as the bond (each
-    // default test coin far exceeds MIN_ATTESTOR_JOINING_BOND).
     let gas_objects = test_cluster
         .wallet
         .get_all_gas_objects_owned_by_address(sender)
@@ -38,15 +40,16 @@ async fn test_attestor_registry_lifecycle() {
     let gas = gas_objects[0];
     let bond = gas_objects[1];
 
-    // flag byte (ed25519 = 0x00) || 32-byte key
-    let mut attestor_pubkey = vec![0u8];
-    attestor_pubkey.extend_from_slice(&[0xCD; 32]);
+    // A real `flag || raw_key` ed25519 public key (flag 0x00 + 32 bytes); the
+    // native does on-curve validation, so arbitrary bytes are rejected.
+    let attestor_pubkey =
+        Hex::decode("00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f").unwrap();
 
     let tx_data = test_cluster
         .test_transaction_builder_with_gas_object(sender, gas)
         .await
         .move_call(
-            ObjectID::SYSTEM,
+            IOTA_SYSTEM_PACKAGE_ID,
             "iota_system",
             "register_attestor",
             vec![
@@ -57,34 +60,15 @@ async fn test_attestor_registry_lifecycle() {
         )
         .build();
     let tx = test_cluster.sign_transaction(&tx_data);
-    // Asserts success internally.
-    test_cluster.execute_transaction(tx).await;
 
-    // Pending until the boundary: the current epoch's set is still empty.
-    let empty = test_cluster.fullnode_handle.iota_node.with(|node| {
-        node.state()
-            .epoch_store_for_testing()
-            .attestor_set()
-            .is_empty()
-    });
-    assert!(
-        empty,
-        "attestor must not be active before the epoch boundary"
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status_ok(),
+        Some(false),
+        "registration must abort while enable_validator_attestation is off"
     );
-
-    // Cross the boundary; the snapshot must now contain the attestor at index 0.
-    test_cluster.force_new_epoch().await;
-
-    let (len, indexed) = test_cluster.fullnode_handle.iota_node.with(|node| {
-        let epoch_store = node.state().epoch_store_for_testing();
-        let set = epoch_store.attestor_set();
-        let indexed = set
-            .by_address(&sender)
-            .map(|(i, entry)| (i, entry.attestor_pubkey.clone()));
-        (set.len(), indexed)
-    });
-    assert_eq!(len, 1, "attestor must be active after the boundary");
-    let (index, pubkey) = indexed.expect("attestor not found in the active set");
-    assert_eq!(index, 0);
-    assert_eq!(pubkey, attestor_pubkey);
 }
