@@ -12,7 +12,13 @@ use itertools::Itertools;
 use crate::{
     chunk,
     errors::{IndexerError, IndexerResult},
-    ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
+    ingestion::{
+        common::{
+            persist::{CommitterTables, CommitterWatermark},
+            prepare::LiveObject,
+        },
+        primary::persist::EpochToCommit,
+    },
     models::{
         checkpoints::StoredChainIdentifier,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
@@ -171,15 +177,17 @@ pub(crate) async fn populate_remaining_tables(
         .entries()
         .last()
         .expect("there should be an entry for the snapshot epoch");
-    let watermark = IndexedCheckpoint::from_iota_checkpoint(
+    let sync_watermark = IndexedCheckpoint::from_iota_checkpoint(
         &snapshot_epoch_boundary.last_checkpoint_summary,
         &snapshot_epoch_boundary.last_checkpoint_contents,
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
+    let pruning_watermark = CommitterWatermark::from(&sync_watermark);
     tokio::try_join!(
         populate_epochs(store, verified_epoch_info),
         populate_chain_id(store, snapshot_chain_id),
-        store.persist_checkpoints(vec![watermark])
+        store.persist_checkpoints(vec![sync_watermark]),
+        store.update_watermarks_upper_bound::<CommitterTables>(pruning_watermark)
     )?;
     populate_procotol_and_feature_flags(store, snapshot_chain_id).await
 }
