@@ -2,7 +2,7 @@ x-common-validator: &common-validator
   image: iotaledger/iota-node
   environment: &common-env
     - RUST_BACKTRACE=1
-    - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
+    - RUST_LOG=${IOTA_NODE_RUST_LOG:-info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error}
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000

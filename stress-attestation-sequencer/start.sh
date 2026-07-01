@@ -37,6 +37,12 @@ export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW="${PCOOL:-t
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION="${ATTEST:-true}"
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE="${MODE:-TotalComputationUnits}"
 
+# Node log level — docker-compose forwards this to validators + fullnode (its
+# &common-env RUST_LOG). Stress runs default to WARN: DEBUG emits a per-transaction
+# log line on every node, which balloons node-logs to GBs under load. Fork/crash
+# evidence is ERROR, so WARN keeps it. Override for debugging, e.g. NODE_LOG=info.
+export IOTA_NODE_RUST_LOG="${NODE_LOG:-warn}"
+
 # Optional numeric limits: only exported when provided, so the protocol
 # version's own value stands otherwise (avoids pinning a baseline by accident).
 if [[ -n "${MAX_ACCUMULATED_TXN_COST:-}" ]]; then
