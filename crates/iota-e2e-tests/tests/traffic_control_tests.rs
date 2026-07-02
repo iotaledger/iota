@@ -9,31 +9,27 @@
 use core::panic;
 use std::{fs::File, num::NonZeroUsize, time::Duration};
 
-use fastcrypto::encoding::Base64;
 use iota_core::{
     authority_client::{
         make_network_authority_clients_with_network_config, validator::ValidatorAPI,
     },
     traffic_controller::{TrafficController, TrafficSim, nodefw_test_server::NodeFwTestServer},
 };
-use iota_json_rpc_types::{
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
-};
+use iota_grpc_client::{ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     crypto::Ed25519IotaSignature,
-    quorum_driver_types::ExecuteTransactionRequestType,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     signature::GenericSignature,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
         TrafficControlReconfigParams, Weight,
     },
+    transaction::Transaction,
 };
-use jsonrpsee::{core::client::ClientT, rpc_params};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[tokio::test]
@@ -55,6 +51,7 @@ async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
         .build();
     let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
@@ -76,6 +73,7 @@ async fn test_fullnode_traffic_control_noop() -> Result<(), anyhow::Error> {
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
     assert_traffic_control_ok(test_cluster).await
@@ -87,13 +85,15 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        // In this test, the validator gRPC API is receiving some requests that don't count towards
-        // the policy and two requests that do (/iota.validator.Validator/CertifiedTransactionV1 for
-        // an already executed transaction). However, the counter is updated only after the response
-        // is generated, but the limit is checked before we handle the request, so at the end we end
-        // up with 2 handled requests even if the limit is set to 1 and only the subsequent request
-        // would be rejected. Set the limit to the actual number of requests, so that it's
-        // not flaky on slower runners.
+        // The test scenario executes the same transaction twice; the validator gRPC
+        // API receives some requests that don't count towards the policy (fresh
+        // transaction / certificate submissions have zero spam weight) and, from the
+        // repeat submission, requests that do
+        // (/iota.validator.Validator/CertifiedTransactionV1 for an already executed
+        // transaction). The counter is updated only after the response is generated,
+        // while the limit is checked before the request is handled, so at-the-limit
+        // traffic is still served. Set the limit to the number of counted requests,
+        // so that it's not flaky on slower runners.
         spam_policy_type: PolicyType::TestNConnIP(2),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
@@ -108,6 +108,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
         .build();
     let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
@@ -120,12 +121,12 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        // The following JSON API requests are counted towards this limit:
-        // 2 x rpc.discover - those are not sent by the test scenario
-        // 5 x iotax_getOwnedObjects
-        // 1 x iotax_getReferenceGasPrice
-        // 2 x iota_executeTransactionBlock
-        // 1 x iota_getTransactionBlock
+        // The following fullnode requests are counted towards this limit:
+        // 2 x rpc.discover (JSON-RPC, sent by the wallet client init)
+        // 5 x iotax_getOwnedObjects (JSON-RPC, sent by the wallet)
+        // 1 x iotax_getReferenceGasPrice (JSON-RPC, sent by the wallet)
+        // 2 x ExecuteTransaction (gRPC)
+        // 1 x GetReferenceGasPrice (gRPC)
         spam_policy_type: PolicyType::TestNConnIP(11),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
@@ -136,6 +137,7 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
     assert_traffic_control_ok(test_cluster).await
@@ -162,6 +164,7 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
         .build();
     let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
@@ -171,11 +174,11 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let txn_count = 15;
+    let n = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(txn_count - 1),
+        spam_policy_type: PolicyType::TestNConnIP(n - 1),
         spam_sample_rate: Weight::one(),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
@@ -185,48 +188,20 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
-    let context = test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
-    assert!(
-        txns.len() >= txn_count as usize,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
+    let client = test_cluster.grpc_client();
 
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        assert!(
-            response.is_ok(),
-            "Expected request to succeed in dry-run mode"
-        );
+    // In dry-run mode, spamming past the limit must NOT block any request.
+    for _ in 0..n {
+        client
+            .get_reference_gas_price()
+            .await
+            .expect("request should succeed in dry-run mode");
+        // Yield so the background `run_tally_loop` task can run between requests.
+        tokio::task::yield_now().await;
     }
     Ok(())
 }
@@ -357,140 +332,51 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
 #[tokio::test]
 async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let txn_count = 15;
+    let n = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
-        // Test that any N requests will cause an IP to be added to the blocklist. In the test we
-        // are performing `txn_count` `iota_getTransactionBlock` calls to the fullnode's JSON API,
-        // but additionally before that, we're performing other requests, but using `txn_count - 1`
-        // as the limit is enough to test the blocking functionality.
-        spam_policy_type: PolicyType::TestNConnIP(txn_count - 1),
+        // Any N spam requests to the fullnode's gRPC API must add the IP to the
+        // blocklist. We set the limit to `n - 1` and send up to `n` requests.
+        spam_policy_type: PolicyType::TestNConnIP(n - 1),
         spam_sample_rate: Weight::one(),
         dry_run: false,
         ..Default::default()
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
-    let context = test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let client = test_cluster.grpc_client();
 
-    let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
-    assert!(
-        txns.len() >= txn_count as usize,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
-
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        if let Err(err) = response {
-            // TODO: fix validator blocking error handling such that the error message
-            // is not misleading. The full error message currently is the following:
-            //  Transaction execution failed due to issues with transaction inputs, please
-            //  review the errors and try again: Too many requests.
-            assert!(
-                err.to_string().contains("Too many requests"),
-                "Error not due to spam policy"
-            );
-            return Ok(());
-        }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
-    }
-    panic!("Expected spam policy to trigger within {txn_count} requests");
-}
-
-#[tokio::test]
-async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let txn_count = 5;
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
-        error_policy_type: PolicyType::TestNConnIP(txn_count - 1),
-        dry_run: false,
-        ..Default::default()
-    };
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_policy_config(Some(policy_config))
-        .build()
-        .await;
-
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let context = test_cluster.wallet;
-
-    let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
-    assert!(
-        txns.len() >= txn_count as usize,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
-
-    // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
-        let txn = txns.swap_remove(0);
-        let tx_digest = txn.digest();
-        let (tx_bytes, _signatures) = txn.to_tx_bytes_and_signatures();
-        // create invalid (empty) client signature
-        let signatures: Vec<Base64> = vec![];
-        let params = rpc_params![
-            tx_bytes,
-            signatures,
-            IotaTransactionBlockResponseOptions::new(),
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        ];
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_executeTransactionBlock", params.clone())
-            .await;
-        if let Err(err) = response {
-            if err.to_string().contains("Too many requests") {
+    // Spam the fullnode gRPC endpoint; the spam policy must block the IP within
+    // `n` requests.
+    for _ in 0..n {
+        match client.get_reference_gas_price().await {
+            Ok(_) => {}
+            Err(err) => {
+                assert!(
+                    err.to_string().contains("Too many requests"),
+                    "Error not due to spam policy: {err}"
+                );
                 return Ok(());
             }
-        } else {
-            let IotaTransactionBlockResponse {
-                digest,
-                confirmed_local_execution,
-                ..
-            } = response.unwrap();
-            assert_eq!(&digest, tx_digest);
-            assert!(confirmed_local_execution.unwrap());
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
+        // Yield so the background `run_tally_loop` task can process the pending
+        // tally and update the blocklist before the next request.
         tokio::task::yield_now().await;
     }
-    panic!("Expected spam policy to trigger within {txn_count} requests");
+    panic!("Expected spam policy to trigger within {n} requests");
 }
+
+// NB: there is no fullnode error-policy test over gRPC. The fullnode gRPC
+// `TrafficControlLayer` tallies request status from the response *headers*, but
+// tonic delivers unary handler errors (e.g. an invalid signature) in the
+// *trailers*, so those errors never reach the error-policy budget. The
+// error-policy behavior is covered against the validator gRPC path by
+// `test_validator_traffic_control_error_blocked` /
+// `test_validator_traffic_control_error_delegated`.
 
 #[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
@@ -597,6 +483,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
         .with_fullnode_fw_config(Some(firewall_config.clone()))
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
@@ -605,46 +492,15 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     server.start(port).await;
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    let context = test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
-    assert!(
-        txns.len() >= txn_count as usize,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
+    let client = test_cluster.grpc_client();
 
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-
-    // it should take no more than 4 requests to be added to the blocklist
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
+    // Spam the gRPC endpoint. Spam blocking is delegated to the remote firewall,
+    // so requests keep succeeding locally while the firewall records the block.
     for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        assert!(response.is_ok(), "Expected request to succeed");
+        let _ = client.get_reference_gas_price().await;
         // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
+        // can process the pending tally and delegate to the firewall before the
+        // next request.
         tokio::task::yield_now().await;
     }
     // Allow time for the async HTTP delegation to the firewall server to complete.
@@ -883,67 +739,61 @@ async fn test_traffic_sketch_allowlist_mode() {
     assert!(metrics.num_requests < expected_requests + 200);
 }
 
-async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let context = &mut test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+/// Execute a signed transaction over the fullnode gRPC API and return its
+/// effects.
+async fn execute_transaction_grpc(
+    client: &iota_grpc_client::Client,
+    transaction: Transaction,
+) -> Result<TransactionEffects, anyhow::Error> {
+    let signed: iota_sdk_types::SignedTransaction = transaction.try_into()?;
+    let response = client
+        .execute_transaction(
+            signed,
+            Some(ReadMask::from(TransactionField::EFFECTS_BCS)),
+            None,
+        )
+        .await?;
+    let effects = response
+        .body()
+        .effects
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("effects should be present"))?
+        .bcs
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("effects bcs should be present"))?
+        .deserialize()?;
+    Ok(effects)
+}
 
-    let txn_count = 4;
-    let mut txns = batch_make_transfer_transactions(context, txn_count).await;
+async fn assert_traffic_control_ok(test_cluster: TestCluster) -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client = test_cluster.grpc_client();
+
+    let txn_count = 1;
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, txn_count).await;
     assert!(
         txns.len() >= txn_count,
         "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
-
     let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
+    let tx_digest = *txn.digest();
 
-    // Test request with ExecuteTransactionRequestType::WaitForLocalExecution
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params)
+    // Execute the transaction twice. Execution flows through the fullnode's
+    // transaction orchestrator to the validators, so the validator-side policy
+    // sees traffic too: the repeat submission hits the validators'
+    // already-executed-certificate path, their only spam-counted request.
+    for _ in 0..2 {
+        let effects = execute_transaction_grpc(&client, txn.clone())
+            .await
+            .expect("legitimate execution should succeed under traffic control");
+        assert_eq!(effects.transaction_digest(), &tx_digest);
+    }
+
+    // And a plain fullnode read must succeed as well.
+    client
+        .get_reference_gas_price()
         .await
-        .unwrap();
-
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    let _response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-        .await
-        .unwrap();
-
-    // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new().with_effects(),
-        ExecuteTransactionRequestType::WaitForEffectsCert
-    ];
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params)
-        .await
-        .unwrap();
-
-    let IotaTransactionBlockResponse {
-        effects,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
-    assert!(!confirmed_local_execution.unwrap());
+        .expect("legitimate request should succeed under traffic control");
 
     Ok(())
 }
@@ -952,48 +802,26 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
 /// lead to request blocking (in this case, a spammy client)
 /// are allowed to proceed.
 async fn assert_validator_traffic_control_dry_run(
-    mut test_cluster: TestCluster,
+    test_cluster: TestCluster,
     txn_count: usize,
 ) -> Result<(), anyhow::Error> {
-    let context = &mut test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let mut txns = batch_make_transfer_transactions(context, txn_count).await;
-    assert!(
-        txns.len() >= txn_count,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
+    let client = test_cluster.grpc_client();
 
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, 1).await;
     let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
+    let tx_digest = *txn.digest();
 
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        assert!(
-            response.is_ok(),
-            "Expected request to succeed in dry-run mode"
-        );
+    // Submit the same transaction repeatedly: every submission after the first
+    // hits the validators' already-executed-certificate path — their only
+    // spam-counted request — driving the per-validator tally past the
+    // configured limit. In dry-run mode none of it may be blocked.
+    for _ in 0..=txn_count {
+        let effects = execute_transaction_grpc(&client, txn.clone())
+            .await
+            .expect("request should succeed in dry-run mode");
+        assert_eq!(effects.transaction_digest(), &tx_digest);
+        // Yield so the background `run_tally_loop` task can run between requests.
+        tokio::task::yield_now().await;
     }
     Ok(())
 }

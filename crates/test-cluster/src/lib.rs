@@ -61,6 +61,7 @@ use iota_types::{
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     messages_grpc::HandleCertificateRequestV1,
     object::Object,
@@ -138,6 +139,39 @@ impl TestCluster {
             .iota_node
             .with(|node| node.get_config().grpc_api_config.clone());
         format!("http://{}", grpc_config.unwrap_or_default().address)
+    }
+
+    /// A gRPC client connected to the fullnode. Requires the cluster to be
+    /// built with `with_fullnode_enable_grpc_api(true)`.
+    pub fn grpc_client(&self) -> iota_grpc_client::Client {
+        iota_grpc_client::Client::new(self.grpc_url())
+            .expect("failed to create gRPC client for the fullnode")
+    }
+
+    /// The current system state summary, read over the fullnode gRPC API
+    /// (GetEpoch with a `bcs_system_state` read mask). Requires the cluster to
+    /// be built with `with_fullnode_enable_grpc_api(true)`.
+    pub async fn grpc_system_state_summary(&self) -> IotaSystemStateSummary {
+        use iota_grpc_types::{field::FieldMaskUtil, v1::ledger_service::GetEpochRequest};
+
+        let grpc_epoch = self
+            .grpc_client()
+            .ledger_service_client()
+            .get_epoch(
+                GetEpochRequest::default()
+                    .with_read_mask(prost_types::FieldMask::from_paths(["bcs_system_state"])),
+            )
+            .await
+            .expect("GetEpoch should succeed")
+            .into_inner()
+            .epoch
+            .expect("epoch should be present");
+        let system_state: IotaSystemState = grpc_epoch
+            .bcs_system_state
+            .expect("bcs_system_state should be present")
+            .deserialize()
+            .expect("system state should deserialize");
+        system_state.into_iota_system_state_summary()
     }
 
     pub fn wallet(&mut self) -> &WalletContext {
