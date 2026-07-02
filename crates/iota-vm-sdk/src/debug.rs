@@ -64,8 +64,9 @@ impl DebugConfig {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum ProfileSink {
-    /// Write the merged profile JSON to the given path on disk. If the path
-    /// can't be written, the run yields no profile rather than an error.
+    /// Write the merged profile JSON to the given path on disk. A path that
+    /// can't be written fails the run with a
+    /// [`VmSdkError`](crate::VmSdkError).
     Path(PathBuf),
     /// Write the profile to a temporary location and read its bytes back into
     /// [`ProfileOutput::Json`] after execution.

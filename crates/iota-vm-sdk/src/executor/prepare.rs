@@ -12,7 +12,10 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{Event, ObjectId, Owner};
+use iota_sdk_types::{
+    Event, ObjectId, Owner,
+    transaction::{Input, TransactionKind},
+};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
@@ -28,8 +31,11 @@ use iota_types::{
     gas::IotaGasStatus,
     gas_coin::SIMULATION_GAS_COIN_VALUE,
     layout_resolver::LayoutResolver,
-    move_authenticator::MoveAuthenticator,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    object::{
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, bounded_visitor::BoundedVisitor,
+    },
+    signature::GenericSignature,
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
@@ -37,7 +43,6 @@ use iota_types::{
     },
     transaction_executor::SimulateTransactionResult,
 };
-use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout, MoveValue};
 use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
@@ -61,6 +66,7 @@ pub(super) fn prepare_transaction(
     mut transaction: TransactionData,
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
+    tx_signatures: &[GenericSignature],
     authenticator_gas_budget: u64,
 ) -> Result<PreparedTransaction, VmSdkError> {
     if transaction.kind().is_system() {
@@ -97,6 +103,23 @@ pub(super) fn prepare_transaction(
         })
         .collect::<Result<_, VmSdkError>>()?;
     transaction.gas_data_mut().objects = updated_gas;
+
+    // Update receiving references in the PTB inputs the same way: execution
+    // resolves a receive at exactly the version its input declares, so the
+    // declared refs must match the store's versions.
+    if let TransactionKind::Programmable(pt) = transaction.kind_mut() {
+        for input in &mut pt.inputs {
+            if let Input::Receiving(objref) = input {
+                let obj = store
+                    .as_object_store()
+                    .try_get_object(&objref.object_id)
+                    .map_err(|e| StoreError::new("load receiving object", e))?;
+                if let Some(obj) = obj {
+                    *objref = obj.object_ref();
+                }
+            }
+        }
+    }
 
     let raw_input_object_kinds = transaction
         .input_objects()
@@ -137,7 +160,7 @@ pub(super) fn prepare_transaction(
 
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
-        &[],
+        tx_signatures,
         &input_object_kinds,
         &receiving_object_refs,
         deny_config,
@@ -295,15 +318,21 @@ pub(super) fn execute_with_move_authenticators(
     } = prepared;
 
     // Resolve each authenticator's input objects and function ref, unioning
-    // every authenticator's inputs into the transaction's checked inputs.
-    // Offline default: the per-authenticator object restrictions a node enforces
-    // (`check_move_authenticator_objects`) are not applied here, so inputs a live
-    // chain would reject at signing time still run.
+    // every authenticator's inputs into the transaction's checked inputs. The
+    // per-authenticator object restrictions a node enforces at signing time
+    // (no packages, no address-owned objects, no mutable shared objects, …)
+    // are applied to each authenticator's inputs.
     let mut union_inputs = checked_input_objects.into_inner();
     let mut prepared_auths = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
         let auth_input_object_kinds = authenticator.input_objects();
         let (_, auth_input_objects) = build_input_objects(store, &auth_input_object_kinds)?;
+        let auth_input_objects =
+            iota_transaction_checks::check_move_authenticator_input_for_validation(
+                auth_input_objects,
+            )
+            .map_err(|e| ValidationError::new("authenticator input check", e))?
+            .into_inner();
         for obj in auth_input_objects.iter() {
             if union_inputs.find_object_id_mut(obj.id()).is_none() {
                 union_inputs.push(obj.clone());
@@ -546,15 +575,10 @@ pub(super) fn decode_one_event(
     let layout = resolver
         .get_annotated_layout(&event.type_)
         .map_err(|e| ExecutionError::new(format!("resolve layout for {}: {e}", event.type_)))?;
-    let value = match layout {
-        MoveDatatypeLayout::Struct(s) => {
-            MoveValue::simple_deserialize(&event.contents, &MoveTypeLayout::Struct(s))
-        }
-        MoveDatatypeLayout::Enum(e_layout) => {
-            MoveValue::simple_deserialize(&event.contents, &MoveTypeLayout::Enum(e_layout))
-        }
-    }
-    .map_err(|e| ExecutionError::new(format!("bcs deserialize {}: {e}", event.type_)))?;
+    // `BoundedVisitor` bounds the deserialized value's depth and allocation,
+    // like every node-side decoder of externally-sourced bytes.
+    let value = BoundedVisitor::deserialize_value(&event.contents, &layout.into_layout())
+        .map_err(|e| ExecutionError::new(format!("bcs deserialize {}: {e}", event.type_)))?;
 
     Ok(DecodedEvent {
         event: event.clone(),

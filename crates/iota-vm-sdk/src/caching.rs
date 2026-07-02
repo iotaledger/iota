@@ -148,8 +148,14 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
             }
             // Only an unpinned fetch returns the node's latest version; a
             // pinned fetch may be older and must not become the cached entry
-            // (which `get_object(id, None)` reports as latest).
-            if version.is_none() {
+            // (which `get_object(id, None)` reports as latest). The fetch runs
+            // outside the lock, so honor a newer version or a removal another
+            // handle committed in the meantime.
+            let downgrades = state
+                .objects
+                .get_object(&obj.id(), None)?
+                .is_some_and(|cached| cached.version() > obj.version());
+            if version.is_none() && !downgrades && !state.removed.contains(&obj.id()) {
                 state.objects.insert(obj);
             }
         }
@@ -181,12 +187,13 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         for obj in fetched {
             // The cache holds one version per id, so keep a newer cached
             // version (e.g. committed by an `Execute` run) over the node's
-            // older latest.
+            // older latest, and honor a removal another handle committed while
+            // the fetch was in flight.
             let downgrades = state
                 .objects
                 .get_object(&obj.id(), None)?
                 .is_some_and(|cached| cached.version() > obj.version());
-            if !downgrades {
+            if !downgrades && !state.removed.contains(&obj.id()) {
                 state.objects.insert(obj);
             }
         }

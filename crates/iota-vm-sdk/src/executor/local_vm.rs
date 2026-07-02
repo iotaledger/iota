@@ -130,7 +130,7 @@ impl LocalVm {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, 0)?
+            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, &[], 0)?
         };
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -190,6 +190,9 @@ impl LocalVm {
         // sponsored transaction, the sponsor's — must be verified.
         let move_authenticators: Vec<_> =
             signed.move_authenticators().into_iter().cloned().collect();
+        // The deny checks inspect the signatures (e.g. `move_authenticator_disabled`,
+        // deprecated zkLogin), so they must survive `signed` being consumed.
+        let tx_signatures = signed.tx_signatures().to_vec();
         // The auth digests must be computed from the signed data before it is
         // consumed; the `MoveAuthenticator` execution path needs them in its
         // `AuthContextData`.
@@ -209,6 +212,7 @@ impl LocalVm {
                 transaction,
                 opts.mode,
                 &opts.deny_config,
+                &tx_signatures,
                 authenticator_gas_budget,
             )?
         };
@@ -307,9 +311,13 @@ impl LocalVm {
         let resolver = StoreModuleResolver(StoreBackend::new(self.store.as_ref()));
         let layout = TypeLayoutBuilder::build_with_types(&core_tag, &resolver)
             .map_err(|e| ExecutionError::new(format!("build layout for {type_tag}: {e}")))?;
-        move_core_types::annotated_value::MoveValue::simple_deserialize(bytes, &layout).map_err(
-            |e| ExecutionError::new(format!("decode value of type {type_tag}: {e}")).into(),
-        )
+        // `BoundedVisitor` bounds the deserialized value's depth and
+        // allocation, like every node-side decoder of externally-sourced
+        // bytes.
+        iota_types::object::bounded_visitor::BoundedVisitor::deserialize_value(bytes, &layout)
+            .map_err(|e| {
+                ExecutionError::new(format!("decode value of type {type_tag}: {e}")).into()
+            })
     }
 
     /// Assemble an [`ExecutionResult`] from a raw simulation, committing the

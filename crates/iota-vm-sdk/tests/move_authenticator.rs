@@ -80,7 +80,7 @@ fn load(name: &str) -> Fixture {
 /// Run a fixture's signed transaction in the given mode and return the full
 /// result. The fixtures carry a real gas coin among their objects; the
 /// `MoveAuthenticator` is verified inside the VM in every mode.
-fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
+fn try_run(name: &str, opts: ExecuteOptions) -> Result<ExecutionResult, VmSdkError> {
     let f = load(name);
 
     let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
@@ -101,7 +101,10 @@ fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
     let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
 
     vm.execute_signed(signed, opts)
-        .expect("execute_signed returns Ok (auth verdict is carried in the result)")
+}
+
+fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
+    try_run(name, opts).expect("execute_signed returns Ok (auth verdict is carried in the result)")
 }
 
 /// Run a fixture in dev-inspect mode and return the status / signature-status
@@ -333,4 +336,20 @@ fn move_authenticator_missing_object_is_reported() {
         matches!(err, VmSdkError::MissingObject { .. }),
         "expected MissingObject, got {err:?}"
     );
+}
+
+/// The deny checks see the transaction's signatures: with
+/// `move_authenticator_disabled`, a `MoveAuthenticator`-signed transaction is
+/// rejected during preparation, as on a node with that configuration.
+#[test]
+fn deny_config_disabled_move_authenticator_is_rejected() {
+    let deny_config = iota_vm_sdk::TransactionDenyConfigBuilder::new()
+        .disable_move_authenticator()
+        .build();
+    let err = try_run(
+        "move_auth_free_access_valid.json",
+        ExecuteOptions::dev_inspect().with_deny_config(deny_config),
+    )
+    .expect_err("a denied MoveAuthenticator signature must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }

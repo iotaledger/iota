@@ -189,11 +189,9 @@ impl ObjectStore for StoreBackend<'_> {
 
 impl BackingPackageStore for StoreBackend<'_> {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
-        Ok(self
-            .inner
-            .get_object(package_id, None)
-            .map_err(|e| IotaError::Storage(e.to_string()))?
-            .map(PackageObject::new))
+        // Rejects a non-package object at `package_id` with a typed
+        // `IotaError::BadObjectType`, as the node does.
+        iota_types::storage::load_package_object_from_object_store(self, package_id)
     }
 }
 
@@ -211,14 +209,18 @@ impl ChildObjectResolver for StoreBackend<'_> {
 
     fn get_object_received_at_version(
         &self,
-        _owner: &ObjectId,
+        owner: &ObjectId,
         receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
-        self.inner
+        // A receiving object must be address-owned by `owner`; anything else
+        // reads as absent so the receive aborts like it does on-chain.
+        Ok(self
+            .inner
             .get_object(receiving_object_id, Some(receive_object_at_version))
-            .map_err(|e| IotaError::Storage(e.to_string()))
+            .map_err(|e| IotaError::Storage(e.to_string()))?
+            .filter(|obj| obj.owner == iota_sdk_types::Owner::Address((*owner).into())))
     }
 }
 
