@@ -84,8 +84,7 @@ Checkpoint created: 4
 
 task 9, line 42:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 4, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, computation_cost_burned: 702000, storage_cost: 10138400, storage_rebate: 1960800, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 0, sequence_number: 4, network_total_transactions: 4, content_digest: Digest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(Digest("2wh7A2YYqQ8ovUF6CzjBMPoLowwgGe76nWW3WCaC35gU")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, computation_cost_burned: 702000, storage_cost: 10138400, storage_rebate: 1960800, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: [0, 0] }
 
 task 10, line 44:
 //# advance-epoch 6
@@ -93,8 +92,7 @@ Epoch advanced: 5
 
 task 11, line 46:
 //# view-checkpoint
-CheckpointSummary { epoch: 5, seq: 10, content_digest: FRPQVpwfjX5JZ8eNE5Abe6maxTFVT7rsuA8RKxmWHoGf,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 5, sequence_number: 10, network_total_transactions: 10, content_digest: Digest("FRPQVpwfjX5JZ8eNE5Abe6maxTFVT7rsuA8RKxmWHoGf"), previous_digest: Some(Digest("5YsCsZSzHSJDoMVX2ZxZhVQRwXqLZ3kcyUcmsfe1pWff")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: Some(EndOfEpochData { next_epoch_committee: [ValidatorCommitteeMember { public_key: Bls12381PublicKey("qqgbtEP57SCwGrO7tmcKwy/daeoOFwANmrMTm1Qu4jUJRhi2VePz/brF9YAcjmJ7BLOpN8c5Ia7zYzTNmGtGoaUnjoYrbvDG9E05s9antwSmkHAIGsM8mkmeBkSjSBrt"), stake: 10000 }], next_epoch_protocol_version: 13, epoch_commitments: [], epoch_supply_change: 0 }), version_specific_data: [0, 0] }
 
 task 12, lines 48-53:
 //# run-graphql
@@ -112,8 +110,7 @@ Checkpoint created: 11
 
 task 14, line 57:
 //# view-checkpoint
-CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 6, sequence_number: 11, network_total_transactions: 10, content_digest: Digest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(Digest("2bbQchhrZwBcJW1zMGecEaRUZ4BR9i6wyJ2w4WxW6Df2")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: [0, 0] }
 
 task 15, lines 59-64:
 //# run-graphql
@@ -155,8 +152,7 @@ Response: {
 
 task 17, line 73:
 //# view-checkpoint
-CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 6, sequence_number: 11, network_total_transactions: 10, content_digest: Digest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(Digest("2bbQchhrZwBcJW1zMGecEaRUZ4BR9i6wyJ2w4WxW6Df2")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: [0, 0] }
 
 task 18, lines 75-78:
 //# advance-epoch
