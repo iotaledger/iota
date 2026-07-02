@@ -1473,12 +1473,6 @@ impl ProtocolConfig {
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
-        // TODO(attestation): Once `enable_validator_attestation` is set in a version
-        // arm, set `per_object_congestion_control_mode = TotalComputationUnits`
-        // there too and revert this to a plain getter.
-        if self.enable_validator_attestation() {
-            return PerObjectCongestionControlMode::TotalComputationUnits;
-        }
         self.feature_flags.per_object_congestion_control_mode
     }
 
