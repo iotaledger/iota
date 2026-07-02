@@ -16,7 +16,7 @@ use iota_types::{
 };
 
 use crate::{
-    errors::{IndexerError, IndexerResult},
+    errors::IndexerError,
     types::{IndexedDeletedObject, IndexedObject},
 };
 
@@ -95,18 +95,15 @@ pub(crate) struct LiveObject {
 }
 
 impl LiveObject {
-    pub fn new(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
-        transaction_digest: TransactionDigest,
-        object: Object,
-    ) -> IndexerResult<Self> {
+    pub fn new(checkpoint_sequence_number: CheckpointSequenceNumber, object: Object) -> Self {
+        let transaction_digest = object.as_inner().previous_transaction();
         let df_kind = extract_df_kind(&object);
         let indexed_object =
             IndexedObject::from_object(Some(checkpoint_sequence_number), object, df_kind);
-        Ok(Self {
+        Self {
             indexed_object,
             transaction_digest,
-        })
+        }
     }
 
     pub(crate) fn split(self) -> (IndexedObject, TransactionDigest) {
@@ -198,14 +195,8 @@ impl TryFrom<&CheckpointData> for CheckpointObjectChanges {
 
         let changed_objects = extractor
             .iter_live_objects()
-            .map(|obj| {
-                LiveObject::new(
-                    checkpoint_seq,
-                    obj.as_inner().previous_transaction,
-                    obj.clone(),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|obj| LiveObject::new(checkpoint_seq, obj.clone()))
+            .collect();
         Ok(Self {
             changed_objects,
             deleted_objects,
