@@ -285,6 +285,27 @@ public(package) fun deposit(
     });
 }
 
+// === Activity tracking ===
+
+/// Record that the attestors at `active_indices` — per-epoch dense
+/// indices, i.e. positions in `active_attestors` at the start of
+/// `ending_epoch` — were active during `ending_epoch`. Must run before
+/// `advance_epoch` mutates the active set. Never aborts: out-of-range
+/// indices are skipped, duplicates are idempotent (aborting would poison
+/// the epoch-change transaction).
+public(package) fun refresh_activity(
+    self: &mut AttestorRegistryV1,
+    active_indices: vector<u64>,
+    ending_epoch: u64,
+) {
+    let len = self.active_attestors.length();
+    active_indices.do!(|idx| {
+        if (idx < len) {
+            self.active_attestors[idx].last_active_epoch = ending_epoch;
+        }
+    });
+}
+
 // === Key rotation ===
 
 /// Stage a replacement signing key for the sender's active entry; the key
