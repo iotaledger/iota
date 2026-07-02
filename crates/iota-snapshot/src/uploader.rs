@@ -179,19 +179,14 @@ impl StateSnapshotUploader {
                     .write(*epoch, db, ECMHLiveObjectSetDigest { digest })
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
-                // Records the on-chain start timestamp of this epoch (= timestamp of the
-                // last checkpoint of the previous epoch, which is when advance_epoch ran;
-                // for epoch 0, the genesis checkpoint at sequence 0) in each epoch bucket,
+                // Records the on-chain end timestamp of this epoch (= timestamp of the
+                // last checkpoint of the epoch) in each epoch bucket,
                 // which will be read when updating the MANIFEST file.
-                let epoch_start_checkpoint = if *epoch == 0 {
-                    self.checkpoint_store.get_checkpoint_by_sequence_number(0)?
-                } else {
-                    self.checkpoint_store
-                        .get_epoch_last_checkpoint(*epoch - 1)?
-                };
-                if let Some(checkpoint) = epoch_start_checkpoint {
+                let epoch_end_checkpoint =
+                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?;
+                if let Some(checkpoint) = epoch_end_checkpoint {
                     let metadata = EpochMetadata {
-                        epoch_start_timestamp_ms: checkpoint.timestamp_ms,
+                        epoch_end_timestamp_ms: checkpoint.timestamp_ms,
                     };
                     put(
                         &self.snapshot_store,
@@ -201,7 +196,7 @@ impl StateSnapshotUploader {
                     .await?;
                 } else {
                     error!(
-                        "Could not determine epoch start timestamp for epoch {epoch}; skipping metadata write"
+                        "Could not determine epoch end timestamp for epoch {epoch}; skipping metadata write"
                     );
                 }
                 // Drops marker in the output directory that upload completed successfully

@@ -27,12 +27,12 @@ pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
 
 #[derive(Serialize, Deserialize)]
 pub struct RootManifest {
-    /// Epoch number paired with its start timestamp in ms (when known).
-    pub available_epochs: Vec<(u64, Option<u64>)>,
+    /// Epoch number paired with its end timestamp in ms (or 0 when unknown).
+    pub available_epochs: Vec<(u64, u64)>,
 }
 
 impl RootManifest {
-    pub fn new(available_epochs: Vec<(u64, Option<u64>)>) -> Self {
+    pub fn new(available_epochs: Vec<(u64, u64)>) -> Self {
         RootManifest { available_epochs }
     }
 
@@ -53,7 +53,7 @@ impl RootManifest {
 
 #[derive(Serialize, Deserialize)]
 pub struct EpochMetadata {
-    pub epoch_start_timestamp_ms: u64,
+    pub epoch_end_timestamp_ms: u64,
 }
 
 impl EpochMetadata {
@@ -283,8 +283,9 @@ pub async fn find_all_dirs_with_epoch_prefix(
 }
 
 /// Finds all epochs in the store and returns them as a sorted list, paired
-/// with each epoch's start timestamp in ms when its metadata file is present.
-pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, Option<u64>)>> {
+/// with each epoch's end timestamp in ms when its metadata file is present, or
+/// 0 otherwise.
+pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, u64)>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];
     let mut success_marker_found = false;
@@ -299,17 +300,17 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u
             }
             Ok(_) => {
                 let metadata_path = path.child(EPOCH_METADATA_FILENAME);
-                let epoch_start_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
+                let epoch_end_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
                     Ok(bytes) => match serde_json::from_slice::<EpochMetadata>(&bytes) {
-                        Ok(metadata) => Some(metadata.epoch_start_timestamp_ms),
+                        Ok(metadata) => metadata.epoch_end_timestamp_ms,
                         Err(err) => {
                             warn!("Failed to parse epoch metadata for epoch {epoch}: {err}");
-                            None
+                            0
                         }
                     },
-                    Err(_) => None,
+                    Err(_) => 0,
                 };
-                out.push((*epoch, epoch_start_timestamp_ms));
+                out.push((*epoch, epoch_end_timestamp_ms));
                 success_marker_found = true;
             }
         }
