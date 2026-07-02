@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
@@ -15,7 +15,7 @@ use url::Url;
 
 use crate::{
     backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
-    types::IndexerResult,
+    restore::Network, types::IndexerResult,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -297,6 +297,39 @@ pub enum Command {
         #[command(flatten)]
         backfill_config: BackfillConfig,
     },
+    /// Bootstrap the Indexer database from a formal snapshot.
+    Restore {
+        /// Target network.
+        #[arg(long)]
+        network: Network,
+        #[command(subcommand)]
+        command: RestoreCommand,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum RestoreCommand {
+    /// Start restoring from a formal snapshot of the target network.
+    Run {
+        /// Local directory used to stage the downloaded MANIFEST and `.ref`
+        /// files.
+        #[arg(long)]
+        staging_path: PathBuf,
+        /// Path to the genesis blob, required to verify the snapshot against
+        /// the committee chain.
+        #[arg(long)]
+        genesis_path: PathBuf,
+        /// Epoch to download. Defaults to the latest available epoch.
+        #[arg(long)]
+        epoch: Option<u64>,
+        /// Number of parallel downloads. Defaults to the available parallelism.
+        ///
+        /// Must be strictly positive.
+        #[arg(long)]
+        num_parallel_downloads: Option<NonZeroUsize>,
+    },
+    /// Print the epochs for which there is an available formal snapshot.
+    AvailableEpochs,
 }
 
 pub const DEFAULT_PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours

@@ -89,6 +89,16 @@ pub enum PrunableTable {
     ObjectsBackwardHistory,
 }
 
+impl From<&StoredWatermark> for PrunableTable {
+    fn from(watermark: &StoredWatermark) -> Self {
+        watermark
+            .entity
+            .as_str()
+            .parse()
+            .expect("stored watermarks should correspond to prunable tables")
+    }
+}
+
 /// Represents how a table is pruned
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PruningStrategy {
@@ -122,7 +132,7 @@ impl PruningStrategy {
 
     /// Exclusive upper bound of the pruning range for this strategy, taken
     /// from the watermark's `min_available_*` columns.
-    fn range_end(&self, watermark: &StoredWatermark) -> u64 {
+    pub(crate) fn range_end(&self, watermark: &StoredWatermark) -> u64 {
         match self {
             Self::ByEpochPartition => watermark.min_available_epoch as u64,
             Self::ByCheckpoint | Self::ByCheckpointWithLimit => watermark.min_available_cp as u64,
