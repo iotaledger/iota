@@ -38,7 +38,6 @@ use reqwest::Client;
 use test_cluster::TestClusterBuilder;
 use tokio::sync::oneshot;
 
-const LOCALNET_PORT: u16 = 9000;
 const TEST_FIXTURES_DIR: &str = "tests/fixture";
 
 #[expect(clippy::await_holding_lock)]
@@ -46,10 +45,7 @@ const TEST_FIXTURES_DIR: &str = "tests/fixture";
 #[ignore]
 async fn test_end_to_end() -> anyhow::Result<()> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_fullnode_rpc_port(LOCALNET_PORT)
-        .build()
-        .await;
+    let mut test_cluster = TestClusterBuilder::new().build().await;
 
     ///////////////////////////
     // Test watch_for_upgrades

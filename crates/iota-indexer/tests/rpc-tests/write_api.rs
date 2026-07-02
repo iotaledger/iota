@@ -392,6 +392,85 @@ fn execute_transaction_block() {
     });
 }
 
+/// Executing through the indexer populates `object_changes` and
+/// `balance_changes` when requested.
+#[test]
+fn execute_transaction_block_populates_changes() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(
+            client,
+            object_to_transfer.object_id,
+            object_to_transfer.version,
+        )
+        .await;
+
+        let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
+            sender,
+            key_pair,
+            receiver,
+            object_to_transfer,
+            gas_ref,
+        )
+        .await;
+
+        let response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(
+                    IotaTransactionBlockResponseOptions::new()
+                        .with_effects()
+                        .with_object_changes()
+                        .with_balance_changes(),
+                ),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status_ok(), Some(true));
+        assert!(
+            response
+                .object_changes
+                .is_some_and(|changes| !changes.is_empty()),
+            "indexer must populate object_changes when requested"
+        );
+        assert!(
+            response
+                .balance_changes
+                .is_some_and(|changes| !changes.is_empty()),
+            "indexer must populate balance_changes when requested"
+        );
+    });
+}
+
 #[test]
 fn optimistic_objects_are_finalized() {
     let ApiTestSetup {

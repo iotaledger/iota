@@ -71,7 +71,6 @@ use iota_core::{
     execution_cache::build_execution_cache,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
@@ -81,21 +80,13 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
-use iota_json_rpc::{
-    JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
-    indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
-    transaction_builder_api::TransactionBuilderApi,
-    transaction_execution_api::TransactionExecutionApi,
-};
-use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryID, RegistryService,
     hardware_metrics::register_hardware_metrics,
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
-    server_timing_middleware, spawn_monitored_task,
+    spawn_monitored_task,
 };
-use iota_names::config::IotaNamesConfig;
 use iota_network::{
     api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
     discovery,
@@ -112,12 +103,7 @@ use iota_snapshot::{
     reader::{StateSnapshotReaderV1, latest_available_epoch},
     uploader::StateSnapshotUploader,
 };
-use iota_storage::{
-    FileCompression, StorageFormat,
-    http_key_value_store::HttpKVStore,
-    key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
-    key_value_store_metrics::KeyValueStoreMetrics,
-};
+use iota_storage::{FileCompression, StorageFormat};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
@@ -143,7 +129,6 @@ use iota_types::{
 use prometheus_filtered::Registry;
 #[cfg(msim)]
 use simulator::*;
-use tap::tap::TapFallible;
 use tokio::{
     sync::{Mutex, broadcast, mpsc, watch},
     task::{JoinHandle, JoinSet},
@@ -229,8 +214,6 @@ impl std::fmt::Display for ServerVersion {
 pub struct IotaNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
-    /// The http server responsible for serving JSON-RPC
-    _http_server: Option<iota_http::ServerHandle>,
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
@@ -564,19 +547,6 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
-            info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        } else {
-            None
-        };
-
         let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
             Some(Arc::new(
                 GrpcIndexesStore::new(
@@ -658,11 +628,6 @@ impl IotaNode {
             Some(checkpoint_progress_tracker.clone()),
         )?;
 
-        let mut genesis_objects = genesis.objects().to_vec();
-        if let Some(migration_tx_data) = migration_tx_data.as_ref() {
-            genesis_objects.extend(migration_tx_data.get_objects());
-        }
-
         let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
             config
@@ -682,11 +647,9 @@ impl IotaNode {
             cache_traits.clone(),
             epoch_store.clone(),
             committee_store.clone(),
-            index_store.clone(),
             grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
-            &genesis_objects,
             &db_checkpoint_config,
             config.clone(),
             archive_readers,
@@ -731,19 +694,6 @@ impl IotaNode {
         // it.
         RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
 
-        if config
-            .expensive_safety_check_config
-            .enable_secondary_index_checks()
-        {
-            if let Some(indexes) = state.indexes.clone() {
-                iota_core::verify_indexes::verify_indexes(
-                    state.get_global_state_hash_store().as_ref(),
-                    indexes,
-                )
-                .expect("secondary indexes are inconsistent");
-            }
-        }
-
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
 
@@ -759,14 +709,6 @@ impl IotaNode {
         } else {
             None
         };
-
-        let http_server = build_http_server(
-            state.clone(),
-            &transaction_orchestrator.clone(),
-            &config,
-            &prometheus_registry,
-        )
-        .await?;
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             cache_traits.global_state_hash_store.clone(),
@@ -858,7 +800,6 @@ impl IotaNode {
         let node = Self {
             config,
             validator_components: Mutex::new(validator_components),
-            _http_server: http_server,
             state,
             transaction_orchestrator,
             registry_service,
@@ -2572,42 +2513,6 @@ fn send_trusted_peer_change(
     })
 }
 
-fn build_kv_store(
-    state: &Arc<AuthorityState>,
-    config: &NodeConfig,
-    registry: &Registry,
-) -> Result<Arc<TransactionKeyValueStore>> {
-    let metrics = KeyValueStoreMetrics::new(registry);
-    let db_store = TransactionKeyValueStore::new("rocksdb", metrics.clone(), state.clone());
-
-    let base_url = &config.transaction_kv_store_read_config.base_url;
-
-    if base_url.is_empty() {
-        info!("no http kv store url provided, using local db only");
-        return Ok(Arc::new(db_store));
-    }
-
-    base_url.parse::<url::Url>().tap_err(|e| {
-        error!(
-            "failed to parse config.transaction_kv_store_config.base_url ({:?}) as url: {}",
-            base_url, e
-        )
-    })?;
-
-    let http_store = HttpKVStore::new_kv(
-        base_url,
-        config.transaction_kv_store_read_config.cache_size,
-        metrics.clone(),
-    )?;
-    info!("using local key-value store with fallback to http key-value store");
-    Ok(Arc::new(FallbackTransactionKVStore::new_kv(
-        db_store,
-        http_store,
-        metrics,
-        "json_rpc_fallback",
-    )))
-}
-
 /// Builds and starts the gRPC server for the IOTA node based on the node's
 /// configuration.
 ///
@@ -2673,162 +2578,6 @@ async fn build_grpc_server(
     .await?;
 
     Ok(Some(handle))
-}
-
-/// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
-/// API based on the node's configuration.
-///
-/// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus
-///    configuration; if so, it returns early as validators do not expose these
-///    APIs.
-/// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based
-///    on the node's state and configuration, including CoinApi,
-///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
-///    IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening
-///    for incoming connections.
-pub async fn build_http_server(
-    state: Arc<AuthorityState>,
-    transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
-    config: &NodeConfig,
-    prometheus_registry: &Registry,
-) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.consensus_config().is_some() {
-        return Ok(None);
-    }
-
-    let mut router = axum::Router::new();
-
-    let json_rpc_router = {
-        let traffic_controller = state.traffic_controller.clone();
-        let mut server = JsonRpcServerBuilder::new(
-            env!("CARGO_PKG_VERSION"),
-            prometheus_registry,
-            traffic_controller,
-            config.policy_config.clone(),
-        );
-
-        let kv_store = build_kv_store(&state, config, prometheus_registry)?;
-
-        let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
-        server.register_module(ReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        ))?;
-        server.register_module(CoinReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        )?)?;
-
-        // if run_with_range is enabled we want to prevent any transactions
-        // run_with_range = None is normal operating conditions
-        if config.run_with_range.is_none() {
-            server.register_module(TransactionBuilderApi::new(state.clone()))?;
-        }
-        server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
-
-        if let Some(transaction_orchestrator) = transaction_orchestrator {
-            server.register_module(TransactionExecutionApi::new(
-                state.clone(),
-                transaction_orchestrator.clone(),
-                metrics.clone(),
-            ))?;
-        }
-
-        let iota_names_config = config
-            .iota_names_config
-            .clone()
-            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
-
-        server.register_module(IndexerApi::new(
-            state.clone(),
-            ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
-            kv_store,
-            metrics,
-            iota_names_config,
-            config.indexer_max_subscriptions,
-        ))?;
-        server.register_module(MoveUtils::new(state.clone()))?;
-
-        let server_type = config.jsonrpc_server_type();
-
-        server.to_router(server_type).await?
-    };
-
-    router = router.merge(json_rpc_router);
-
-    router = router
-        .route("/health", axum::routing::get(health_check_handler))
-        .route_layer(axum::Extension(state));
-
-    let layers = ServiceBuilder::new()
-        .map_request(|mut request: axum::http::Request<_>| {
-            if let Some(connect_info) = request.extensions().get::<iota_http::ConnectInfo>() {
-                let axum_connect_info = axum::extract::ConnectInfo(connect_info.remote_addr);
-                request.extensions_mut().insert(axum_connect_info);
-            }
-            request
-        })
-        .layer(axum::middleware::from_fn(server_timing_middleware));
-
-    router = router.layer(layers);
-
-    let handle = iota_http::Builder::new()
-        .serve(&config.json_rpc_address, router)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
-
-    Ok(Some(handle))
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct Threshold {
-    pub threshold_seconds: Option<u32>,
-}
-
-async fn health_check_handler(
-    axum::extract::Query(Threshold { threshold_seconds }): axum::extract::Query<Threshold>,
-    axum::Extension(state): axum::Extension<Arc<AuthorityState>>,
-) -> impl axum::response::IntoResponse {
-    if let Some(threshold_seconds) = threshold_seconds {
-        // Attempt to get the latest checkpoint
-        let summary = match state
-            .get_checkpoint_store()
-            .get_highest_executed_checkpoint()
-        {
-            Ok(Some(summary)) => summary,
-            Ok(None) => {
-                warn!("Highest executed checkpoint not found");
-                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
-            }
-            Err(err) => {
-                warn!("Failed to retrieve highest executed checkpoint: {:?}", err);
-                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
-            }
-        };
-
-        // Calculate the threshold time based on the provided threshold_seconds
-        let latest_chain_time = summary.timestamp();
-        let threshold =
-            std::time::SystemTime::now() - Duration::from_secs(threshold_seconds as u64);
-
-        // Check if the latest checkpoint is within the threshold
-        if latest_chain_time < threshold {
-            warn!(
-                ?latest_chain_time,
-                ?threshold,
-                "failing health check due to checkpoint lag"
-            );
-            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
-        }
-    }
-    // if health endpoint is responding and no threshold is given, respond success
-    (axum::http::StatusCode::OK, "up")
 }
 
 #[cfg(not(test))]

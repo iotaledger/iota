@@ -9,7 +9,7 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, Identifier, ObjectId};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
@@ -78,20 +78,18 @@ async fn reload_state_with_new_deny_config(
 
 type Account = (Address, Ed25519KeyPair, Vec<ObjectRef>);
 
-fn get_accounts_and_coins(
-    network_config: &NetworkConfig,
-    state: &Arc<AuthorityState>,
-) -> Vec<Account> {
+fn get_accounts_and_coins(network_config: &NetworkConfig) -> Vec<Account> {
     let accounts: Vec<_> = network_config
         .account_keys
         .iter()
         .map(|account| {
             let address: Address = address_from_iota_pub_key(account.public());
-            let objects: Vec<_> = state
-                .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
-                .unwrap()
-                .into_iter()
-                .map(|o| o.into())
+            let objects: Vec<ObjectRef> = network_config
+                .genesis
+                .objects()
+                .iter()
+                .filter(|o| o.owner == Owner::Address(address))
+                .map(|o| o.object_ref())
                 .collect();
             assert_eq!(objects.len(), GAS_OBJECT_COUNT);
             (address, account.copy(), objects)
@@ -174,7 +172,7 @@ async fn test_user_transaction_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     assert_denied(&transfer_with_account(&accounts[0], &accounts[0], &state).await);
 }
 
@@ -183,7 +181,7 @@ async fn test_object_denied() {
     // We need to create the authority state once to get one of the gas coin object
     // IDs.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     // Re-create the state such that we could specify a gas coin object to be
     // denied.
     let obj_ref = accounts[0].2[0];
@@ -203,7 +201,7 @@ async fn test_signer_denied() {
     // We need to create the authority state once to get one of the account
     // addresses.
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
 
     // Re-create the state such that we could specify an address to be denied.
     let state = reload_state_with_new_deny_config(
@@ -229,7 +227,7 @@ async fn test_shared_object_transaction_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
@@ -249,7 +247,7 @@ async fn test_package_publish_disabled() {
             .build(),
     )
     .await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
@@ -266,7 +264,7 @@ async fn test_package_publish_disabled() {
 #[tokio::test]
 async fn test_package_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let accounts = get_accounts_and_coins(&network_config, &state);
+    let accounts = get_accounts_and_coins(&network_config);
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     // Publish 3 packages, where b depends on c, and a depends on b.
     // Also upgrade c to c', and upgrade b to b' (which will start using c' instead
@@ -428,9 +426,7 @@ async fn test_package_denied() {
 #[tokio::test]
 async fn test_certificate_deny() {
     let (network_config, state) = setup_test(TransactionDenyConfig::default()).await;
-    let (sender, key, gas_objects) = get_accounts_and_coins(&network_config, &state)
-        .pop()
-        .unwrap();
+    let (sender, key, gas_objects) = get_accounts_and_coins(&network_config).pop().unwrap();
     let tx = make_transfer_iota_transaction(
         gas_objects[0],
         sender,
@@ -479,7 +475,7 @@ async fn test_move_authenticator_disabled() {
             .build(),
     )
     .await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
     let tx = make_move_authenticator_tx(account);
 
     let result = state
@@ -495,7 +491,7 @@ async fn test_move_authenticator_disabled() {
 #[tokio::test]
 async fn test_move_account_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
 
     let state = reload_state_with_new_deny_config(
         &network_config,
@@ -521,7 +517,7 @@ async fn test_move_account_denied() {
 #[tokio::test]
 async fn test_move_authenticator_input_denied() {
     let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
-    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let account = get_accounts_and_coins(&network_config)[0].0;
 
     let state = reload_state_with_new_deny_config(
         &network_config,

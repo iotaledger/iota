@@ -1,14 +1,17 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::encoding::Base64;
-use iota_json_rpc_api::WriteApiClient;
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Command, Identifier, ObjectId, ProgrammableTransaction, TransactionKind};
-use iota_types::transaction::CallArg;
-use jsonrpsee::{core::ClientError, types::ErrorCode};
+use iota_sdk_types::{
+    Command, ExecutionError, ExecutionStatus, Identifier, ObjectId, ProgrammableTransaction,
+    TransactionKind,
+};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    error::{IotaError, UserInputError},
+    transaction::CallArg,
+};
 use test_cluster::TestClusterBuilder;
 
 // Build an invalid raw transaction byte sequence for sending in through the raw
@@ -27,7 +30,7 @@ use test_cluster::TestClusterBuilder;
 // which contains an invalid module or function name identifier. Ex:
 // iota::clock::timestamp_ms -> iota::_::timestamp_ms
 //
-fn build_faulty_transaction_byte_sequence() -> Base64 {
+fn build_faulty_transaction_kind() -> TransactionKind {
     let inputs = vec![CallArg::CLOCK_IMMUTABLE];
     // In case the ProgrammableMoveCall API is fixed such that it does not
     // accept invalid inputs and there are no other easily accessible interfaces
@@ -44,9 +47,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
         vec![iota_sdk_types::Argument::Input(0)],
     )];
     let pt = ProgrammableTransaction { inputs, commands };
-    let tx = TransactionKind::new_programmable(pt);
-
-    Base64::from_bytes(&bcs::to_bytes(&tx).unwrap())
+    TransactionKind::new_programmable(pt)
 }
 
 #[sim_test]
@@ -56,20 +57,24 @@ async fn version_9_accepts() {
         .build()
         .await;
 
-    let client = test_cluster.rpc_client();
+    let sender = test_cluster.get_address_0();
+    let txn = build_faulty_transaction_kind();
 
-    let tx_bytes = build_faulty_transaction_byte_sequence();
+    let (effects, ..) = test_cluster
+        .dev_inspect_transaction_kind(sender, txn)
+        .await
+        .expect("transaction should have been considered valid");
 
-    let result = client
-        .dev_inspect_transaction_block(test_cluster.get_address_0(), tx_bytes, None, None, None)
-        .await;
-
-    let dev_inspect_result = result.expect("transaction should have been considered valid");
-    assert_eq!(
-        *dev_inspect_result.effects.status(),
-        IotaExecutionStatus::Failure {
-            error: "Move Bytecode Verification Error. Please run the Bytecode Verifier for more information. in command 0".to_string(),
-        }
+    assert!(
+        matches!(
+            effects.status(),
+            ExecutionStatus::Failure {
+                error: ExecutionError::VmVerificationOrDeserializationError,
+                command: Some(0),
+            }
+        ),
+        "expected a bytecode-verification failure in command 0, got {:?}",
+        effects.status()
     );
 }
 
@@ -77,24 +82,21 @@ async fn version_9_accepts() {
 async fn above_version_9_it_fails() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
-    let client = test_cluster.rpc_client();
+    let sender = test_cluster.get_address_0();
+    let txn = build_faulty_transaction_kind();
 
-    let tx_bytes = build_faulty_transaction_byte_sequence();
+    let err = test_cluster
+        .dev_inspect_transaction_kind(sender, txn)
+        .await
+        .expect_err("transaction should have been considered invalid");
 
-    let result = client
-        .dev_inspect_transaction_block(test_cluster.get_address_0(), tx_bytes, None, None, None)
-        .await;
-
-    if let ClientError::Call(error_object) =
-        result.expect_err("transaction should have been considered invalid")
-    {
-        assert_eq!(error_object.code(), ErrorCode::InvalidParams.code());
-        assert_eq!(
-            error_object.message(),
-            "Error checking transaction input objects: Invalid identifier found in the transaction: _"
-                .to_string()
-        );
-    } else {
-        panic!("received unexpected error from json rpc api")
-    }
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::InvalidIdentifier { error },
+            } if error == "_"
+        ),
+        "unexpected error: {err}"
+    );
 }

@@ -566,7 +566,6 @@ async fn start(
             );
 
             let NodeConfig {
-                iota_names_config,
                 enable_grpc_api,
                 grpc_api_config,
                 db_path,
@@ -587,10 +586,6 @@ async fn start(
                 "Fullnode must use the same migration blob as validators in IOTA network config"
             );
             swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
-
-            if let Some(iota_names_config) = iota_names_config {
-                swarm_builder = swarm_builder.with_iota_names_config(iota_names_config);
-            }
 
             swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
@@ -649,15 +644,12 @@ async fn start(
         swarm_builder = swarm_builder.with_data_ingestion_dir(dir.clone());
     }
 
-    let mut fullnode_url = iota_config::node::default_json_rpc_address();
-    fullnode_url.set_port(fullnode_rpc_port);
+    let fullnode_url = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), fullnode_rpc_port);
 
     if no_full_node {
         swarm_builder = swarm_builder.with_fullnode_count(0);
     } else {
-        swarm_builder = swarm_builder
-            .with_fullnode_count(1)
-            .with_fullnode_rpc_addr(fullnode_url);
+        swarm_builder = swarm_builder.with_fullnode_count(1);
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
@@ -792,13 +784,19 @@ async fn start(
 
         let prometheus_registry = prometheus_filtered::Registry::new();
         if force_regenesis {
+            let grpc_url = swarm.fullnodes().next().and_then(|node| {
+                node.config()
+                    .grpc_api_config
+                    .as_ref()
+                    .map(|grpc| format!("http://{}", grpc.address))
+            });
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: Address = address_from_iota_pub_key(kp.public());
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
-                .with_envs([IotaEnv::new("localnet", fullnode_url)])
+                .with_envs([IotaEnv::new("localnet", fullnode_url).with_grpc(grpc_url)])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
                 .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
@@ -1061,7 +1059,6 @@ async fn genesis(
 
     let fullnode_config = FullnodeConfigBuilder::new()
         .with_config_directory(iota_config_dir.to_path_buf())
-        .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
         .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
@@ -1083,7 +1080,6 @@ async fn genesis(
                 .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
                 .with_metrics_address(([0, 0, 0, 0], 9184))
                 .with_admin_interface_address(admin_interface_address_with_port)
-                .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
             ssfn_nodes.push(ssfn_config.clone());
@@ -1138,23 +1134,6 @@ async fn genesis(
         client_config.set_active_address(active_address);
     }
 
-    // On windows, using 0.0.0.0 will usually yield in an networking error. This
-    // localnet ip address must bind to 127.0.0.1 if the default 0.0.0.0 is
-    // used.
-    let localnet_ip =
-        if fullnode_config.json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
-            "127.0.0.1".to_string()
-        } else {
-            fullnode_config.json_rpc_address.ip().to_string()
-        };
-    client_config.set_env(IotaEnv::new(
-        "localnet",
-        format!(
-            "http://{}:{}",
-            localnet_ip,
-            fullnode_config.json_rpc_address.port()
-        ),
-    ));
     client_config.add_env(IotaEnv::devnet());
 
     if client_config.active_env().is_none() {

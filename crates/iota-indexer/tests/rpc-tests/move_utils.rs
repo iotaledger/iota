@@ -118,10 +118,10 @@ fn get_move_function_arg_types_not_found() {
 #[test]
 fn get_normalized_move_modules_by_package() {
     let ApiTestSetup {
-        cluster,
         runtime,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -129,18 +129,15 @@ fn get_normalized_move_modules_by_package() {
 
         let package_id = "0x1".parse().unwrap();
 
-        let fullnode_response = cluster
-            .rpc_client()
-            .get_normalized_move_modules_by_package(package_id)
-            .await
-            .unwrap();
-
+        // 0x1 (MoveStdlib) exposes these well-known modules.
         let indexer_response = client
             .get_normalized_move_modules_by_package(package_id)
             .await
             .unwrap();
 
-        assert_eq!(fullnode_response, indexer_response);
+        assert!(indexer_response.contains_key("vector"));
+        assert!(indexer_response.contains_key("option"));
+        assert_eq!(indexer_response["vector"].name, "vector");
     });
 }
 
@@ -167,10 +164,10 @@ fn get_normalized_move_modules_by_package_not_found() {
 #[test]
 fn get_normalized_move_module() {
     let ApiTestSetup {
-        cluster,
         runtime,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -179,18 +176,14 @@ fn get_normalized_move_module() {
         let package_id = "0x1".parse().unwrap();
         let module = "vector".to_owned();
 
-        let fullnode_response = cluster
-            .rpc_client()
-            .get_normalized_move_module(package_id, module.clone())
-            .await
-            .unwrap();
-
         let indexer_response = client
             .get_normalized_move_module(package_id, module)
             .await
             .unwrap();
 
-        assert_eq!(fullnode_response, indexer_response);
+        assert_eq!(indexer_response.name, "vector");
+        assert!(indexer_response.exposed_functions.contains_key("empty"));
+        assert!(indexer_response.exposed_functions.contains_key("push_back"));
     });
 }
 
@@ -220,10 +213,10 @@ fn get_normalized_move_module_not_found() {
 #[test]
 fn get_normalized_move_struct() {
     let ApiTestSetup {
-        cluster,
         runtime,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -233,18 +226,15 @@ fn get_normalized_move_struct() {
         let module = "vec_set".to_owned();
         let struct_name = "VecSet".to_owned();
 
-        let fullnode_response = cluster
-            .rpc_client()
-            .get_normalized_move_struct(package_id, module.clone(), struct_name.clone())
-            .await
-            .unwrap();
-
+        // `VecSet<K>` has one type parameter and a single `contents: vector<K>` field.
         let indexer_response = client
             .get_normalized_move_struct(package_id, module, struct_name)
             .await
             .unwrap();
 
-        assert_eq!(fullnode_response, indexer_response)
+        assert_eq!(indexer_response.type_parameters.len(), 1);
+        assert_eq!(indexer_response.fields.len(), 1);
+        assert_eq!(indexer_response.fields[0].name, "contents");
     });
 }
 
@@ -278,10 +268,10 @@ fn get_normalized_move_struct_not_found() {
 #[test]
 fn get_normalized_move_function() {
     let ApiTestSetup {
-        cluster,
         runtime,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -291,18 +281,15 @@ fn get_normalized_move_function() {
         let module = "vec_set".to_owned();
         let function_name = "insert".to_owned();
 
-        let fullnode_response = cluster
-            .rpc_client()
-            .get_normalized_move_function(package_id, module.clone(), function_name.clone())
-            .await
-            .unwrap();
-
+        // `public fun insert<K: copy + drop>(self: &mut VecSet<K>, key: K)`.
         let indexer_response = client
             .get_normalized_move_function(package_id, module, function_name)
             .await
             .unwrap();
 
-        assert_eq!(fullnode_response, indexer_response)
+        assert_eq!(indexer_response.type_parameters.len(), 1);
+        assert_eq!(indexer_response.parameters.len(), 2);
+        assert!(indexer_response.return_.is_empty());
     });
 }
 

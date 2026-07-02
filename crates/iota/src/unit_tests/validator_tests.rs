@@ -5,17 +5,14 @@
 use std::{str::FromStr, time::Duration};
 
 use anyhow::Ok;
-use iota_json::IotaJsonValue;
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::multiaddr::Multiaddr;
 use tempfile::TempDir;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-use crate::{
-    client_commands::{
-        GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
-    },
-    validator_commands::{IotaValidatorCommand, IotaValidatorCommandResponse, MetadataUpdate},
+use crate::validator_commands::{
+    IotaValidatorCommand, IotaValidatorCommandResponse, MetadataUpdate,
 };
 
 #[tokio::test]
@@ -30,7 +27,6 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         .await;
 
     let address = test_cluster.wallet.active_address()?;
-    let client = test_cluster.wallet.get_client().await?;
 
     let response = IotaValidatorCommand::MakeValidatorInfo {
         name: "validator0".to_string(),
@@ -57,31 +53,22 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     // Wait some time to be sure that the tx is executed
     sleep(Duration::from_secs(2)).await;
 
-    // Get coin and stake
-    let coins = client
-        .coin_read_api()
-        .get_coins(address, None, None, None)
+    // Self-stake so the candidate is eligible to join the validator set.
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas_objects = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(address, None)
         .await?;
-    let stake_result = IotaClientCommands::Call {
-        package: "0x3".parse()?,
-        module: "iota_system".to_string(),
-        function: "request_add_stake".to_string(),
-        type_args: vec![],
-        args: vec![
-            IotaJsonValue::from_str("0x5").unwrap(),
-            IotaJsonValue::from_str(&coins.data.first().unwrap().coin_object_id.to_string())
-                .unwrap(),
-            IotaJsonValue::from_str(&address.to_string()).unwrap(),
-        ],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs::default(),
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(&mut test_cluster.wallet)
-    .await?;
-    let IotaClientCommandResult::TransactionBlock(_) = stake_result else {
-        panic!("Expected TransactionBlock");
-    };
+    let gas = *gas_objects
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("need at least two coins to stake"))?;
+    let stake_coin = *gas_objects
+        .get(1)
+        .ok_or_else(|| anyhow::anyhow!("need at least two coins to stake"))?;
+    let stake_tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_staking(stake_coin, address)
+        .build();
+    test_cluster.sign_and_execute_transaction(&stake_tx).await;
     // Wait some time to be sure that the tx is executed
     sleep(Duration::from_secs(2)).await;
 

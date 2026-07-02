@@ -23,20 +23,14 @@ use iota_types::{
 };
 use typed_store::rocks::{MetricConf, safe_drop_db};
 
-use self::{
-    db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
-    index_search::{SearchRange, search_index},
-};
+use self::db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary};
 use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
-mod index_search;
 
 #[derive(Parser)]
 pub enum DbToolCommand {
     ListTables,
     Dump(Options),
-    IndexSearchKeyRange(IndexSearchKeyRangeOptions),
-    IndexSearchCount(IndexSearchCountOptions),
     TableSummary(Options),
     DuplicatesSummary,
     ListDBMetadata(Options),
@@ -51,26 +45,6 @@ pub enum DbToolCommand {
     PruneObjects,
     PruneCheckpoints,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
-}
-
-#[derive(Parser)]
-pub struct IndexSearchKeyRangeOptions {
-    #[arg(long, short = 't')]
-    table_name: String,
-    #[arg(long, short = 's')]
-    start: String,
-    #[arg(long = "end", short = 'e')]
-    end_key: String,
-}
-
-#[derive(Parser)]
-pub struct IndexSearchCountOptions {
-    #[arg(long, short = 't')]
-    table_name: String,
-    #[arg(long, short = 's')]
-    start: String,
-    #[arg(long, short = 'c')]
-    count: u64,
 }
 
 #[derive(Parser)]
@@ -199,30 +173,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
         DbToolCommand::Compact => compact(db_path),
         DbToolCommand::PruneObjects => prune_objects(db_path).await,
         DbToolCommand::PruneCheckpoints => prune_checkpoints(db_path).await,
-        DbToolCommand::IndexSearchKeyRange(rg) => {
-            let res = search_index(
-                db_path,
-                rg.table_name,
-                rg.start,
-                SearchRange::ExclusiveLastKey(rg.end_key),
-            )?;
-            for (k, v) in res {
-                println!("{k}: {v}");
-            }
-            Ok(())
-        }
-        DbToolCommand::IndexSearchCount(sc) => {
-            let res = search_index(
-                db_path,
-                sc.table_name,
-                sc.start,
-                SearchRange::Count(sc.count),
-            )?;
-            for (k, v) in res {
-                println!("{k}: {v}");
-            }
-            Ok(())
-        }
         DbToolCommand::SetCheckpointWatermark(d) => set_checkpoint_watermark(&db_path, d),
     }
 }

@@ -20,9 +20,7 @@ use fastcrypto::{
     traits::Authenticator,
 };
 use iota_core::authority_client::validator::ValidatorAPI;
-use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-};
+use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -1632,14 +1630,9 @@ impl TestEnvironment {
         self.init_abstract_account_state(authenticate_fn_name).await;
 
         // Create an AbstractAccount (must succeed in this variant)
-        let (dry_run_res, transaction) = self.create_abstract_account_dry_run().await?;
+        let (dry_run_effects, transaction) = self.create_abstract_account_dry_run().await?;
         self.aa_ref = Some(abstract_account_from_all_changed_objects(
-            &dry_run_res
-                .effects
-                .all_changed_objects()
-                .iter()
-                .map(|e| (e.0.reference, e.0.owner, e.1))
-                .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
+            &dry_run_effects.all_changed_objects(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -1861,7 +1854,7 @@ impl TestEnvironment {
     /// it does not alter the ledger.
     async fn create_abstract_account_dry_run(
         &self,
-    ) -> anyhow::Result<(DryRunTransactionBlockResponse, Transaction)> {
+    ) -> anyhow::Result<(TransactionEffects, Transaction)> {
         let (
             Some(owner),
             Some(authenticate_fn_name),
@@ -1886,14 +1879,13 @@ impl TestEnvironment {
             )
             .await?;
 
-        let dry_run_res = self
+        let effects = self
             .test_cluster
-            .iota_client()
-            .read_api()
-            .dry_run_transaction_block(transaction.transaction_data().clone())
+            .wallet
+            .simulate_transaction_effects(transaction.transaction_data().clone())
             .await?;
 
-        Ok((dry_run_res, transaction))
+        Ok((effects, transaction))
     }
 
     // -----------------------------------------------

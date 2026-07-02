@@ -11,11 +11,11 @@ use iota_grpc_types::{
         state_service_client::StateServiceClient,
     },
 };
-use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
+    base_types::ObjectRef,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     parse_iota_struct_tag,
     transaction::CallArg,
@@ -696,26 +696,24 @@ async fn list_owned_objects_filter_by_type() {
         .list_owned_objects(
             ListOwnedObjectsRequest::default()
                 .with_owner(address_proto(sender))
-                .with_object_type(treasury_cap_type.clone()),
+                .with_object_type(treasury_cap_type.clone())
+                .with_read_mask(FieldMask::from_str(
+                    "reference.object_id,reference.version,reference.digest",
+                )),
         )
         .await
         .unwrap()
         .into_inner();
     assert_eq!(treasury_cap_filtered.objects.len(), 1);
 
-    // Look up the TreasuryCap's ObjectRef so we can pass it to `mint`.
-    let owned = test_cluster
-        .get_owned_objects(sender, Some(IotaObjectDataOptions::full_content()))
-        .await
-        .unwrap();
-    let treasury_cap_ref = owned
-        .iter()
-        .find_map(|resp| {
-            let data = resp.data.as_ref()?;
-            let struct_tag: StructTag = data.type_.clone()?.try_into().ok()?;
-            (struct_tag.to_canonical_string(true) == treasury_cap_type).then(|| data.object_ref())
-        })
-        .expect("sender should own a TreasuryCap after publish");
+    // The gRPC list isolated the single TreasuryCap; build its object
+    // reference directly to pass to `mint`.
+    let treasury_cap_ref: ObjectRef = treasury_cap_filtered.objects[0]
+        .reference
+        .as_ref()
+        .expect("listed object has a reference")
+        .try_into()
+        .expect("valid object reference");
 
     // Mint some coins
     let mint_tx = test_cluster

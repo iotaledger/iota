@@ -58,10 +58,8 @@ mod sim_only_tests {
 
     use std::{path::PathBuf, sync::Arc};
 
-    use fastcrypto::encoding::Base64;
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
-    use iota_json_rpc_api::WriteApiClient;
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
@@ -542,7 +540,6 @@ mod sim_only_tests {
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: MoveCall) -> u64 {
-        let client = cluster.rpc_client();
         let sender = cluster.get_address_0();
 
         let pt = {
@@ -552,22 +549,13 @@ mod sim_only_tests {
         };
         let txn = TransactionKind::new_programmable(pt);
 
-        let response = client
-            .dev_inspect_transaction_block(
-                sender,
-                Base64::from_bytes(&bcs::to_bytes(&txn).unwrap()),
-                // gas_price
-                None,
-                // epoch_id
-                None,
-                // additional_args
-                None,
-            )
+        let (_, _, results, _, _) = cluster
+            .dev_inspect_transaction_kind(sender, txn)
             .await
             .unwrap();
 
-        let results = response.results.unwrap();
-        let return_val = &results.first().unwrap().return_values.first().unwrap().0;
+        let results = results.unwrap();
+        let return_val = &results.first().unwrap().1.first().unwrap().0;
 
         bcs::from_bytes(return_val).unwrap()
     }

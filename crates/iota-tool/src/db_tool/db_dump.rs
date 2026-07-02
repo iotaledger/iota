@@ -26,7 +26,6 @@ use iota_core::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStoreTables,
 };
 use iota_sdk_types::ObjectId;
 use iota_types::base_types::EpochId;
@@ -42,7 +41,6 @@ use typed_store::{
 #[derive(EnumString, Clone, Parser, Debug, ValueEnum)]
 pub enum StoreName {
     Validator,
-    Index,
     Epoch,
 }
 impl std::fmt::Display for StoreName {
@@ -87,10 +85,6 @@ pub fn table_summary(
                 AuthorityPerpetualTables::open_readonly(&db_path).table_summary(table_name)
             }
         }
-        StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
-                .table_summary(table_name)
-        }
         StoreName::Epoch => {
             CommitteeStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
                 .table_summary(table_name)
@@ -116,11 +110,6 @@ pub fn print_table_metadata(
             } else {
                 AuthorityPerpetualTables::open_readonly(&db_path).objects.db
             }
-        }
-        StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
-                .event_by_move_module
-                .db
         }
         StoreName::Epoch => {
             CommitteeStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
@@ -293,13 +282,6 @@ pub fn dump_table(
                     page_number,
                 )
             }
-        }
-        StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default()).dump(
-                table_name,
-                page_size,
-                page_number,
-            )
         }
         StoreName::Epoch => {
             CommitteeStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
