@@ -1,0 +1,231 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 20 tasks
+
+task 1, lines 13-16:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3374400, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 18:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 3, line 20:
+//# advance-epoch
+Epoch advanced: 0
+
+task 4, line 22:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 5, line 24:
+//# advance-epoch
+Epoch advanced: 1
+
+task 6, line 26:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 7, line 28:
+//# advance-epoch
+Epoch advanced: 2
+
+task 8, line 30:
+//# create-checkpoint
+Checkpoint created: 7
+
+task 9, line 32:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 10, line 34:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 11, lines 36-46:
+//# run-graphql --wait-for-checkpoint-pruned 6
+Response: {
+  "data": {
+    "checkpoints": {
+      "nodes": [
+        {
+          "sequenceNumber": 7
+        },
+        {
+          "sequenceNumber": 8
+        },
+        {
+          "sequenceNumber": 9
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false
+      }
+    }
+  }
+}
+
+task 12, lines 48-57:
+//# run-graphql
+Response: {
+  "data": {
+    "checkpoints": {
+      "nodes": [
+        {
+          "sequenceNumber": 7
+        },
+        {
+          "sequenceNumber": 8
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false
+      }
+    }
+  }
+}
+
+task 13, lines 59-69:
+//# run-graphql --cursors {"c":9,"s":2}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: `after` cursor (seq 2) is below the available range 7..=9",
+      "locations": [
+        {
+          "line": 6,
+          "column": 3
+        }
+      ],
+      "path": [
+        "checkpoints"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 14, lines 71-80:
+//# run-graphql --cursors {"c":9,"s":42}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "`after` cursor (seq 42) is above the available range 7..=9",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "checkpoints"
+      ],
+      "extensions": {
+        "code": "BAD_USER_INPUT"
+      }
+    }
+  ]
+}
+
+task 15, lines 82-91:
+//# run-graphql --cursors {"c":9,"s":7}
+Response: {
+  "data": {
+    "checkpoints": {
+      "nodes": [
+        {
+          "sequenceNumber": 8
+        },
+        {
+          "sequenceNumber": 9
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true
+      }
+    }
+  }
+}
+
+task 16, lines 93-101:
+//# run-graphql
+Response: {
+  "data": {
+    "pruned": null
+  }
+}
+
+task 17, lines 103-109:
+//# run-graphql
+Response: {
+  "data": {
+    "unpruned": {
+      "sequenceNumber": 7
+    }
+  }
+}
+
+task 18, lines 111-124:
+//# run-graphql
+Response: {
+  "data": {
+    "epoch": {
+      "epochId": 0
+    }
+  },
+  "errors": [
+    {
+      "message": "Requested data has been pruned: all checkpoints in the requested range have been pruned",
+      "locations": [
+        {
+          "line": 8,
+          "column": 5
+        }
+      ],
+      "path": [
+        "epoch",
+        "checkpoints"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 19, lines 126-136:
+//# run-graphql
+Response: {
+  "data": {
+    "epoch": {
+      "checkpoints": {
+        "nodes": [
+          {
+            "sequenceNumber": 7
+          },
+          {
+            "sequenceNumber": 8
+          },
+          {
+            "sequenceNumber": 9
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      },
+      "epochId": 3
+    }
+  }
+}
