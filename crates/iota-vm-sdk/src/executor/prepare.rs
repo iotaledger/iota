@@ -11,6 +11,7 @@
 
 use std::collections::HashSet;
 
+use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{Event, ObjectId, Owner};
 use iota_types::{
     account_abstraction::{
@@ -23,6 +24,7 @@ use iota_types::{
     digests::TransactionDigest,
     dynamic_field::{self, Field},
     effects::TransactionEffectsAPI,
+    error::{IotaError, UserInputError},
     gas::IotaGasStatus,
     gas_coin::SIMULATION_GAS_COIN_VALUE,
     layout_resolver::LayoutResolver,
@@ -58,13 +60,25 @@ pub(super) fn prepare_transaction(
     store: &dyn BackingStore,
     mut transaction: TransactionData,
     mode: ExecutionMode,
+    deny_config: &TransactionDenyConfig,
     authenticator_gas_budget: u64,
 ) -> Result<PreparedTransaction, VmSdkError> {
+    if transaction.kind().is_system() {
+        return Err(ValidationError::new(
+            "transaction validity check",
+            IotaError::UnsupportedFeature {
+                error: "system transactions are not supported".to_string(),
+            },
+        )
+        .into());
+    }
     transaction
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
-    // Update gas payment references to match actual object versions in the store.
+    // Update gas payment references to match actual object versions in the
+    // store, summing the coins' balance for the dev-inspect budget below.
+    let mut gas_balance: u64 = 0;
     let updated_gas: Vec<_> = transaction
         .gas()
         .iter()
@@ -73,7 +87,13 @@ pub(super) fn prepare_transaction(
                 .as_object_store()
                 .try_get_object(&gas_ref.object_id)
                 .map_err(|e| StoreError::new("load gas object", e))?;
-            Ok(obj.map(|o| o.object_ref()).unwrap_or(*gas_ref))
+            Ok(obj
+                .map(|o| {
+                    gas_balance =
+                        gas_balance.saturating_add(o.as_coin_maybe().map_or(0, |c| c.value()));
+                    o.object_ref()
+                })
+                .unwrap_or(*gas_ref))
         })
         .collect::<Result<_, VmSdkError>>()?;
     transaction.gas_data_mut().objects = updated_gas;
@@ -88,8 +108,16 @@ pub(super) fn prepare_transaction(
     let receiving_objects = build_receiving_objects(store, &receiving_object_refs)?;
 
     // Mint a one-shot mock gas coin if the transaction carries no gas payment,
-    // the same coin the node mints in this case.
+    // the same coin the node mints on its simulation paths. `Execute` commits
+    // effects to the store, so it requires a real gas payment.
     let mock_gas_id = if transaction.gas().is_empty() {
+        if matches!(mode, ExecutionMode::Execute) {
+            return Err(ValidationError::new(
+                "transaction validity check",
+                UserInputError::MissingGasPayment,
+            )
+            .into());
+        }
         let mock_gas_object = Object::new_move(
             MoveObject::new_gas_coin(
                 OBJECT_START_VERSION,
@@ -107,15 +135,12 @@ pub(super) fn prepare_transaction(
         None
     };
 
-    // Offline default: an empty deny-list. A live validator may be configured
-    // with denied addresses/packages, so this check will not match a real chain.
-    let deny_config = iota_config::transaction_deny_config::TransactionDenyConfig::default();
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         &[],
         &input_object_kinds,
         &receiving_object_refs,
-        &deny_config,
+        deny_config,
         store,
     )
     .map_err(|e| ValidationError::new("deny-list check", e))?;
@@ -128,15 +153,15 @@ pub(super) fn prepare_transaction(
             receiving_objects,
         )
         .map_err(|e| ValidationError::new("dev-inspect input check", e))?;
-        // A gasless transaction is funded with a large mock coin, so meter at
-        // `max_tx_gas` (like the node) — a dev-inspect run before a budget is
-        // settled isn't limited by the tx's budget. With a real gas coin, meter
-        // at the transaction's budget so the amount smashed off the coin during
-        // execution stays within its balance.
+        // Dev-inspect meters at `max_tx_gas`, not the transaction's declared
+        // budget, matching the node's dev-inspect entry point — a run before a
+        // budget is settled isn't limited by it. Real gas coins cap the budget
+        // at their total balance, since the engine smashes the budget off the
+        // coin up front (the mock coin's balance always covers `max_tx_gas`).
         let dev_inspect_gas_budget = if mock_gas_id.is_some() {
             env.protocol_config.max_tx_gas()
         } else {
-            transaction.gas_budget()
+            env.protocol_config.max_tx_gas().min(gas_balance)
         };
         let gas_status = IotaGasStatus::new(
             dev_inspect_gas_budget,

@@ -177,8 +177,6 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .expect("staking run must emit events");
     let decoded = vm
         .decode_events(events)
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()
         .expect("every emitted event must decode");
     let staking_event = decoded
         .iter()

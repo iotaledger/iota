@@ -9,24 +9,19 @@ description = "Local IOTA Move VM SDK: execute transactions against the node's M
 
 [features]
 default = []
-grpc = ["dep:iota-grpc-client", "dep:tokio"]
-graphql = [
-  "dep:base64",
-  "dep:chrono",
-  "dep:iota-sdk-graphql-client",
-  "dep:tokio",
-]
+grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
+graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
 tracing = ["iota-execution/tracing"]
 
 [dependencies]
 # external dependencies
-base64 = { workspace = true, optional = true }
 bcs.workspace = true
 chrono = { workspace = true, optional = true }
 prometheus.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, optional = true, features = ["macros", "rt", "rt-multi-thread"] }
+tonic = { workspace = true, optional = true }
 
 # internal dependencies
 iota-config.workspace = true

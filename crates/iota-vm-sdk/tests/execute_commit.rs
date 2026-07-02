@@ -15,7 +15,10 @@
 //! coin and creates a new coin — using only the built-in framework, no Move
 //! compiler.
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{
+    ObjectId, Owner,
+    transaction::{GenesisTransaction, TransactionKind},
+};
 use iota_types::{
     base_types::SequenceNumber,
     digests::TransactionDigest,
@@ -28,6 +31,7 @@ use iota_types::{
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
+    TransactionDenyConfigBuilder, VmSdkError,
 };
 
 const GAS_PRICE: u64 = 1000;
@@ -55,6 +59,19 @@ fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -
     TransactionData::new_programmable(
         sender,
         vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    )
+}
+
+/// The same transfer PTB without any gas payment.
+fn gasless_transfer_tx(sender: Address, recipient: Address, amount: u64) -> TransactionData {
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.transfer_iota(recipient, Some(amount));
+    TransactionData::new_programmable(
+        sender,
+        vec![],
         b.finish(),
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
         GAS_PRICE,
@@ -229,4 +246,146 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
             "{mode:?}: gas coin version must be unchanged"
         );
     }
+}
+
+/// `Execute` requires a real gas payment: a gasless transaction is rejected
+/// instead of being funded with the mock simulation coin and committed.
+#[test]
+fn execute_rejects_gasless_transaction() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let mut vm =
+        LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
+
+    let err = vm
+        .execute(
+            gasless_transfer_tx(sender, recipient, TRANSFER_AMOUNT),
+            ExecuteOptions::execute(),
+        )
+        .expect_err("gasless Execute must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
+/// Gasless dev-inspect and dry-run runs are funded with the one-shot mock
+/// coin, which is never persisted.
+#[test]
+fn dev_inspect_and_dry_run_fund_gasless_transactions_with_mock_coin() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    for opts in [ExecuteOptions::dev_inspect(), ExecuteOptions::dry_run()] {
+        let mode = opts.mode;
+        let mut vm =
+            LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
+
+        let result = vm
+            .execute(
+                gasless_transfer_tx(sender, recipient, TRANSFER_AMOUNT),
+                opts,
+            )
+            .unwrap_or_else(|e| panic!("{mode:?} gasless run must succeed: {e}"));
+
+        assert!(
+            result.status.is_success(),
+            "{mode:?} gasless run must succeed, got {:?}",
+            result.status
+        );
+        assert!(!result.committed, "{mode:?} must not commit");
+        let mock_gas_id = result.mock_gas_id.expect("mock gas coin must be minted");
+        assert!(
+            vm.store_mut()
+                .get_object(&mock_gas_id, None)
+                .expect("store lookup")
+                .is_none(),
+            "{mode:?}: mock gas coin must not be persisted"
+        );
+    }
+}
+
+/// Dev-inspect meters at `max_tx_gas` even when a real gas coin with a lower
+/// declared budget is supplied, matching the node's dev-inspect entry point.
+#[test]
+fn dev_inspect_with_real_gas_coin_ignores_declared_budget() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let gas = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().budget = 0;
+
+    let result = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect("dev-inspect must not error");
+    assert!(
+        result.status.is_success(),
+        "zero-budget dev-inspect with a real gas coin must succeed, got {:?}",
+        result.status
+    );
+    assert!(
+        result.mock_gas_id.is_none(),
+        "a supplied gas coin must be used as-is"
+    );
+}
+
+/// System transactions are rejected in every mode.
+#[test]
+fn system_transactions_are_rejected() {
+    let sender = Address::ZERO;
+
+    for opts in [
+        ExecuteOptions::dev_inspect(),
+        ExecuteOptions::dry_run(),
+        ExecuteOptions::execute(),
+    ] {
+        let mode = opts.mode;
+        let mut vm =
+            LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
+
+        let tx = TransactionData::new_with_gas_coins(
+            TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![],
+                events: vec![],
+            }),
+            sender,
+            vec![],
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+            GAS_PRICE,
+        );
+
+        let err = vm
+            .execute(tx, opts)
+            .expect_err("system transaction must be rejected");
+        assert!(
+            matches!(err, VmSdkError::Validation(_)),
+            "{mode:?}: got {err:?}"
+        );
+    }
+}
+
+/// The deny-list configuration on `ExecuteOptions` is enforced.
+#[test]
+fn deny_config_rejects_denied_sender() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let gas = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let deny_config = TransactionDenyConfigBuilder::new()
+        .add_denied_address(sender)
+        .build();
+    let err = vm
+        .execute(
+            transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT),
+            ExecuteOptions::dry_run().with_deny_config(deny_config),
+        )
+        .expect_err("a denied sender must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }

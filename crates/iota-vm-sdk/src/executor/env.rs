@@ -46,9 +46,16 @@ impl ExecutionEnv {
         if debug.any_enabled() {
             warn_if_tracing_unavailable();
         }
-        // Built per run because `iota_execution::executor` bakes the profiler
-        // path in at construction, so it cannot be shared across runs.
-        let (executor, profile_capture) = build_executor_with_profile(&vm.protocol_config, debug)?;
+        // A profiled run builds its own executor because `iota_execution::executor`
+        // bakes the profiler path in at construction; otherwise the VM's shared
+        // executor is reused.
+        let (executor, profile_capture) = match &debug.profile {
+            Some(sink) => {
+                let (executor, capture) = build_executor_with_profile(&vm.protocol_config, sink)?;
+                (executor, Some(capture))
+            }
+            None => (vm.cached_executor()?.clone(), None),
+        };
 
         Ok(Self {
             protocol_config: vm.protocol_config.clone(),
@@ -68,20 +75,25 @@ impl ExecutionEnv {
     }
 
     /// Materialise captured artifacts: the gas profile and the finished trace.
-    /// Returns `None` when no debug capture was requested.
+    /// Returns `Ok(None)` when no debug capture was requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Vm`] when a requested
+    /// [`ProfileSink::Path`] cannot be written.
     pub(super) fn collect_artifacts(
         &self,
         trace_builder: Option<MoveTraceBuilder>,
-    ) -> Option<DebugArtifacts> {
+    ) -> Result<Option<DebugArtifacts>, VmSdkError> {
         if !self.debug.any_enabled() {
-            return None;
+            return Ok(None);
         }
-        let profile = collect_profile(self.profile_capture.as_ref());
+        let profile = collect_profile(self.profile_capture.as_ref())?;
 
-        Some(DebugArtifacts {
+        Ok(Some(DebugArtifacts {
             profile,
             trace: trace_builder.map(|b| b.into_trace()),
-        })
+        }))
     }
 }
 
@@ -130,45 +142,43 @@ pub(super) fn build_executor(
 
 fn build_executor_with_profile(
     protocol_config: &ProtocolConfig,
-    debug: &DebugConfig,
-) -> Result<(Arc<dyn Executor + Send + Sync>, Option<ProfileCapture>), VmSdkError> {
+    sink: &ProfileSink,
+) -> Result<(Arc<dyn Executor + Send + Sync>, ProfileCapture), VmSdkError> {
     // Both sinks point the profiler at a temp dir we own: it writes one
     // timestamped file per VM invocation there, which `collect_profile` merges.
     // `ProfileSink::Path` additionally records the caller's target path.
-    let profile_capture = match &debug.profile {
-        Some(sink) => {
-            let dir = profile_capture_dir();
-            std::fs::create_dir_all(&dir)
-                .map_err(|e| VmError::new(format!("create profile dir: {e}")))?;
-            let target = match sink {
-                ProfileSink::Path(p) => Some(p.clone()),
-                ProfileSink::Capture => None,
-            };
-            Some(ProfileCapture { dir, target })
-        }
-        None => None,
+    let dir = profile_capture_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| VmError::new(format!("create profile dir: {e}")))?;
+    let target = match sink {
+        ProfileSink::Path(p) => Some(p.clone()),
+        ProfileSink::Capture => None,
     };
 
     // See `build_executor` for why the executor is always silent.
-    let profile_path = profile_capture.as_ref().map(|c| c.dir.join("profile.json"));
-    let executor =
-        iota_execution::executor(protocol_config, true, profile_path).map_err(VmError::new)?;
-    Ok((executor, profile_capture))
+    let executor = iota_execution::executor(protocol_config, true, Some(dir.join("profile.json")))
+        .map_err(VmError::new)?;
+    Ok((executor, ProfileCapture { dir, target }))
 }
 
-fn collect_profile(capture: Option<&ProfileCapture>) -> Option<ProfileOutput> {
-    let capture = capture?;
+fn collect_profile(capture: Option<&ProfileCapture>) -> Result<Option<ProfileOutput>, VmSdkError> {
+    let Some(capture) = capture else {
+        return Ok(None);
+    };
     // Merge the profiler's per-invocation files; `None` when nothing was written
     // (e.g. an unmetered run).
-    let merged = merge_profile_dir(&capture.dir)?;
+    let Some(merged) = merge_profile_dir(&capture.dir) else {
+        return Ok(None);
+    };
     match &capture.target {
         // `ProfileSink::Path`: write the merged profile to the caller's path.
         Some(target) => {
-            std::fs::write(target, &merged).ok()?;
-            Some(ProfileOutput::Path(target.clone()))
+            std::fs::write(target, &merged).map_err(|e| {
+                VmError::new(format!("write gas profile to {}: {e}", target.display()))
+            })?;
+            Ok(Some(ProfileOutput::Path(target.clone())))
         }
         // `ProfileSink::Capture`: hand back the merged bytes.
-        None => Some(ProfileOutput::Json(merged)),
+        None => Ok(Some(ProfileOutput::Json(merged))),
     }
 }
 

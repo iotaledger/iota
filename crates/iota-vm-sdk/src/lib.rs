@@ -44,6 +44,9 @@ pub use executor::{
     LocalVm, SignatureStatus,
 };
 // --- Re-exports of upstream types in the public API ----------------------
+pub use iota_config::transaction_deny_config::{
+    TransactionDenyConfig, TransactionDenyConfigBuilder,
+};
 pub use iota_protocol_config::{Chain, ProtocolVersion};
 pub use iota_sdk_types::{Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, Version};
 pub use iota_types::{

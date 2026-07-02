@@ -13,8 +13,13 @@
 //! demand mid-execution, so a cache miss blocks on the fetcher via
 //! [`block_in_place`]; [`LocalVm::execute`](crate::LocalVm::execute) must run
 //! inside a multi-threaded Tokio runtime.
+//!
+//! Removals are remembered: a removed object (e.g. deleted by an
+//! `Execute`-mode commit) reads as absent instead of being re-fetched from the
+//! node, until a new version is inserted.
 
 use std::{
+    collections::BTreeSet,
     future::Future,
     sync::{Arc, Mutex},
 };
@@ -46,8 +51,15 @@ pub(crate) trait ObjectFetcher {
 /// An [`InMemoryStore`] cache fronting an [`ObjectFetcher`], resolving misses
 /// on demand. Clones share the same cache and fetcher.
 pub(crate) struct CachingStore<F> {
-    inner: Arc<Mutex<InMemoryStore>>,
+    inner: Arc<Mutex<CacheState>>,
     fetcher: F,
+}
+
+struct CacheState {
+    objects: InMemoryStore,
+    /// Ids removed via [`Store::remove`]; they read as absent without a fetch
+    /// until re-inserted.
+    removed: BTreeSet<ObjectId>,
 }
 
 impl<F: Clone> Clone for CachingStore<F> {
@@ -64,7 +76,10 @@ impl<F: ObjectFetcher> CachingStore<F> {
     /// Move calls resolve.
     pub(crate) fn new(fetcher: F) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(InMemoryStore::with_framework())),
+            inner: Arc::new(Mutex::new(CacheState {
+                objects: InMemoryStore::with_framework(),
+                removed: BTreeSet::new(),
+            })),
             fetcher,
         }
     }
@@ -77,7 +92,11 @@ impl<F: ObjectFetcher> CachingStore<F> {
     /// A snapshot clone of the objects cached so far (framework packages plus
     /// anything fetched on demand).
     pub(crate) fn store(&self) -> InMemoryStore {
-        self.inner.lock().expect("store lock poisoned").clone()
+        self.inner
+            .lock()
+            .expect("store lock poisoned")
+            .objects
+            .clone()
     }
 
     /// Fetch `refs` by blocking on the fetcher from within the executor.
@@ -112,32 +131,29 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         // Scope the read lock so it is released before the blocking fetch
         // re-acquires it (a std `Mutex` is not reentrant).
         {
-            let inner = self.inner.lock().expect("store lock poisoned");
-            if let Some(obj) = inner.get_object(id, version)? {
+            let state = self.inner.lock().expect("store lock poisoned");
+            if state.removed.contains(id) {
+                return Ok(None);
+            }
+            if let Some(obj) = state.objects.get_object(id, version)? {
                 return Ok(Some(obj));
             }
         }
         let fetched = self.fetch_blocking(&[(*id, version)])?;
-        let mut inner = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.inner.lock().expect("store lock poisoned");
         let mut requested = None;
         for obj in fetched {
             if obj.id() == *id {
                 requested = Some(obj.clone());
             }
-            // The cache holds one version per id, so skip the insert when it
-            // would replace a newer cached version with this older fetch. The
-            // requested version is still returned from the fetch result below.
-            let downgrades = inner
-                .get_object(&obj.id(), None)?
-                .is_some_and(|cached| cached.version() > obj.version());
-            if !downgrades {
-                inner.insert(obj);
+            // Only an unpinned fetch returns the node's latest version; a
+            // pinned fetch may be older and must not become the cached entry
+            // (which `get_object(id, None)` reports as latest).
+            if version.is_none() {
+                state.objects.insert(obj);
             }
         }
-        match version {
-            Some(v) => Ok(requested.filter(|o| o.version() == v)),
-            None => inner.get_object(id, None),
-        }
+        Ok(requested.filter(|o| version.is_none_or(|v| o.version() == v)))
     }
 
     fn get_child_object(
@@ -147,30 +163,48 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         version_upper_bound: Version,
     ) -> Result<Option<Object>, StoreError> {
         {
-            let inner = self.inner.lock().expect("store lock poisoned");
-            if let Some(obj) = inner.get_child_object(parent, child, version_upper_bound)? {
+            let state = self.inner.lock().expect("store lock poisoned");
+            if state.removed.contains(child) {
+                return Ok(None);
+            }
+            if let Some(obj) = state
+                .objects
+                .get_child_object(parent, child, version_upper_bound)?
+            {
                 return Ok(Some(obj));
             }
         }
         // Fetch the child at its latest version; the upper-bound check is
         // re-applied below once it is cached.
         let fetched = self.fetch_blocking(&[(*child, None)])?;
-        let mut inner = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.inner.lock().expect("store lock poisoned");
         for obj in fetched {
-            inner.insert(obj);
+            // The cache holds one version per id, so keep a newer cached
+            // version (e.g. committed by an `Execute` run) over the node's
+            // older latest.
+            let downgrades = state
+                .objects
+                .get_object(&obj.id(), None)?
+                .is_some_and(|cached| cached.version() > obj.version());
+            if !downgrades {
+                state.objects.insert(obj);
+            }
         }
-        inner.get_child_object(parent, child, version_upper_bound)
+        state
+            .objects
+            .get_child_object(parent, child, version_upper_bound)
     }
 
     fn insert(&mut self, object: Object) {
-        self.inner
-            .lock()
-            .expect("store lock poisoned")
-            .insert(object);
+        let mut state = self.inner.lock().expect("store lock poisoned");
+        state.removed.remove(&object.id());
+        state.objects.insert(object);
     }
 
     fn remove(&mut self, id: &ObjectId) {
-        self.inner.lock().expect("store lock poisoned").remove(id);
+        let mut state = self.inner.lock().expect("store lock poisoned");
+        state.objects.remove(id);
+        state.removed.insert(*id);
     }
 }
 
@@ -212,6 +246,95 @@ mod tests {
             Owner::Object(ObjectId::random()),
             TransactionDigest::ZERO,
         )
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pinned_fetch_on_cold_cache_does_not_become_latest() {
+        let id = ObjectId::random();
+        let store = CachingStore::new(VersionedFetcher);
+
+        // First access is version-pinned to an old version.
+        let pinned = store
+            .get_object(&id, Some(Version::from(5)))
+            .unwrap()
+            .expect("object present at v5");
+        assert_eq!(pinned.version(), Version::from(5));
+
+        // A latest read must fetch the node's latest (v8), not report the
+        // pinned v5 from the cache.
+        let latest = store
+            .get_object(&id, None)
+            .unwrap()
+            .expect("object present");
+        assert_eq!(
+            latest.version(),
+            Version::from(LATEST),
+            "a version-pinned fetch must not be served as the latest version"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn removed_objects_read_absent_until_reinserted() {
+        let id = ObjectId::random();
+        let mut store = CachingStore::new(VersionedFetcher);
+
+        // Cache the object at latest, then remove it (as an `Execute`-mode
+        // deletion commit does).
+        assert!(store.get_object(&id, None).unwrap().is_some());
+        store.remove(&id);
+
+        // The fetcher still serves the object, but the removal must win: the
+        // object reads as absent for plain, pinned, and child lookups.
+        assert!(store.get_object(&id, None).unwrap().is_none());
+        assert!(
+            store
+                .get_object(&id, Some(Version::from(LATEST)))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .get_child_object(&ObjectId::random(), &id, Version::from(u64::MAX))
+                .unwrap()
+                .is_none()
+        );
+
+        // Re-inserting makes the object visible again.
+        store.insert(coin(id, Version::from(9)));
+        let after = store.get_object(&id, None).unwrap().expect("re-inserted");
+        assert_eq!(after.version(), Version::from(9));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn child_fetch_keeps_newer_cached_version() {
+        let parent = ObjectId::random();
+        let child_id = ObjectId::random();
+        let mut store = CachingStore::new(VersionedFetcher);
+
+        // A locally committed child at v10, newer than the node's latest (v8).
+        let child = Object::new_move(
+            MoveObject::new_gas_coin(Version::from(10), child_id, 1),
+            Owner::Object(parent),
+            TransactionDigest::ZERO,
+        );
+        store.insert(child);
+
+        // The bound excludes v10, and the node's v8 must not clobber it.
+        assert!(
+            store
+                .get_child_object(&parent, &child_id, Version::from(9))
+                .unwrap()
+                .is_none()
+        );
+        let cached = store
+            .get_object(&child_id, None)
+            .unwrap()
+            .expect("child present");
+        assert_eq!(
+            cached.version(),
+            Version::from(10),
+            "a child fetch must not replace a newer cached version with the node's older latest"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

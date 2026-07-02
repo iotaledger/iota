@@ -78,8 +78,8 @@ fn load(name: &str) -> Fixture {
 }
 
 /// Run a fixture's signed transaction in the given mode and return the full
-/// result. The fixtures carry no real gas payment, so a mock gas coin is
-/// minted; the `MoveAuthenticator` is verified inside the VM in every mode.
+/// result. The fixtures carry a real gas coin among their objects; the
+/// `MoveAuthenticator` is verified inside the VM in every mode.
 fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
     let f = load(name);
 

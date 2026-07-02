@@ -5,6 +5,7 @@
 //! the [`ChainContext`] / [`ExecuteOptions`] inputs and the
 //! [`ExecutionResult`] / [`DecodedEvent`] / [`SignatureStatus`] outputs.
 
+use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::{Event, ObjectId, gas::GasCostSummary};
 use iota_types::{
@@ -90,6 +91,10 @@ pub enum ExecutionMode {
     /// Full sign-time checks; on success, effects are applied back to the
     /// store and [`ExecutionResult::committed`] is `true`.
     ///
+    /// Requires a real gas payment — a gasless transaction is rejected rather
+    /// than funded with the mock simulation coin, since its effects would be
+    /// committed.
+    ///
     /// A transaction that aborts commits nothing — not even the gas charge — so
     /// across multiple runs the store does not reflect a node's post-abort
     /// state.
@@ -111,12 +116,17 @@ pub enum SignatureStatus {
     Failed(crate::error::SignatureError),
 }
 
-/// Options for a single run: the [`ExecutionMode`] plus a [`DebugConfig`].
+/// Options for a single run: the [`ExecutionMode`], a [`DebugConfig`], and the
+/// deny-list configuration.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct ExecuteOptions {
     pub mode: ExecutionMode,
     pub debug: DebugConfig,
+    /// Deny-list configuration applied during preparation. Defaults to an
+    /// empty deny-list; set it to the target network's configuration to match
+    /// a live validator's deny checks.
+    pub deny_config: TransactionDenyConfig,
 }
 
 impl ExecuteOptions {
@@ -124,7 +134,7 @@ impl ExecuteOptions {
     pub fn dev_inspect() -> Self {
         Self {
             mode: ExecutionMode::DevInspect,
-            debug: DebugConfig::default(),
+            ..Self::default()
         }
     }
 
@@ -132,7 +142,7 @@ impl ExecuteOptions {
     pub fn dry_run() -> Self {
         Self {
             mode: ExecutionMode::DryRun,
-            debug: DebugConfig::default(),
+            ..Self::default()
         }
     }
 
@@ -140,7 +150,7 @@ impl ExecuteOptions {
     pub fn execute() -> Self {
         Self {
             mode: ExecutionMode::Execute,
-            debug: DebugConfig::default(),
+            ..Self::default()
         }
     }
 
@@ -156,6 +166,13 @@ impl ExecuteOptions {
     #[must_use]
     pub fn with_debug(mut self, cfg: DebugConfig) -> Self {
         self.debug = cfg;
+        self
+    }
+
+    /// Set the deny-list configuration applied during preparation.
+    #[must_use]
+    pub fn with_deny_config(mut self, deny_config: TransactionDenyConfig) -> Self {
+        self.deny_config = deny_config;
         self
     }
 }

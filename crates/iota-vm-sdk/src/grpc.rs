@@ -77,12 +77,10 @@ impl GrpcStore {
     /// Returns [`VmSdkError::Store`] if the epoch or service-info RPC fails or
     /// can't be decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
-        let epoch = self
-            .cache
-            .fetcher()
-            .client
-            .get_epoch(None, None)
-            .await
+        let client = &self.cache.fetcher().client;
+        let (epoch_response, service_info_response) =
+            tokio::join!(client.get_epoch(None, None), client.get_service_info(None));
+        let epoch = epoch_response
             .map_err(|e| StoreError::new("fetch epoch", e))?
             .into_inner();
         let epoch_id = epoch
@@ -98,12 +96,7 @@ impl GrpcStore {
             .protocol_config()
             .and_then(|pc| pc.version())
             .map_err(|e| StoreError::new("protocol version", e))?;
-        let chain = self
-            .cache
-            .fetcher()
-            .client
-            .get_service_info(None)
-            .await
+        let chain = service_info_response
             .map_err(|e| StoreError::new("fetch service info", e))?
             .body()
             .chain_id
@@ -155,9 +148,6 @@ struct GrpcFetcher {
     client: Client,
 }
 
-/// gRPC status code for a not-found resource (`google.rpc.Code::NOT_FOUND`).
-const GRPC_CODE_NOT_FOUND: i32 = 5;
-
 impl ObjectFetcher for GrpcFetcher {
     async fn fetch_objects(
         &self,
@@ -174,7 +164,7 @@ impl ObjectFetcher for GrpcFetcher {
             // error still propagates; the on-demand resolution path only ever
             // fetches one object at a time.
             Err(iota_grpc_client::api::Error::Server(status))
-                if refs.len() == 1 && status.code == GRPC_CODE_NOT_FOUND =>
+                if refs.len() == 1 && status.code == tonic::Code::NotFound as i32 =>
             {
                 return Ok(Vec::new());
             }

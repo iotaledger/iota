@@ -12,7 +12,6 @@
 //! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
 //! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
@@ -86,11 +85,12 @@ impl GraphqlStore {
                 protocolConfigs { protocolVersion }
             }
         }"#;
-        let data = self
-            .cache
-            .fetcher()
-            .query("fetch epoch via GraphQL", query.to_string())
-            .await?;
+        let fetcher = self.cache.fetcher();
+        let (data, chain_id) = tokio::join!(
+            fetcher.query("fetch epoch via GraphQL", query.to_string()),
+            fetcher.client.chain_id(),
+        );
+        let data = data?;
         let epoch = data
             .pointer("/epoch")
             .ok_or_else(|| StoreError::new("GraphQL epoch", "missing epoch data"))?;
@@ -118,13 +118,7 @@ impl GraphqlStore {
             .pointer("/protocolConfigs/protocolVersion")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| StoreError::new("GraphQL epoch", "missing protocolVersion"))?;
-        let chain_id = self
-            .cache
-            .fetcher()
-            .client
-            .chain_id()
-            .await
-            .map_err(|e| StoreError::new("fetch chain identifier", e))?;
+        let chain_id = chain_id.map_err(|e| StoreError::new("fetch chain identifier", e))?;
         let chain = ChainIdentifier::from_chain_short_id(&chain_id)
             .map(|id| id.chain())
             .unwrap_or(iota_protocol_config::Chain::Unknown);
@@ -202,51 +196,20 @@ impl ObjectFetcher for GraphqlFetcher {
         &self,
         refs: &[(ObjectId, Option<Version>)],
     ) -> Result<Vec<Object>, StoreError> {
-        let mut aliases: Vec<String> = Vec::with_capacity(refs.len());
-        for (id, version) in refs {
-            match version {
-                Some(v) => aliases.push(format!(
-                    r#"v{}: object(address: "{id}", version: {}) {{ bcs }}"#,
-                    aliases.len(),
-                    v.as_u64()
-                )),
-                None => aliases.push(format!(
-                    r#"v{}: object(address: "{id}") {{ bcs }}"#,
-                    aliases.len()
-                )),
-            }
-        }
-        let query = format!("{{ {} }}", aliases.join("\n"));
-        let data = self.query("GraphQL query", query).await?;
-        // A missing object resolves to `null` (so its `bcs` is absent). The
-        // `Store` contract treats absence as `Ok(None)` (the VM's child-object
-        // resolver relies on this — a dynamic field that does not exist must
-        // read as absent, not fault), so a single-object request that comes
-        // back missing yields no objects rather than an error. A batched
-        // request can't say which ref was missing, so it stays all-or-nothing;
-        // the on-demand resolution path only ever fetches one object at a time.
+        // The typed client returns `Ok(None)` for a missing object; the
+        // `Store` contract treats absence as "no object" (the VM's
+        // child-object resolver relies on this — a dynamic field that does not
+        // exist must read as absent, not fault), so missing refs are skipped.
         let mut objects = Vec::with_capacity(refs.len());
-        for (index, (id, _)) in refs.iter().enumerate() {
-            let alias = format!("v{index}");
-            let bcs_b64 = match data
-                .pointer(&format!("/{alias}/bcs"))
-                .and_then(|v| v.as_str())
+        for (id, version) in refs {
+            if let Some(obj) = self
+                .client
+                .object(*id, *version)
+                .await
+                .map_err(|e| StoreError::new(format!("fetch object {id} via GraphQL"), e))?
             {
-                Some(bcs_b64) => bcs_b64,
-                None if refs.len() == 1 => return Ok(Vec::new()),
-                None => {
-                    return Err(StoreError::new(
-                        "GraphQL query",
-                        format!("object {id} not found"),
-                    ));
-                }
-            };
-            let bytes = BASE64
-                .decode(bcs_b64)
-                .map_err(|e| StoreError::new(format!("decode {alias}"), e))?;
-            let obj: Object =
-                bcs::from_bytes(&bytes).map_err(|e| StoreError::new(format!("bcs {alias}"), e))?;
-            objects.push(obj);
+                objects.push(obj.into());
+            }
         }
         Ok(objects)
     }

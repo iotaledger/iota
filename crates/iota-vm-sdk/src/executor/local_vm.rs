@@ -65,11 +65,12 @@ pub struct LocalVm {
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     store: Box<dyn Store>,
-    /// Executor cached for `decode_events`'s layout resolver, built lazily on
-    /// first use. It depends only on the immutable `protocol_config`, so one
-    /// instance is reused across calls. The `execute*` paths build their own
-    /// executor (with optional profiling) via [`ExecutionEnv`].
-    layout_executor: OnceLock<Arc<dyn Executor + Send + Sync>>,
+    /// Profiler-free executor shared by `decode_events`'s layout resolver and
+    /// all non-profiled `execute*` runs, built lazily on first use. It depends
+    /// only on the immutable `protocol_config`, so one instance is reused
+    /// across calls; a profiled run builds its own executor via
+    /// [`ExecutionEnv`].
+    cached_executor: OnceLock<Arc<dyn Executor + Send + Sync>>,
 }
 
 impl LocalVm {
@@ -99,7 +100,7 @@ impl LocalVm {
                 &prometheus::Registry::new(),
             )),
             store: Box::new(store),
-            layout_executor: OnceLock::new(),
+            cached_executor: OnceLock::new(),
         })
     }
 
@@ -129,7 +130,7 @@ impl LocalVm {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(&env, &backend, tx, opts.mode, 0)?
+            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, 0)?
         };
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -137,7 +138,7 @@ impl LocalVm {
         };
         // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
         // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
-        let artifacts = env.collect_artifacts(None);
+        let artifacts = env.collect_artifacts(None)?;
         self.finish(sim, opts.mode, SignatureStatus::NotChecked, artifacts)
     }
 
@@ -154,6 +155,12 @@ impl LocalVm {
     /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute),
     /// but the authenticators and transaction body always execute under full
     /// (non-dev-inspect) VM semantics.
+    ///
+    /// Signatures are verified against the transaction as supplied. Gas and
+    /// owned-input references are then resolved against the store's versions,
+    /// so the executed bytes (and digest) can differ from the signed bytes when
+    /// the store holds other versions; a Move authenticator reading the
+    /// transaction bytes from its auth context observes the resolved form.
     ///
     /// # Errors
     ///
@@ -201,6 +208,7 @@ impl LocalVm {
                 &backend,
                 transaction,
                 opts.mode,
+                &opts.deny_config,
                 authenticator_gas_budget,
             )?
         };
@@ -238,34 +246,38 @@ impl LocalVm {
                 (sim, status, trace_builder)
             }
         };
-        let artifacts = env.collect_artifacts(trace_builder);
+        let artifacts = env.collect_artifacts(trace_builder)?;
 
         self.finish(sim, opts.mode, signature_status, artifacts)
     }
 
-    /// The executor backing `decode_events`'s layout resolver, built on first
-    /// use and cached for the lifetime of this `LocalVm`.
-    fn layout_executor(&self) -> Result<&Arc<dyn Executor + Send + Sync>, VmSdkError> {
-        if let Some(executor) = self.layout_executor.get() {
+    /// The profiler-free executor shared by `decode_events` and non-profiled
+    /// runs, built on first use and cached for the lifetime of this `LocalVm`.
+    pub(super) fn cached_executor(&self) -> Result<&Arc<dyn Executor + Send + Sync>, VmSdkError> {
+        if let Some(executor) = self.cached_executor.get() {
             return Ok(executor);
         }
         // `OnceLock::get_or_try_init` is unstable, so build first and let the
         // first writer win; a redundant build from a racing caller is dropped.
         let executor = build_executor(&self.protocol_config)?;
-        Ok(self.layout_executor.get_or_init(|| executor))
+        Ok(self.cached_executor.get_or_init(|| executor))
     }
 
     /// Decode a [`TransactionEvents`] payload into fully-annotated
-    /// [`DecodedEvent`]s using this VM's type-layout resolver and the store.
-    /// One `Result` per event so a single bad event doesn't mask the rest.
+    /// [`DecodedEvent`]s, in event order, using this VM's type-layout resolver
+    /// and the store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError`] when the layout resolver cannot be built or an
+    /// event fails to decode (the error names the event's type). To decode
+    /// events individually, use [`LocalVm::decode_value`] on an event's
+    /// contents and type.
     pub fn decode_events(
         &self,
         events: &TransactionEvents,
-    ) -> Vec<Result<DecodedEvent, VmSdkError>> {
-        let executor = match self.layout_executor() {
-            Ok(e) => e,
-            Err(e) => return vec![Err(e)],
-        };
+    ) -> Result<Vec<DecodedEvent>, VmSdkError> {
+        let executor = self.cached_executor()?;
         let backend = StoreBackend::new(self.store.as_ref());
         let mut resolver = executor.type_layout_resolver(Box::new(&backend));
         events
