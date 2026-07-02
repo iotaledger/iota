@@ -180,7 +180,7 @@ pub(crate) async fn populate_remaining_tables(
         &snapshot_epoch_boundary.last_checkpoint_contents,
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
-    let pruning_watermarks = PrunableTable::iter()
+    let pruning_watermarks: Vec<_> = PrunableTable::iter()
         .map(|table| (table, sync_watermark.epoch + 1))
         .collect();
     tokio::try_join!(
@@ -190,7 +190,8 @@ pub(crate) async fn populate_remaining_tables(
     )?;
     tokio::try_join!(
         populate_procotol_and_feature_flags(store, snapshot_chain_id),
-        store.update_watermarks_lower_bound(pruning_watermarks)
+        store.update_watermarks_lower_bound(pruning_watermarks.clone()),
+        store.update_watermarks_lowest_unpruned_key(pruning_watermarks)
     )?;
     Ok(())
 }
