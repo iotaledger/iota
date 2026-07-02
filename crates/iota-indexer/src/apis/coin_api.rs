@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use chrono::DateTime;
 use iota_json_rpc::{
     IotaRpcModule,
-    coin_api::{parse_to_struct_tag, parse_to_type_tag},
+    utils::{parse_to_struct_tag, parse_to_type_tag},
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
 use iota_json_rpc_types::{

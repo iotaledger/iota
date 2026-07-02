@@ -45,7 +45,6 @@ use crate::{
 
 pub mod axum_router;
 mod balance_changes;
-pub mod coin_api;
 pub mod error;
 pub mod governance_api;
 pub mod logger;
@@ -54,6 +53,7 @@ mod object_changes;
 pub mod read_api;
 mod routing_layer;
 pub mod transaction_builder_api;
+pub mod utils;
 
 pub const APP_NAME_HEADER: &str = "app-name";
 
