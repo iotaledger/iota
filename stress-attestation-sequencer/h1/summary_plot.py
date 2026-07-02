@@ -92,6 +92,7 @@ def select_versions(metric_data, configs, versions):
     ANY metric has data for it — computed once for the whole figure so every subplot
     reserves the same bar slots and stays aligned on the shared x-axis (a subplot
     lacking a version just leaves that slot empty)."""
+
     def has_data(ver):
         return any(
             rows.get(c, {}).get(ver, (float("nan"),))[0]
@@ -106,8 +107,20 @@ def select_versions(metric_data, configs, versions):
     return [vi for vi in VER_INFO if vi[0] in want]
 
 
-def draw_metric(ax, metric, rows, unit, configs, disp, logy, versions,
-                show_xlabels, show_legend, title=None, ylabel=None):
+def draw_metric(
+    ax,
+    metric,
+    rows,
+    unit,
+    configs,
+    disp,
+    logy,
+    versions,
+    show_xlabels,
+    show_legend,
+    title=None,
+    ylabel=None,
+):
     """Draw one metric's grouped bars on `ax`, reserving one slot per `versions`
     entry (a missing value leaves an empty slot). `title`/`ylabel` override the
     defaults (version tag / metric name)."""
@@ -136,8 +149,15 @@ def draw_metric(ax, metric, rows, unit, configs, disp, logy, versions,
                 e = (std, sem)[disp_idx - 1]
                 yerr = e if e == e else None  # drop NaN
             ax.bar(
-                left + W / 2, center, width=W, color=color, yerr=yerr,
-                capsize=2.5, ecolor="#333", edgecolor="white", linewidth=0.5,
+                left + W / 2,
+                center,
+                width=W,
+                color=color,
+                yerr=yerr,
+                capsize=2.5,
+                ecolor="#333",
+                edgecolor="white",
+                linewidth=0.5,
             )
             left += W
         xticks.append(x + nbars * W / 2)  # center of the config's bars
@@ -147,12 +167,17 @@ def draw_metric(ax, metric, rows, unit, configs, disp, logy, versions,
     for sx in slow_separators:
         ax.axvline(sx, color="#888", linestyle="--", linewidth=0.7, alpha=0.7)
     ax.set_xticks(xticks)
-    ax.set_xticklabels(xlabels if show_xlabels else [], rotation=45, ha="right", fontsize=7)
+    ax.set_xticklabels(
+        xlabels if show_xlabels else [], rotation=45, ha="right", fontsize=7
+    )
     ax.set_xlim(-GAP_LARGE, x + GAP_SMALL)
     if ylabel is None:
         ylabel = metric + (f" ({unit})" if unit and unit != "none" else "")
     ax.set_ylabel(ylabel)
-    ax.set_title(title if title is not None else " vs ".join(vi[3] for vi in versions), fontsize=9)
+    ax.set_title(
+        title if title is not None else " vs ".join(vi[3] for vi in versions),
+        fontsize=9,
+    )
     ax.grid(True, axis="y", alpha=0.25)
     if logy:
         pos = [c for c in centers if c > 0]
@@ -162,8 +187,17 @@ def draw_metric(ax, metric, rows, unit, configs, disp, logy, versions,
     if show_legend:
         handles = [Patch(facecolor=vi[1], label=vi[2]) for vi in versions]
         if disp in DISP_LABEL:
-            handles.append(Line2D([0], [0], color="#333", marker="_", markersize=8,
-                                   linewidth=1.2, label=DISP_LABEL[disp]))
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color="#333",
+                    marker="_",
+                    markersize=8,
+                    linewidth=1.2,
+                    label=DISP_LABEL[disp],
+                )
+            )
         ax.legend(handles=handles, fontsize=8)
 
 
@@ -195,22 +229,49 @@ def base_of(metric):
 # covering every table metric. `file` is the output basename; `metrics` are stacked
 # top→bottom (percentiles descending); `versions` overrides the auto A/B selection.
 FIGURES = [
-    {"file": "TPS", "metrics": ["TPS", "valid. drop. / sec"]},
+    {"file": "TPS", "metrics": ["TPS", "attest. / sec", "valid. drop. / sec"]},
     {"file": "CUs", "metrics": ["CUs"]},
-    {"file": "attestations_per_sec", "metrics": ["attest. / sec"], "versions": "B"},
-    {"file": "attestation_latency", "metrics": [
-        "attest. lat. p99 (s)", "attest. lat. p95 (s)", "attest. lat. p50 (s)",
-        "exec. lat. p95 (s)"]},
-    {"file": "receipt_to_exec_latency", "metrics": [
-        "rec. → exec. p99 (s)", "rec. → exec. p95 (s)", "rec. → exec. p50 (s)"]},
-    {"file": "post_consensus_validation_latency", "metrics": [
-        "pc valid. lat. p95 (s)", "pc valid. lat. p50 (s)"]},
-    {"file": "settlement_finality_latency", "metrics": [
-        "final. lat. p99 (s)", "final. lat. p95 (s)", "final. lat. p50 (s)"]},
-    {"file": "submit_latency", "metrics": [
-        "submit lat. p95 (s)", "submit lat. p50 (s)"]},
-    {"file": "queues", "metrics": [
-        "exec. dispatch queue", "pending txs", "exec. queue. delay p95 (s)"]},
+    {
+        "file": "attestation_latency",
+        "metrics": [
+            "attest. lat. p99 (s)",
+            "attest. lat. p95 (s)",
+            "attest. lat. p50 (s)",
+            "exec. lat. p95 (s)",
+        ],
+    },
+    {
+        "file": "receipt_to_exec_latency",
+        "metrics": [
+            "rec. → exec. p99 (s)",
+            "rec. → exec. p95 (s)",
+            "rec. → exec. p50 (s)",
+        ],
+    },
+    {
+        "file": "post_consensus_validation_latency",
+        "metrics": ["pc valid. lat. p95 (s)", "pc valid. lat. p50 (s)"],
+    },
+    {
+        "file": "settlement_finality_latency",
+        "metrics": [
+            "final. lat. p99 (s)",
+            "final. lat. p95 (s)",
+            "final. lat. p50 (s)",
+        ],
+    },
+    {
+        "file": "submit_latency",
+        "metrics": ["submit lat. p95 (s)", "submit lat. p50 (s)"],
+    },
+    {
+        "file": "queues",
+        "metrics": [
+            "exec. dispatch queue",
+            "pending txs",
+            "exec. queue. delay p95 (s)",
+        ],
+    },
     {"file": "resources", "metrics": ["host CPU", "node CPU", "node mem. RSS (bytes)"]},
 ]
 
@@ -247,10 +308,18 @@ def make_figure(csv_path, configs, metrics, out, versions_mode, disp, logy):
             title, ylabel = strip_unit(metric), unit_of(metric)
         rows, unit = metric_data[metric]
         draw_metric(
-            ax, metric, rows, unit, configs, disp, logy, versions,
+            ax,
+            metric,
+            rows,
+            unit,
+            configs,
+            disp,
+            logy,
+            versions,
             show_xlabels=(i == n - 1),  # only the bottom subplot
             show_legend=(i == 0),  # only the top subplot
-            title=title, ylabel=ylabel,
+            title=title,
+            ylabel=ylabel,
         )
 
     if n > 1:
@@ -272,17 +341,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default=os.path.join(here, "results", "summary_table.csv"))
     ap.add_argument(
-        "--metric", nargs="+", default=None,
+        "--metric",
+        nargs="+",
+        default=None,
         help="one or more metric names, stacked as shared-x subplots (top to bottom). "
         "Omit to render the full default figure set (see FIGURES).",
     )
     ap.add_argument("--disp", choices=["std", "sem", "none"], default="std")
     ap.add_argument(
-        "--logy", action=argparse.BooleanOptionalAction, default=True,
+        "--logy",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="log-scale y-axis (default on; pass --no-logy for linear)",
     )
     ap.add_argument(
-        "--versions", choices=["auto", "A", "B", "AB"], default="auto",
+        "--versions",
+        choices=["auto", "A", "B", "AB"],
+        default="auto",
         help="which of A (V1) / B (V2) to draw; auto skips a version with no data "
         "(e.g. CUs is V2-only)",
     )
@@ -305,14 +380,20 @@ def main():
             "__".join(re.sub(r"[^A-Za-z0-9]+", "_", m).strip("_") for m in args.metric)
             + ".png",
         )
-        make_figure(args.csv, configs, args.metric, out, args.versions, args.disp, args.logy)
+        make_figure(
+            args.csv, configs, args.metric, out, args.versions, args.disp, args.logy
+        )
     else:
         # no --metric: render the whole default set.
         for spec in FIGURES:
             make_figure(
-                args.csv, configs, spec["metrics"],
+                args.csv,
+                configs,
+                spec["metrics"],
                 os.path.join(outdir, spec["file"] + ".png"),
-                spec.get("versions", "auto"), args.disp, args.logy,
+                spec.get("versions", "auto"),
+                args.disp,
+                args.logy,
             )
 
 

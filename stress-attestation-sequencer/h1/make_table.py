@@ -34,12 +34,17 @@ import warnings
 
 import numpy as np
 
+
 # A metric may be absent for a config/version, so reducing its (all-NaN) series is
 # expected and raises benign numpy RuntimeWarnings — silence just those messages.
 # Set at import so forked workers inherit it; compute_row re-applies for spawn.
 def _silence_numpy_warnings():
-    for msg in ("Mean of empty slice", "All-NaN slice encountered",
-                "invalid value encountered", "Degrees of freedom <= 0"):
+    for msg in (
+        "Mean of empty slice",
+        "All-NaN slice encountered",
+        "invalid value encountered",
+        "Degrees of freedom <= 0",
+    ):
         warnings.filterwarnings("ignore", message=msg)
 
 
@@ -147,28 +152,61 @@ VALIDATOR_NAME_RE = "validator-.*"
 # are baked into the names below, so each clears the auto unit suffix ("unit": "").
 RENAME_COLUMNS = {
     "finalized TPS (included in checkpoint)": {"name": "TPS", "unit": ""},
-    "attestation latency p50 (pre-consensus dry-run)": {"name": "attest. lat. p50 (s)", "unit": ""},
-    "attestation latency p95 (pre-consensus dry-run)": {"name": "attest. lat. p95 (s)", "unit": ""},
-    "attestation latency p99 (pre-consensus dry-run)": {"name": "attest. lat. p99 (s)", "unit": ""},
+    "attestation latency p50 (pre-consensus dry-run)": {
+        "name": "attest. lat. p50 (s)",
+        "unit": "",
+    },
+    "attestation latency p95 (pre-consensus dry-run)": {
+        "name": "attest. lat. p95 (s)",
+        "unit": "",
+    },
+    "attestation latency p99 (pre-consensus dry-run)": {
+        "name": "attest. lat. p99 (s)",
+        "unit": "",
+    },
     "attestations / sec": {"name": "attest. / sec", "unit": ""},
     "host CPU (busy cores, whole machine)": {"name": "host CPU", "unit": ""},
     "receipt → executed — p50": {"name": "rec. → exec. p50 (s)", "unit": ""},
     "receipt → executed — p95": {"name": "rec. → exec. p95 (s)", "unit": ""},
     "receipt → executed — p99": {"name": "rec. → exec. p99 (s)", "unit": ""},
-    "post-consensus validation latency — p50": {"name": "pc valid. lat. p50 (s)", "unit": ""},
-    "post-consensus validation latency — p95": {"name": "pc valid. lat. p95 (s)", "unit": ""},
+    "post-consensus validation latency — p50": {
+        "name": "pc valid. lat. p50 (s)",
+        "unit": "",
+    },
+    "post-consensus validation latency — p95": {
+        "name": "pc valid. lat. p95 (s)",
+        "unit": "",
+    },
     "internal execution latency p95": {"name": "exec. lat. p95 (s)", "unit": ""},
     "validation dropped txs / sec": {"name": "valid. drop. / sec", "unit": ""},
-    "settlement finality latency (client, via fullnode) [transaction p50]": {"name": "final. lat. p50 (s)", "unit": ""},
-    "settlement finality latency (client, via fullnode) [transaction p95]": {"name": "final. lat. p95 (s)", "unit": ""},
-    "settlement finality latency (client, via fullnode) [transaction p99]": {"name": "final. lat. p99 (s)", "unit": ""},
-    "submit transaction latency (client, via fullnode) [transaction p50]": {"name": "submit lat. p50 (s)", "unit": ""},
-    "submit transaction latency (client, via fullnode) [transaction p95]": {"name": "submit lat. p95 (s)", "unit": ""},
+    "settlement finality latency (client, via fullnode) [transaction p50]": {
+        "name": "final. lat. p50 (s)",
+        "unit": "",
+    },
+    "settlement finality latency (client, via fullnode) [transaction p95]": {
+        "name": "final. lat. p95 (s)",
+        "unit": "",
+    },
+    "settlement finality latency (client, via fullnode) [transaction p99]": {
+        "name": "final. lat. p99 (s)",
+        "unit": "",
+    },
+    "submit transaction latency (client, via fullnode) [transaction p50]": {
+        "name": "submit lat. p50 (s)",
+        "unit": "",
+    },
+    "submit transaction latency (client, via fullnode) [transaction p95]": {
+        "name": "submit lat. p95 (s)",
+        "unit": "",
+    },
     "execution dispatch queue": {"name": "exec. dispatch queue", "unit": ""},
     "pending transactions (waiting for inputs)": {"name": "pending txs", "unit": ""},
     "execution queueing delay p95": {"name": "exec. queue. delay p95 (s)", "unit": ""},
     "per-validator CPU (busy cores, cadvisor)": {"name": "node CPU", "unit": ""},
-    "per-validator memory RSS (cadvisor)": {"name": "node mem. RSS (bytes)", "unit": ""},
+    "per-validator memory RSS (cadvisor)": {
+        "name": "node mem. RSS (bytes)",
+        "unit": "",
+    },
 }
 
 
@@ -512,7 +550,9 @@ def main():
             header.append(f"{col['key']}{u} · B")
     lines.append("\n## Full table\n")
     if args.layout == "combined":
-        lines.append("Each cell is `A / B` = V1 (attestation OFF) / V2 (attestation ON).\n")
+        lines.append(
+            "Each cell is `A / B` = V1 (attestation OFF) / V2 (attestation ON).\n"
+        )
     lines.append("| " + " | ".join(header) + " |")
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
     for label in labels:
