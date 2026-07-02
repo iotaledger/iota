@@ -25,8 +25,9 @@ fun multisig_validate_pubkey_valid() {
 fun multisig_validate_pubkey_invalid() {
     // Empty bytes.
     assert!(!multisig::multisig_validate_pubkey(&x""));
-    // Zero signers.
-    assert!(!multisig::multisig_validate_pubkey(&x"00"));
+    // Empty committee: zero members with a non-zero threshold.
+    // Layout: vec_len(0) | threshold_le16(1)
+    assert!(!multisig::multisig_validate_pubkey(&x"000100"));
     // Zero threshold (otherwise-valid 1-of-1 Ed25519 with threshold_le16 = 0).
     assert!(
         !multisig::multisig_validate_pubkey(
@@ -39,10 +40,12 @@ fun multisig_validate_pubkey_invalid() {
             &x"01000000000000000000000000000000000000000000000000000000000000000000010200",
         ),
     );
-    // Zero-weight member.
+    // Zero-weight member: the mixed committee from the valid test with the Ed25519 member's
+    // weight set to 0. Total weight (1, from the Secp256k1 member) still meets the threshold,
+    // so only the zero-weight rule is violated.
     assert!(
         !multisig::multisig_validate_pubkey(
-            &x"01000000000000000000000000000000000000000000000000000000000000000000000100",
+            &x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88000102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100",
         ),
     );
     // Duplicate Ed25519 members.

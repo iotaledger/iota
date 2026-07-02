@@ -175,8 +175,9 @@ fun create_passkey_too_long_aborts() {
 #[test]
 #[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_empty_signers_aborts() {
-    // BCS vec_len=0 — at least one signer is required
-    public_key::create(signature_scheme::multisig(), x"00");
+    // vec_len(0) | threshold_le16(1) — deserializes to a committee with no signers, which is
+    // rejected (at least one signer is required).
+    public_key::create(signature_scheme::multisig(), x"000100");
 }
 
 #[test]
@@ -208,9 +209,11 @@ fun create_multisig_weight_below_threshold_aborts() {
 #[test]
 #[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_zero_weight_signer_aborts() {
-    // 1 Ed25519 signer with weight=0, threshold=1. Zero-weight members are rejected.
-    // Layout: vec_len(1) | tag(0=Ed25519) | 32 zero bytes | weight(0) | threshold_le(1)
-    let raw = x"01000000000000000000000000000000000000000000000000000000000000000000000100";
+    // The mixed 1-of-2 committee with the Ed25519 member's weight set to 0. Total weight (1,
+    // from the Secp256k1 member) still meets the threshold, so only the zero-weight rule is
+    // violated. Zero-weight members are rejected.
+    let raw =
+        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88000102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     public_key::create(signature_scheme::multisig(), raw);
 }
 
