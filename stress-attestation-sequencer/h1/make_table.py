@@ -302,14 +302,15 @@ def fmt_cell(center, disp_val, disp):
 
 
 def sort_key(label):
-    """slow{N}-owned-{f|v}-qps{Q} -> (N, workload, Q) so rows read in a sane order."""
+    """slow{N}-owned-{f|v}-qps{Q} -> (N, Q, workload): group by slow, then qps, with
+    the f/v pair adjacent for each qps."""
     slow = re.search(r"slow(\d+)", label)
     qps = re.search(r"qps(\d+)", label)
     wl = re.search(r"owned-([a-z]+)", label)
     return (
         int(slow.group(1)) if slow else 0,
-        wl.group(1) if wl else "",
         int(qps.group(1)) if qps else 0,
+        wl.group(1) if wl else "",
         label,
     )
 
