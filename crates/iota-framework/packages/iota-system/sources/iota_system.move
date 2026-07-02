@@ -630,11 +630,7 @@ fun advance_epoch(
     let attestor_evicted_bonds = if (
         dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key())
     ) {
-        let registry: &mut AttestorRegistryV1 = dynamic_field::borrow_mut(
-            &mut wrapper.id,
-            attestor_registry::registry_key(),
-        );
-        registry.advance_epoch(new_epoch, ctx)
+        load_attestor_registry_mut(wrapper).advance_epoch(new_epoch, ctx)
     } else {
         balance::zero()
     };
