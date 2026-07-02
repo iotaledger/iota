@@ -166,6 +166,11 @@ impl BuildConfig {
         build_config
     }
 
+    pub fn with_allow_view_function(mut self) -> Self {
+        self.protocol_build_config.allow_view_function = true;
+        self
+    }
+
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {

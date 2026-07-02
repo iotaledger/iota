@@ -112,7 +112,10 @@ fn pkg_path_of(pkg_name: &str) -> PathBuf {
 
 fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectId>) {
     let with_unpublished_deps = false;
-    let package = BuildConfig::new_for_testing().build(path).unwrap();
+    let package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(path)
+        .unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
