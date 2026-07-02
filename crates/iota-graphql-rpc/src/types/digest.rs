@@ -25,10 +25,6 @@ pub(crate) enum Error {
 }
 
 impl Digest {
-    pub(crate) fn to_vec(self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
     pub(crate) fn as_slice(&self) -> &[u8] {
         &self.0
     }
