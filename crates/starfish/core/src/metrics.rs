@@ -258,6 +258,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_local_index: IntGauge,
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
     pub(crate) commit_sync_truncated_fetches: IntCounterVec,
+    pub(crate) commit_sync_fetch_cap_stops: IntCounterVec,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
     pub(crate) commit_sync_fetch_once_latency: HistogramVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
@@ -1092,6 +1093,12 @@ impl NodeMetrics {
             commit_sync_truncated_fetches: register_int_counter_vec_with_registry!(
                 "commit_sync_truncated_fetches",
                 "Number of fetches whose response covered only a prefix of the returned commits",
+                &["source"],
+                registry,
+            ).unwrap(),
+            commit_sync_fetch_cap_stops: register_int_counter_vec_with_registry!(
+                "commit_sync_fetch_cap_stops",
+                "Number of fast commit sync fetches stopped early by the per-fetch transaction byte cap",
                 &["source"],
                 registry,
             ).unwrap(),
