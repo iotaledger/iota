@@ -28,7 +28,8 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
+    TransactionChunkStream, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
@@ -53,7 +54,7 @@ use crate::{
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
-const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+pub(crate) const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 // Upper bound on the total bytes a peer may stream in response to a fetch,
 // terminating the stream once exceeded. Each bound mirrors the matching
@@ -431,7 +432,7 @@ impl NetworkClient for TonicClient {
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchCommitsAndTransactionsRequest {
             start: commit_range.start(),
@@ -454,17 +455,16 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        // First chunk contains commits and certifier headers.
-        //
-        // Bound the response per element and per category while streaming, since
-        // `verify_commits` only runs on the fully-received buffers and so cannot
-        // protect them from a malicious server. Commits and certifier headers
-        // carry the same count caps `verify_commits` applies
+        // Commits and certifier headers arrive first, ahead of the transaction
+        // chunks. Drain them eagerly here, bounding the response per element and
+        // per category, since `verify_commits` only runs on the fully-received
+        // buffers and so cannot protect them from a malicious server. Commits and
+        // certifier headers carry the same count caps `verify_commits` applies
         // (`2 * fast_commit_sync_batch_size` and two headers per authority).
         // Transactions have no count cap on the fast path — the server returns
         // every transaction the committed range references — so only their
-        // per-element size is enforced here; their count is validated against
-        // the commits downstream, and the coarse total below bounds the buffer.
+        // per-element size is enforced, downstream in the returned chunk stream;
+        // their count is validated against the commits by the caller.
         let committee_size = self.context.committee.size();
         let gc_depth = self.context.protocol_config.gc_depth() as usize;
         let max_commits = CommitSyncType::Fast.max_commits_per_response(&self.context);
@@ -473,24 +473,9 @@ impl NetworkClient for TonicClient {
         let max_commit_size = max_commit_bytes(committee_size, gc_depth);
         let max_header_size = max_signed_block_header_bytes(committee_size);
         let max_transaction_size = serialized_transactions_size_limit(&self.context);
-        // Coarse total backstop for the buffer. The commit and certifier-header
-        // terms reuse the per-category caps above so the total never trips
-        // before them; the transaction term uses the commit-sync fetch cap as a
-        // coarse allowance, since the fast path has no transaction count cap.
-        let max_allowed_bytes = max_commits
-            .saturating_mul(max_commit_size)
-            .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
-            .saturating_add(
-                self.context
-                    .parameters
-                    .max_transactions_per_commit_sync_fetch
-                    .saturating_mul(max_transaction_size),
-            );
 
         let mut commits = Vec::new();
         let mut certifier_block_headers = Vec::new();
-        let mut transactions = Vec::new();
-        let mut total_fetched_bytes = 0;
 
         loop {
             match stream.message().await {
@@ -511,7 +496,6 @@ impl NetworkClient for TonicClient {
                                 limit: max_commit_size,
                             });
                         }
-                        total_fetched_bytes += c.len();
                     }
                     commits.extend(response.commits);
 
@@ -534,34 +518,29 @@ impl NetworkClient for TonicClient {
                                 limit: max_header_size,
                             });
                         }
-                        total_fetched_bytes += h.len();
                     }
                     certifier_block_headers.extend(response.certifier_block_headers);
 
-                    // Transactions (streamed in subsequent chunks): per-element size only.
-                    for t in &response.transactions {
-                        if t.len() > max_transaction_size {
-                            return Err(ConsensusError::SerializedTransactionsTooLarge {
-                                size: t.len(),
-                                limit: max_transaction_size,
-                            });
-                        }
-                        total_fetched_bytes += t.len();
-                    }
-                    transactions.extend(response.transactions);
-
-                    // Coarse total backstop bounding the transaction buffer, which
-                    // has no precise count cap on the fast path.
-                    if total_fetched_bytes > max_allowed_bytes {
-                        info!(
-                            "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, max_allowed_bytes,
-                        );
-                        break;
+                    // The first message carrying transactions marks the end of the
+                    // head. Retain it, prepend it to the remaining stream, and hand
+                    // the tail to the chunk adapter.
+                    if !response.transactions.is_empty() {
+                        let first = FetchCommitsAndTransactionsResponse {
+                            commits: vec![],
+                            certifier_block_headers: vec![],
+                            transactions: response.transactions,
+                        };
+                        let tail = stream::once(std::future::ready(Ok::<_, tonic::Status>(first)))
+                            .chain(stream);
+                        return Ok((
+                            commits,
+                            certifier_block_headers,
+                            transaction_chunk_stream_adapter(tail, max_transaction_size, peer),
+                        ));
                     }
                 }
                 Ok(None) => {
-                    break;
+                    return Ok((commits, certifier_block_headers, stream::empty().boxed()));
                 }
                 Err(e) => {
                     if commits.is_empty() {
@@ -575,14 +554,73 @@ impl NetworkClient for TonicClient {
                         )));
                     } else {
                         warn!("fetch_commits_and_transactions failed mid-stream: {e:?}");
-                        break;
+                        return Ok((commits, certifier_block_headers, stream::empty().boxed()));
                     }
                 }
             }
         }
-
-        Ok((commits, certifier_block_headers, transactions))
     }
+}
+
+/// Wraps the transaction tail of a `fetch_commits_and_transactions` response
+/// stream into a [`TransactionChunkStream`]. Each source message must carry
+/// only transactions; every transaction is bounded to `max_transaction_size`.
+/// The first violation — an oversized transaction, commit data appearing after
+/// transactions, or a transport error — is emitted as a terminal error item,
+/// after which the stream ends.
+fn transaction_chunk_stream_adapter<S>(
+    responses: S,
+    max_transaction_size: usize,
+    peer: AuthorityIndex,
+) -> TransactionChunkStream
+where
+    S: Stream<Item = Result<FetchCommitsAndTransactionsResponse, tonic::Status>> + Send + 'static,
+{
+    responses
+        .scan(false, move |terminated, item| {
+            let output = if *terminated {
+                None
+            } else {
+                let result = adapt_transaction_response(item, max_transaction_size, peer);
+                if result.is_err() {
+                    *terminated = true;
+                }
+                Some(result)
+            };
+            std::future::ready(output)
+        })
+        .boxed()
+}
+
+/// Validates one transaction-tail message and extracts its transaction chunk.
+fn adapt_transaction_response(
+    item: Result<FetchCommitsAndTransactionsResponse, tonic::Status>,
+    max_transaction_size: usize,
+    peer: AuthorityIndex,
+) -> ConsensusResult<Vec<Bytes>> {
+    let response = item.map_err(|e| {
+        if e.code() == tonic::Code::DeadlineExceeded {
+            ConsensusError::NetworkRequestTimeout(format!(
+                "fetch_commits_and_transactions failed mid-stream: {e:?}"
+            ))
+        } else {
+            ConsensusError::NetworkRequest(format!(
+                "fetch_commits_and_transactions failed mid-stream: {e:?}"
+            ))
+        }
+    })?;
+    if !response.commits.is_empty() || !response.certifier_block_headers.is_empty() {
+        return Err(ConsensusError::UnexpectedCommitDataAfterTransactions { peer });
+    }
+    for t in &response.transactions {
+        if t.len() > max_transaction_size {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: t.len(),
+                limit: max_transaction_size,
+            });
+        }
+    }
+    Ok(response.transactions)
 }
 
 // Tonic channel wrapped with layers.
@@ -908,15 +946,20 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
         let permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let (serialized_commits, serialized_headers, transaction_chunks) = self
             .service
-            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits_and_transactions(
+                peer_index,
+                (request.start..=request.end).into(),
+                0,
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
-        // Commits and transactions are chunked by size. Certifier headers are small
+        // Commits are chunked by size and sent first. Certifier headers are small
         // enough to fit in a single chunk and are sent with the first commit chunk.
+        // Transaction chunks follow as the tail of the stream.
         let mut responses = Vec::new();
 
         let commit_chunks = chunk_data(serialized_commits, MAX_FETCH_RESPONSE_BYTES);
@@ -940,17 +983,16 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let tx_chunks = chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES);
-        for txs_chunk in tx_chunks {
-            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+        let tx_tail = transaction_chunks.map(|chunk| match chunk {
+            Ok(transactions) => Ok(FetchCommitsAndTransactionsResponse {
                 commits: vec![],
                 certifier_block_headers: vec![],
-                transactions: txs_chunk,
-            }));
-        }
-
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
-        Ok(Response::new(stream))
+                transactions,
+            }),
+            Err(e) => Err(tonic::Status::internal(format!("{e:?}"))),
+        });
+        let stream = PermitGuardedStream::new(iter(responses).chain(tx_tail).boxed(), permit);
+        Ok(Response::new(stream.boxed()))
     }
 
     type FetchLatestBlockHeadersStream =
@@ -1622,7 +1664,7 @@ pub(crate) struct FetchTransactionsResponse {
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
-fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+pub(crate) fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
@@ -1646,10 +1688,18 @@ fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
 mod tests {
     use std::sync::Arc;
 
-    use super::{max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes};
+    use bytes::Bytes;
+    use futures::{StreamExt as _, stream};
+    use starfish_config::AuthorityIndex;
+
+    use super::{
+        FetchCommitsAndTransactionsResponse, max_fetch_block_headers_response_bytes,
+        max_fetch_transactions_response_bytes, transaction_chunk_stream_adapter,
+    };
     use crate::{
         block_header::max_signed_block_header_bytes,
         block_verifier::serialized_transactions_size_limit, context::Context,
+        error::ConsensusError,
     };
 
     /// The per-fetch response budgets track the matching server-side count cap:
@@ -1684,5 +1734,131 @@ mod tests {
             max_fetch_transactions_response_bytes(&context),
             9 * serialized_transactions_size_limit(&context)
         );
+    }
+
+    const MAX_TRANSACTION_SIZE: usize = 8;
+
+    fn peer() -> AuthorityIndex {
+        AuthorityIndex::new_for_test(2)
+    }
+
+    fn tx_response(transactions: Vec<Bytes>) -> FetchCommitsAndTransactionsResponse {
+        FetchCommitsAndTransactionsResponse {
+            commits: vec![],
+            certifier_block_headers: vec![],
+            transactions,
+        }
+    }
+
+    fn adapt(
+        items: Vec<Result<FetchCommitsAndTransactionsResponse, tonic::Status>>,
+    ) -> super::TransactionChunkStream {
+        transaction_chunk_stream_adapter(stream::iter(items), MAX_TRANSACTION_SIZE, peer())
+    }
+
+    /// The retained first transaction batch is prepended ahead of the rest of
+    /// the tonic stream, and chunks come out in wire order, one item per
+    /// message.
+    #[tokio::test]
+    async fn adapter_yields_prepended_first_batch_then_tail_in_order() {
+        let first = tx_response(vec![Bytes::from_static(b"a")]);
+        let tail = stream::iter(vec![
+            Ok(tx_response(vec![
+                Bytes::from_static(b"b"),
+                Bytes::from_static(b"c"),
+            ])),
+            Ok(tx_response(vec![Bytes::from_static(b"d")])),
+        ]);
+        let prepended = stream::once(std::future::ready(Ok(first))).chain(tail);
+        let mut stream = transaction_chunk_stream_adapter(prepended, MAX_TRANSACTION_SIZE, peer());
+
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            vec![Bytes::from_static(b"a")]
+        );
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            vec![Bytes::from_static(b"b"), Bytes::from_static(b"c")]
+        );
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            vec![Bytes::from_static(b"d")]
+        );
+        assert!(stream.next().await.is_none());
+    }
+
+    /// A transaction element exceeding the per-element size limit surfaces as
+    /// a terminal error: nothing after it is yielded, not even valid chunks.
+    #[tokio::test]
+    async fn adapter_rejects_oversized_transaction_terminally() {
+        let oversized = Bytes::from(vec![0u8; MAX_TRANSACTION_SIZE + 1]);
+        let mut stream = adapt(vec![
+            Ok(tx_response(vec![Bytes::from_static(b"ok")])),
+            Ok(tx_response(vec![oversized])),
+            Ok(tx_response(vec![Bytes::from_static(b"after")])),
+        ]);
+
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            vec![Bytes::from_static(b"ok")]
+        );
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ConsensusError::SerializedTransactionsTooLarge {
+                size,
+                limit: MAX_TRANSACTION_SIZE,
+            }) if size == MAX_TRANSACTION_SIZE + 1
+        ));
+        assert!(stream.next().await.is_none());
+    }
+
+    /// Commits or certifier headers arriving after the transaction tail has
+    /// started violate the response framing and terminate the stream.
+    #[tokio::test]
+    async fn adapter_rejects_commit_data_after_transactions() {
+        let mut framing_violation = tx_response(vec![Bytes::from_static(b"tx")]);
+        framing_violation.commits = vec![Bytes::from_static(b"commit")];
+        let mut stream = adapt(vec![
+            Ok(tx_response(vec![Bytes::from_static(b"ok")])),
+            Ok(framing_violation),
+            Ok(tx_response(vec![Bytes::from_static(b"after")])),
+        ]);
+
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            vec![Bytes::from_static(b"ok")]
+        );
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ConsensusError::UnexpectedCommitDataAfterTransactions { peer: p })
+                if p == peer()
+        ));
+        assert!(stream.next().await.is_none());
+    }
+
+    /// Transport errors map to the same consensus errors as before the tail
+    /// became a stream: deadline exceeded to `NetworkRequestTimeout`, anything
+    /// else to `NetworkRequest`; both are terminal.
+    #[tokio::test]
+    async fn adapter_maps_transport_errors() {
+        let mut stream = adapt(vec![
+            Err(tonic::Status::deadline_exceeded("too slow")),
+            Ok(tx_response(vec![Bytes::from_static(b"after")])),
+        ]);
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ConsensusError::NetworkRequestTimeout(_))
+        ));
+        assert!(stream.next().await.is_none());
+
+        let mut stream = adapt(vec![
+            Err(tonic::Status::internal("boom")),
+            Ok(tx_response(vec![Bytes::from_static(b"after")])),
+        ]);
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ConsensusError::NetworkRequest(_))
+        ));
+        assert!(stream.next().await.is_none());
     }
 }

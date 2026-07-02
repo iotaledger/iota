@@ -43,7 +43,8 @@ use crate::{
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
-        TransactionFetchMode,
+        TransactionChunkStream, TransactionFetchMode,
+        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -1280,7 +1281,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        _max_transaction_bytes: usize,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
         fail_point_async!("consensus-rpc-response");
 
         let (commits, certifier_block_headers) = self
@@ -1306,10 +1308,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
+        let transaction_chunks =
+            chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES).into_iter();
         Ok((
             serialized_commits,
             serialized_headers,
-            serialized_transactions,
+            stream::iter(transaction_chunks.map(Ok)).boxed(),
         ))
     }
 
@@ -1716,7 +1720,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV2, TransactionFetchMode,
+            SerializedTransactionsV2, TransactionChunkStream, TransactionFetchMode,
         },
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -1773,7 +1777,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
             unimplemented!("Unimplemented")
         }
 

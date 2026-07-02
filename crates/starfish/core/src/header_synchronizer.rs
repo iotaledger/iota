@@ -1633,7 +1633,7 @@ mod tests {
             InflightBlockHeadersMap, SyncMethod,
         },
         misbehavior_store::MisbehaviorStore,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, NetworkClient, TransactionChunkStream},
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -1777,7 +1777,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }

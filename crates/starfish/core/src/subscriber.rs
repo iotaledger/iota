@@ -274,7 +274,10 @@ mod test {
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
+        network::{
+            BlockBundleStream, SerializedBlockBundle, TransactionChunkStream,
+            test_network::TestService,
+        },
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
     };
@@ -348,7 +351,7 @@ mod test {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
             unimplemented!("Unimplemented")
         }
     }

@@ -227,7 +227,7 @@ mod tests {
         encoder::create_encoder,
         error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, NetworkClient, TransactionChunkStream},
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -290,7 +290,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
             unimplemented!("Unimplemented")
         }
     }

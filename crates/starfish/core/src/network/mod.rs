@@ -78,6 +78,12 @@ pub(crate) enum TransactionFetchMode {
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
 
+/// A stream of transaction chunks served by `fetch_commits_and_transactions`.
+/// Each item is one wire message worth of serialized `SerializedTransactionsV2`
+/// elements (~4 MiB). An error item is terminal: no further items follow it.
+pub(crate) type TransactionChunkStream =
+    Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
+
 /// Network client for communicating with peers.
 ///
 /// NOTE: the timeout parameters help saving resources at client and potentially
@@ -131,14 +137,17 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Fetches serialized commits in the commit range from a peer, headers
     /// voting for the last commit, and all transactions from these commits.
     /// Returns serialized commits, serialized headers voting for the last
-    /// commit, and serialized transactions (as SerializedTransactionsV2 which
-    /// includes TransactionRef). Used in the fast commit syncer.
+    /// commit, and a stream of transaction chunks (each transaction serialized
+    /// as SerializedTransactionsV2 which includes the TransactionRef). Commits
+    /// and voting headers are drained eagerly and fully validated before the
+    /// stream is returned; transactions are delivered lazily through the
+    /// stream. Used in the fast commit syncer.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -194,14 +203,17 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch commits and transactions by index range
     /// from the peer. Used in fast commit sync.
-    /// Returns (commits, certifier_block_headers, transactions) as serialized
-    /// bytes. Each transaction is serialized as SerializedTransactionsV2
-    /// which includes the TransactionRef.
+    /// Returns (commits, certifier_block_headers, transaction_chunk_stream) as
+    /// serialized bytes. Each transaction is serialized as
+    /// SerializedTransactionsV2 which includes the TransactionRef.
+    /// `max_transaction_bytes` bounds the total transaction bytes served, where
+    /// `0` means unlimited.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+        max_transaction_bytes: usize,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.

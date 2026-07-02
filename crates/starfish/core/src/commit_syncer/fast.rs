@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use bytes::Bytes;
+use futures::StreamExt as _;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
@@ -565,10 +565,32 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (serialized_commits, serialized_proof_for_last_commit, serialized_transactions) = inner
+        let (serialized_commits, serialized_proof_for_last_commit, mut transaction_chunks) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
+
+        // Drain the transaction chunk stream. A network error mid-stream leaves a
+        // usable transaction prefix, so keep what was received and let the prefix
+        // truncation below recover the covered commits; any other error means the
+        // peer violated the protocol and fails the fetch.
+        let mut serialized_transactions = Vec::new();
+        while let Some(chunk) = transaction_chunks.next().await {
+            match chunk {
+                Ok(chunk) => serialized_transactions.extend(chunk),
+                Err(
+                    e @ (ConsensusError::NetworkRequest(_)
+                    | ConsensusError::NetworkRequestTimeout(_)),
+                ) => {
+                    warn!(
+                        "[{}] fetch_commits_and_transactions transaction stream failed: {e:?}",
+                        inner.sync_type.as_str()
+                    );
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
@@ -901,10 +923,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 ///
 /// Returns an error attributed to `peer` when even the first commit is missing
 /// transactions, since the response then allows no forward progress.
-fn truncate_to_fully_fetched_prefix(
+fn truncate_to_fully_fetched_prefix<V>(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
-    fetched_transactions: &mut BTreeMap<GenericTransactionRef, Bytes>,
+    fetched_transactions: &mut BTreeMap<GenericTransactionRef, V>,
 ) -> ConsensusResult<()> {
     let prefix_len = commits
         .iter()
@@ -962,6 +984,7 @@ mod tests {
         use std::{sync::Arc, time::Duration};
 
         use bytes::Bytes;
+        use futures::{StreamExt as _, stream};
         use parking_lot::RwLock;
         use starfish_config::AuthorityIndex;
 
@@ -982,7 +1005,9 @@ mod tests {
             error::ConsensusResult,
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
-            network::{BlockBundleStream, NetworkClient, SerializedTransactionsV2},
+            network::{
+                BlockBundleStream, NetworkClient, SerializedTransactionsV2, TransactionChunkStream,
+            },
             storage::{Store, mem_store::MemStore},
             transaction_ref::{GenericTransactionRef, TransactionRef},
             transactions_synchronizer::TransactionsSynchronizer,
@@ -1038,8 +1063,13 @@ mod tests {
                 _peer: AuthorityIndex,
                 _commit_range: CommitRange,
                 _timeout: Duration,
-            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-                Ok(self.response.clone())
+            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
+                let (commits, headers, transactions) = self.response.clone();
+                Ok((
+                    commits,
+                    headers,
+                    stream::iter(vec![Ok(transactions)]).boxed(),
+                ))
             }
 
             async fn fetch_latest_block_headers(

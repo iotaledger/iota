@@ -292,6 +292,9 @@ pub(crate) enum ConsensusError {
         received: usize,
     },
 
+    #[error("Peer {peer} sent commit data after transactions in a fetch response")]
+    UnexpectedCommitDataAfterTransactions { peer: AuthorityIndex },
+
     #[error("RocksDB failure: {0}")]
     RocksDBFailure(#[from] TypedStoreError),
 
