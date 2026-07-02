@@ -65,9 +65,6 @@ use crate::{
 /// Controls transaction fetching truncation behavior for different sync modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransactionFetchMode {
-    /// No truncation - used by fast commit sync which fetches all transactions
-    /// referenced by commits in a batch
-    FastCommitSync,
     /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
     /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
     /// and transactions synchronizer

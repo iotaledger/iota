@@ -43,8 +43,7 @@ use crate::{
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
-        TransactionChunkStream, TransactionFetchMode,
-        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
+        TransactionChunkStream, TransactionFetchMode, tonic_network::MAX_FETCH_RESPONSE_BYTES,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -1281,7 +1280,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-        _max_transaction_bytes: usize,
+        max_transaction_bytes: usize,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1294,10 +1293,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .flat_map(|commit| commit.committed_transactions())
             .collect();
 
-        let serialized_transactions = self
-            .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
-            .await?;
-
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
             .map(|c| c.serialized().clone())
@@ -1308,13 +1303,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
-        let transaction_chunks =
-            chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES).into_iter();
-        Ok((
-            serialized_commits,
-            serialized_headers,
-            stream::iter(transaction_chunks.map(Ok)).boxed(),
-        ))
+        let transaction_stream = transaction_chunk_stream(
+            self.store.clone(),
+            self.dag_state.clone(),
+            self.context.clone(),
+            transaction_refs,
+            max_transaction_bytes,
+        );
+        Ok((serialized_commits, serialized_headers, transaction_stream))
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -1374,10 +1370,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Apply truncation based on fetch mode
         match fetch_mode {
-            TransactionFetchMode::FastCommitSync => {
-                // No truncation for fast commit sync - all transactions
-                // referenced by commits must be fetched.
-            }
             TransactionFetchMode::TransactionSync => {
                 let max_transactions = max(
                     self.context
@@ -1450,6 +1442,179 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         Ok(result)
     }
+}
+
+/// Number of transaction refs read from storage per cursor sub-batch before
+/// re-reading the GC boundary and reassembling in ref order.
+const TRANSACTION_CURSOR_READ_BATCH: usize = 64;
+
+/// Mutable state threaded through the fast commit sync transaction cursor.
+struct TransactionCursor {
+    store: Arc<dyn Store>,
+    dag_state: Arc<RwLock<DagState>>,
+    context: Arc<Context>,
+    /// Committed transaction refs in strict commit order.
+    refs: Vec<GenericTransactionRef>,
+    /// Index of the next ref to read.
+    pos: usize,
+    /// Serialized bytes served across all chunks so far, for the budget check.
+    served_bytes: usize,
+    /// A serialized element that did not fit the previous chunk and heads the
+    /// next one.
+    carry: Option<Bytes>,
+    /// Byte budget hint; `0` means unlimited.
+    max_transaction_bytes: usize,
+    /// Set once the budget has been crossed so the next poll ends the stream.
+    finished: bool,
+}
+
+/// Reads one sub-batch of transaction refs, splitting reads below the GC round
+/// (from the store) and at-or-above it (from the in-memory dag) while
+/// reassembling the serialized `SerializedTransactionsV2` elements back into
+/// the requested ref order. Missing refs yield `None` at their position.
+fn read_serialized_transaction_batch(
+    store: &Arc<dyn Store>,
+    dag_state: &Arc<RwLock<DagState>>,
+    refs: &[GenericTransactionRef],
+    gc_round: Round,
+) -> ConsensusResult<Vec<Option<Bytes>>> {
+    let mut below_gc_indices = Vec::new();
+    let mut below_gc_refs = Vec::new();
+    let mut above_gc_indices = Vec::new();
+    let mut above_gc_refs = Vec::new();
+    for (i, r) in refs.iter().enumerate() {
+        if r.round() < gc_round {
+            below_gc_indices.push(i);
+            below_gc_refs.push(*r);
+        } else {
+            above_gc_indices.push(i);
+            above_gc_refs.push(*r);
+        }
+    }
+
+    let mut raw: Vec<Option<Bytes>> = vec![None; refs.len()];
+    if !below_gc_refs.is_empty() {
+        for (idx, tx) in below_gc_indices
+            .iter()
+            .zip(store.read_serialized_transactions(&below_gc_refs)?)
+        {
+            raw[*idx] = tx;
+        }
+    }
+    if !above_gc_refs.is_empty() {
+        for (idx, tx) in above_gc_indices
+            .iter()
+            .zip(dag_state.read().get_serialized_transactions(&above_gc_refs))
+        {
+            raw[*idx] = tx;
+        }
+    }
+
+    let mut elements = Vec::with_capacity(refs.len());
+    for (i, tx) in raw.into_iter().enumerate() {
+        match tx {
+            Some(serialized_tx) => {
+                let transaction_ref = refs[i].expect_transaction_ref()?;
+                let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref,
+                    serialized_transactions: serialized_tx,
+                })
+                .map_err(ConsensusError::SerializationFailure)?;
+                elements.push(Some(Bytes::from(serialized)));
+            }
+            None => elements.push(None),
+        }
+    }
+    Ok(elements)
+}
+
+/// Lazily generates fast commit sync transaction chunks in strict commit order.
+///
+/// Each poll reads at most one chunk worth of transactions: it consumes refs in
+/// [`TRANSACTION_CURSOR_READ_BATCH`]-sized sub-batches, re-reading the GC round
+/// per sub-batch, and accumulates serialized elements until adding the next one
+/// would exceed [`MAX_FETCH_RESPONSE_BYTES`]. An element is never split; an
+/// element larger than the limit travels alone. Missing refs are skipped (the
+/// client recovers the covered prefix). When the served bytes cross
+/// `max_transaction_bytes` (`0` = unlimited) the crossing chunk is served in
+/// full and the stream then ends cleanly. Store read errors surface as a
+/// terminal `Err` item. Dropping the stream stops all further work.
+fn transaction_chunk_stream(
+    store: Arc<dyn Store>,
+    dag_state: Arc<RwLock<DagState>>,
+    context: Arc<Context>,
+    refs: Vec<GenericTransactionRef>,
+    max_transaction_bytes: usize,
+) -> TransactionChunkStream {
+    let cursor = TransactionCursor {
+        store,
+        dag_state,
+        context,
+        refs,
+        pos: 0,
+        served_bytes: 0,
+        carry: None,
+        max_transaction_bytes,
+        finished: false,
+    };
+
+    stream::try_unfold(cursor, |mut cursor| async move {
+        if cursor.finished {
+            return Ok(None);
+        }
+
+        let mut chunk: Vec<Bytes> = Vec::new();
+        let mut chunk_bytes = 0usize;
+        if let Some(carried) = cursor.carry.take() {
+            chunk_bytes += carried.len();
+            chunk.push(carried);
+        }
+
+        'fill: while cursor.pos < cursor.refs.len() {
+            let end = (cursor.pos + TRANSACTION_CURSOR_READ_BATCH).min(cursor.refs.len());
+            let gc_round = cursor.dag_state.read().gc_round_for_last_solid_commit();
+            let batch = read_serialized_transaction_batch(
+                &cursor.store,
+                &cursor.dag_state,
+                &cursor.refs[cursor.pos..end],
+                gc_round,
+            )?;
+
+            for (offset, element) in batch.into_iter().enumerate() {
+                let Some(element) = element else {
+                    continue;
+                };
+                if !chunk.is_empty() && chunk_bytes + element.len() > MAX_FETCH_RESPONSE_BYTES {
+                    // Carry the overflow element and resume at the ref after it.
+                    cursor.pos += offset + 1;
+                    cursor.carry = Some(element);
+                    break 'fill;
+                }
+                chunk_bytes += element.len();
+                chunk.push(element);
+            }
+            cursor.pos = end;
+        }
+
+        if chunk.is_empty() {
+            return Ok(None);
+        }
+
+        cursor.served_bytes += chunk_bytes;
+        let metrics = &cursor.context.metrics.node_metrics;
+        metrics.commit_sync_fetch_tx_chunks_served.inc();
+        metrics
+            .commit_sync_fetch_tx_bytes_served
+            .inc_by(chunk_bytes as u64);
+        if cursor.max_transaction_bytes != 0 && cursor.served_bytes >= cursor.max_transaction_bytes
+        {
+            metrics.commit_sync_fetch_budget_stops.inc();
+            cursor.finished = true;
+        }
+
+        Ok(Some((chunk, cursor)))
+    })
+    .boxed()
 }
 
 struct Counter {
@@ -1676,7 +1841,10 @@ mod tests {
     use std::{
         cmp::min,
         collections::{BTreeMap, BTreeSet},
-        sync::Arc,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
         time::Duration,
     };
 
@@ -1695,6 +1863,7 @@ mod tests {
         CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
+            TRANSACTION_CURSOR_READ_BATCH, transaction_chunk_stream,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
@@ -1721,11 +1890,12 @@ mod tests {
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactionsV2, TransactionChunkStream, TransactionFetchMode,
+            tonic_network::MAX_FETCH_RESPONSE_BYTES,
         },
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -4145,5 +4315,585 @@ mod tests {
             TransactionsCommitment::default(),
         );
         check_shard_version(&shard_v2).unwrap();
+    }
+
+    /// Response the [`CountingStore`] serves for a requested transaction ref.
+    #[derive(Clone)]
+    enum TxResponse {
+        /// A serialized transaction payload of the given number of bytes.
+        Present(usize),
+        /// The ref is absent from storage.
+        Missing,
+        /// The store read fails for any batch containing this ref.
+        Error,
+    }
+
+    /// A [`Store`] wrapper over [`MemStore`] that serves controlled
+    /// `read_serialized_transactions` responses and counts how many times it is
+    /// called and how many refs it reads, so cursor laziness can be observed.
+    /// Every other method delegates to the wrapped store.
+    struct CountingStore {
+        inner: Arc<MemStore>,
+        responses: BTreeMap<GenericTransactionRef, TxResponse>,
+        default_response: TxResponse,
+        read_calls: AtomicUsize,
+        read_refs: AtomicUsize,
+    }
+
+    impl CountingStore {
+        fn new(default_response: TxResponse) -> Self {
+            Self {
+                inner: Arc::new(MemStore::new()),
+                responses: BTreeMap::new(),
+                default_response,
+                read_calls: AtomicUsize::new(0),
+                read_refs: AtomicUsize::new(0),
+            }
+        }
+
+        fn with_response(mut self, r: GenericTransactionRef, resp: TxResponse) -> Self {
+            self.responses.insert(r, resp);
+            self
+        }
+
+        fn read_calls(&self) -> usize {
+            self.read_calls.load(Ordering::SeqCst)
+        }
+
+        fn refs_read(&self) -> usize {
+            self.read_refs.load(Ordering::SeqCst)
+        }
+    }
+
+    impl Store for CountingStore {
+        fn read_serialized_transactions(
+            &self,
+            refs: &[GenericTransactionRef],
+        ) -> ConsensusResult<Vec<Option<Bytes>>> {
+            self.read_calls.fetch_add(1, Ordering::SeqCst);
+            self.read_refs.fetch_add(refs.len(), Ordering::SeqCst);
+            let mut out = Vec::with_capacity(refs.len());
+            for r in refs {
+                let response = self
+                    .responses
+                    .get(r)
+                    .cloned()
+                    .unwrap_or_else(|| self.default_response.clone());
+                match response {
+                    TxResponse::Present(n) => out.push(Some(Bytes::from(vec![0u8; n]))),
+                    TxResponse::Missing => out.push(None),
+                    TxResponse::Error => {
+                        return Err(ConsensusError::RocksDBFailure(
+                            typed_store::TypedStoreError::RocksDB(
+                                "injected read failure".to_string(),
+                            ),
+                        ));
+                    }
+                }
+            }
+            Ok(out)
+        }
+
+        fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
+            self.inner.write(write_batch)
+        }
+
+        fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+            self.inner.read_blocks(refs)
+        }
+
+        fn read_verified_block_headers(
+            &self,
+            refs: &[BlockRef],
+        ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+            self.inner.read_verified_block_headers(refs)
+        }
+
+        fn read_serialized_block_headers(
+            &self,
+            refs: &[BlockRef],
+        ) -> ConsensusResult<Vec<Option<Bytes>>> {
+            self.inner.read_serialized_block_headers(refs)
+        }
+
+        fn read_verified_transactions(
+            &self,
+            refs: &[GenericTransactionRef],
+        ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+            self.inner.read_verified_transactions(refs)
+        }
+
+        fn contains_transactions(
+            &self,
+            refs: &[GenericTransactionRef],
+        ) -> ConsensusResult<Vec<bool>> {
+            self.inner.contains_transactions(refs)
+        }
+
+        fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+            self.inner.contains_block_headers(refs)
+        }
+
+        fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool> {
+            self.inner.contains_block_at_slot(slot)
+        }
+
+        fn scan_blocks_by_author(
+            &self,
+            _authority: AuthorityIndex,
+            _start_round: Round,
+        ) -> ConsensusResult<Vec<VerifiedBlock>> {
+            unimplemented!("CountingStore only serves transaction reads for the cursor")
+        }
+
+        fn scan_last_blocks_by_author(
+            &self,
+            author: AuthorityIndex,
+            num_of_rounds: u64,
+            before_round: Option<Round>,
+        ) -> ConsensusResult<Vec<VerifiedBlock>> {
+            self.inner
+                .scan_last_blocks_by_author(author, num_of_rounds, before_round)
+        }
+
+        fn scan_block_references_by_author(
+            &self,
+            author: AuthorityIndex,
+            start_round: Round,
+        ) -> ConsensusResult<Vec<BlockRef>> {
+            self.inner
+                .scan_block_references_by_author(author, start_round)
+        }
+
+        fn scan_transaction_references_by_author(
+            &self,
+            author: AuthorityIndex,
+            start_round: Round,
+        ) -> ConsensusResult<Vec<crate::transaction_ref::TransactionRef>> {
+            self.inner
+                .scan_transaction_references_by_author(author, start_round)
+        }
+
+        fn scan_misbehavior_counts(
+            &self,
+        ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>> {
+            self.inner.scan_misbehavior_counts()
+        }
+
+        fn read_last_commit(&self) -> ConsensusResult<Option<crate::commit::TrustedCommit>> {
+            self.inner.read_last_commit()
+        }
+
+        fn scan_commits(
+            &self,
+            range: CommitRange,
+        ) -> ConsensusResult<Vec<crate::commit::TrustedCommit>> {
+            self.inner.scan_commits(range)
+        }
+
+        fn read_commit_votes(
+            &self,
+            commit_index: crate::CommitIndex,
+            commit_digest: CommitDigest,
+        ) -> ConsensusResult<Vec<BlockRef>> {
+            self.inner.read_commit_votes(commit_index, commit_digest)
+        }
+
+        fn read_highest_commit_index_with_votes(
+            &self,
+            up_to_index: crate::CommitIndex,
+        ) -> ConsensusResult<Option<crate::CommitIndex>> {
+            self.inner.read_highest_commit_index_with_votes(up_to_index)
+        }
+
+        fn read_lowest_commit_index_with_votes(
+            &self,
+            from_index: crate::CommitIndex,
+        ) -> ConsensusResult<Option<crate::CommitIndex>> {
+            self.inner.read_lowest_commit_index_with_votes(from_index)
+        }
+
+        fn read_last_commit_info(
+            &self,
+        ) -> ConsensusResult<Option<(CommitRef, crate::commit::CommitInfo)>> {
+            self.inner.read_last_commit_info()
+        }
+
+        fn read_voting_block_headers(
+            &self,
+            refs: &[BlockRef],
+        ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+            self.inner.read_voting_block_headers(refs)
+        }
+
+        fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
+            self.inner.read_fast_sync_ongoing()
+        }
+    }
+
+    /// Builds a `DagState` whose GC boundary is bumped above genesis so that
+    /// transaction refs can be routed either to the store (below GC) or to the
+    /// in-memory dag (at or above GC). Returns the shared context, dag state,
+    /// the builder holding the transaction refs, and the resulting GC round.
+    fn cursor_setup(
+        rounds: Round,
+        gc_depth: u32,
+    ) -> (Arc<Context>, Arc<RwLock<DagState>>, DagBuilder, Round) {
+        let validators = 4;
+        let (mut context, _key_pairs) = Context::new_for_test(validators);
+        context.protocol_config.set_gc_depth_for_testing(gc_depth);
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+
+        let leader_ref = dag_builder
+            .block_headers(rounds..=rounds)
+            .first()
+            .unwrap()
+            .reference();
+        dag_state
+            .write()
+            .update_last_solid_subdag_base(crate::commit::SubDagBase {
+                leader: leader_ref,
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: CommitRef::new(1, CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+        let gc_round = dag_state.read().gc_round_for_last_solid_commit();
+        (context, dag_state, dag_builder, gc_round)
+    }
+
+    /// Collects the transaction refs referenced by all block headers in the
+    /// given (inclusive) round range, in round then author order.
+    fn refs_for_rounds(
+        dag_builder: &DagBuilder,
+        start: Round,
+        end: Round,
+    ) -> Vec<GenericTransactionRef> {
+        (start..=end)
+            .flat_map(|round| {
+                dag_builder
+                    .block_headers(round..=round)
+                    .into_iter()
+                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            })
+            .collect()
+    }
+
+    /// Drains a transaction chunk stream into the raw per-item results.
+    async fn collect_chunk_results(
+        mut stream: TransactionChunkStream,
+    ) -> Vec<ConsensusResult<Vec<Bytes>>> {
+        let mut items = Vec::new();
+        while let Some(item) = stream.next().await {
+            items.push(item);
+        }
+        items
+    }
+
+    /// Decodes the transaction refs carried by one served chunk, in order.
+    fn chunk_refs(chunk: &[Bytes]) -> Vec<GenericTransactionRef> {
+        chunk
+            .iter()
+            .map(|bytes| {
+                let decoded: SerializedTransactionsV2 = bcs::from_bytes(bytes)
+                    .expect("chunk element must be a SerializedTransactionsV2");
+                GenericTransactionRef::TransactionRef(decoded.transaction_ref)
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn cursor_preserves_strict_commit_order_across_gc_boundary() {
+        let rounds = 20;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        assert!(
+            gc_round > GENESIS_ROUND && gc_round < rounds,
+            "GC round {gc_round} should split the ref range"
+        );
+
+        // Interleave below-GC refs (served from the store) with at-or-above-GC
+        // refs (served from the in-memory dag) so both read paths contribute.
+        let below = refs_for_rounds(&dag_builder, 1, gc_round - 1);
+        let above = refs_for_rounds(&dag_builder, gc_round, rounds);
+        let mut refs = Vec::new();
+        let mut below = below.into_iter();
+        let mut above = above.into_iter();
+        loop {
+            match (below.next(), above.next()) {
+                (Some(b), Some(a)) => {
+                    refs.push(b);
+                    refs.push(a);
+                }
+                (Some(b), None) => refs.push(b),
+                (None, Some(a)) => refs.push(a),
+                (None, None) => break,
+            }
+        }
+        assert!(refs.iter().any(|r| r.round() < gc_round));
+        assert!(refs.iter().any(|r| r.round() >= gc_round));
+
+        // The store returns a payload for every below-GC ref it is asked for.
+        let store = Arc::new(CountingStore::new(TxResponse::Present(128)));
+        let stream = transaction_chunk_stream(store, dag_state, context, refs.clone(), 0);
+        let served: Vec<GenericTransactionRef> = collect_chunk_results(stream)
+            .await
+            .into_iter()
+            .flat_map(|item| chunk_refs(&item.expect("cursor should not error")))
+            .collect();
+
+        assert_eq!(served, refs, "served refs must match request order exactly");
+    }
+
+    #[tokio::test]
+    async fn cursor_packs_elements_without_splitting_and_serves_oversized_alone() {
+        let rounds = 30;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        // All refs below GC so every read goes through the counting store.
+        let refs = refs_for_rounds(&dag_builder, 1, 4);
+        assert!(refs.iter().all(|r| r.round() < gc_round));
+
+        // ~1.8 MiB payloads: two fit in a 4 MiB chunk, a third overflows. The
+        // second ref carries a payload larger than a whole chunk.
+        let normal = 1_800_000;
+        let oversized = MAX_FETCH_RESPONSE_BYTES + 1_000;
+        let refs = &refs[..4];
+        let store = Arc::new(
+            CountingStore::new(TxResponse::Present(normal))
+                .with_response(refs[1], TxResponse::Present(oversized)),
+        );
+
+        let chunks: Vec<Vec<Bytes>> = collect_chunk_results(transaction_chunk_stream(
+            store,
+            dag_state,
+            context,
+            refs.to_vec(),
+            0,
+        ))
+        .await
+        .into_iter()
+        .map(|item| item.expect("cursor should not error"))
+        .collect();
+
+        // No chunk exceeds the size limit except a lone oversized element, and
+        // no element is ever split across chunks.
+        let served: Vec<GenericTransactionRef> =
+            chunks.iter().flat_map(|c| chunk_refs(c)).collect();
+        assert_eq!(served, refs.to_vec(), "all elements served in ref order");
+
+        for chunk in &chunks {
+            let chunk_bytes: usize = chunk.iter().map(|b| b.len()).sum();
+            if chunk_bytes > MAX_FETCH_RESPONSE_BYTES {
+                assert_eq!(
+                    chunk.len(),
+                    1,
+                    "an oversized chunk must hold a single element"
+                );
+            }
+        }
+        // The oversized element (refs[1]) travels alone in its own chunk.
+        let oversized_chunk = chunks
+            .iter()
+            .find(|c| chunk_refs(c) == vec![refs[1]])
+            .expect("oversized element should occupy a chunk by itself");
+        assert_eq!(oversized_chunk.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn cursor_serves_crossing_chunk_fully_then_ends_at_budget() {
+        let rounds = 30;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        let refs = refs_for_rounds(&dag_builder, 1, 6);
+        let refs = refs[..6].to_vec();
+        assert!(refs.iter().all(|r| r.round() < gc_round));
+
+        // ~1.8 MiB payloads => two elements per 4 MiB chunk, three chunks total
+        // when unbounded.
+        let payload = 1_800_000;
+
+        // First measure the unbounded chunking to learn chunk 0's exact size.
+        let unbounded = {
+            let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+            collect_chunk_results(transaction_chunk_stream(
+                store,
+                dag_state.clone(),
+                context.clone(),
+                refs.clone(),
+                0,
+            ))
+            .await
+            .into_iter()
+            .map(|item| item.expect("cursor should not error"))
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(unbounded.len(), 3, "expected three chunks when unbounded");
+        let chunk0_bytes: usize = unbounded[0].iter().map(|b| b.len()).sum();
+        let budget_stops_before = context
+            .metrics
+            .node_metrics
+            .commit_sync_fetch_budget_stops
+            .get();
+
+        // A budget of 1 byte is crossed by the first chunk; it must still be
+        // served whole, then the stream ends cleanly with no further chunks.
+        let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+        let bounded = collect_chunk_results(transaction_chunk_stream(
+            store,
+            dag_state.clone(),
+            context.clone(),
+            refs.clone(),
+            1,
+        ))
+        .await
+        .into_iter()
+        .map(|item| item.expect("cursor should not error"))
+        .collect::<Vec<_>>();
+        assert_eq!(bounded.len(), 1, "only the crossing chunk is served");
+        assert_eq!(chunk_refs(&bounded[0]), chunk_refs(&unbounded[0]));
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .commit_sync_fetch_budget_stops
+                .get(),
+            budget_stops_before + 1,
+        );
+
+        // A budget equal to chunk 0's exact byte size crosses at the chunk edge
+        // and still ends after serving that chunk (>= comparison).
+        let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+        let edge = collect_chunk_results(transaction_chunk_stream(
+            store,
+            dag_state,
+            context,
+            refs,
+            chunk0_bytes,
+        ))
+        .await
+        .into_iter()
+        .map(|item| item.expect("cursor should not error"))
+        .collect::<Vec<_>>();
+        assert_eq!(edge.len(), 1, "budget at the exact chunk edge still stops");
+    }
+
+    #[tokio::test]
+    async fn cursor_skips_missing_refs() {
+        let rounds = 30;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        let refs = refs_for_rounds(&dag_builder, 1, 4);
+        let refs = refs[..4].to_vec();
+        assert!(refs.iter().all(|r| r.round() < gc_round));
+
+        let store = Arc::new(
+            CountingStore::new(TxResponse::Present(128))
+                .with_response(refs[1], TxResponse::Missing)
+                .with_response(refs[2], TxResponse::Missing),
+        );
+        let served: Vec<GenericTransactionRef> = collect_chunk_results(transaction_chunk_stream(
+            store,
+            dag_state,
+            context,
+            refs.clone(),
+            0,
+        ))
+        .await
+        .into_iter()
+        .flat_map(|item| chunk_refs(&item.expect("cursor should not error")))
+        .collect();
+
+        assert_eq!(
+            served,
+            vec![refs[0], refs[3]],
+            "missing refs are skipped, order kept"
+        );
+    }
+
+    #[tokio::test]
+    async fn cursor_emits_terminal_error_on_store_failure() {
+        let rounds = 30;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        let refs = refs_for_rounds(&dag_builder, 1, 4);
+        let refs = refs[..3].to_vec();
+        assert!(refs.iter().all(|r| r.round() < gc_round));
+
+        let store = Arc::new(
+            CountingStore::new(TxResponse::Present(128)).with_response(refs[1], TxResponse::Error),
+        );
+        let items =
+            collect_chunk_results(transaction_chunk_stream(store, dag_state, context, refs, 0))
+                .await;
+
+        assert_eq!(items.len(), 1, "the error item is terminal");
+        assert!(
+            matches!(items[0], Err(ConsensusError::RocksDBFailure(_))),
+            "store read error should surface as a terminal Err item"
+        );
+    }
+
+    #[tokio::test]
+    async fn cursor_is_lazy_and_bounds_work_per_poll() {
+        let rounds = 40;
+        let gc_depth = 5;
+        let (context, dag_state, dag_builder, gc_round) = cursor_setup(rounds, gc_depth);
+        // Many below-GC refs, more than one read sub-batch.
+        let refs = refs_for_rounds(&dag_builder, 1, gc_round - 1);
+        assert!(refs.iter().all(|r| r.round() < gc_round));
+        assert!(
+            refs.len() > TRANSACTION_CURSOR_READ_BATCH,
+            "need more refs than one sub-batch to prove laziness, got {}",
+            refs.len()
+        );
+        let total_refs = refs.len();
+
+        // ~300 KiB payloads => a 4 MiB chunk fills well within one 64-ref
+        // sub-batch, so one poll reads at most one sub-batch.
+        let payload = 300_000;
+
+        // Dropping the stream unpolled performs zero reads.
+        let unpolled_store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+        {
+            let _stream = transaction_chunk_stream(
+                unpolled_store.clone(),
+                dag_state.clone(),
+                context.clone(),
+                refs.clone(),
+                0,
+            );
+        }
+        assert_eq!(
+            unpolled_store.read_calls(),
+            0,
+            "unpolled stream must not read"
+        );
+        assert_eq!(unpolled_store.refs_read(), 0);
+
+        // Polling once reads at most one sub-batch, far fewer than all refs.
+        let polled_store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+        let mut stream =
+            transaction_chunk_stream(polled_store.clone(), dag_state, context, refs, 0);
+        let first = stream.next().await;
+        assert!(first.is_some(), "the first poll should yield a chunk");
+        assert_eq!(
+            polled_store.read_calls(),
+            1,
+            "one poll reads exactly one sub-batch"
+        );
+        assert_eq!(polled_store.refs_read(), TRANSACTION_CURSOR_READ_BATCH);
+        assert!(
+            polled_store.refs_read() < total_refs,
+            "one poll must read far fewer than all {total_refs} refs"
+        );
     }
 }

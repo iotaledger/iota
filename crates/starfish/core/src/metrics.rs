@@ -259,6 +259,9 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
     pub(crate) commit_sync_truncated_fetches: IntCounterVec,
     pub(crate) commit_sync_fetch_cap_stops: IntCounterVec,
+    pub(crate) commit_sync_fetch_tx_chunks_served: IntCounter,
+    pub(crate) commit_sync_fetch_tx_bytes_served: IntCounter,
+    pub(crate) commit_sync_fetch_budget_stops: IntCounter,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
     pub(crate) commit_sync_fetch_once_latency: HistogramVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
@@ -1100,6 +1103,21 @@ impl NodeMetrics {
                 "commit_sync_fetch_cap_stops",
                 "Number of fast commit sync fetches stopped early by the per-fetch transaction byte cap",
                 &["source"],
+                registry,
+            ).unwrap(),
+            commit_sync_fetch_tx_chunks_served: register_int_counter_with_registry!(
+                "commit_sync_fetch_tx_chunks_served",
+                "Number of fast commit sync transaction chunks generated and served by the server cursor",
+                registry,
+            ).unwrap(),
+            commit_sync_fetch_tx_bytes_served: register_int_counter_with_registry!(
+                "commit_sync_fetch_tx_bytes_served",
+                "Total serialized transaction bytes served by the fast commit sync server cursor",
+                registry,
+            ).unwrap(),
+            commit_sync_fetch_budget_stops: register_int_counter_with_registry!(
+                "commit_sync_fetch_budget_stops",
+                "Number of fast commit sync fetches the server cursor ended early after crossing the client-provided transaction byte budget",
                 registry,
             ).unwrap(),
             commit_sync_fetch_loop_latency: register_histogram_with_registry!(
