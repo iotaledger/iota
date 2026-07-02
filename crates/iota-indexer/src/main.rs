@@ -15,7 +15,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
-    restore::{FormalSnapshotStore, start},
+    restore::{self, FormalSnapshotStore},
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
@@ -175,7 +175,7 @@ async fn main() -> Result<(), IndexerError> {
             // thus we can accept an unsuccessful completion of the restore, as subsequent
             // runs reset the database again.
             let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
-            let restore = start(
+            let restore = restore::start(
                 network,
                 epoch,
                 &staging_path,
