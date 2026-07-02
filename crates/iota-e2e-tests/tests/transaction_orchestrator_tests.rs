@@ -61,6 +61,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let digest = *txn.digest();
     orchestrator
         .quorum_driver()
+        .expect("quorum driver should be present when P-COOL is disabled")
         .submit_transaction_no_ticket(
             ExecuteTransactionRequestV1::new(txn),
             Some(make_socket_addr()),
@@ -198,6 +199,7 @@ async fn test_transaction_orchestrator_reconfig() {
         node.transaction_orchestrator()
             .unwrap()
             .quorum_driver()
+            .expect("quorum driver should be present when P-COOL is disabled")
             .current_epoch()
     });
     assert_eq!(epoch, 0);
@@ -214,6 +216,7 @@ async fn test_transaction_orchestrator_reconfig() {
                 node.transaction_orchestrator()
                     .unwrap()
                     .quorum_driver()
+                    .expect("quorum driver should be present when P-COOL is disabled")
                     .current_epoch()
             });
             if epoch == 1 {

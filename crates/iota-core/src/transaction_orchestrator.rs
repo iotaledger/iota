@@ -75,16 +75,22 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The submission flow used to drive transactions to finality. Exactly one
+/// flow is active, selected by the P-COOL protocol flag at construction
+/// time.
+enum Driver<A: Clone> {
+    /// Certificate-based flow (P-COOL disabled).
+    Quorum(Arc<QuorumDriverHandler<A>>),
+    /// Direct-to-consensus P-COOL flow.
+    Transaction(Arc<TransactionDriver<A>>),
+}
+
 /// Transaction Orchestrator is a Node component that supports both QuorumDriver
 /// and TransactionDriver for submitting transactions to validators for
 /// finality. It adds inflight deduplication, waiting for local execution,
 /// recovery, and epoch change handling.
 pub struct TransactionOrchestrator<A: Clone> {
-    // QuorumDriverHandler for the normal flow. Always present if P-COOL flow is disabled, and
-    // None if P-COOL flow is enabled.
-    quorum_driver_handler: Option<Arc<QuorumDriverHandler<A>>>,
-    /// Optional TransactionDriver for the P-COOL direct-to-consensus flow.
-    transaction_driver: Option<Arc<TransactionDriver<A>>>,
+    driver: Driver<A>,
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
@@ -161,71 +167,53 @@ where
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
         let use_transaction_driver = epoch_store.protocol_config().enable_pcool_flow();
 
-        let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
-
-        // Create QuorumDriver only if P-COOL is NOT enabled
-        let (quorum_driver_handler, effects_receiver) = if !use_transaction_driver {
-            let reconfig_observer = Arc::new(
-                reconfig_observer
-                    .expect("QuorumDriver reconfig observer required when P-COOL is disabled"),
-            );
-            let handler = Arc::new(
-                QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics)
-                    .with_notifier(notifier.clone())
-                    .with_reconfig_observer(reconfig_observer)
-                    .start(),
-            );
-            let receiver = handler.subscribe_to_effects();
-            (Some(handler), Some(receiver))
-        } else {
-            (None, None)
-        };
-
-        // Create TransactionDriver only if P-COOL is enabled
-        let transaction_driver = if use_transaction_driver {
-            let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
-            let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
-            let observer = td_reconfig_observer
-                .expect("TransactionDriver reconfig observer required when P-COOL is enabled");
-            Some(TransactionDriver::new(
-                validators,
-                Arc::new(observer),
-                td_metrics,
-                node_config,
-                client_metrics,
-            ))
-        } else {
-            None
-        };
-
         let metrics = Arc::new(TransactionOrchestratorMetrics::new(prometheus_registry));
         let pending_tx_log = Arc::new(WritePathPendingTransactionLog::new(
             parent_path.join("fullnode_pending_transactions"),
         ));
 
-        // Start pending transaction log cleanup only if QuorumDriver is used
-        let _local_executor_handle =
-            if let (Some(handler), Some(receiver)) = (&quorum_driver_handler, effects_receiver) {
-                let pending_tx_log_clone = pending_tx_log.clone();
-                let res = Some(spawn_monitored_task!(async move {
-                    Self::loop_pending_transaction_log(receiver, pending_tx_log_clone).await;
-                }));
-
-                // Schedule pending transaction recovery (QuorumDriver mode only;
-                // TransactionDriver does not track pending certificates)
-                Self::schedule_txes_in_log(pending_tx_log.clone(), handler.clone());
-
-                res
-            } else {
-                // TransactionDriver mode: no pending tx log cleanup needed
-                // (transactions go directly to consensus, no certificate tracking)
-                None
-            };
+        let (driver, _local_executor_handle) = if !use_transaction_driver {
+            let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
+            let reconfig_observer = Arc::new(
+                reconfig_observer
+                    .expect("QuorumDriver reconfig observer required when P-COOL is disabled"),
+            );
+            let handler = Arc::new(
+                QuorumDriverHandlerBuilder::new(validators, qd_metrics)
+                    .with_notifier(notifier.clone())
+                    .with_reconfig_observer(reconfig_observer)
+                    .start(),
+            );
+            let effects_receiver = handler.subscribe_to_effects();
+            let pending_tx_log_clone = pending_tx_log.clone();
+            let local_executor_handle = spawn_monitored_task!(async move {
+                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
+            });
+            // Pending-transaction recovery is QuorumDriver-only; the
+            // TransactionDriver goes directly to consensus and tracks no
+            // pending certificates.
+            Self::schedule_txes_in_log(pending_tx_log.clone(), handler.clone());
+            (Driver::Quorum(handler), Some(local_executor_handle))
+        } else {
+            let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
+            let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
+            let observer = td_reconfig_observer
+                .expect("TransactionDriver reconfig observer required when P-COOL is enabled");
+            (
+                Driver::Transaction(TransactionDriver::new(
+                    validators,
+                    Arc::new(observer),
+                    td_metrics,
+                    node_config,
+                    client_metrics,
+                )),
+                None,
+            )
+        };
 
         Self {
-            quorum_driver_handler,
-            transaction_driver,
+            driver,
             validator_state,
             _local_executor_handle,
             pending_tx_log,
@@ -272,12 +260,12 @@ where
         );
         let tx_digest = *transaction.digest();
 
-        let (mut response, seq) = match (&self.transaction_driver, wait_for_local_execution) {
-            (Some(td), true) => {
+        let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
+            (Driver::Transaction(td), true) => {
                 self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
                     .await?
             }
-            (Some(td), false) => (
+            (Driver::Transaction(td), false) => (
                 Some(
                     self.submit_with_transaction_driver(td.clone(), request, client_addr, false)
                         .await
@@ -285,9 +273,9 @@ where
                 ),
                 None,
             ),
-            (None, _) => {
+            (Driver::Quorum(qd), _) => {
                 let (_, qd_resp) = self
-                    .execute_transaction_impl(&epoch_store, request, client_addr)
+                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
                     .await?;
                 (Some(quorum_driver_response_to_v1(qd_resp)), None)
             }
@@ -516,27 +504,30 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        if let Some(td) = &self.transaction_driver {
-            // v1 does not do an internal wait; callers (e.g. the gRPC
-            // execution service) are responsible for their own
-            // `wait_for_checkpoint_inclusion` when they need it, and will
-            // reconcile the response from the cache there.
-            epoch_store
-                .verify_transaction(request.transaction.clone())
-                .map_err(QuorumDriverError::InvalidUserSignature)?;
-            return self
-                .submit_with_transaction_driver(
-                    td.clone(),
-                    request,
-                    client_addr,
-                    skip_certification,
-                )
-                .await
-                .map_err(map_td_error_to_qd);
-        }
+        let qd = match &self.driver {
+            Driver::Transaction(td) => {
+                // v1 does not do an internal wait; callers (e.g. the gRPC
+                // execution service) are responsible for their own
+                // `wait_for_checkpoint_inclusion` when they need it, and will
+                // reconcile the response from the cache there.
+                epoch_store
+                    .verify_transaction(request.transaction.clone())
+                    .map_err(QuorumDriverError::InvalidUserSignature)?;
+                return self
+                    .submit_with_transaction_driver(
+                        td.clone(),
+                        request,
+                        client_addr,
+                        skip_certification,
+                    )
+                    .await
+                    .map_err(map_td_error_to_qd);
+            }
+            Driver::Quorum(qd) => qd,
+        };
 
         let qd_resp = self
-            .execute_transaction_impl(&epoch_store, request, client_addr)
+            .execute_transaction_impl(qd, &epoch_store, request, client_addr)
             .await
             .map(|(_, r)| r)?;
 
@@ -688,8 +679,9 @@ where
     // Note: since EffectsCert is not stored today, we need to gather that from
     // validators (and maybe store it for caching purposes)
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
-    pub async fn execute_transaction_impl(
+    async fn execute_transaction_impl(
         &self,
+        quorum_driver: &Arc<QuorumDriverHandler<A>>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
@@ -732,6 +724,7 @@ where
 
         let ticket = self
             .submit(
+                quorum_driver,
                 epoch_store.clone(),
                 transaction.clone(),
                 request,
@@ -772,6 +765,7 @@ where
     #[instrument(name = "tx_orchestrator_submit", level = "trace", skip_all)]
     async fn submit(
         &self,
+        quorum_driver: &Arc<QuorumDriverHandler<A>>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         transaction: VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
@@ -787,7 +781,7 @@ where
             .await?
         {
             debug!(?tx_digest, "no pending request in flight, submitting.");
-            self.quorum_driver()
+            quorum_driver
                 .submit_transaction_no_ticket(request.clone(), client_addr)
                 .await?;
         }
@@ -797,7 +791,7 @@ where
         // want to ask quorum driver to form a certificate for us again, to
         // serve this request.
         let cache_reader = self.validator_state.get_transaction_cache_reader().clone();
-        let qd = self.clone_quorum_driver();
+        let qd = quorum_driver.clone();
         Ok(async move {
             let digests = [tx_digest];
             let effects_await = epoch_store
@@ -911,38 +905,39 @@ where
         }
     }
 
-    pub fn quorum_driver(&self) -> &Arc<QuorumDriverHandler<A>> {
-        self.quorum_driver_handler
-            .as_ref()
-            .expect("QuorumDriverHandler is not initialized.")
+    /// Returns the quorum driver, or `None` under the P-COOL flow.
+    pub fn quorum_driver(&self) -> Option<&Arc<QuorumDriverHandler<A>>> {
+        match &self.driver {
+            Driver::Quorum(handler) => Some(handler),
+            Driver::Transaction(_) => None,
+        }
     }
 
-    pub fn clone_quorum_driver(&self) -> Arc<QuorumDriverHandler<A>> {
-        self.quorum_driver_handler
-            .clone()
-            .expect("QuorumDriverHandler is not initialized.")
+    /// Returns the quorum driver, or `None` under the P-COOL flow.
+    pub fn clone_quorum_driver(&self) -> Option<Arc<QuorumDriverHandler<A>>> {
+        self.quorum_driver().cloned()
     }
 
+    /// Returns the transaction driver, or `None` when the P-COOL flow is
+    /// disabled.
     pub fn transaction_driver(&self) -> Option<&Arc<TransactionDriver<A>>> {
-        self.transaction_driver.as_ref()
+        match &self.driver {
+            Driver::Quorum(_) => None,
+            Driver::Transaction(td) => Some(td),
+        }
     }
 
+    /// Returns the authority aggregator of the active driver.
     pub fn clone_authority_aggregator(&self) -> Arc<AuthorityAggregator<A>> {
-        // Under P-COOL the quorum driver is absent and the aggregator lives
-        // on the transaction driver instead.
-        if let Some(td) = &self.transaction_driver {
-            td.authority_aggregator().load_full()
-        } else {
-            self.quorum_driver().authority_aggregator().load_full()
+        match &self.driver {
+            Driver::Quorum(qd) => qd.authority_aggregator().load_full(),
+            Driver::Transaction(td) => td.authority_aggregator().load_full(),
         }
     }
 
-    pub fn subscribe_to_effects_queue(&self) -> Receiver<QuorumDriverEffectsQueueResult> {
-        if let Some(handler) = &self.quorum_driver_handler {
-            handler.subscribe_to_effects()
-        } else {
-            panic!("QuorumDriverHandler is not initialized, cannot subscribe to effects queue.");
-        }
+    /// Returns `None` under the P-COOL flow, which has no effects broadcast.
+    pub fn subscribe_to_effects_queue(&self) -> Option<Receiver<QuorumDriverEffectsQueueResult>> {
+        self.quorum_driver().map(|qd| qd.subscribe_to_effects())
     }
 
     fn update_metrics(
