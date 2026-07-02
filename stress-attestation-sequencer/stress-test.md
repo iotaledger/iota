@@ -128,6 +128,23 @@ attestation task panics, soft-lock equivocation), and no validator crash,
 restart, or OOM occurred. The A-only validation drops in finding 6 are a
 throughput/liveness observation, not a safety-counter failure.
 
+> [!WARNING]
+> This PASS holds *with a fix in place*. Earlier stress-testing hit a **checkpoint
+> fork on the attested (V2) path** under load. `check_coin_deny_list_for_attested_tx`
+> loads a transaction's owned inputs at their referenced versions *before*
+> execution; post-consensus validation runs ahead of the execution frontier, so
+> an input that is a not-yet-executed predecessor's output reads back `ObjectNotFound`.
+> The code lumped that transient load error together with a real deny-list violation
+> and dropped the transaction. Because the drop depends on each node's execution
+> frontier it is per-node, so validators disagree on checkpoint content and hit
+> `fatal!` "Local checkpoint fork detected" (`crates/iota-core/src/checkpoints/mod.rs`).
+> Only the attested path forks; V1 is clean. The runs above carry a temporary
+> test-branch fix that drops only on a genuine deny-list verdict
+> (`CoinTypeGlobalPause` / `AddressDeniedForCoin`) and keeps the transaction on
+> any load error (its inputs are present at execution, where the V1 deny-list check
+> still catches global-pause / denied recipients). Tracking:
+> [iota-private#438](https://github.com/iotaledger/iota-private/issues/438#issuecomment-4866911507).
+
 ### Takeaway
 
 Attestation's cost is a **pre-consensus execution dry-run**: a ~2.5 ms fixed
