@@ -25,6 +25,7 @@ function normalizeEpochs(
 }
 
 function formatTimestamp(ms: number): string {
+    if (ms == 0) return '';
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return '';
     return `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
@@ -185,9 +186,11 @@ function Picker() {
                         <option value="latest">
                             {loading ? 'Loading…' : 'Latest'}
                         </option>
-                        {epochs.map(([ep, ts]) => {
+                        {epochs.map(([ep, ts], i) => {
                             const label = ts
-                                ? `${ep} — started ${formatTimestamp(ts)}`
+                                ? `${ep} — ended at ${formatTimestamp(ts)}${
+                                    i === 0 ? ' [latest]' : ''
+                                }`
                                 : String(ep);
                             return (
                                 <option key={ep} value={ep}>

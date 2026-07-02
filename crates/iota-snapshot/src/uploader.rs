@@ -186,12 +186,11 @@ impl StateSnapshotUploader {
                 let epoch_start_checkpoint = if *epoch == 0 {
                     self.checkpoint_store.get_checkpoint_by_sequence_number(0)?
                 } else {
-                    self.checkpoint_store
-                        .get_epoch_last_checkpoint(*epoch - 1)?
+                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?
                 };
                 if let Some(checkpoint) = epoch_start_checkpoint {
                     let metadata = EpochMetadata {
-                        epoch_start_timestamp_ms: checkpoint.timestamp_ms,
+                        epoch_end_timestamp_ms: checkpoint.timestamp_ms,
                     };
                     put(
                         &self.snapshot_store,
