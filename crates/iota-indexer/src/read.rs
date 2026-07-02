@@ -295,7 +295,7 @@ impl IndexerReader {
     }
 }
 
-/// A transaction returned by [`IndexerReader::multi_get_transactions`] or
+/// A transaction returned by `IndexerReader::multi_get_transactions` or
 /// [`IndexerReader::multi_get_transactions_with_fallback`]. Each row is
 /// either checkpointed (from Postgres or the historical fallback) or
 /// optimistic (from Postgres).
@@ -946,7 +946,7 @@ impl IndexerReader {
         Ok(found)
     }
 
-    /// Same as [`Self::multi_get_transactions`], but also reads from the
+    /// Same as `Self::multi_get_transactions`, but also reads from the
     /// historical fallback (when configured) for digests not found in
     /// Postgres. Fallback rows are returned as
     /// [`TransactionRead::Checkpointed`].
