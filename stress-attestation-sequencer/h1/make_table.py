@@ -30,8 +30,20 @@ import json
 import os
 import re
 import sys
+import warnings
 
 import numpy as np
+
+# A metric may be absent for a config/version, so reducing its (all-NaN) series is
+# expected and raises benign numpy RuntimeWarnings — silence just those messages.
+# Set at import so forked workers inherit it; compute_row re-applies for spawn.
+def _silence_numpy_warnings():
+    for msg in ("Mean of empty slice", "All-NaN slice encountered",
+                "invalid value encountered", "Degrees of freedom <= 0"):
+        warnings.filterwarnings("ignore", message=msg)
+
+
+_silence_numpy_warnings()
 
 # Reuse plot.py's dashboard parsing + PromQL replay so the table matches the plots
 # exactly and stays in sync with the dashboard.
@@ -88,10 +100,76 @@ def load_groups(root, label=None):
 #   - actual/attested CUs — mean: exactly 1.0 for every owned-object config (attested
 #     CUs == actual CUs). A future shared/slow config where attestation over-estimates
 #     would trip the guard.
+#   - soft-lock rejections / sec: 0 across all configs (no soft-lock equivocation in
+#     these workloads). Any non-zero rate would trip the guard.
+#   - cancelled txs / sec, backpressure toggles / sec, execution backpressure active:
+#     0 across all configs (no congestion cancellation / no execution backpressure in
+#     these workloads). Any non-zero value would trip the guard.
+#     (NB: validation dropped txs / sec is NOT here — it's a real non-zero V1 signal.)
 DROP_COLUMNS = {
     "actual/attested CUs — mean": 1.0,
+    "soft-lock rejections / sec": 0.0,
+    "cancelled txs / sec": 0.0,
+    "backpressure toggles / sec": 0.0,
+    "execution backpressure active (0/1)": 0.0,
 }
 DROP_TOL = 1e-4
+
+# Pairs of columns that are the SAME quantity computed two ways (near-equal by
+# construction). Keep one under a friendlier name; the twin ("drop") is hidden but
+# still COMPUTED and checked — a relative divergence beyond MERGE_RTOL warns (the
+# equality no longer holds for that run). Pass --keep-dropped to show the twin.
+#   - attested vs actual CUs: for owned objects attestation predicts CUs exactly, so
+#     attested == actual (tiny histogram-bucket-interpolation diffs aside). Keep
+#     actual (the ground truth), rename to "CUs".
+MERGE_EQUAL = [
+    {
+        "keep": "attested vs actual computation units (CUs, p50) [actual p50]",
+        "drop": "attested vs actual computation units (CUs, p50) [attested p50]",
+        "name": "CUs",
+    },
+]
+MERGE_RTOL = 1e-2
+
+# Columns whose per-container series must be restricted to validators before the
+# host_reduce collapse — the cadvisor panels also scrape the fullnode (name=~"$host"
+# matches all containers), which we don't want in a "busiest validator" number.
+# Keyed by original column key; adds a `name=~"validator-.*"` filter to the spec.
+VALIDATORS_ONLY = {
+    "per-validator CPU (busy cores, cadvisor)",
+    "per-validator memory RSS (cadvisor)",
+}
+VALIDATOR_NAME_RE = "validator-.*"
+
+# Display-only column renames, keyed by original column key (see build_columns) ->
+# {"name": new key, "unit": optional unit override — "" drops the unit suffix}.
+# Purely cosmetic (headers + CSV metric names); does not change any values. Units
+# are baked into the names below, so each clears the auto unit suffix ("unit": "").
+RENAME_COLUMNS = {
+    "finalized TPS (included in checkpoint)": {"name": "TPS", "unit": ""},
+    "attestation latency p50 (pre-consensus dry-run)": {"name": "attest. lat. p50 (s)", "unit": ""},
+    "attestation latency p95 (pre-consensus dry-run)": {"name": "attest. lat. p95 (s)", "unit": ""},
+    "attestation latency p99 (pre-consensus dry-run)": {"name": "attest. lat. p99 (s)", "unit": ""},
+    "attestations / sec": {"name": "attest. / sec", "unit": ""},
+    "host CPU (busy cores, whole machine)": {"name": "host CPU", "unit": ""},
+    "receipt → executed — p50": {"name": "rec. → exec. p50 (s)", "unit": ""},
+    "receipt → executed — p95": {"name": "rec. → exec. p95 (s)", "unit": ""},
+    "receipt → executed — p99": {"name": "rec. → exec. p99 (s)", "unit": ""},
+    "post-consensus validation latency — p50": {"name": "pc valid. lat. p50 (s)", "unit": ""},
+    "post-consensus validation latency — p95": {"name": "pc valid. lat. p95 (s)", "unit": ""},
+    "internal execution latency p95": {"name": "exec. lat. p95 (s)", "unit": ""},
+    "validation dropped txs / sec": {"name": "valid. drop. / sec", "unit": ""},
+    "settlement finality latency (client, via fullnode) [transaction p50]": {"name": "final. lat. p50 (s)", "unit": ""},
+    "settlement finality latency (client, via fullnode) [transaction p95]": {"name": "final. lat. p95 (s)", "unit": ""},
+    "settlement finality latency (client, via fullnode) [transaction p99]": {"name": "final. lat. p99 (s)", "unit": ""},
+    "submit transaction latency (client, via fullnode) [transaction p50]": {"name": "submit lat. p50 (s)", "unit": ""},
+    "submit transaction latency (client, via fullnode) [transaction p95]": {"name": "submit lat. p95 (s)", "unit": ""},
+    "execution dispatch queue": {"name": "exec. dispatch queue", "unit": ""},
+    "pending transactions (waiting for inputs)": {"name": "pending txs", "unit": ""},
+    "execution queueing delay p95": {"name": "exec. queue. delay p95 (s)", "unit": ""},
+    "per-validator CPU (busy cores, cadvisor)": {"name": "node CPU", "unit": ""},
+    "per-validator memory RSS (cadvisor)": {"name": "node mem. RSS (bytes)", "unit": ""},
+}
 
 
 def build_columns(panels, keep_all):
@@ -113,6 +191,9 @@ def build_columns(panels, keep_all):
         specs = [plot.parse_expr(e) for e in panel["exprs"]]
         multi = len(specs) > 1
         for spec in specs:
+            if title in VALIDATORS_ONLY:
+                # restrict to validator containers (drop the fullnode) before collapse.
+                spec["filters"] = spec["filters"] + [("name", "=~", VALIDATOR_NAME_RE)]
             tag = plot.target_tag(spec, multi)
             key = title + (f" [{tag}]" if tag else "")
             unit = panel["unit"] or ""
@@ -136,6 +217,19 @@ def build_columns(panels, keep_all):
             "base": base,
         }
     )
+    # Rename the kept twin of each MERGE_EQUAL pair; the dropped twin keeps its
+    # original key so the equality guard in main can still find it.
+    by_key = {c["key"]: c for c in cols}
+    for m in MERGE_EQUAL:
+        if m["keep"] in by_key:
+            by_key[m["keep"]]["key"] = m["name"]
+    # Cosmetic display renames (headers + CSV metric names only).
+    for c in cols:
+        rn = RENAME_COLUMNS.get(c["key"])
+        if rn:
+            c["key"] = rn["name"]
+            if "unit" in rn:
+                c["unit"] = rn["unit"]
     return cols
 
 
@@ -143,6 +237,7 @@ def compute_row(task):
     """Load ONE label and reduce every column to its A/B cells. Runs in a worker
     process (labels are independent), so it loads its own JSON rather than being
     handed the big run dicts. -> (label, {col_key: {"A": (c,s,sem,n), "B": ...}})."""
+    _silence_numpy_warnings()  # spawn workers don't inherit the parent's filters
     label, root, cols, window, stat = task
     g = load_groups(root, label)[label]
     runs_all = g["V1"] + g["V2"]
@@ -290,16 +385,20 @@ def main():
     all_cols = build_columns(panels, args.all)
     labels = sorted(iter_counts, key=sort_key)
 
-    # Columns to render vs. columns to compute-only for their DROP_COLUMNS guard.
+    # Columns hidden from the table but still computed for their guard:
+    #   DROP_COLUMNS with an expected value, and MERGE_EQUAL twins.
+    merge_twins = {m["drop"] for m in MERGE_EQUAL}
+    hidden = set(DROP_COLUMNS) | merge_twins
     if args.keep_dropped:
         cols = all_cols
         verify_cols = []
     else:
-        cols = [c for c in all_cols if c["key"] not in DROP_COLUMNS]
+        cols = [c for c in all_cols if c["key"] not in hidden]
         verify_cols = [
             c
             for c in all_cols
-            if c["key"] in DROP_COLUMNS and DROP_COLUMNS[c["key"]] is not None
+            if c["key"] in merge_twins
+            or (c["key"] in DROP_COLUMNS and DROP_COLUMNS[c["key"]] is not None)
         ]
 
     # Compute every cell up front: rows[label][col_key] = {"A": (c,s,sem,n), "B": ...}.
@@ -324,22 +423,47 @@ def main():
 
     # Guard: a dropped column with an expected value must actually hold it for every
     # config/version, else the reason for dropping it no longer applies — warn (still drop).
-    for col in verify_cols:
-        exp = DROP_COLUMNS[col["key"]]
+    for key, exp in DROP_COLUMNS.items():
+        if args.keep_dropped or exp is None:
+            continue
         bad = []
         for label in labels:
             for side, ver in (("A", "V1"), ("B", "V2")):
-                c = rows[label][col["key"]][side][0]
+                c = rows[label][key][side][0]
                 if np.isfinite(c) and abs(c - exp) > DROP_TOL:
                     bad.append((label, ver, c))
         if bad:
             print(
-                f"WARNING: dropped column '{col['key']}' expected ~{exp:g} but deviates "
+                f"WARNING: dropped column '{key}' expected ~{exp:g} but deviates "
                 f"in {len(bad)} config/version(s) — still dropped (use --keep-dropped to inspect):",
                 file=sys.stderr,
             )
             for label, ver, c in bad:
                 print(f"    {label} {ver}: {c:.6g}", file=sys.stderr)
+
+    # Guard: each MERGE_EQUAL pair must actually be near-equal — warn (still merge)
+    # if the kept column and its hidden twin diverge by more than MERGE_RTOL.
+    for m in MERGE_EQUAL:
+        if args.keep_dropped:
+            continue
+        bad = []
+        for label in labels:
+            for side, ver in (("A", "V1"), ("B", "V2")):
+                a = rows[label][m["name"]][side][0]
+                b = rows[label][m["drop"]][side][0]
+                if np.isfinite(a) and np.isfinite(b):
+                    denom = max(abs(a), abs(b), 1e-12)
+                    if abs(a - b) / denom > MERGE_RTOL:
+                        bad.append((label, ver, a, b))
+        if bad:
+            print(
+                f"WARNING: merged column '{m['name']}' — kept '{m['keep']}' but its twin "
+                f"'{m['drop']}' diverges >{MERGE_RTOL:g} rel. in {len(bad)} config/version(s) "
+                f"(use --keep-dropped to inspect):",
+                file=sys.stderr,
+            )
+            for label, ver, a, b in bad:
+                print(f"    {label} {ver}: kept={a:.6g} twin={b:.6g}", file=sys.stderr)
 
     disp_idx = 1 if args.disp == "std" else 2  # index into (center,std,sem,n)
 
@@ -379,13 +503,15 @@ def main():
     for col in cols:
         u = unit_suffix(col)
         if args.layout == "combined":
-            header.append(f"{col['key']}{u} (A / B)")
+            # cell carries A/B; the note above the table explains it, so the header
+            # stays clean (no per-column " (A / B)" suffix).
+            header.append(f"{col['key']}{u}")
         else:
             header.append(f"{col['key']}{u} · A")
             header.append(f"{col['key']}{u} · B")
     lines.append("\n## Full table\n")
     if args.layout == "combined":
-        lines.append("Each cell is `A / B` (V1 / V2).\n")
+        lines.append("Each cell is `A / B` = V1 (attestation OFF) / V2 (attestation ON).\n")
     lines.append("| " + " | ".join(header) + " |")
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
     for label in labels:

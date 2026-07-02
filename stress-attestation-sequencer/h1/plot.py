@@ -198,6 +198,13 @@ PANEL_OVERRIDES = {
     },
 }
 
+# cadvisor per-validator panels match all containers (name=~"$host"), including the
+# fullnode; restrict them to validators so the per-validator curve is validators only.
+VALIDATOR_ONLY_PANELS = {
+    "per-validator CPU (busy cores, cadvisor)",
+    "per-validator memory RSS (cadvisor)",
+}
+
 VER_STYLE = {"V1": {"color": "#1f77b4"}, "V2": {"color": "#d62728"}}
 
 # For multi-quantile panels using color_by="version_pct": a distinct hue per
@@ -614,6 +621,11 @@ def draw_panel(ax, panel, g, grid, args):
     )  # e.g. ["V2"] for attestation-only panels
     color_by = ov.get("color_by")  # "target" -> color per target (not per version)
     specs = [parse_expr(e) for e in panel["exprs"]]
+    if panel["title"] in VALIDATOR_ONLY_PANELS:
+        # cadvisor per-validator panels also scrape the fullnode (name=~"$host"
+        # matches all containers) — restrict to validators before the host collapse.
+        for spec in specs:
+            spec["filters"] = spec["filters"] + [("name", "=~", "validator-.*")]
     multi = len(specs) > 1
     plotted = False
     for ver in versions:
