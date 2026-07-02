@@ -142,6 +142,16 @@ impl ScoringSubdag {
             .scope_processing_time
             .with_label_values(&["ScoringSubdag::add_unscored_committed_subdags"])
             .start_timer();
+
+        // The vote traversal below feeds only the V2 boundary score computation;
+        // the sliding-window path scores from its running window aggregate
+        // instead. There only `commit_range` is needed (it drives rotation
+        // timing), so skip the per-commit traversal.
+        let sliding_window_enabled = self
+            .context
+            .protocol_config
+            .consensus_enable_sliding_window_leader_schedule();
+
         for subdag in committed_subdags {
             if let Some(commit_range) = self.commit_range.as_mut() {
                 commit_range.extend_to(subdag.commit_ref.index);
@@ -152,6 +162,11 @@ impl ScoringSubdag {
                     subdag.commit_ref.index..=subdag.commit_ref.index,
                 ));
             }
+
+            if sliding_window_enabled {
+                continue;
+            }
+
             // Add the committed leader to the list of leaders we will be scoring.
             tracing::trace!("Adding new committed leader {} for scoring", subdag.leader);
             self.leaders.insert(subdag.leader);
@@ -544,5 +559,34 @@ mod tests {
             scores, expected,
             "equivocating certifier's stake must be counted once, not per block"
         );
+    }
+
+    #[tokio::test]
+    async fn test_add_subdags_skips_vote_scoring_when_sliding_window_enabled() {
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+        let context = Arc::new(context);
+
+        // A fully-connected DAG that would produce non-zero votes on the V2 path.
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=4).build();
+
+        let mut scoring_subdag = ScoringSubdag::new(context);
+        for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
+            scoring_subdag.add_subdags(vec![sub_dag.base]);
+        }
+
+        // The commit range is still maintained — it is what drives rotation
+        // timing (`scored_subdags_count` / `is_empty`) on the sliding-window path.
+        assert_eq!(scoring_subdag.scored_subdags_count(), 4);
+        assert_eq!(scoring_subdag.commit_range, Some(CommitRange::new(1..=4)));
+        assert!(!scoring_subdag.is_empty());
+
+        // But the per-commit vote traversal was skipped: no leaders or votes
+        // accumulated, so the V2 boundary score computation is never fed.
+        assert!(scoring_subdag.leaders.is_empty());
+        assert!(scoring_subdag.votes.is_empty());
     }
 }
