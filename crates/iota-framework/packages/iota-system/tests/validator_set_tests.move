@@ -1673,3 +1673,96 @@ fun test_eligible_committee_selection_duplicate_indices() {
     test_utils::destroy(validator_set);
     scenario_val.end();
 }
+
+fun advance_epoch_with_eligible_validators_and_low_stake_params(
+    validator_set: &mut ValidatorSetV2,
+    committee_size: u64,
+    eligible_validators: vector<u64>,
+    low_stake_threshold: u64,
+    very_low_stake_threshold: u64,
+    low_stake_grace_period: u64,
+    scenario: &mut Scenario,
+) {
+    scenario.next_epoch(@0x0);
+    let mut dummy_computation_charge = balance::zero();
+
+    let scores = vector::tabulate!(
+        validator_set.committee_validator_addresses().length(),
+        |_| 65536u64,
+    );
+
+    validator_set.advance_epoch(
+        &mut dummy_computation_charge,
+        &mut vec_map::empty(),
+        0, // reward_slashing_rate
+        low_stake_threshold * NANOS_PER_IOTA,
+        very_low_stake_threshold * NANOS_PER_IOTA,
+        low_stake_grace_period,
+        committee_size,
+        eligible_validators,
+        scores,
+        true,
+        scenario.ctx(),
+    );
+
+    dummy_computation_charge.destroy_zero();
+}
+
+/// Regression test: when all pre-validated eligible validators are removed by
+/// low-stake departure processing, the committee must fall back to the
+/// remaining active validators instead of producing an empty committee.
+#[test]
+fun test_eligible_validators_removed_before_committee_selection_falls_back() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+
+    // v1-v3: 1000 IOTA each (below the very-low-stake threshold of 2000)
+    // v4: 4000 IOTA (above the threshold, survives)
+    let v1 = create_validator_with_stake(@0x1, 11, 1, 1000 * NANOS_PER_IOTA, true, ctx);
+    let v2 = create_validator_with_stake(@0x2, 12, 1, 1000 * NANOS_PER_IOTA, true, ctx);
+    let v3 = create_validator_with_stake(@0x3, 13, 1, 1000 * NANOS_PER_IOTA, true, ctx);
+    let v4 = create_validator_with_stake(@0x4, 14, 1, 4000 * NANOS_PER_IOTA, true, ctx);
+
+    let committee_size = 4;
+    let mut validator_set = validator_set::new_v2(
+        vector[v1, v2, v3, v4], committee_size, ctx,
+    );
+    scenario_val.end();
+
+    let mut scenario_val = test_scenario::begin(@0x1);
+    let scenario = &mut scenario_val;
+
+    assert_eq(
+        validator_set.active_validator_addresses(),
+        vector[@0x1, @0x2, @0x3, @0x4],
+    );
+    assert_eq(
+        validator_set.committee_validator_addresses(),
+        vector[@0x1, @0x2, @0x3, @0x4],
+    );
+
+    // Eligible set [0,1,2] has quorum before removals (7500 >= 6667), so
+    // validate_eligible_validators_voting_power passes them through.
+    // The same validators are then removed by the very-low-stake rule
+    // (1000 < 2000), while v4 (4000) survives.
+    // Before the fix this produced an empty committee and aborted.
+    // After the fix the fallback selects v4 as the sole committee member.
+    let eligible_validators = vector[0, 1, 2];
+    advance_epoch_with_eligible_validators_and_low_stake_params(
+        &mut validator_set,
+        committee_size,
+        eligible_validators,
+        2000, // low_stake_threshold
+        2000, // very_low_stake_threshold
+        0,    // low_stake_grace_period
+        scenario,
+    );
+
+    // v4 is the only remaining active and committee validator.
+    assert_eq(validator_set.active_validator_addresses(), vector[@0x4]);
+    assert_eq(validator_set.committee_validator_addresses(), vector[@0x4]);
+
+    test_utils::destroy(validator_set);
+    scenario_val.end();
+}

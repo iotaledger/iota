@@ -1598,6 +1598,13 @@ public(package) fun process_new_committee(
         };
     });
 
+    // If all pre-validated eligible validators were removed during pending
+    // removals or low-stake departures, the remapped set is empty. Fall back
+    // to all current active validators to guarantee a non-empty committee.
+    if (current_eligible_indices.is_empty()) {
+        current_eligible_indices = vector::tabulate!(self.active_validators.length(), |i| i);
+    };
+
     self.committee_members =
         self.select_committee_members_from_eligible(committee_size, current_eligible_indices);
 
