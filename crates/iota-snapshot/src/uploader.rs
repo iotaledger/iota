@@ -183,11 +183,8 @@ impl StateSnapshotUploader {
                 // last checkpoint of the previous epoch, which is when advance_epoch ran;
                 // for epoch 0, the genesis checkpoint at sequence 0) in each epoch bucket,
                 // which will be read when updating the MANIFEST file.
-                let epoch_start_checkpoint = if *epoch == 0 {
-                    self.checkpoint_store.get_checkpoint_by_sequence_number(0)?
-                } else {
-                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?
-                };
+                let epoch_start_checkpoint =
+                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?;
                 if let Some(checkpoint) = epoch_start_checkpoint {
                     let metadata = EpochMetadata {
                         epoch_end_timestamp_ms: checkpoint.timestamp_ms,
