@@ -244,7 +244,7 @@ impl BuildConfig {
             run_bytecode_verifier,
             print_diags_to_stderr,
             chain_id,
-            protocol_build_config,
+            &protocol_build_config,
         )
     }
 
@@ -313,7 +313,7 @@ pub fn build_from_resolution_graph(
     run_bytecode_verifier: bool,
     print_diags_to_stderr: bool,
     chain_id: Option<String>,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<CompiledPackage> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
 
@@ -390,7 +390,7 @@ fn collect_bytecode_deps(
 fn fill_metadata(
     package: &mut MoveCompiledPackage,
     fn_info_map: &FnInfoMap,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<()> {
     for module in package
         .root_compiled_units
@@ -455,7 +455,7 @@ fn fill_metadata(
 fn verify_bytecode(
     package: &MoveCompiledPackage,
     fn_info: &FnInfoMap,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<()> {
     let compiled_modules = package.root_modules_map();
     for m in compiled_modules.iter_modules() {

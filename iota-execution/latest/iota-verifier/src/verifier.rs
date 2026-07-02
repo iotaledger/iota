@@ -21,7 +21,7 @@ pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
@@ -39,7 +39,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as an IOTA verifier timeout
     if let Err(error) =
@@ -59,7 +59,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
 pub fn iota_verify_module_unmetered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     iota_verify_module_metered(module, fn_info_map, &mut DummyMeter, protocol_build_config)
         .inspect_err(|err| {

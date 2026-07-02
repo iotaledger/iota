@@ -1211,7 +1211,7 @@ impl IotaClientCommands {
                             build_config,
                             &package_path,
                             None,
-                            protocol_build_config,
+                            &protocol_build_config,
                         )
                         .await?;
                         let name = package
@@ -2055,7 +2055,7 @@ async fn compile_package_simple(
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<CompiledPackage, anyhow::Error> {
     build_config.implicit_dependencies = implicit_deps(latest_system_packages());
     let config = BuildConfig {
@@ -2063,7 +2063,7 @@ async fn compile_package_simple(
         run_bytecode_verifier: false,
         print_diags_to_stderr: false,
         chain_id: chain_id.clone(),
-        protocol_build_config,
+        protocol_build_config: *protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let mut compiled_package = build_from_resolution_graph(
@@ -2190,7 +2190,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id,
-        protocol_build_config,
+        &protocol_build_config,
     )?;
 
     pkg_tree_shake(

@@ -668,7 +668,7 @@ fn runtime_module_metadata(
                 error: error.to_string(),
             }
         })?;
-    metadata_wrapper.try_into_runtime_module_metadata(build_config)
+    metadata_wrapper.try_into_runtime_module_metadata(&build_config)
 }
 
 fn build_linkage_table<'p>(
@@ -873,7 +873,7 @@ impl RuntimeModuleMetadataWrapper {
 
     pub fn try_into_runtime_module_metadata(
         &self,
-        protocol_build_config: ProtocolBuildConfig,
+        protocol_build_config: &ProtocolBuildConfig,
     ) -> Result<RuntimeModuleMetadata, IotaError> {
         match self.version {
             1 => {

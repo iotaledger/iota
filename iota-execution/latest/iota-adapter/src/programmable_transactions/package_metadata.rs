@@ -232,7 +232,7 @@ mod checked {
                                 ExecutionErrorKind::VmVerificationOrDeserializationError,
                             )
                         })?
-                        .try_into_runtime_module_metadata(ProtocolBuildConfig::from(
+                        .try_into_runtime_module_metadata(&ProtocolBuildConfig::from(
                             context.protocol_config,
                         ))
                         .map_err(|_| {

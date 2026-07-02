@@ -173,7 +173,7 @@ mod checked {
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
         metrics: &Arc<BytecodeVerifierMetrics>,
-        protocol_build_config: ProtocolBuildConfig,
+        protocol_build_config: &ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         // run the Move verifier
         for module in modules.iter() {
@@ -222,7 +222,7 @@ mod checked {
         module: &CompiledModule,
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
-        protocol_build_config: ProtocolBuildConfig,
+        protocol_build_config: &ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         meter.enter_scope(module.self_id().name().as_str(), Scope::Module);
 

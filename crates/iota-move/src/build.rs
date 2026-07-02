@@ -35,12 +35,12 @@ impl ProtocolBuildConfigArgs {
     /// Fills any override left unset on the command line with the corresponding
     /// value from `defaults` (e.g. the target network's protocol config).
     /// Command-line values take precedence.
-    pub fn fill_unset_from(&mut self, defaults: ProtocolBuildConfig) {
+    pub fn fill_unset_from(&mut self, defaults: &ProtocolBuildConfig) {
         // Destructured so that adding a field to `ProtocolBuildConfig` fails to
         // compile here until the new default is wired in.
         let ProtocolBuildConfig {
             allow_view_function,
-        } = defaults;
+        } = *defaults;
         self.allow_view_function.get_or_insert(allow_view_function);
     }
 }

@@ -258,7 +258,7 @@ impl IotaCommand {
                         let mut protocol_build_config_args =
                             build.protocol_build_config_args.clone();
                         protocol_build_config_args
-                            .fill_unset_from(ProtocolBuildConfig::from(&protocol_config));
+                            .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                         let mut pkg = IotaBuildConfig {
                             config: build_config.clone(),
                             run_bytecode_verifier: true,
@@ -333,7 +333,7 @@ impl IotaCommand {
                     // already provided an override on the command line.
                     build_config
                         .protocol_build_config_args
-                        .fill_unset_from(ProtocolBuildConfig::from(&protocol_config));
+                        .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                 }
 
                 execute_move_command(package_path.as_deref(), build_config, cmd)

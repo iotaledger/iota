@@ -320,7 +320,7 @@ impl verifier::Verifier for Verifier<'_> {
             &self.config,
             meter,
             self.metrics,
-            ProtocolBuildConfig::from(protocol_config),
+            &ProtocolBuildConfig::from(protocol_config),
         )
     }
 }

@@ -7286,7 +7286,7 @@ fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
 
     // An unset override is populated from the provided defaults.
     let mut args = ProtocolBuildConfigArgs::default();
-    args.fill_unset_from(ProtocolBuildConfig {
+    args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
     });
     assert_eq!(args.allow_view_function, Some(true));
@@ -7295,7 +7295,7 @@ fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
     let mut args = ProtocolBuildConfigArgs {
         allow_view_function: Some(false),
     };
-    args.fill_unset_from(ProtocolBuildConfig {
+    args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
     });
     assert_eq!(args.allow_view_function, Some(false));

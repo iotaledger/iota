@@ -1100,7 +1100,7 @@ mod checked {
             iota_verifier::verifier::iota_verify_module_unmetered(
                 module,
                 &BTreeMap::new(),
-                ProtocolBuildConfig::from(context.protocol_config),
+                &ProtocolBuildConfig::from(context.protocol_config),
             )?;
         }
 

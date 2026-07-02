@@ -42,7 +42,7 @@ use crate::{
 /// onto the chain that a not-yet-upgraded validator cannot even deserialize.
 pub fn verify_module(
     module: &CompiledModule,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     if !module.metadata.is_empty() {
         if module.metadata.len() > 1 {
@@ -79,7 +79,7 @@ pub fn verify_module(
 fn verify_runtime_metadata(
     module: &CompiledModule,
     metadata: &RuntimeModuleMetadata,
-    protocol_build_config: ProtocolBuildConfig,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     match metadata {
         RuntimeModuleMetadata::V1(v1) => {
@@ -224,7 +224,7 @@ mod tests {
     fn assert_error_contains(
         module: &CompiledModule,
         expected: &str,
-        protocol_build_config: ProtocolBuildConfig,
+        protocol_build_config: &ProtocolBuildConfig,
     ) {
         let err = verify_module(module, protocol_build_config).unwrap_err();
         let source = err.source().as_ref().unwrap().to_string();
@@ -243,7 +243,7 @@ mod tests {
 
         verify_module(
             &module,
-            ProtocolBuildConfig {
+            &ProtocolBuildConfig {
                 allow_view_function: true,
             },
         )
@@ -260,7 +260,7 @@ mod tests {
         assert_error_contains(
             &module,
             "View function 'view' must be public",
-            ProtocolBuildConfig {
+            &ProtocolBuildConfig {
                 allow_view_function: true,
             },
         );
@@ -280,7 +280,7 @@ mod tests {
 
         let err = verify_module(
             &module,
-            ProtocolBuildConfig {
+            &ProtocolBuildConfig {
                 allow_view_function: false,
             },
         )
