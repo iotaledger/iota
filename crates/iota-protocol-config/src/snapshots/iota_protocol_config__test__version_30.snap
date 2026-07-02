@@ -349,3 +349,5 @@ auth_context_authenticator_function_info_v1_cost_base: 270
 min_attestor_joining_bond: 2000000000000
 attestor_low_bond_threshold: 1000000000000
 max_attestor_count: 1000
+attestor_max_inactivity_epochs: 7
+attestor_inactivity_penalty: 500000000000
