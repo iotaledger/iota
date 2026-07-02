@@ -208,6 +208,13 @@ impl IndexerReader {
         self.fallback.as_ref()
     }
 
+    /// Returns `true` if a historical fallback reader is configured on this
+    /// `IndexerReader`. Callers can use this to decide whether pruned-range
+    /// reads will be served by the fallback.
+    pub fn is_fallback_enabled(&self) -> bool {
+        self.fallback.is_some()
+    }
+
     /// Accesses the watermark cache.
     pub fn watermark_cache(&self) -> &WatermarkCache {
         &self.watermark_cache
@@ -798,6 +805,87 @@ impl IndexerReader {
             .flatten()
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect()
+    }
+
+    /// Fetches a batch of checkpoints by sequence number. Each requested seq
+    /// resolves to `Some(StoredCheckpoint)` if it lives in Postgres or in the
+    /// historical fallback (when enabled), or to `None` otherwise. The
+    /// returned vector has the same length as `seqs` and preserves its order.
+    pub async fn get_stored_checkpoints_by_seqs_with_fallback(
+        &self,
+        seqs: Vec<CheckpointSequenceNumber>,
+    ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
+        if seqs.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let db_rows = self.db().multi_get_checkpoints_by_seqs(&seqs).await?;
+        let mut by_seq: HashMap<CheckpointSequenceNumber, StoredCheckpoint> = db_rows
+            .into_iter()
+            .map(|c| (c.sequence_number as u64, c))
+            .collect();
+
+        let missing: Vec<CheckpointSequenceNumber> = seqs
+            .iter()
+            .copied()
+            .filter(|s| !by_seq.contains_key(s))
+            .collect();
+        if !missing.is_empty() {
+            if let Some(fallback) = self.fallback_reader() {
+                for stored in fallback.checkpoints(missing).await?.into_iter().flatten() {
+                    by_seq.insert(stored.sequence_number as u64, stored);
+                }
+            }
+        }
+
+        Ok(seqs.into_iter().map(|s| by_seq.get(&s).cloned()).collect())
+    }
+
+    /// Fetches a batch of checkpoints by digest. Each requested digest
+    /// resolves to `Some(StoredCheckpoint)` if it lives in Postgres or in the
+    /// historical fallback (when enabled), or to `None` otherwise. The
+    /// returned vector has the same length as `digests` and preserves its
+    /// order.
+    pub async fn get_stored_checkpoints_by_digests_with_fallback(
+        &self,
+        digests: Vec<CheckpointDigest>,
+    ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let digest_bytes: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let db_rows = self
+            .db()
+            .multi_get_checkpoints_by_digests(&digest_bytes)
+            .await?;
+        let mut by_digest: HashMap<Vec<u8>, StoredCheckpoint> = db_rows
+            .into_iter()
+            .map(|c| (c.checkpoint_digest.clone(), c))
+            .collect();
+
+        let missing: Vec<CheckpointDigest> = digests
+            .iter()
+            .filter(|d| !by_digest.contains_key(d.inner().as_slice()))
+            .copied()
+            .collect();
+        if !missing.is_empty() {
+            if let Some(fallback) = self.fallback_reader() {
+                for stored in fallback
+                    .checkpoints_by_digests(missing)
+                    .await?
+                    .into_iter()
+                    .flatten()
+                {
+                    by_digest.insert(stored.checkpoint_digest.clone(), stored);
+                }
+            }
+        }
+
+        Ok(digests
+            .into_iter()
+            .map(|d| by_digest.get(d.inner().as_slice()).cloned())
+            .collect())
     }
 
     /// Fetches multiple transactions from the database.
@@ -2922,6 +3010,42 @@ impl<'a> DBReader<'a> {
         }
 
         Ok(checkpoint)
+    }
+
+    /// Fetches from the `checkpoints` table by sequence numbers list.
+    /// Pruned/missing seqs are simply absent from the result.
+    async fn multi_get_checkpoints_by_seqs(
+        &self,
+        seqs: &[CheckpointSequenceNumber],
+    ) -> IndexerResult<Vec<StoredCheckpoint>> {
+        if seqs.is_empty() {
+            return Ok(vec![]);
+        }
+        let seqs_i64: Vec<i64> = seqs.iter().map(|s| *s as i64).collect();
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, move |conn| {
+            checkpoints::dsl::checkpoints
+                .filter(checkpoints::sequence_number.eq_any(seqs_i64))
+                .load::<StoredCheckpoint>(conn)
+        })
+    }
+
+    /// Fetches from the `checkpoints` table by digests list.
+    /// Pruned/missing digests are simply absent from the result.
+    async fn multi_get_checkpoints_by_digests(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> IndexerResult<Vec<StoredCheckpoint>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+        let digests = digests.to_vec();
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, move |conn| {
+            checkpoints::dsl::checkpoints
+                .filter(checkpoints::checkpoint_digest.eq_any(digests))
+                .load::<StoredCheckpoint>(conn)
+        })
     }
 
     async fn get_checkpoints(
