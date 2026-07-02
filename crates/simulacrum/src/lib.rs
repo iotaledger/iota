@@ -56,7 +56,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
     transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
@@ -720,6 +720,36 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         }))
     }
 
+    fn get_epoch_info(
+        &self,
+        epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<EpochInfoV2>> {
+        Ok(self.with_store(|store| {
+            let start_checkpoint_seq = if epoch != 0 {
+                store
+                    .get_last_checkpoint_of_epoch(epoch - 1)
+                    .map(|seq| Some(seq + 1))
+                    .unwrap_or(None)?
+            } else {
+                0
+            };
+
+            let start_checkpoint = store.get_checkpoint_by_sequence_number(start_checkpoint_seq)?;
+
+            let system_state = self.get_system_state_for_epoch(epoch)?;
+
+            Some(EpochInfoV2 {
+                epoch,
+                start_checkpoint: start_checkpoint_seq,
+                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
+                system_state,
+                // Simulacrum doesn't build the close-of-epoch proof, so the
+                // derived `end_*` fields report `None`.
+                epoch_close_proof: None,
+            })
+        }))
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         Some(self)
     }
@@ -749,51 +779,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
-    fn get_epoch_info(
-        &self,
-        epoch: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
-        Ok(self.with_store(|store| {
-            let start_checkpoint_seq = if epoch != 0 {
-                store
-                    .get_last_checkpoint_of_epoch(epoch - 1)
-                    .map(|seq| Some(seq + 1))
-                    .unwrap_or(None)?
-            } else {
-                0
-            };
-
-            let start_checkpoint = store.get_checkpoint_by_sequence_number(start_checkpoint_seq)?;
-
-            let system_state = self.get_system_state_for_epoch(epoch)?;
-
-            let (end_timestamp_ms, end_checkpoint) =
-                if let Some(next_epoch_state) = self.get_system_state_for_epoch(epoch + 1) {
-                    (
-                        Some(next_epoch_state.epoch_start_timestamp_ms()),
-                        Some(
-                            store
-                                .get_last_checkpoint_of_epoch(epoch)
-                                .expect("last checkpoint of completed epoch should exist"),
-                        ),
-                    )
-                } else {
-                    (None, None)
-                };
-
-            Some(EpochInfo {
-                epoch,
-                protocol_version: system_state.protocol_version(),
-                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
-                end_timestamp_ms,
-                start_checkpoint: start_checkpoint_seq,
-                end_checkpoint,
-                reference_gas_price: system_state.reference_gas_price(),
-                system_state,
-            })
-        }))
-    }
-
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,

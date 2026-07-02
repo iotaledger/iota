@@ -855,6 +855,27 @@ macro_rules! register_counter {
     }};
 }
 
+/// register_counter_vec_with_registry!(name, help, labels, registry)
+#[macro_export]
+macro_rules! register_counter_vec_with_registry {
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+        let _n = $name;
+        let name: &str = &*_n;
+        let module: &str = module_path!();
+        if ($registry).is_enabled(name, module) {
+            $crate::prometheus::register_counter_vec_with_registry!(
+                name,
+                $help,
+                $labels,
+                ($registry).inner()
+            )
+            .map($crate::core::GenericCounterVec::new_some)
+        } else {
+            ::std::result::Result::Ok($crate::core::GenericCounterVec::new_none())
+        }
+    }};
+}
+
 /// register_counter_vec!(name, help, labels) - global registry, filtered.
 #[macro_export]
 macro_rules! register_counter_vec {

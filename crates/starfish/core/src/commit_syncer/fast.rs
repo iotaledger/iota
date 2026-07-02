@@ -315,11 +315,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             || self.inner.sync_type.should_schedule(
                 gap,
                 self.inner.context.parameters.commit_sync_gap_threshold,
-                self.inner
-                    .context
-                    .protocol_config
-                    .consensus_fast_commit_sync()
-                    && self.inner.context.parameters.enable_fast_commit_syncer,
+                self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -562,7 +558,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
@@ -1008,7 +1003,6 @@ mod tests {
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
         protocol_config.set_gc_depth_for_testing(5);
         // Shrink the leader-schedule rotation window — which also bounds the
         // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
@@ -1348,8 +1342,7 @@ mod tests {
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

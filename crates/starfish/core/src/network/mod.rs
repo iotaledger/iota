@@ -412,12 +412,6 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactionsV1 {
-    pub(crate) block_ref: BlockRef,
-    pub(crate) serialized_transactions: Bytes,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SerializedTransactionsV2 {
     pub(crate) transaction_ref: TransactionRef,
     pub(crate) serialized_transactions: Bytes,

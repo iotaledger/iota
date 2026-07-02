@@ -976,7 +976,12 @@ impl WritebackCache {
         Ok(())
     }
 
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch {
         let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
         let mut all_outputs = Vec::with_capacity(digests.len());
         for tx in digests {
@@ -1001,7 +1006,7 @@ impl WritebackCache {
 
         let batch = self
             .store
-            .build_db_batch(epoch, &all_outputs)
+            .build_db_batch(epoch, checkpoint_sequence_number, &all_outputs)
             .expect("db error");
         (all_outputs, batch)
     }
@@ -1331,8 +1336,13 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
-        self.build_db_batch(epoch, digests)
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch {
+        self.build_db_batch(epoch, checkpoint_sequence_number, digests)
     }
 
     fn try_commit_transaction_outputs(
@@ -2366,7 +2376,16 @@ impl GlobalStateHashStore for WritebackCache {
             let value = entry.value();
             match value.get_highest().unwrap() {
                 (_, ObjectEntry::Object(object)) => {
-                    dirty_objects.insert(id, LiveObject::Normal(object.clone()));
+                    dirty_objects.insert(
+                        id,
+                        LiveObject {
+                            object: object.clone(),
+                            // Dirty-cache entries have not yet been flushed at checkpoint commit
+                            // time, so the containing-checkpoint sequence number is not yet known;
+                            // only use for testing!
+                            previous_transaction_checkpoint: None,
+                        },
+                    );
                 }
                 (_version, ObjectEntry::Wrapped) => {
                     dirty_objects.remove(&id);

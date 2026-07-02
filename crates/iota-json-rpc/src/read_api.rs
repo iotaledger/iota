@@ -1288,8 +1288,7 @@ fn get_value_from_move_struct(
     }
     if parts.len() > MAX_DISPLAY_NESTED_LEVEL {
         Err(anyhow!(
-            "Display template value nested depth cannot exist {}",
-            MAX_DISPLAY_NESTED_LEVEL
+            "Display template value nested depth cannot exist {MAX_DISPLAY_NESTED_LEVEL}"
         ))?;
     }
     let mut current_value = &IotaMoveValue::Struct(move_struct.clone());

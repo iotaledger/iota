@@ -738,8 +738,7 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is disabled.
-/// Contains block reference and separate transaction commitment field.
+/// Legacy shard format retained for deserialization and enum-tag stability.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV1 {
     pub(crate) shard: Shard,
@@ -748,8 +747,7 @@ pub(crate) struct ShardWithProofV1 {
     pub(crate) block_ref: BlockRef,
 }
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is enabled.
-/// Contains transaction reference which includes the transaction commitment.
+/// Current shard format using a transaction reference.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
     pub(crate) shard: Shard,
@@ -776,34 +774,22 @@ pub(crate) enum ShardWithProof {
 }
 
 impl ShardWithProof {
-    /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
-    /// V1.
+    /// Creates a new ShardWithProof.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if consensus_fast_commit_sync {
-            ShardWithProof::V2(ShardWithProofV2 {
-                shard,
-                proof,
-                transaction_ref: TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: transaction_commitment,
-                },
-            })
-        } else {
-            ShardWithProof::V1(ShardWithProofV1 {
-                shard,
-                transaction_commitment,
-                proof,
-                block_ref,
-            })
-        }
+        ShardWithProof::V2(ShardWithProofV2 {
+            shard,
+            proof,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: transaction_commitment,
+            },
+        })
     }
 }
 
@@ -1311,10 +1297,10 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// Present (`Some`) whenever the block header is available at
-    /// construction time, regardless of the `consensus_fast_commit_sync` flag.
-    /// `None` only when transactions were received without an accompanying
-    /// block header (e.g., fast sync or store loading via TransactionRef).
+    /// Present (`Some`) whenever the block header is available at construction
+    /// time. `None` only when transactions were received without an
+    /// accompanying block header (e.g., fast sync or store loading via
+    /// TransactionRef).
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.

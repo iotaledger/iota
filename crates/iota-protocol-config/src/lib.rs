@@ -1557,19 +1557,11 @@ impl ProtocolConfig {
     }
 
     pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            2 * committee_size
-        } else {
-            self.consensus_max_acknowledgments_per_block_or_default() as usize
-        }
+        2 * committee_size
     }
 
     pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            committee_size
-        } else {
-            100
-        }
+        committee_size
     }
 
     pub fn variant_nodes(&self) -> bool {
