@@ -33,7 +33,7 @@ use crate::{
         display::StoredDisplay,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
     },
-    read::{IndexerReader, InputObjectsStatus, TransactionRead},
+    read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
@@ -297,15 +297,17 @@ impl OptimisticTransactionExecutor {
         // may be persisted before objects and other related tables. We wait until all
         // such updates are completed.
         self.wait_for_local_indexing(tx_digest).await?;
-        let stored_transaction = match self.read.multi_get_transactions(&[tx_digest]).await?.pop() {
-            Some(TransactionRead::Checkpointed(s)) => s,
-            Some(TransactionRead::Optimistic(o)) => o.into(),
-            None => {
-                return Err(IndexerError::PersistentStorageDataCorruption(format!(
+        let stored_transaction = self
+            .read
+            .multi_get_transactions(&[tx_digest])
+            .await?
+            .pop()
+            .map(StoredTransaction::from)
+            .ok_or_else(|| {
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "transaction {tx_digest} not found in the DB after being marked as indexed."
-                )));
-            }
-        };
+                ))
+            })?;
         db_read_timer.stop_and_record();
         Ok(stored_transaction)
     }

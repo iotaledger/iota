@@ -314,6 +314,15 @@ impl TransactionRead {
     }
 }
 
+impl From<TransactionRead> for StoredTransaction {
+    fn from(tx: TransactionRead) -> Self {
+        match tx {
+            TransactionRead::Checkpointed(s) => s,
+            TransactionRead::Optimistic(o) => o.into(),
+        }
+    }
+}
+
 // Impl for reading data from the DB
 impl IndexerReader {
     fn get_object_from_db(
@@ -1659,10 +1668,7 @@ impl IndexerReader {
             .multi_get_transactions_with_fallback(digests)
             .await?
             .into_iter()
-            .map(|tx| match tx {
-                TransactionRead::Checkpointed(s) => s,
-                TransactionRead::Optimistic(o) => o.into(),
-            })
+            .map(StoredTransaction::from)
             .collect();
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
