@@ -196,7 +196,7 @@ impl StateSnapshotUploader {
                     .await?;
                 } else {
                     error!(
-                        "Could not determine epoch start timestamp for epoch {epoch}; skipping metadata write"
+                        "Could not determine epoch end timestamp for epoch {epoch}; skipping metadata write"
                     );
                 }
                 // Drops marker in the output directory that upload completed successfully
