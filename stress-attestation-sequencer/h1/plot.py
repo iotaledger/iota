@@ -370,20 +370,23 @@ def to_arrays(values):
 
 def windowed_rate(ts, v, grid, window):
     """Prometheus-style rate on grid: (v[t]-v[t-W]) / (t - (t-W)). Series are
-    reset-trimmed by dump_timeseries, so monotonic within the window."""
+    reset-trimmed by dump_timeseries, so monotonic within the window.
+
+    Vectorized: the two bracketing indices for every grid point come from two
+    searchsorted() calls over the whole grid (not two per point), which matters
+    when replaying hundreds of series across many runs."""
     if len(ts) < 2:
         return np.full(len(grid), np.nan)
+    grid = np.asarray(grid, dtype=float)
+    # newest sample <= t, and oldest sample >= t-window, for every grid point.
+    j_hi = np.searchsorted(ts, grid, side="right") - 1
+    j_lo = np.searchsorted(ts, grid - window, side="left")
     out = np.full(len(grid), np.nan)
-    for i, t in enumerate(grid):
-        lo = t - window
-        # newest sample <= t and oldest sample >= lo
-        j_hi = np.searchsorted(ts, t, side="right") - 1
-        j_lo = np.searchsorted(ts, lo, side="left")
-        if j_hi <= j_lo:
-            continue
-        dt = ts[j_hi] - ts[j_lo]
-        if dt > 0:
-            out[i] = (v[j_hi] - v[j_lo]) / dt
+    valid = j_hi > j_lo  # need a real interval (also excludes j_hi == -1)
+    hi, lo = j_hi[valid], j_lo[valid]
+    dt = ts[hi] - ts[lo]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out[valid] = np.where(dt > 0, (v[hi] - v[lo]) / dt, np.nan)
     return out
 
 
@@ -501,24 +504,17 @@ def eval_target(spec, run, grid, window, host_stat, host_reduce=None):
 
     if spec["is_rate"]:
         # per-host windowed rate, then mean/median across the (replica) hosts.
-        rates = [
-            windowed_rate(
-                to_arrays(s["values"])[0] - start,
-                to_arrays(s["values"])[1],
-                grid,
-                window,
-            )
-            for s in matched
-        ]
+        rates = []
+        for s in matched:
+            ts, v = to_arrays(s["values"])
+            rates.append(windowed_rate(ts - start, v, grid, window))
         return reduce_hosts(np.vstack(rates))
 
     # gauge: per-host value on grid, then mean/median across hosts.
-    stacks = [
-        interp_on_grid(
-            to_arrays(s["values"])[0] - start, to_arrays(s["values"])[1], grid
-        )
-        for s in matched
-    ]
+    stacks = []
+    for s in matched:
+        ts, v = to_arrays(s["values"])
+        stacks.append(interp_on_grid(ts - start, v, grid))
     return reduce_hosts(np.vstack(stacks))
 
 

@@ -39,9 +39,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plot  # noqa: E402
 
 
-def load_groups(root, label=None):
-    """{label: {"V1": [run,...], "V2": [run,...]}} — same grouping as plot.py."""
-    labels = (
+def _iter_files(root, label):
+    """(v1_paths, v2_paths) for a label — the run JSONs to pool, same as plot.py."""
+    ld = os.path.join(root, label)
+    v1 = sorted(glob.glob(os.path.join(ld, "iter-*", "run-a-v1-timeseries.json")))
+    v2 = sorted(glob.glob(os.path.join(ld, "iter-*", "run-b-v2-timeseries.json")))
+    return v1, v2
+
+
+def discover_labels(root, label=None):
+    """{label: (n_v1, n_v2)} for every label with data — cheap (globs, no JSON load)."""
+    candidates = (
         [label]
         if label
         else sorted(
@@ -50,13 +58,19 @@ def load_groups(root, label=None):
             if os.path.isdir(d)
         )
     )
+    out = {}
+    for lab in candidates:
+        v1, v2 = _iter_files(root, lab)
+        if v1 or v2:
+            out[lab] = (len(v1), len(v2))
+    return out
+
+
+def load_groups(root, label=None):
+    """{label: {"V1": [run,...], "V2": [run,...]}} — same grouping as plot.py."""
     groups = {}
-    for lab in labels:
-        ld = os.path.join(root, lab)
-        v1 = sorted(glob.glob(os.path.join(ld, "iter-*", "run-a-v1-timeseries.json")))
-        v2 = sorted(glob.glob(os.path.join(ld, "iter-*", "run-b-v2-timeseries.json")))
-        if not v1 and not v2:
-            continue
+    for lab in discover_labels(root, label):
+        v1, v2 = _iter_files(root, lab)
         groups[lab] = {
             "V1": [json.load(open(f)) for f in v1],
             "V2": [json.load(open(f)) for f in v2],
@@ -65,17 +79,26 @@ def load_groups(root, label=None):
 
 
 # Columns pruned from the table after inspecting the full picture — no signal for
-# this experiment set. Keyed by column key (see build_columns). Pass --keep-dropped
-# to show them anyway.
+# this experiment set. Maps column key (see build_columns) -> expected value, or
+# None to drop unconditionally. If an expected value is given, the column is still
+# COMPUTED and checked against it: any config/version that deviates (beyond
+# DROP_TOL) prints a warning — the assumption behind the drop no longer holds for
+# that run, so it shouldn't be silently hidden. The column is dropped either way.
+# Pass --keep-dropped to render them regardless.
 #   - actual/attested CUs — mean: exactly 1.0 for every owned-object config (attested
-#     CUs == actual CUs), so it carries no information here.
+#     CUs == actual CUs). A future shared/slow config where attestation over-estimates
+#     would trip the guard.
 DROP_COLUMNS = {
-    "actual/attested CUs — mean",
+    "actual/attested CUs — mean": 1.0,
 }
+DROP_TOL = 1e-4
 
 
-def build_columns(panels, keep_all, keep_dropped=False):
+def build_columns(panels, keep_all):
     """Flatten the dashboard into (col_key, kind, payload) column specs.
+
+    Returns ALL columns (dropping is applied later in main, so DROP_COLUMNS guards
+    can still be computed and checked).
 
     kind="target" -> payload is a parsed expr spec (+ host_reduce);
     kind="mean_ratio" -> payload is the histogram base name (the accuracy panel
@@ -113,9 +136,24 @@ def build_columns(panels, keep_all, keep_dropped=False):
             "base": base,
         }
     )
-    if not keep_dropped:
-        cols = [c for c in cols if c["key"] not in DROP_COLUMNS]
     return cols
+
+
+def compute_row(task):
+    """Load ONE label and reduce every column to its A/B cells. Runs in a worker
+    process (labels are independent), so it loads its own JSON rather than being
+    handed the big run dicts. -> (label, {col_key: {"A": (c,s,sem,n), "B": ...}})."""
+    label, root, cols, window, stat = task
+    g = load_groups(root, label)[label]
+    runs_all = g["V1"] + g["V2"]
+    win = max((r["end_epoch"] - r["start_epoch"]) for r in runs_all)
+    grid = np.arange(0, win + 1, 1.0)
+    row = {}
+    for col in cols:
+        a = cell_values(col, g["V1"], grid, window, stat)
+        b = cell_values(col, g["V2"], grid, window, stat)
+        row[col["key"]] = {"A": a, "B": b}
+    return label, row
 
 
 def cell_values(col, runs, grid, window, stat):
@@ -232,10 +270,16 @@ def main():
         "--out", default=None, help="output .md (default: results/summary_table.md)"
     )
     ap.add_argument("--csv", default=None, help="also write a tidy CSV here")
+    ap.add_argument(
+        "--jobs",
+        type=int,
+        default=min(os.cpu_count() or 1, 16),
+        help="parallel worker processes, one label at a time (default: min(cpus,16))",
+    )
     args = ap.parse_args()
 
-    groups = load_groups(args.root, args.label)
-    if not groups:
+    iter_counts = discover_labels(args.root, args.label)  # {label: (n_v1, n_v2)}
+    if not iter_counts:
         print(
             f"no <LABEL>/iter-*/run-*-timeseries.json under {args.root}",
             file=sys.stderr,
@@ -243,21 +287,59 @@ def main():
         sys.exit(1)
 
     panels = plot.panels_from_dashboard(args.dashboard)
-    cols = build_columns(panels, args.all, args.keep_dropped)
-    labels = sorted(groups, key=sort_key)
+    all_cols = build_columns(panels, args.all)
+    labels = sorted(iter_counts, key=sort_key)
+
+    # Columns to render vs. columns to compute-only for their DROP_COLUMNS guard.
+    if args.keep_dropped:
+        cols = all_cols
+        verify_cols = []
+    else:
+        cols = [c for c in all_cols if c["key"] not in DROP_COLUMNS]
+        verify_cols = [
+            c
+            for c in all_cols
+            if c["key"] in DROP_COLUMNS and DROP_COLUMNS[c["key"]] is not None
+        ]
 
     # Compute every cell up front: rows[label][col_key] = {"A": (c,s,sem,n), "B": ...}.
+    # Includes verify_cols so guarded drops can be checked below. Labels are
+    # independent, so fan them out across processes (each worker loads its own JSON).
+    compute_cols = cols + verify_cols
+    tasks = [
+        (label, args.root, compute_cols, args.rate_window, args.stat)
+        for label in labels
+    ]
     rows = {}
-    for label in labels:
-        g = groups[label]
-        runs_all = g["V1"] + g["V2"]
-        win = max((r["end_epoch"] - r["start_epoch"]) for r in runs_all)
-        grid = np.arange(0, win + 1, 1.0)
-        rows[label] = {}
-        for col in cols:
-            a = cell_values(col, g["V1"], grid, args.rate_window, args.stat)
-            b = cell_values(col, g["V2"], grid, args.rate_window, args.stat)
-            rows[label][col["key"]] = {"A": a, "B": b}
+    if args.jobs == 1:
+        for t in tasks:
+            label, row = compute_row(t)
+            rows[label] = row
+    else:
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=args.jobs) as ex:
+            for label, row in ex.map(compute_row, tasks):
+                rows[label] = row
+
+    # Guard: a dropped column with an expected value must actually hold it for every
+    # config/version, else the reason for dropping it no longer applies — warn (still drop).
+    for col in verify_cols:
+        exp = DROP_COLUMNS[col["key"]]
+        bad = []
+        for label in labels:
+            for side, ver in (("A", "V1"), ("B", "V2")):
+                c = rows[label][col["key"]][side][0]
+                if np.isfinite(c) and abs(c - exp) > DROP_TOL:
+                    bad.append((label, ver, c))
+        if bad:
+            print(
+                f"WARNING: dropped column '{col['key']}' expected ~{exp:g} but deviates "
+                f"in {len(bad)} config/version(s) — still dropped (use --keep-dropped to inspect):",
+                file=sys.stderr,
+            )
+            for label, ver, c in bad:
+                print(f"    {label} {ver}: {c:.6g}", file=sys.stderr)
 
     disp_idx = 1 if args.disp == "std" else 2  # index into (center,std,sem,n)
 
@@ -284,9 +366,8 @@ def main():
     lines.append("\n| config | A iters | B iters |")
     lines.append("| --- | --- | --- |")
     for label in labels:
-        lines.append(
-            f"| {label} | {len(groups[label]['V1'])} | {len(groups[label]['V2'])} |"
-        )
+        n_v1, n_v2 = iter_counts[label]
+        lines.append(f"| {label} | {n_v1} | {n_v2} |")
     lines.append("")
 
     # main table. combined: one column per metric, cell `A → B`; split: A and B
