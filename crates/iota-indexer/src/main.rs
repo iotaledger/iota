@@ -173,7 +173,7 @@ async fn main() -> Result<(), IndexerError> {
             }
             // resetting the database ensures we start from a clean state.
             // thus we can accept an unsuccessful completion of the restore, as subsequent
-            // runs rely on the latter predicate.
+            // runs reset the database again.
             let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
             let restore = start(
                 network,
