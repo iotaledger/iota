@@ -108,10 +108,6 @@ pub async fn get<S: ObjectStoreGetExt>(store: &S, src: &Path) -> Result<Bytes> {
     Ok(bytes)
 }
 
-pub async fn exists<S: ObjectStoreGetExt>(store: &S, src: &Path) -> bool {
-    store.get_bytes(src).await.is_ok()
-}
-
 /// Writes bytes in the store with specified path.
 pub async fn put<S: ObjectStorePutExt>(store: &S, src: &Path, bytes: Bytes) -> Result<()> {
     retry(backoff::ExponentialBackoff::default(), || async {
