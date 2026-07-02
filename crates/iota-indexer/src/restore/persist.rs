@@ -190,8 +190,23 @@ pub(crate) async fn populate_remaining_tables(
     )?;
     tokio::try_join!(
         populate_procotol_and_feature_flags(store, snapshot_chain_id),
-        store.update_watermarks_lower_bound(pruning_watermarks.clone()),
-        store.update_watermarks_lowest_unpruned_key(pruning_watermarks)
+        store.update_watermarks_lower_bound(pruning_watermarks.clone())
     )?;
-    Ok(())
+    // finally align the lowest unpruned key with the lower bounds
+    // to let the pruner know the pruning range start after restoring
+    let (stored_watermarks, _) = store.get_watermarks().await?;
+    let lowest_unpruned_keys = stored_watermarks
+        .into_iter()
+        .map(|watermark| {
+            let table: PrunableTable = watermark
+                .entity
+                .as_str()
+                .parse()
+                .expect("this should be a valid table name");
+            (table, table.pruning_strategy().range_end(&watermark))
+        })
+        .collect::<Vec<_>>();
+    store
+        .update_watermarks_lowest_unpruned_key(lowest_unpruned_keys)
+        .await
 }

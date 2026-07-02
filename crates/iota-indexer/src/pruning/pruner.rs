@@ -122,7 +122,7 @@ impl PruningStrategy {
 
     /// Exclusive upper bound of the pruning range for this strategy, taken
     /// from the watermark's `min_available_*` columns.
-    fn range_end(&self, watermark: &StoredWatermark) -> u64 {
+    pub(crate) fn range_end(&self, watermark: &StoredWatermark) -> u64 {
         match self {
             Self::ByEpochPartition => watermark.min_available_epoch as u64,
             Self::ByCheckpoint | Self::ByCheckpointWithLimit => watermark.min_available_cp as u64,
