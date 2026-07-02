@@ -354,3 +354,37 @@ fun test_last_active_epoch_initialized_to_activation_epoch() {
     assert!(registry.active_attestors()[0].last_active_epoch() == 6);
     registry.destroy_for_testing();
 }
+
+#[test]
+fun test_refresh_activity_updates_last_active_epoch() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.advance_epoch(6, &mut ctx).destroy_zero();
+    registry.refresh_activity(vector[0], 9);
+    assert!(registry.active_attestors()[0].last_active_epoch() == 9);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_refresh_activity_skips_out_of_range_and_tolerates_duplicates() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.advance_epoch(6, &mut ctx).destroy_zero();
+    // Out-of-range index 7 is skipped, duplicate 0s are idempotent; no abort.
+    registry.refresh_activity(vector[7, 0, 0], 9);
+    assert!(registry.active_attestors()[0].last_active_epoch() == 9);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_refresh_activity_empty_list_is_noop() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.advance_epoch(6, &mut ctx).destroy_zero();
+    registry.refresh_activity(vector[], 9);
+    assert!(registry.active_attestors()[0].last_active_epoch() == 6);
+    registry.destroy_for_testing();
+}
