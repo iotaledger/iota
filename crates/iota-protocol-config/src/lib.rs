@@ -1430,6 +1430,16 @@ pub struct ProtocolConfig {
 
     /// Maximum number of attestors (active + pending) in the registry.
     max_attestor_count: Option<u64>,
+
+    /// Maximum number of full epochs an active attestor may go without
+    /// attesting before being dropped, with a penalty, at the next epoch
+    /// boundary.
+    attestor_max_inactivity_epochs: Option<u64>,
+
+    /// Amount, in NANOS, burned from an attestor's bond when it is dropped
+    /// for inactivity; the remaining bond is refunded. Must not exceed
+    /// `attestor_low_bond_threshold` so the refund cannot underflow.
+    attestor_inactivity_penalty: Option<u64>,
 }
 
 // feature flags
@@ -2442,6 +2452,8 @@ impl ProtocolConfig {
             min_attestor_joining_bond: None,
             attestor_low_bond_threshold: None,
             max_attestor_count: None,
+            attestor_max_inactivity_epochs: None,
+            attestor_inactivity_penalty: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3009,6 +3021,8 @@ impl ProtocolConfig {
                         cfg.min_attestor_joining_bond = Some(2_000_000_000_000);
                         cfg.attestor_low_bond_threshold = Some(1_000_000_000_000);
                         cfg.max_attestor_count = Some(1_000);
+                        cfg.attestor_max_inactivity_epochs = Some(7);
+                        cfg.attestor_inactivity_penalty = Some(500_000_000_000);
                     }
                 }
                 // Use this template when making changes:
