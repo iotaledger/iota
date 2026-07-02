@@ -19,8 +19,10 @@ use jsonrpsee::{
     rpc_params,
 };
 use prometheus_filtered::Registry;
+use serial_test::serial;
 
 #[tokio::test]
+#[serial]
 async fn test_rpc_backward_compatibility() {
     let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);
     builder.register_module(TestApiModule).unwrap();
@@ -100,8 +102,21 @@ async fn test_rpc_backward_compatibility() {
     assert_eq!("Some string from old method", response);
 }
 
+/// Drop-guard that clears `DISABLE_BACKWARD_COMPATIBILITY` on scope exit, so
+/// this test does not contaminate sibling tests sharing the same process.
+#[must_use = "drop the guard at the end of the test to restore the env var"]
+struct DisableRoutingEnvGuard;
+
+impl Drop for DisableRoutingEnvGuard {
+    fn drop(&mut self) {
+        env::remove_var("DISABLE_BACKWARD_COMPATIBILITY");
+    }
+}
+
 #[tokio::test]
+#[serial]
 async fn test_disable_routing() {
+    let _env_guard = DisableRoutingEnvGuard;
     env::set_var("DISABLE_BACKWARD_COMPATIBILITY", "true");
 
     let mut builder = JsonRpcServerBuilder::new("1.5", &Registry::new(), None, None);

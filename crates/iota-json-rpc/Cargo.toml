@@ -65,6 +65,8 @@ typed-store.workspace = true
 expect-test.workspace = true
 mockall.workspace = true
 roaring.workspace = true
+serial_test.workspace = true
 
 # internal dependencies
+iota-open-rpc-macros.workspace = true
 telemetry-subscribers.workspace = true

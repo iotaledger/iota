@@ -96,7 +96,6 @@ members = [
   "crates/iota-json",
   "crates/iota-json-rpc",
   "crates/iota-json-rpc-api",
-  "crates/iota-json-rpc-tests",
   "crates/iota-json-rpc-types",
   "crates/iota-keys",
   "crates/iota-kvstore",
