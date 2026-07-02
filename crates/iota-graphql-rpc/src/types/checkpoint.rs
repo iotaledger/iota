@@ -507,39 +507,36 @@ impl Page<Cursor> {
         let lo = *available.start();
         let hi = *available.end();
 
-        let after = self.after().map(|c| c.sequence_number);
-        let before = self.before().map(|c| c.sequence_number);
+        let after = self.after().map(|c| ("after", c.sequence_number));
+        let before = self.before().map(|c| ("before", c.sequence_number));
 
         // If `after > before`, the range is empty; skip cursor validation.
-        if let (Some(after), Some(before)) = (after, before) {
-            if after > before {
+        if let (Some((_, after_seq)), Some((_, before_seq))) = (after, before) {
+            if after_seq > before_seq {
                 return Ok(None);
             }
         }
 
-        let ensure_in_available_range = |name: &str, seq: u64| -> Result<(), Error> {
+        // Since `after <= before`, it's enough to check if the smaller cursor is below
+        // `lo`. Analogously for `hi`.
+        if let Some((name, seq)) = after.or(before) {
             if seq < lo {
                 return Err(Error::DataPruned(format!(
                     "`{name}` cursor (seq {seq}) is below the available range {available:?}"
                 )));
             }
+        }
+        if let Some((name, seq)) = before.or(after) {
             if seq > hi {
                 return Err(Error::Client(format!(
                     "`{name}` cursor (seq {seq}) is above the available range {available:?}"
                 )));
             }
-            Ok(())
-        };
-        if let Some(seq) = after {
-            ensure_in_available_range("after", seq)?;
-        }
-        if let Some(seq) = before {
-            ensure_in_available_range("before", seq)?;
         }
 
         // Cursors are exclusive.
-        let page_lo = after.map(|seq| seq.saturating_add(1)).unwrap_or(lo);
-        let page_hi = before.map(|seq| seq.saturating_sub(1)).unwrap_or(hi);
+        let page_lo = after.map(|(_, seq)| seq.saturating_add(1)).unwrap_or(lo);
+        let page_hi = before.map(|(_, seq)| seq.saturating_sub(1)).unwrap_or(hi);
         let range = page_lo..=page_hi;
         if range.is_empty() {
             Ok(None)
