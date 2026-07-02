@@ -627,9 +627,9 @@ fun advance_epoch(
 
     // Registry lives on the wrapper UID, so process it before borrowing the
     // inner state; evicted bonds are burned inside the inner advance_epoch.
-    let attestor_evicted_bonds = if (
-        dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key())
-    ) {
+    // Gating on the feature flag also creates the empty registry on the first
+    // boundary once the feature is enabled.
+    let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
         load_attestor_registry_mut(wrapper).advance_epoch(new_epoch, ctx)
     } else {
         balance::zero()
