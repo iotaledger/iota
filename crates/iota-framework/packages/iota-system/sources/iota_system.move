@@ -630,7 +630,11 @@ fun advance_epoch(
     // Gating on the feature flag also creates the empty registry on the first
     // boundary once the feature is enabled.
     let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
-        load_attestor_registry_mut(wrapper).advance_epoch(new_epoch, ctx)
+        let registry = load_attestor_registry_mut(wrapper);
+        // The per-attestor activity feed is not threaded into this
+        // transaction yet; until it is, no attestor is reported active.
+        registry.refresh_activity(vector[], new_epoch - 1);
+        registry.advance_epoch(new_epoch, ctx)
     } else {
         balance::zero()
     };

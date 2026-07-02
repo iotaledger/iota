@@ -28,6 +28,9 @@ AttestorRemovedEvent
 AttestorEvictedEvent
 	public struct
 	0x3::attestor_registry
+AttestorDroppedForInactivityEvent
+	public struct
+	0x3::attestor_registry
 AttestorBondDepositedEvent
 	public struct
 	0x3::attestor_registry
@@ -67,6 +70,9 @@ deregister
 deposit
 	public(package) fun
 	0x3::attestor_registry
+refresh_activity
+	public(package) fun
+	0x3::attestor_registry
 rotate_key
 	public(package) fun
 	0x3::attestor_registry
@@ -92,6 +98,9 @@ bond_value
 	public(package) fun
 	0x3::attestor_registry
 activation_epoch
+	public(package) fun
+	0x3::attestor_registry
+last_active_epoch
 	public(package) fun
 	0x3::attestor_registry
 active_attestors
