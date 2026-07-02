@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::result::Result::Ok;
-use std::{
-    any::Any as StdAny,
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::{any::Any as StdAny, collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
@@ -253,16 +249,10 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    fn persist_display_updates(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError> {
+    fn persist_displays_chunk(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
-            {
-                let value = display_updates.values().collect::<Vec<_>>();
-                |conn| self.persist_displays_in_existing_transaction(conn, value)
-            },
+            |conn| self.persist_displays_chunk_in_existing_transaction(conn, &displays),
             PG_DB_COMMIT_SLEEP_DURATION
         )?;
 
@@ -1951,35 +1941,54 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_displays(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError> {
-        if display_updates.is_empty() {
+    async fn persist_displays(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
+        if displays.is_empty() {
             return Ok(());
         }
 
-        self.spawn_blocking_task(move |this| this.persist_display_updates(display_updates))
-            .await?
+        if displays.len() < self.config.parallel_objects_chunk_size {
+            self.spawn_blocking_task(move |this| this.persist_displays_chunk(displays))
+                .await??;
+            return Ok(());
+        }
+        let chunks = chunk!(displays, self.config.parallel_objects_chunk_size);
+        let persist_tasks = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_displays_chunk(c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join futures for persisting displays: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(
+                    format!("Failed to persist all displays chunks: {e:?}",),
+                )
+            })?;
+        Ok(())
     }
 
-    fn persist_displays_in_existing_transaction(
+    fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
-        display_updates: Vec<&StoredDisplay>,
+        displays: &[StoredDisplay],
     ) -> Result<(), IndexerError> {
-        if display_updates.is_empty() {
+        if displays.is_empty() {
             return Ok(());
         }
 
         on_conflict_do_update_with_condition!(
             display::table,
-            display_updates,
+            displays,
             display::object_type,
             (
                 display::id.eq(excluded(display::id)),
                 display::version.eq(excluded(display::version)),
                 display::bcs.eq(excluded(display::bcs)),
+                display::bcs_kind.eq(excluded(display::bcs_kind)),
             ),
             excluded(display::version).gt(display::version),
             conn

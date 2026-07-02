@@ -32,7 +32,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) events: Vec<IndexedEvent>,
     pub(crate) event_indices: Vec<EventIndex>,
     pub(crate) tx_indices: Vec<TxIndex>,
-    pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
+    pub(crate) displays: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: CheckpointObjectChanges,
     pub(crate) backward_history_changes: Vec<StoredBackwardHistoryObject>,
     pub(crate) object_versions: Vec<StoredObjectVersion>,
@@ -104,7 +104,7 @@ impl PrimaryWriter {
         let mut events_batch = Vec::with_capacity(batch_len);
         let mut tx_indices_batch = Vec::with_capacity(batch_len);
         let mut event_indices_batch = Vec::with_capacity(batch_len);
-        let mut display_updates_batch = BTreeMap::new();
+        let mut displays_batch = Vec::with_capacity(batch_len);
         let mut object_changes_batch = Vec::with_capacity(batch_len);
         let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
@@ -117,7 +117,7 @@ impl PrimaryWriter {
                 events,
                 event_indices,
                 tx_indices,
-                display_updates,
+                displays,
                 object_changes,
                 backward_history_changes,
                 object_versions,
@@ -129,7 +129,7 @@ impl PrimaryWriter {
             events_batch.push(events);
             tx_indices_batch.push(tx_indices);
             event_indices_batch.push(event_indices);
-            display_updates_batch.extend(display_updates.into_iter());
+            displays_batch.extend(displays.into_values());
             object_changes_batch.push(object_changes);
             backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
@@ -167,7 +167,7 @@ impl PrimaryWriter {
                 self.state.persist_tx_indices(tx_indices_batch),
                 self.state.persist_events(events_batch),
                 self.state.persist_event_indices(event_indices_batch),
-                self.state.persist_displays(display_updates_batch),
+                self.state.persist_displays(displays_batch),
                 self.state.persist_packages(packages_batch),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
