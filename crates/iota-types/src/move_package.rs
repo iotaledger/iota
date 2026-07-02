@@ -1006,7 +1006,7 @@ pub struct RuntimeModuleMetadataV1 {
     pub fun_attributes: BTreeMap<String, Vec<IotaAttributeV1>>,
 }
 
-/// V1 of IOTA specific metadata.
+/// V2 of IOTA specific metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeModuleMetadataV2 {
     /// Attributes attached to functions, by definition index.
