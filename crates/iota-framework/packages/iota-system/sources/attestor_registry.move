@@ -64,6 +64,9 @@ public struct AttestorV1 has store {
     bond: Balance<IOTA>,
     /// Epoch from which this attestor is considered active.
     activation_epoch: u64,
+    /// Last epoch in which this attestor was reported active via
+    /// `refresh_activity`; starts at `activation_epoch`.
+    last_active_epoch: u64,
 }
 
 // === Events ===
@@ -193,6 +196,7 @@ public(package) fun register(
             next_epoch_attestor_pubkey: option::none(),
             bond,
             activation_epoch,
+            last_active_epoch: activation_epoch,
         });
     event::emit(AttestorRegisteredEvent {
         epoch: current_epoch,
@@ -222,6 +226,7 @@ public(package) fun deregister(
             next_epoch_attestor_pubkey,
             bond,
             activation_epoch: _,
+            last_active_epoch: _,
         } = self.pending_active.remove(pending_idx.destroy_some());
         next_epoch_attestor_pubkey.destroy_none();
         event::emit(AttestorRemovedEvent {
@@ -361,6 +366,7 @@ public(package) fun advance_epoch(
             next_epoch_attestor_pubkey,
             bond,
             activation_epoch: _,
+            last_active_epoch: _,
         } = self.active_attestors.remove(idx);
         next_epoch_attestor_pubkey.destroy!(|_| ());
         if (is_eviction) {
@@ -453,6 +459,10 @@ public(package) fun activation_epoch(attestor: &AttestorV1): u64 {
     attestor.activation_epoch
 }
 
+public(package) fun last_active_epoch(attestor: &AttestorV1): u64 {
+    attestor.last_active_epoch
+}
+
 public(package) fun active_attestors(self: &AttestorRegistryV1): &vector<AttestorV1> {
     &self.active_attestors
 }
@@ -472,6 +482,7 @@ fun destroy_attestor_for_testing(attestor: AttestorV1) {
         next_epoch_attestor_pubkey,
         bond,
         activation_epoch: _,
+        last_active_epoch: _,
     } = attestor;
     next_epoch_attestor_pubkey.destroy!(|_| ());
     bond.destroy_for_testing();
@@ -494,6 +505,7 @@ public fun push_pending_for_testing(
             next_epoch_attestor_pubkey: option::none(),
             bond: balance::create_for_testing(bond_amount),
             activation_epoch: 0,
+            last_active_epoch: 0,
         });
 }
 

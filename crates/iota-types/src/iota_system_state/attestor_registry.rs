@@ -47,6 +47,7 @@ pub struct AttestorV1 {
     pub next_epoch_attestor_pubkey: Option<Vec<u8>>,
     pub bond: Balance,
     pub activation_epoch: u64,
+    pub last_active_epoch: u64,
 }
 
 /// Mirror of `iota_system::attestor_registry::AttestorRegistryV1`.
@@ -203,6 +204,7 @@ mod tests {
                 next_epoch_attestor_pubkey: None,
                 bond: Balance::new(2_000_000_000_000),
                 activation_epoch: 7,
+                last_active_epoch: 9,
             }],
             pending_active: vec![],
             pending_removals: vec![3, 1],
