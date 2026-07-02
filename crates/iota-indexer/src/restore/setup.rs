@@ -204,7 +204,6 @@ fn unsigned_http_store_config(endpoint: &str) -> ObjectStoreConfig {
         object_store: Some(ObjectStoreType::S3),
         aws_endpoint: Some(endpoint.to_string()),
         aws_virtual_hosted_style_request: true,
-        object_store_connection_limit: 200,
         no_sign_request: true,
         ..Default::default()
     }
