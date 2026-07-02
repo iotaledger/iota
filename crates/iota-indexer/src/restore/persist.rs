@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_core::authority::authority_store_tables::LiveObject as SnapshotObject;
@@ -16,6 +18,7 @@ use crate::{
     ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
     models::{
         checkpoints::StoredChainIdentifier,
+        display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
     },
     pruning::pruner::PrunableTable,
@@ -31,6 +34,7 @@ impl Restore for PgIndexerStore {
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> anyhow::Result<()> {
         let mut hasher = Sha3_256::default();
+        let mut displays = BTreeMap::new();
         let partition = LiveObjectIter::new(&file_metadata, bytes)?.scan(
             &mut hasher,
             |hasher,
@@ -39,6 +43,9 @@ impl Restore for PgIndexerStore {
                  previous_transaction_checkpoint,
              }| {
                 hasher.update(object.object_ref().digest.inner());
+                if let Some(display) = StoredDisplay::try_from_object(&object) {
+                    displays.insert(display.object_type.clone(), display);
+                }
                 let checkpoint_sequence_number =
                     previous_transaction_checkpoint.unwrap_or_default();
                 Some(LiveObject::new(checkpoint_sequence_number, object))
@@ -75,6 +82,8 @@ impl Restore for PgIndexerStore {
                     "failed to persist all formal snapshot object chunks: {e:?}",
                 ))
             })?;
+        self.persist_displays(displays.into_values().collect())
+            .await?;
         Ok(())
     }
 }

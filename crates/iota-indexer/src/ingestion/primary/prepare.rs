@@ -279,7 +279,7 @@ impl PrimaryWorker {
             events: db_events,
             tx_indices: db_tx_indices,
             event_indices: db_event_indices,
-            display_updates: db_displays,
+            displays: db_displays,
             object_changes,
             backward_history_changes,
             object_versions,
