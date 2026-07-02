@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use bytes::Bytes;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
@@ -544,7 +545,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
     }
 
-    // Fetches commits and transactions from a single authority.
+    // Fetches commits and transactions from a single authority. When the
+    // response covers only part of the range, returns the prefix of commits
+    // whose transactions were all fetched.
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
@@ -571,7 +574,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
         let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
-        let (commits, voting_block_headers) = Handle::current()
+        let (mut commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -623,15 +626,32 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             }
         }
 
-        // Check if any committed transactions were not fetched (committed_tx_refs
-        // should be empty now)
+        // The response may be missing transactions for a suffix of the commits,
+        // e.g. when the stream was cut off by the response byte limit or a
+        // mid-stream network error. Keep the prefix of commits whose
+        // transactions were all fetched so the fetch makes forward progress;
+        // the scheduler requeues the range after the prefix.
         if !committed_tx_refs.is_empty() {
-            // TODO: create subdags for prefix of commits
-            return Err(ConsensusError::FetchedTransactionsMismatch {
-                peer: target_authority,
-                expected: committed_tx_refs.len() + fetched_transactions.len(),
-                received: fetched_transactions.len(),
-            });
+            let fetched_commits = commits.len();
+            truncate_to_fully_fetched_prefix(
+                target_authority,
+                &mut commits,
+                &mut fetched_transactions,
+            )?;
+            info!(
+                "[{}] Fetched transactions cover only {} out of {} commits received from {}, processing the covered prefix",
+                inner.sync_type.as_str(),
+                commits.len(),
+                fetched_commits,
+                target_authority,
+            );
+            inner
+                .context
+                .metrics
+                .node_metrics
+                .commit_sync_truncated_fetches
+                .with_label_values(&[inner.sync_type.as_str()])
+                .inc();
         }
 
         // 5. Verify transactions
@@ -873,6 +893,50 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 }
 
+/// Truncates verified `commits` to the longest prefix whose committed
+/// transactions are all present in `fetched_transactions`, and drops fetched
+/// transactions not referenced by that prefix. Commits verified by
+/// `verify_commits` are chained by digest up to a vote-certified last commit,
+/// so any prefix of them remains trusted on its own.
+///
+/// Returns an error attributed to `peer` when even the first commit is missing
+/// transactions, since the response then allows no forward progress.
+fn truncate_to_fully_fetched_prefix(
+    peer: AuthorityIndex,
+    commits: &mut Vec<TrustedCommit>,
+    fetched_transactions: &mut BTreeMap<GenericTransactionRef, Bytes>,
+) -> ConsensusResult<()> {
+    let prefix_len = commits
+        .iter()
+        .take_while(|commit| {
+            commit
+                .committed_transactions()
+                .iter()
+                .all(|tx_ref| fetched_transactions.contains_key(tx_ref))
+        })
+        .count();
+    if prefix_len == 0 {
+        let committed_tx_refs: BTreeSet<GenericTransactionRef> = commits
+            .iter()
+            .flat_map(|commit| commit.committed_transactions())
+            .collect();
+        return Err(ConsensusError::FetchedTransactionsMismatch {
+            peer,
+            expected: committed_tx_refs.len(),
+            received: fetched_transactions.len(),
+        });
+    }
+    if prefix_len < commits.len() {
+        commits.truncate(prefix_len);
+        let prefix_tx_refs: BTreeSet<GenericTransactionRef> = commits
+            .iter()
+            .flat_map(|commit| commit.committed_transactions())
+            .collect();
+        fetched_transactions.retain(|tx_ref, _| prefix_tx_refs.contains(tx_ref));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -893,6 +957,401 @@ mod tests {
         authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
         commit_consumer::CommitConsumerMonitor,
     };
+
+    mod fetch_once {
+        use std::{sync::Arc, time::Duration};
+
+        use bytes::Bytes;
+        use parking_lot::RwLock;
+        use starfish_config::AuthorityIndex;
+
+        use crate::{
+            CommitConsumerMonitor, Round, Transaction,
+            block_header::{
+                BlockHeaderDigest, BlockRef, TestBlockHeader, TransactionsCommitment,
+                VerifiedBlockHeader,
+            },
+            block_verifier::NoopBlockVerifier,
+            commit::{CommitDigest, CommitRange, TrustedCommit},
+            commit_syncer::{CommitSyncType, Inner, fast::FastCommitSyncer},
+            commit_vote_monitor::CommitVoteMonitor,
+            context::Context,
+            core_thread::tests::MockCoreThreadDispatcher,
+            dag_state::DagState,
+            encoder::create_encoder,
+            error::ConsensusResult,
+            header_synchronizer::HeaderSynchronizer,
+            misbehavior_store::MisbehaviorStore,
+            network::{BlockBundleStream, NetworkClient, SerializedTransactionsV2},
+            storage::{Store, mem_store::MemStore},
+            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transactions_synchronizer::TransactionsSynchronizer,
+        };
+
+        /// Serves a canned `fetch_commits_and_transactions` response; all
+        /// other endpoints are unused by `fetch_once`.
+        struct FakeFetchClient {
+            response: (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>),
+        }
+
+        #[async_trait::async_trait]
+        impl NetworkClient for FakeFetchClient {
+            async fn subscribe_block_bundles(
+                &self,
+                _peer: AuthorityIndex,
+                _last_received: Round,
+                _timeout: Duration,
+            ) -> ConsensusResult<BlockBundleStream> {
+                unimplemented!("Unimplemented")
+            }
+
+            async fn fetch_block_headers(
+                &self,
+                _peer: AuthorityIndex,
+                _block_refs: Vec<BlockRef>,
+                _highest_accepted_rounds: Vec<Round>,
+                _timeout: Duration,
+            ) -> ConsensusResult<Vec<Bytes>> {
+                unimplemented!("Unimplemented")
+            }
+
+            async fn fetch_commits(
+                &self,
+                _peer: AuthorityIndex,
+                _commit_range: CommitRange,
+                _timeout: Duration,
+            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+                unimplemented!("Unimplemented")
+            }
+
+            async fn fetch_transactions(
+                &self,
+                _peer: AuthorityIndex,
+                _block_refs: Vec<GenericTransactionRef>,
+                _timeout: Duration,
+            ) -> ConsensusResult<Vec<Bytes>> {
+                unimplemented!("Unimplemented")
+            }
+
+            async fn fetch_commits_and_transactions(
+                &self,
+                _peer: AuthorityIndex,
+                _commit_range: CommitRange,
+                _timeout: Duration,
+            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+                Ok(self.response.clone())
+            }
+
+            async fn fetch_latest_block_headers(
+                &self,
+                _peer: AuthorityIndex,
+                _authorities: Vec<AuthorityIndex>,
+                _timeout: Duration,
+            ) -> ConsensusResult<Vec<Bytes>> {
+                unimplemented!("Unimplemented")
+            }
+        }
+
+        fn make_inner(
+            context: Arc<Context>,
+            network_client: Arc<FakeFetchClient>,
+        ) -> Arc<Inner<FakeFetchClient>> {
+            let block_verifier = Arc::new(NoopBlockVerifier {});
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let store: Arc<dyn Store> = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+            let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+            let transactions_synchronizer = TransactionsSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                dag_state.clone(),
+            );
+            let header_synchronizer = HeaderSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                transactions_synchronizer,
+                block_verifier.clone(),
+                dag_state.clone(),
+                false,
+                None,
+                misbehavior_store.clone(),
+            );
+            Arc::new(Inner {
+                context,
+                core_thread_dispatcher,
+                commit_vote_monitor,
+                commit_consumer_monitor: Arc::new(CommitConsumerMonitor::new(0)),
+                network_client,
+                block_verifier,
+                dag_state,
+                header_synchronizer,
+                misbehavior_store,
+                sync_type: CommitSyncType::Fast,
+                fast_sync_active: None,
+            })
+        }
+
+        /// A response whose transaction payload covers only some of the
+        /// returned commits (e.g. the stream was cut off by the response byte
+        /// limit) must still produce output for the covered prefix of commits
+        /// instead of failing the whole fetch.
+        #[tokio::test]
+        async fn returns_covered_prefix_of_truncated_response() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            let context = Arc::new(context);
+            let mut encoder = create_encoder(&context);
+
+            // Two chained commits, each committing one transaction.
+            let mut transaction_refs = Vec::new();
+            let mut serialized_transactions = Vec::new();
+            for round in 1..=2u32 {
+                let serialized =
+                    Transaction::serialize(&[Transaction::new(vec![round as u8; 16])]).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
+                transaction_refs.push(TransactionRef {
+                    round,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: commitment,
+                });
+                serialized_transactions.push(serialized);
+            }
+            let leader_1 =
+                BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+            let commit_1 = TrustedCommit::new_for_test(
+                &context,
+                1,
+                CommitDigest::MIN,
+                0,
+                leader_1,
+                vec![leader_1],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+            );
+            let leader_2 =
+                BlockRef::new(2, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN);
+            let commit_2 = TrustedCommit::new_for_test(
+                &context,
+                2,
+                commit_1.digest(),
+                0,
+                leader_2,
+                vec![leader_2],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+            );
+
+            // Vote headers from a quorum, certifying the last commit.
+            let vote_headers: Vec<Bytes> = (0..3)
+                .map(|author| {
+                    let header = TestBlockHeader::new(3, author)
+                        .set_commit_votes(vec![commit_2.reference()])
+                        .build();
+                    VerifiedBlockHeader::new_for_test(header)
+                        .serialized()
+                        .clone()
+                })
+                .collect();
+
+            // The response carries both commits but only the first commit's
+            // transaction, as if the transaction stream was cut off.
+            let response_transactions = vec![
+                bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref: transaction_refs[0],
+                    serialized_transactions: serialized_transactions[0].clone(),
+                })
+                .unwrap()
+                .into(),
+            ];
+            let network_client = Arc::new(FakeFetchClient {
+                response: (
+                    vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
+                    vote_headers,
+                    response_transactions,
+                ),
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            // Only the covered first commit is returned; the scheduler
+            // requeues the remainder of the range.
+            assert_eq!(output.commits.len(), 1);
+            assert_eq!(output.commits[0].reference(), commit_1.reference());
+            assert_eq!(output.committed_subdags.len(), 1);
+            assert_eq!(output.committed_subdags[0].commit_ref, commit_1.reference());
+            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
+            assert_eq!(output.voting_block_headers.len(), 3);
+            assert_eq!(
+                context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_truncated_fetches
+                    .with_label_values(&[CommitSyncType::Fast.as_str()])
+                    .get(),
+                1
+            );
+        }
+    }
+
+    mod truncate_to_fully_fetched_prefix {
+        use std::{collections::BTreeMap, sync::Arc};
+
+        use bytes::Bytes;
+        use starfish_config::AuthorityIndex;
+
+        use crate::{
+            BlockRef, Round,
+            block_header::{BlockHeaderDigest, TransactionsCommitment},
+            commit::{CommitDigest, TrustedCommit},
+            commit_syncer::fast::truncate_to_fully_fetched_prefix,
+            context::Context,
+            error::ConsensusError,
+            transaction_ref::{GenericTransactionRef, TransactionRef},
+        };
+
+        fn transaction_ref(round: Round) -> GenericTransactionRef {
+            GenericTransactionRef::TransactionRef(TransactionRef {
+                round,
+                author: AuthorityIndex::new_for_test(0),
+                transactions_commitment: TransactionsCommitment::MIN,
+            })
+        }
+
+        fn commit(
+            context: &Arc<Context>,
+            index: u32,
+            transactions: &[GenericTransactionRef],
+        ) -> TrustedCommit {
+            let leader = BlockRef::new(
+                index,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::MIN,
+            );
+            TrustedCommit::new_for_test(
+                context,
+                index,
+                CommitDigest::MIN,
+                0,
+                leader,
+                vec![leader],
+                transactions.to_vec(),
+            )
+        }
+
+        fn fetched(refs: &[GenericTransactionRef]) -> BTreeMap<GenericTransactionRef, Bytes> {
+            refs.iter().map(|r| (*r, Bytes::new())).collect()
+        }
+
+        #[test]
+        fn keeps_all_commits_when_all_transactions_fetched() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b, tx_c) = (transaction_ref(1), transaction_ref(2), transaction_ref(3));
+            let mut commits = vec![
+                commit(&context, 1, &[tx_a]),
+                commit(&context, 2, &[tx_b, tx_c]),
+            ];
+            let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits.len(), 2);
+            assert_eq!(transactions.len(), 3);
+        }
+
+        #[test]
+        fn truncates_to_prefix_and_drops_unreferenced_transactions() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b, tx_c, tx_d) = (
+                transaction_ref(1),
+                transaction_ref(2),
+                transaction_ref(3),
+                transaction_ref(4),
+            );
+            let first = commit(&context, 1, &[tx_a]);
+            let mut commits = vec![
+                first.clone(),
+                // tx_b was not fetched, so the prefix ends before this commit.
+                commit(&context, 2, &[tx_b, tx_c]),
+                commit(&context, 3, &[tx_d]),
+            ];
+            let mut transactions = fetched(&[tx_a, tx_c, tx_d]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits, vec![first]);
+            assert_eq!(transactions.into_keys().collect::<Vec<_>>(), vec![tx_a]);
+        }
+
+        #[test]
+        fn errors_when_first_commit_transactions_missing() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b) = (transaction_ref(1), transaction_ref(2));
+            let peer = AuthorityIndex::new_for_test(1);
+            let mut commits = vec![commit(&context, 1, &[tx_a]), commit(&context, 2, &[tx_b])];
+            let mut transactions = fetched(&[tx_b]);
+
+            let result = truncate_to_fully_fetched_prefix(peer, &mut commits, &mut transactions);
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::FetchedTransactionsMismatch {
+                    peer: error_peer,
+                    expected: 2,
+                    received: 1,
+                }) if error_peer == peer
+            ));
+        }
+
+        #[test]
+        fn commit_without_transactions_counts_toward_prefix() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let tx_a = transaction_ref(1);
+            let empty = commit(&context, 1, &[]);
+            let mut commits = vec![empty.clone(), commit(&context, 2, &[tx_a])];
+            let mut transactions = fetched(&[]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits, vec![empty]);
+            assert!(transactions.is_empty());
+        }
+    }
 
     /// Drains all ready committed subdags from the running validators (those
     /// whose index is not in `stopped`), asserting commit indices advance
