@@ -1700,19 +1700,20 @@ impl PgIndexerStore {
         )
     }
 
-    fn update_watermark_lowest_unpruned_key(
+    fn update_watermark_lowest_unpruned_keys(
         &self,
-        table: &PrunableTable,
-        lowest_unpruned_key: u64,
+        unpruned_keys: &[(PrunableTable, u64)],
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
-                    .set(watermarks::lowest_unpruned_key.eq(lowest_unpruned_key as i64))
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context("failed to update watermark lowest_unpruned_key")?;
+                for (table, lowest_unpruned_key) in unpruned_keys {
+                    diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
+                        .set(watermarks::lowest_unpruned_key.eq(*lowest_unpruned_key as i64))
+                        .execute(conn)
+                        .map_err(IndexerError::from)
+                        .context("failed to update watermark lowest_unpruned_key")?;
+                }
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -2430,9 +2431,19 @@ impl IndexerStore for PgIndexerStore {
         table: &PrunableTable,
         lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError> {
-        let table = *table;
+        <Self as IndexerStore>::update_watermarks_lowest_unpruned_key(
+            &self,
+            vec![(*table, lowest_unpruned_key)],
+        )
+        .await
+    }
+
+    async fn update_watermarks_lowest_unpruned_key(
+        &self,
+        unpruned_keys: Vec<(PrunableTable, u64)>,
+    ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| {
-            this.update_watermark_lowest_unpruned_key(&table, lowest_unpruned_key)
+            this.update_watermark_lowest_unpruned_keys(&unpruned_keys)
         })
         .await
     }

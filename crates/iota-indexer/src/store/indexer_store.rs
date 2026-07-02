@@ -182,6 +182,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError>;
 
+    async fn update_watermarks_lowest_unpruned_key(
+        &self,
+        unpruned_keys: Vec<(PrunableTable, u64)>,
+    ) -> Result<(), IndexerError>;
+
     async fn get_watermark_by_entity(
         &self,
         entity: String,
