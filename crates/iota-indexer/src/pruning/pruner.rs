@@ -89,6 +89,16 @@ pub enum PrunableTable {
     ObjectsBackwardHistory,
 }
 
+impl From<&StoredWatermark> for PrunableTable {
+    fn from(watermark: &StoredWatermark) -> Self {
+        watermark
+            .entity
+            .as_str()
+            .parse()
+            .expect("stored watermarks should correspond to prunable tables")
+    }
+}
+
 /// Represents how a table is pruned
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PruningStrategy {

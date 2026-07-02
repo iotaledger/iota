@@ -196,14 +196,10 @@ pub(crate) async fn populate_remaining_tables(
     // to let the pruner know the pruning range start after restoring
     let (stored_watermarks, _) = store.get_watermarks().await?;
     let lowest_unpruned_keys = stored_watermarks
-        .into_iter()
+        .iter()
         .map(|watermark| {
-            let table: PrunableTable = watermark
-                .entity
-                .as_str()
-                .parse()
-                .expect("this should be a valid table name");
-            (table, table.pruning_strategy().range_end(&watermark))
+            let table = PrunableTable::from(watermark);
+            (table, table.pruning_strategy().range_end(watermark))
         })
         .collect::<Vec<_>>();
     store
