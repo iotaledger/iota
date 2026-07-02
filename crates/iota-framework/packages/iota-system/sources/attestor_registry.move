@@ -117,14 +117,15 @@ public struct AttestorKeyRotatedEvent has copy, drop {
     new_pubkey: vector<u8>,
 }
 
-/// Aborts unless the validator-attestation protocol feature is enabled on
-/// this chain. Gates all user-facing registry entry points; epoch
-/// processing is deliberately ungated.
+/// Whether the validator-attestation protocol feature is enabled on this chain.
+public(package) fun is_feature_enabled(): bool {
+    protocol_config::is_feature_enabled(b"enable_validator_attestation")
+}
+
+/// Aborts unless the feature is enabled. Gates all user-facing registry entry
+/// points.
 public(package) fun assert_feature_enabled() {
-    assert!(
-        protocol_config::is_feature_enabled(b"enable_validator_attestation"),
-        EFeatureNotEnabled,
-    );
+    assert!(is_feature_enabled(), EFeatureNotEnabled);
 }
 
 // === Construction ===

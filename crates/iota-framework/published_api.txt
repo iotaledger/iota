@@ -37,6 +37,9 @@ AttestorKeyRotationStagedEvent
 AttestorKeyRotatedEvent
 	public struct
 	0x3::attestor_registry
+is_feature_enabled
+	public(package) fun
+	0x3::attestor_registry
 assert_feature_enabled
 	public(package) fun
 	0x3::attestor_registry
