@@ -1,27 +1,88 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeSet;
+
 use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
+    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
+use rand::rngs::OsRng;
+use test_cluster::TestCluster;
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
     indexer_wait_for_object, indexer_wait_for_transaction,
     start_test_cluster_with_read_write_indexer,
 };
+
+/// Execute the sequence of transactions to onboard a validator: register the
+/// candidate, stake the required amount, and request to join the active set.
+/// This does not trigger reconfiguration and asserts nothing about the
+/// node-internal system state.
+async fn execute_add_validator_transactions(
+    cluster: &TestCluster,
+    new_validator: &ValidatorGenesisConfig,
+) {
+    let address: Address = (&new_validator.account_key_pair.public()).into();
+    let gas = cluster
+        .wallet
+        .get_one_gas_object_owned_by_address(address)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let rgp = cluster.get_reference_gas_price().await;
+    let tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_request_add_validator_candidate(
+            &new_validator.to_validator_info_with_random_name().into(),
+        )
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(tx).await;
+
+    let stake_coin = cluster
+        .wallet
+        .gas_for_owner_budget(
+            address,
+            MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            Default::default(),
+        )
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+    let gas = cluster
+        .wallet
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
+        .await
+        .unwrap()
+        .1
+        .object_ref();
+
+    let stake_tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_staking(stake_coin, address)
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(stake_tx).await;
+
+    let gas = cluster.wallet.get_object_ref(gas.object_id).await.unwrap();
+    let tx = TestTransactionBuilder::new(address, gas, rgp)
+        .call_request_add_validator()
+        .build_and_sign(&new_validator.account_key_pair);
+    cluster.execute_transaction(tx).await;
+}
 
 #[test]
 fn test_staking() {
@@ -596,5 +657,98 @@ fn get_validators_apy() {
 
         assert_eq!(apys.len(), 4);
         assert!(apys.iter().any(|apy| apy.apy >= 0.0));
+    });
+}
+
+#[test]
+fn get_stakes_with_new_validator() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // Create the keypair for the new validator candidate.
+        let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+        let address: Address = (&new_validator.account_key_pair.public()).into();
+
+        let (mut cluster, store, client) = start_test_cluster_with_read_write_indexer(
+            Some("test_get_stakes_with_new_validator"),
+            Some(Box::new(move |b| {
+                b.with_validator_candidates([address])
+                    .with_num_validators(4)
+            })),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&store, 1).await;
+
+        assert!(client.get_stakes(address).await.unwrap().is_empty());
+
+        // Add candidate, stake the required tokens, and request to join the set.
+        execute_add_validator_transactions(&cluster, &new_validator).await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        // The validator was just added; it is not active yet, so the initial stake
+        // request is pending.
+        let stakes = client.get_stakes(address).await.unwrap();
+        let stake = stakes[0]
+            .stakes
+            .iter()
+            .find(|s| s.stake_request_epoch == 0)
+            .unwrap();
+        assert!(matches!(stake.status, StakeStatus::Pending));
+
+        cluster.force_new_epoch().await;
+        // Keep the handle alive until the end of the test so the validator stays up.
+        let _new_validator_handle = cluster.spawn_new_validator(new_validator).await;
+        cluster.wait_for_epoch_all_nodes(1).await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        // After one epoch the validator is active but not yet part of the committee;
+        // the stake is active with no reward.
+        let stakes = client.get_stakes(address).await.unwrap();
+        let stake = stakes[0]
+            .stakes
+            .iter()
+            .find(|s| s.stake_request_epoch == 0)
+            .unwrap();
+        assert!(matches!(
+            stake.status,
+            StakeStatus::Active {
+                estimated_reward: 0
+            }
+        ));
+
+        cluster.force_new_epoch().await;
+        cluster.wait_for_epoch_all_nodes(2).await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        // The validator has now joined the committee but has not earned rewards yet.
+        let stakes = client.get_stakes(address).await.unwrap();
+        let stake = stakes[0]
+            .stakes
+            .iter()
+            .find(|s| s.stake_request_epoch == 0)
+            .unwrap();
+        assert!(matches!(
+            stake.status,
+            StakeStatus::Active {
+                estimated_reward: 0
+            }
+        ));
+
+        cluster.force_new_epoch().await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        // After one epoch in the committee the stake earns a non-zero reward.
+        let stakes = client.get_stakes(address).await.unwrap();
+        let stake = stakes[0]
+            .stakes
+            .iter()
+            .find(|s| s.stake_request_epoch == 0)
+            .unwrap();
+        assert!(matches!(
+            stake.status,
+            StakeStatus::Active { estimated_reward } if estimated_reward > 0
+        ));
     });
 }

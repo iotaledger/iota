@@ -1,18 +1,20 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use iota_indexer::store::PgIndexerStore;
-use iota_json::{call_args, type_args};
+use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
-    TransactionBuilderClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage, PtbInput,
+    IotaArgument, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponseOptions, MoveCallParams, ObjectsPage, PtbInput,
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
+use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag};
 use iota_swarm_config::genesis_config::AccountConfig;
@@ -23,10 +25,12 @@ use iota_types::{
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
     },
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
@@ -34,7 +38,7 @@ use test_cluster::TestCluster;
 use crate::common::{
     ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
     indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
-    start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_transaction, start_test_cluster_with_read_write_indexer,
 };
 const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
 
@@ -437,6 +441,222 @@ fn batch_transaction() {
             assert_eq!(sender_balances.len(), 3);
             assert_eq!(sender_balances[0..2], [amount_to_split, amount_to_leave]);
             assert_eq!(receiver_balances, [FUNDED_BALANCE_PER_COIN]);
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn batch_transaction_with_result() {
+    let ApiTestSetup {
+        runtime,
+        store: _,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime
+        .block_on(async move {
+            let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+
+            let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
+            let coin_to_split = sender_coins[0];
+            let gas = sender_coins[1];
+            let amount_to_split = 10;
+
+            // The second command consumes the result of the first (the split-off coin)
+            // via a PTB result reference.
+            let tx_bytes: TransactionBlockBytes = client
+                .batch_transaction(
+                    sender,
+                    vec![
+                        RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                            package_object_id: ObjectId::FRAMEWORK,
+                            module: "coin".to_string(),
+                            function: "split".to_string(),
+                            type_arguments: type_args![StructTag::new_gas()]?,
+                            arguments: call_args!(coin_to_split, amount_to_split)?
+                                .into_iter()
+                                .map(PtbInput::CallArg)
+                                .collect(),
+                        }),
+                        RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                            package_object_id: ObjectId::FRAMEWORK,
+                            module: "transfer".to_string(),
+                            function: "public_transfer".to_string(),
+                            type_arguments: type_args![StructTag::new_gas_coin()]?,
+                            arguments: vec![
+                                PtbInput::PtbRef(IotaArgument::Result(0)),
+                                PtbInput::CallArg(call_arg!(receiver)?),
+                            ],
+                        }),
+                    ],
+                    Some(gas),
+                    10_000_000.into(),
+                    None,
+                )
+                .await?;
+            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+
+            // The split-off coin was transferred to the receiver.
+            let receiver_balances = get_address_balances(client, receiver).await;
+            assert_eq!(receiver_balances, [amount_to_split]);
+
+            // The sender keeps the remainder of the split coin.
+            let split_coin_balances: Vec<_> = client
+                .get_coins(sender, None, None, None)
+                .await?
+                .data
+                .into_iter()
+                .filter(|coin| coin.coin_object_id == coin_to_split)
+                .map(|coin| coin.balance)
+                .collect();
+            assert_eq!(
+                split_coin_balances,
+                [FUNDED_BALANCE_PER_COIN - amount_to_split]
+            );
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn publish() {
+    let ApiTestSetup {
+        runtime,
+        store: _,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime
+        .block_on(async move {
+            let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+            let coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
+            let gas = coins[0];
+
+            let compiled_package =
+                BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
+            let compiled_modules_bytes =
+                compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+            let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+            let tx_bytes: TransactionBlockBytes = client
+                .publish(
+                    sender,
+                    compiled_modules_bytes,
+                    dependencies,
+                    Some(gas),
+                    100_000_000.into(),
+                )
+                .await?;
+
+            let txn = to_sender_signed_transaction(tx_bytes.to_data()?, &keypair);
+            let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+            let tx_response = client
+                .execute_transaction_block(
+                    tx_bytes,
+                    signatures,
+                    Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
+                )
+                .await?;
+
+            assert_eq!(tx_response.status_ok(), Some(true));
+            assert!(
+                !tx_response.effects.unwrap().created().is_empty(),
+                "publishing a package should create objects"
+            );
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn staking_multiple_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime
+        .block_on(async move {
+            let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+                Some("transaction_builder_staking_multiple_coins"),
+                None,
+                None,
+            )
+            .await;
+
+            let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+            let coins = create_coins_and_wait_for_indexer(cluster, client, sender, 5).await;
+            let validator = get_validator(client).await;
+            let stake_amount: u64 = 1_000_000_000;
+
+            // Stake three coins; they should be merged and the remainder returned.
+            let transaction_bytes: TransactionBlockBytes = client
+                .request_add_stake(
+                    sender,
+                    vec![coins[0], coins[1], coins[2]],
+                    Some(stake_amount.into()),
+                    validator,
+                    Some(coins[3]),
+                    100_000_000.into(),
+                )
+                .await?;
+
+            let txn = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+            let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+            let dryrun_response = client.dry_run_transaction_block(tx_bytes.clone()).await?;
+
+            let executed_response = client
+                .execute_transaction_block(
+                    tx_bytes,
+                    signatures,
+                    Some(
+                        IotaTransactionBlockResponseOptions::new()
+                            .with_balance_changes()
+                            .with_input(),
+                    ),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
+                )
+                .await?;
+
+            // Dry run must predict the same balance changes and inputs as execution.
+            assert_eq!(
+                dryrun_response.balance_changes,
+                executed_response.balance_changes.clone().unwrap()
+            );
+            assert_eq!(
+                dryrun_response.input,
+                executed_response.transaction.clone().unwrap().data
+            );
+
+            indexer_wait_for_transaction(executed_response.digest, store, client).await;
+
+            // A single pending stake with the requested principal.
+            let staked_iota = client.get_stakes(sender).await?;
+            assert_eq!(1, staked_iota.len());
+            assert_eq!(stake_amount, staked_iota[0].stakes[0].principal);
+            assert!(matches!(
+                staked_iota[0].stakes[0].status,
+                StakeStatus::Pending
+            ));
+
+            // The three staked coins were merged: the sender is left with the merged
+            // remainder, the gas coin, and the untouched fifth coin.
+            let coins_after = client.get_coins(sender, None, None, None).await?.data;
+            assert_eq!(3, coins_after.len());
+            let remainder = coins_after
+                .iter()
+                .find(|coin| coin.balance > FUNDED_BALANCE_PER_COIN)
+                .unwrap();
+            assert_eq!(
+                remainder.balance,
+                FUNDED_BALANCE_PER_COIN * 3 - stake_amount
+            );
 
             Ok::<(), anyhow::Error>(())
         })

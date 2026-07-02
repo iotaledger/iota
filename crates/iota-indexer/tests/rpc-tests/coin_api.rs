@@ -15,6 +15,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk::PagedFn;
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
@@ -264,6 +265,88 @@ fn get_all_coins_with_limit() {
 
         assert_eq!(limited_result.data.len(), tested_limit);
         assert_eq!(expected_data, limited_result.data);
+    });
+}
+
+#[test]
+fn get_all_coins_with_cursor_and_limit() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+
+        let all_coins = client.get_all_coins(*owner, None, None).await.unwrap();
+        assert!(!all_coins.data.is_empty());
+        assert!(!all_coins.has_next_page);
+
+        // Paginating through all coins two at a time must yield exactly the same set.
+        let collected_coins = PagedFn::collect::<Vec<_>>(async |cursor| {
+            client.get_all_coins(*owner, cursor, Some(2)).await
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(all_coins.data.len(), collected_coins.len());
+        assert_eq!(all_coins.data, collected_coins);
+    });
+}
+
+#[test]
+fn get_all_coins_with_cursor_boundaries() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+
+        let full_result = client.get_all_coins(*owner, None, None).await.unwrap();
+        assert!(!full_result.data.is_empty());
+
+        // The cursor is exclusive: starting at the last coin returns nothing.
+        let last_coin = full_result.data.last().unwrap();
+        let result = client
+            .get_all_coins(*owner, Some(last_coin.coin_object_id), None)
+            .await
+            .unwrap();
+        assert!(
+            result.data.is_empty(),
+            "should return no coins when cursor is at the last coin"
+        );
+
+        // Starting at the first coin returns everything except the first one.
+        let first_coin = full_result.data.first().unwrap();
+        let result = client
+            .get_all_coins(*owner, Some(first_coin.coin_object_id), None)
+            .await
+            .unwrap();
+        assert_eq!(full_result.data.len() - 1, result.data.len());
+    });
+}
+
+#[test]
+fn get_all_coins_limit_zero() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+
+        // A limit of 0 falls back to the default `QUERY_MAX_RESULT_LIMIT` (50) rather
+        // than returning an empty page.
+        let all_coins = client.get_all_coins(*owner, None, Some(0)).await.unwrap();
+
+        assert!(!all_coins.data.is_empty());
+        assert!(all_coins.data.len() <= 50);
     });
 }
 

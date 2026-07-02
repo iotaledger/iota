@@ -20,6 +20,9 @@ mod move_utils;
 mod read_api;
 
 #[cfg(feature = "shared_test_runtime")]
+mod transaction_api;
+
+#[cfg(feature = "shared_test_runtime")]
 mod transaction_builder;
 
 #[cfg(feature = "shared_test_runtime")]

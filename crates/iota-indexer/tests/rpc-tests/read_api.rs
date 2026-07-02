@@ -15,7 +15,7 @@ use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClien
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
     TransactionFilterV2,
 };
@@ -46,6 +46,7 @@ use crate::{
         indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
         indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
         start_test_cluster_with_read_write_indexer,
+        start_test_cluster_with_read_write_indexer_and_url,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -1917,6 +1918,415 @@ fn try_get_object_before_version() {
             }
             _ => panic!("expected VersionFound response, got: {result:?}"),
         }
+    });
+}
+
+/// Assert a past-object response contains exactly the fields requested by
+/// `options`.
+fn assert_past_object_matches_options(
+    response: &IotaPastObjectResponse,
+    options: &IotaObjectDataOptions,
+) {
+    let obj = response
+        .object()
+        .expect("expected a VersionFound past-object response");
+    let derived_options = IotaObjectDataOptions {
+        show_type: obj.type_.is_some(),
+        show_owner: obj.owner.is_some(),
+        show_previous_transaction: obj.previous_transaction.is_some(),
+        show_display: obj.display.is_some(),
+        show_content: obj.content.is_some(),
+        show_bcs: obj.bcs.is_some(),
+        show_storage_rebate: obj.storage_rebate.is_some(),
+    };
+    assert_eq!(&derived_options, options);
+}
+
+/// Fetch a past object at a fixed version from both the fullnode and the
+/// indexer with the given options and assert the responses are identical and
+/// contain exactly the requested fields. This verifies the indexer honors
+/// every `IotaObjectDataOptions` variant for historical objects, matching the
+/// fullnode.
+fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let (gas_ref, tx_digest) = cluster
+            .fund_address_and_return_gas_and_tx(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        wait_for_objects_history(tx_digest, store, client).await;
+
+        let fullnode_past_obj = cluster
+            .rpc_client()
+            .try_get_past_object(
+                gas_ref.object_id,
+                gas_ref.version.into(),
+                Some(options.clone()),
+            )
+            .await
+            .unwrap();
+
+        let indexer_past_obj = client
+            .try_get_past_object(
+                gas_ref.object_id,
+                gas_ref.version.into(),
+                Some(options.clone()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(fullnode_past_obj, indexer_past_obj);
+        assert_past_object_matches_options(&indexer_past_obj, &options);
+    });
+}
+
+/// Same as [`try_get_past_object_with_options`], but for the batched
+/// `try_multi_get_past_objects` endpoint.
+fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let (gas_ref_1, tx_digest_1) = cluster
+            .fund_address_and_return_gas_and_tx(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        let (gas_ref_2, tx_digest_2) = cluster
+            .fund_address_and_return_gas_and_tx(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        wait_for_objects_history(tx_digest_1, store, client).await;
+        wait_for_objects_history(tx_digest_2, store, client).await;
+
+        let requests = vec![
+            IotaGetPastObjectRequest {
+                object_id: gas_ref_1.object_id,
+                version: gas_ref_1.version,
+            },
+            IotaGetPastObjectRequest {
+                object_id: gas_ref_2.object_id,
+                version: gas_ref_2.version,
+            },
+        ];
+
+        let fullnode_past_objs = cluster
+            .rpc_client()
+            .try_multi_get_past_objects(requests.clone(), Some(options.clone()))
+            .await
+            .unwrap();
+
+        let indexer_past_objs = client
+            .try_multi_get_past_objects(requests, Some(options.clone()))
+            .await
+            .unwrap();
+
+        assert_eq!(fullnode_past_objs, indexer_past_objs);
+        for past_obj in &indexer_past_objs {
+            assert_past_object_matches_options(past_obj, &options);
+        }
+    });
+}
+
+#[test]
+fn try_get_past_object_with_bcs_lossless() {
+    try_get_past_object_with_options(IotaObjectDataOptions::bcs_lossless());
+}
+
+#[test]
+fn try_get_past_object_with_full_content() {
+    try_get_past_object_with_options(IotaObjectDataOptions::full_content());
+}
+
+#[test]
+fn try_get_past_object_with_bcs() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_bcs());
+}
+
+#[test]
+fn try_get_past_object_with_content() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_content());
+}
+
+#[test]
+fn try_get_past_object_with_display() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_display());
+}
+
+#[test]
+fn try_get_past_object_with_owner() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_owner());
+}
+
+#[test]
+fn try_get_past_object_with_previous_transaction() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_previous_transaction());
+}
+
+#[test]
+fn try_get_past_object_with_type() {
+    try_get_past_object_with_options(IotaObjectDataOptions::default().with_type());
+}
+
+#[test]
+fn try_get_past_object_with_storage_rebate() {
+    try_get_past_object_with_options(IotaObjectDataOptions {
+        show_storage_rebate: true,
+        ..Default::default()
+    });
+}
+
+#[test]
+fn try_multi_get_past_objects_with_bcs_lossless() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::bcs_lossless());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_full_content() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::full_content());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_bcs() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_bcs());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_content() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_content());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_display() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_display());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_owner() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_owner());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_previous_transaction() {
+    try_multi_get_past_objects_with_options(
+        IotaObjectDataOptions::default().with_previous_transaction(),
+    );
+}
+
+#[test]
+fn try_multi_get_past_objects_with_type() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions::default().with_type());
+}
+
+#[test]
+fn try_multi_get_past_objects_with_storage_rebate() {
+    try_multi_get_past_objects_with_options(IotaObjectDataOptions {
+        show_storage_rebate: true,
+        ..Default::default()
+    });
+}
+
+#[test]
+fn try_get_object_before_version_not_exists() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let object_id = ObjectId::random();
+        let result = client
+            .try_get_object_before_version(object_id, SequenceNumber::from_u64(1))
+            .await
+            .expect("rpc call should succeed");
+
+        assert_eq!(result, IotaPastObjectResponse::ObjectNotExists(object_id));
+    });
+}
+
+/// Requesting a system package with the display option must not error; the
+/// package simply has no display data.
+#[test]
+fn get_package_with_display_should_not_fail() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let response = client
+            .get_object(
+                ObjectId::FRAMEWORK,
+                Some(IotaObjectDataOptions::new().with_display()),
+            )
+            .await;
+        assert!(response.is_ok());
+        assert!(
+            response
+                .unwrap()
+                .into_object()
+                .unwrap()
+                .display
+                .unwrap()
+                .data
+                .is_none()
+        );
+    });
+}
+
+#[test]
+fn get_transaction_block_timestamp() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        // A user transaction must come back with a checkpoint timestamp.
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let (_, tx_digest) = cluster
+            .fund_address_and_return_gas_and_tx(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        let tx = client
+            .get_transaction_block(
+                tx_digest,
+                Some(IotaTransactionBlockResponseOptions::default()),
+            )
+            .await
+            .unwrap();
+
+        assert!(tx.timestamp_ms.is_some());
+    });
+}
+
+/// System transactions have empty balance changes; serializing such a response
+/// must not panic.
+#[test]
+fn display_transaction_block_with_empty_balance_changes() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let checkpoint_seq_num: u64 = 1;
+        indexer_wait_for_checkpoint(store, checkpoint_seq_num).await;
+
+        let rpc_checkpoint = client
+            .get_checkpoint(checkpoint_seq_num.into())
+            .await
+            .unwrap();
+
+        // Empty balance changes occur for system transactions. On the shared
+        // cluster other tests may add user transactions to this checkpoint, so
+        // search for a system transaction (gas price 1, budget 0) instead of
+        // assuming a position.
+        let mut system_tx = None;
+        for digest in &rpc_checkpoint.transactions {
+            let tx = client
+                .get_transaction_block(
+                    *digest,
+                    Some(IotaTransactionBlockResponseOptions::full_content()),
+                )
+                .await
+                .unwrap();
+            let gas_data = tx.transaction.as_ref().unwrap().data.gas_data();
+            if gas_data.price == 1 && gas_data.budget == 0 {
+                system_tx = Some(tx);
+                break;
+            }
+        }
+        let rpc_transaction = system_tx.expect("checkpoint should contain a system transaction");
+
+        assert!(rpc_transaction.balance_changes.is_some());
+        assert!(rpc_transaction.balance_changes.as_ref().unwrap().is_empty());
+
+        let _ = rpc_transaction.to_string();
+    });
+}
+
+/// A well-formed `iota_tryGetPastObject` request (version as a bare integer,
+/// `null` options) must not be rejected as invalid params by the indexer's
+/// JSON-RPC server.
+#[test]
+fn try_get_past_object_valid_params() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (_cluster, _store, _client, rpc_url) =
+            start_test_cluster_with_read_write_indexer_and_url(
+                Some("test_try_get_past_object_valid_params"),
+                None,
+                None,
+            )
+            .await;
+
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "iota_tryGetPastObject",
+            "params": [ObjectId::ZERO.to_string(), 7, null],
+        });
+
+        let response: Value = reqwest::Client::new()
+            .post(&rpc_url)
+            .json(&request)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        assert_ne!(
+            response["error"]["code"].as_i64(),
+            Some(jsonrpsee::types::error::INVALID_PARAMS_CODE as i64),
+            "{response}",
+        );
     });
 }
 
