@@ -134,7 +134,7 @@ async fn populate_chain_id(store: &PgIndexerStore, chain_id: ChainIdentifier) ->
         .await
 }
 
-async fn populate_procotol_and_feature_flags(
+async fn populate_protocol_and_feature_flags(
     store: &PgIndexerStore,
     chain_id: ChainIdentifier,
 ) -> IndexerResult<()> {
@@ -189,7 +189,7 @@ pub(crate) async fn populate_remaining_tables(
         store.persist_checkpoints(vec![sync_watermark]),
     )?;
     tokio::try_join!(
-        populate_procotol_and_feature_flags(store, snapshot_chain_id),
+        populate_protocol_and_feature_flags(store, snapshot_chain_id),
         store.update_watermarks_lower_bound(pruning_watermarks.clone())
     )?;
     // finally align the lowest unpruned key with the lower bounds
