@@ -342,3 +342,15 @@ fun test_topup_prevents_eviction() {
     assert!(registry.active_count() == 1);
     registry.destroy_for_testing();
 }
+
+// === Inactivity ===
+
+#[test]
+fun test_last_active_epoch_initialized_to_activation_epoch() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.advance_epoch(6, &mut ctx).destroy_zero();
+    assert!(registry.active_attestors()[0].last_active_epoch() == 6);
+    registry.destroy_for_testing();
+}
