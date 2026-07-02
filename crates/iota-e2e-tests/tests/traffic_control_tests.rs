@@ -370,12 +370,12 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     panic!("Expected spam policy to trigger within {n} requests");
 }
 
-// NB: there is no fullnode error-policy test over gRPC. The fullnode gRPC
-// `TrafficControlLayer` tallies request status from the response *headers*, but
-// tonic delivers unary handler errors (e.g. an invalid signature) in the
-// *trailers*, so those errors never reach the error-policy budget. The
-// error-policy behavior is covered against the validator gRPC path by
-// `test_validator_traffic_control_error_blocked` /
+// NB: there is no fullnode error-policy test here. That behavior is covered
+// by integration tests in `crates/iota-grpc-server/tests/traffic_control.rs`,
+// including errors that batch APIs embed in an otherwise successful response
+// (e.g. an invalid transaction signature), which the transport-level
+// `TrafficControlLayer` cannot see on its own. The validator gRPC path is
+// covered by `test_validator_traffic_control_error_blocked` /
 // `test_validator_traffic_control_error_delegated`.
 
 #[tokio::test]
