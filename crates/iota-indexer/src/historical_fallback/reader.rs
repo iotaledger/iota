@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{
-    Address, ObjectId, TransactionDigest, TransactionEffects, Version,
+    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, Version,
     checkpoint::CheckpointContents,
 };
 use iota_types::{
@@ -267,6 +267,61 @@ impl HistoricalFallbackReader {
             .collect();
 
         Ok(checkpoints)
+    }
+
+    /// Fetches multiple checkpoints by their digests from the historical
+    /// fallback storage. The returned vector has the same length as `digests`
+    /// and preserves its order; missing entries become `None`.
+    ///
+    /// # NOTE
+    /// As with [`checkpoints`](Self::checkpoints),
+    /// `StoredCheckpoint.successful_tx_num` is hardcoded to 0 in
+    /// fallback-returned data.
+    pub(crate) async fn checkpoints_by_digests(
+        &self,
+        digests: Vec<CheckpointDigest>,
+    ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let summaries = self
+            .client
+            .multi_get_checkpoints_summaries_by_digests(&digests)
+            .await?;
+
+        let mut seqs_for_contents: Vec<CheckpointSequenceNumber> = summaries
+            .iter()
+            .filter_map(|s| s.as_ref().map(|s| s.sequence_number))
+            .collect();
+        seqs_for_contents.sort_unstable();
+        seqs_for_contents.dedup();
+
+        if seqs_for_contents.is_empty() {
+            return Ok(vec![None; digests.len()]);
+        }
+
+        let contents = self
+            .client
+            .multi_get_checkpoints_contents(&seqs_for_contents)
+            .await?;
+        let content_by_seq: HashMap<CheckpointSequenceNumber, CheckpointContents> =
+            seqs_for_contents
+                .iter()
+                .zip(contents)
+                .filter_map(|(seq, content)| content.map(|c| (*seq, c)))
+                .collect();
+
+        let result = summaries
+            .into_iter()
+            .map(|summary| {
+                let summary = summary?;
+                let content = content_by_seq.get(&summary.sequence_number)?.clone();
+                Some(StoredCheckpoint::from((summary, content)))
+            })
+            .collect();
+
+        Ok(result)
     }
 
     /// Fetches all events belonging to the provided transaction digest.
