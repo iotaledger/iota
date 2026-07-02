@@ -8,6 +8,10 @@
 /// falls below the low-bond threshold at an epoch boundary has its
 /// remaining bond burned and is evicted.
 ///
+/// An active attestor that goes unreported by `refresh_activity` for more
+/// than the configured number of epochs is dropped at the boundary: a
+/// fixed penalty is burned from its bond and the remainder refunded.
+///
 /// The registry is stored as a dynamic field on the `IotaSystemState`
 /// wrapper object under `AttestorRegistryKey`, and follows the
 /// `ValidatorSet` design: the active set is an ordered vector, an
@@ -25,6 +29,14 @@ use iota_system::protocol_config;
 const MIN_ATTESTOR_JOINING_BOND_PARAM: vector<u8> = b"min_attestor_joining_bond";
 const ATTESTOR_LOW_BOND_THRESHOLD_PARAM: vector<u8> = b"attestor_low_bond_threshold";
 const MAX_ATTESTOR_COUNT_PARAM: vector<u8> = b"max_attestor_count";
+const ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM: vector<u8> = b"attestor_max_inactivity_epochs";
+const ATTESTOR_INACTIVITY_PENALTY_PARAM: vector<u8> = b"attestor_inactivity_penalty";
+
+// Exit reasons for advance_epoch's combined exit pass, in precedence
+// order: eviction > inactivity > voluntary removal.
+const EXIT_EVICTION: u8 = 0;
+const EXIT_INACTIVITY: u8 = 1;
+const EXIT_REMOVAL: u8 = 2;
 
 const EFeatureNotEnabled: u64 = 0;
 const EBondTooLow: u64 = 1;
@@ -99,6 +111,13 @@ public struct AttestorEvictedEvent has copy, drop {
     epoch: u64,
     attestor_address: address,
     burned_amount: u64,
+}
+
+public struct AttestorDroppedForInactivityEvent has copy, drop {
+    epoch: u64,
+    attestor_address: address,
+    penalty_amount: u64,
+    refunded_amount: u64,
 }
 
 public struct AttestorBondDepositedEvent has copy, drop {
@@ -336,12 +355,15 @@ public(package) fun rotate_key(
 
 /// Process the epoch boundary for the registry. Order:
 /// 0. (Reserved) slashing executes before exits — see the design doc.
-/// 1. Combined exits: low-bond evictions (bond burned) + requested
-///    removals (bond refunded), one pass so the stored indices stay valid.
-///    Eviction wins when both apply.
+/// 1. Combined exits, one pass so the stored indices stay valid; per-entry
+///    reason precedence: low-bond eviction (bond burned) > inactivity drop
+///    (penalty burned, rest refunded) > requested removal (bond refunded).
+///    Inactivity beating a pending removal means an inactive attestor
+///    cannot escape the penalty by deregistering in the same epoch.
 /// 2. Staged key rotations applied in place.
 /// 3. Pending activations appended in registration order.
-/// Returns the evicted bonds; the caller burns them via the treasury cap.
+/// Returns the evicted bonds and penalties; the caller burns them via the
+/// treasury cap.
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
@@ -351,20 +373,28 @@ public(package) fun advance_epoch(
 
     // --- 1. Combined exits ---
     let low_bond_threshold: u64 = protocol_config::get_attr(ATTESTOR_LOW_BOND_THRESHOLD_PARAM);
+    let max_inactivity_epochs: u64 = protocol_config::get_attr(
+        ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
+    );
+    let inactivity_penalty: u64 = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
     let mut exit_indices = vector<u64>[];
-    let mut eviction_flags = vector<bool>[];
+    let mut exit_reasons = vector<u8>[];
     self.active_attestors.length().do!(|i| {
-        if (self.active_attestors[i].bond.value() < low_bond_threshold) {
+        let entry = &self.active_attestors[i];
+        if (entry.bond.value() < low_bond_threshold) {
             exit_indices.push_back(i);
-            eviction_flags.push_back(true);
+            exit_reasons.push_back(EXIT_EVICTION);
+        } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
+            exit_indices.push_back(i);
+            exit_reasons.push_back(EXIT_INACTIVITY);
         }
     });
-    // Add voluntary removals not already marked for eviction.
+    // Add voluntary removals not already exiting for a stronger reason.
     while (!self.pending_removals.is_empty()) {
         let idx = self.pending_removals.pop_back();
         if (!exit_indices.contains(&idx)) {
             exit_indices.push_back(idx);
-            eviction_flags.push_back(false);
+            exit_reasons.push_back(EXIT_REMOVAL);
         }
     };
     // Sort ascending, then remove from the back so indices stay valid.
@@ -373,30 +403,40 @@ public(package) fun advance_epoch(
         let mut j = i;
         while (j > 0 && exit_indices[j - 1] > exit_indices[j]) {
             exit_indices.swap(j - 1, j);
-            eviction_flags.swap(j - 1, j);
+            exit_reasons.swap(j - 1, j);
             j = j - 1;
         };
         i = i + 1;
     };
     while (!exit_indices.is_empty()) {
         let idx = exit_indices.pop_back();
-        let is_eviction = eviction_flags.pop_back();
+        let reason = exit_reasons.pop_back();
         let AttestorV1 {
             attestor_address,
             attestor_pubkey: _,
             next_epoch_attestor_pubkey,
-            bond,
+            mut bond,
             activation_epoch: _,
             last_active_epoch: _,
         } = self.active_attestors.remove(idx);
         next_epoch_attestor_pubkey.destroy!(|_| ());
-        if (is_eviction) {
+        if (reason == EXIT_EVICTION) {
             event::emit(AttestorEvictedEvent {
                 epoch: new_epoch,
                 attestor_address,
                 burned_amount: bond.value(),
             });
             evicted_bonds.join(bond);
+        } else if (reason == EXIT_INACTIVITY) {
+            let penalty_amount = inactivity_penalty.min(bond.value());
+            evicted_bonds.join(bond.split(penalty_amount));
+            event::emit(AttestorDroppedForInactivityEvent {
+                epoch: new_epoch,
+                attestor_address,
+                penalty_amount,
+                refunded_amount: bond.value(),
+            });
+            transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
         } else {
             event::emit(AttestorRemovedEvent {
                 epoch: new_epoch,
