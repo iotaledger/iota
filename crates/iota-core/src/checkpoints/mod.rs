@@ -5,6 +5,7 @@
 mod causal_order;
 pub mod checkpoint_executor;
 mod checkpoint_output;
+mod epoch_info;
 mod metrics;
 
 use std::{
@@ -46,6 +47,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
+    storage::EpochInfoV2,
     transaction::{TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
@@ -180,7 +182,31 @@ pub struct CheckpointStoreTables {
 
     /// A map from epoch ID to the sequence number of the last checkpoint in
     /// that epoch.
+    ///
+    /// Written at certification time, before the boundary executes, so it
+    /// records the closing sequence number independently of the later-finalized
+    /// `epoch_info` row. Never pruned.
     epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
+
+    /// Per-epoch verified data (start-of-epoch identity plus its close-of-epoch
+    /// proof bundle ([`EpochInfoV2`])) keyed by epoch ID. Populated at every
+    /// epoch boundary by the checkpoint executor and seeded from a formal
+    /// snapshot's `EPOCH_INFO` on restore.
+    ///
+    /// Intentionally not pruned: callers (the snapshot writer, the gRPC API,
+    /// etc.) need full `[0, snapshot_epoch]` coverage, so
+    /// this table grows unboundedly with epoch count (one row per epoch, ever)
+    /// by design. Do not add it to `prune_checkpoints`.
+    ///
+    /// Completeness is tracked by `epoch_info_watermark`.
+    epoch_info: DBMap<EpochId, EpochInfoV2>,
+
+    /// Highest epoch whose `epoch_info` row is finalized (close-of-epoch proof
+    /// present), as a contiguous prefix `[0, watermark]`. Singleton keyed by
+    /// `()`. Advanced atomically with the close-of-epoch upsert in
+    /// `index_epoch`, and recomputed over a seeded prefix by
+    /// `insert_epoch_info`; only ever raised. Never pruned.
+    epoch_info_watermark: DBMap<(), EpochId>,
 
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
@@ -805,12 +831,22 @@ impl CheckpointStore {
         &self,
         epoch_id: EpochId,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let seq = self.tables.epoch_last_checkpoint_map.get(&epoch_id)?;
+        let seq = self.get_epoch_last_checkpoint_seq_number(epoch_id)?;
         let checkpoint = match seq {
             Some(seq) => self.get_checkpoint_by_sequence_number(seq)?,
             None => None,
         };
         Ok(checkpoint)
+    }
+
+    /// Sequence number of `epoch_id`'s last checkpoint. Unlike
+    /// [`Self::get_epoch_last_checkpoint`], this does not require the summary
+    /// itself to still be present: the underlying map is never pruned.
+    pub fn get_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch_id: EpochId,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
     pub fn insert_epoch_last_checkpoint(
@@ -1607,13 +1643,7 @@ impl CheckpointBuilder {
                         "Decrease of checkpoint timestamp, possibly due to epoch change. Sequence: {}, previous: {}, current: {}",
                         sequence_number, last_checkpoint.timestamp_ms, timestamp_ms,
                     );
-                    if self
-                        .epoch_store
-                        .protocol_config()
-                        .consensus_median_timestamp_with_checkpoint_enforcement()
-                    {
-                        timestamp_ms = last_checkpoint.timestamp_ms;
-                    }
+                    timestamp_ms = last_checkpoint.timestamp_ms;
                 }
             }
 

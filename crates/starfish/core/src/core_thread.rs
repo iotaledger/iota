@@ -885,7 +885,6 @@ pub(crate) mod tests {
                 WriteBatch::default()
                     .block_headers(block_headers)
                     .transactions(block_transactions),
-                context.clone(),
             )
             .expect("Storage error");
 

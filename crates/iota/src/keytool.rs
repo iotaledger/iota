@@ -817,7 +817,7 @@ impl KeyToolCommand {
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
+                        anyhow!("Cannot deserialize data as TransactionData {e:?}")
                     })?)?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
@@ -868,7 +868,7 @@ impl KeyToolCommand {
             } => {
                 // Currently only supports secp256k1 keys
                 let pk_owner = PublicKey::decode_base64(&base64pk)
-                    .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
+                    .map_err(|e| anyhow!("Invalid base64 key: {e:?}"))?;
                 let address_owner = Address::from(&pk_owner);
                 info!("Address For Corresponding KMS Key: {}", address_owner);
                 info!("Raw tx_bytes to execute: {}", data);
@@ -876,7 +876,7 @@ impl KeyToolCommand {
                 info!("Intent: {:?}", intent);
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
+                        anyhow!("Cannot deserialize data as TransactionData {e:?}")
                     })?)?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 info!(

@@ -13,6 +13,7 @@ pub mod uploader;
 mod writer;
 
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::{
         Arc,
@@ -31,24 +32,35 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    global_state_hasher::WrappedObject,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_sdk_types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
+    IOTA_SYSTEM_STATE_OBJECT_ID,
+    base_types::ObjectRef,
+    committee::{Committee, CommitteeChainVerifier},
+    digests::ChainIdentifier,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     global_state_hash::GlobalStateHash,
     iota_system_state::{
-        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
-        get_iota_system_state,
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    messages_checkpoint::ECMHLiveObjectSetDigest,
+    messages_checkpoint::{
+        CheckpointSequenceNumber, CheckpointSummaryExt, ECMHLiveObjectSetDigest,
+    },
+    object::Object,
+    storage::{EpochInfoV1Entry, EpochInfoV2},
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
+
+use crate::restore::RestoreEpochInfo;
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State
@@ -66,7 +78,25 @@ use tokio::time::Instant;
 /// references for hash. There is one single ref file per hash bucket. Object
 /// references are written in an append-only manner as well. Finally, the
 /// MANIFEST file contains per file metadata of every file in the snapshot
-/// directory. State Snapshot Directory Layout
+/// directory.
+///
+/// Snapshot-format V2 additions over V1:
+/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
+///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
+///   `SnapshotLiveObject` carrying the per-object
+///   `previous_transaction_checkpoint` inline. The writer rejects rows whose
+///   checkpoint is `None` (lifted from pre-V2 store rows) at the publish
+///   boundary, so any record present in a published `.obj` file carries a
+///   concrete checkpoint sequence number.
+/// - REFERENCE file format is unchanged from V1.
+/// - A per-snapshot `EPOCH_INFO` file carries one [`EpochInfoV1Entry`] per
+///   epoch in `[0, snapshot_epoch]` from the CheckpointStore's `epoch_info`
+///   table. The writer refuses to publish unless that table's completeness
+///   watermark covers `snapshot_epoch`.
+/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore
+///   can reject a foreign-chain snapshot.
+///
+/// State Snapshot Directory Layout
 ///  - snapshot/
 ///     - epoch_0/
 ///        - 1_1.obj
@@ -79,6 +109,7 @@ use tokio::time::Instant;
 ///        - REFERENCE-2
 ///        - ...
 ///        - REFERENCE-1000
+///        - EPOCH_INFO
 ///        - MANIFEST
 ///     - epoch_1/
 ///       - 1_1.obj
@@ -86,7 +117,7 @@ use tokio::time::Instant;
 ///
 /// Object File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0x00B7EC75) <4 byte>  │
+/// │  magic(0x00B7EC76) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         Object 1         │ │
@@ -103,7 +134,7 @@ use tokio::time::Instant;
 ///
 /// REFERENCE File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0x5EFE5E11) <4 byte>  │
+/// │  magic(0xDEADBEEF) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         ObjectRef 1      │ │
@@ -118,6 +149,15 @@ use tokio::time::Instant;
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘
 ///
+/// EPOCH_INFO File Disk Format
+/// ┌──────────────────────────────┐
+/// │  magic(0x9000C001) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │   bcs(EpochInfo)             │
+/// └──────────────────────────────┘
+/// See [`EpochInfo`] for the schema. `FileMetadata::sha3_digest` in the
+/// MANIFEST can be used to verify file integrity.
+///
 /// MANIFEST File Disk Format
 /// ┌──────────────────────────────┐
 /// │  magic(0x00C0FFEE) <4 byte>  │
@@ -126,8 +166,9 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
-const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
+const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
+const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
 const MAGIC_BYTES: usize = 4;
 const SNAPSHOT_VERSION_BYTES: usize = 1;
@@ -153,7 +194,9 @@ const FILE_METADATA_BYTES: usize =
 #[repr(u8)]
 pub enum FileType {
     Object = 0,
-    Reference,
+    Reference = 1,
+    /// per-epoch metadata file
+    EpochInfo = 2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -175,6 +218,9 @@ impl FileMetadata {
             FileType::Reference => {
                 dir_path.child(&*format!("{}_{}.ref", self.bucket_num, self.part_num))
             }
+            // EPOCH_INFO is a singleton per snapshot, so bucket/part numbers
+            // do not contribute to the filename.
+            FileType::EpochInfo => dir_path.child("EPOCH_INFO"),
         }
     }
     pub fn local_file_path(&self, root_path: &std::path::Path, dir_path: &Path) -> Result<PathBuf> {
@@ -190,31 +236,322 @@ pub struct ManifestV1 {
     pub epoch: u64,
 }
 
+/// `ManifestV1` plus `chain_id`, letting a restore reject a foreign-chain
+/// snapshot.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ManifestV2 {
+    pub snapshot_version: u8,
+    pub address_length: u64,
+    pub file_metadata: Vec<FileMetadata>,
+    pub epoch: u64,
+    pub chain_id: ChainIdentifier,
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Manifest {
     V1(ManifestV1),
+    V2(ManifestV2),
 }
 
 impl Manifest {
     pub fn snapshot_version(&self) -> u8 {
         match self {
             Self::V1(manifest) => manifest.snapshot_version,
+            Self::V2(manifest) => manifest.snapshot_version,
         }
     }
     pub fn address_length(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.address_length,
+            Self::V2(manifest) => manifest.address_length,
         }
     }
     pub fn file_metadata(&self) -> &Vec<FileMetadata> {
         match self {
             Self::V1(manifest) => &manifest.file_metadata,
+            Self::V2(manifest) => &manifest.file_metadata,
         }
     }
     pub fn epoch(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.epoch,
+            Self::V2(manifest) => manifest.epoch,
         }
+    }
+    /// Producing chain's identifier; `None` for V1.
+    pub fn chain_id(&self) -> Option<ChainIdentifier> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(manifest) => Some(manifest.chain_id),
+        }
+    }
+}
+
+/// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
+/// future schema evolution. `entries[i]` is the entry for epoch `i`;
+/// length is `snapshot_epoch + 1`.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EpochInfo {
+    V1(EpochInfoV1),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1 {
+    pub entries: Vec<EpochInfoV1Entry>,
+}
+
+impl EpochInfo {
+    pub fn entries(&self) -> &[EpochInfoV1Entry] {
+        match self {
+            Self::V1(info) => &info.entries,
+        }
+    }
+
+    pub fn into_entries(self) -> Vec<EpochInfoV1Entry> {
+        match self {
+            Self::V1(info) => info.entries,
+        }
+    }
+}
+
+/// Chain-verified `EPOCH_INFO`: the `chain_id` matched and every entry was
+/// anchored to its certified `last_checkpoint_summary` — the committee chain
+/// walked from the genesis committee, every byte hash-checked back to that
+/// signed summary. The only constructor is `verify_epoch_info_chain`, so
+/// holding one is proof the data is anchored to the operator-provided genesis.
+#[derive(Debug)]
+pub struct VerifiedEpochInfo {
+    epoch_info: EpochInfo,
+    committees: Vec<Committee>,
+    start_system_states: Vec<IotaSystemState>,
+}
+
+impl VerifiedEpochInfo {
+    /// Entries for epochs `[0, snapshot_epoch]`, in epoch order.
+    ///
+    /// These values represent data at the boundary of each epoch, including the
+    /// committee and start system state of the next epoch.
+    ///
+    /// The last entry represents the snapshot epoch boundary, which carries
+    /// information about the next epoch. Thus [`Self::committees`], and
+    /// [`Self::start_system_states`] have one more item for the committee and
+    /// the start system state of the epoch following the snapshot epoch.
+    pub fn entries(&self) -> &[EpochInfoV1Entry] {
+        self.epoch_info.entries()
+    }
+
+    /// Committees for epochs `[0, snapshot_epoch + 1]`: the genesis committee
+    /// plus one handed forward by each entry's `end_of_epoch_data`.
+    pub fn committees(&self) -> &[Committee] {
+        &self.committees
+    }
+
+    /// Digest-verified start system state per epochs `[0, snapshot_epoch + 1].
+    ///
+    /// Contains the genesis start system state, plus the ones derived by the
+    /// epoch boundaries represented by [`Self::entries`].
+    pub fn start_system_states(&self) -> &[IotaSystemState] {
+        &self.start_system_states
+    }
+
+    /// Consumes the verified info into its components: the epoch info entries,
+    /// the per-epoch committees, and the per-epoch start system states.
+    ///
+    /// See [`Self::entries`], [`Self::committees`], and
+    /// [`Self::start_system_states`].
+    pub fn into_parts(self) -> (EpochInfo, Vec<Committee>, Vec<IotaSystemState>) {
+        (self.epoch_info, self.committees, self.start_system_states)
+    }
+
+    /// Convert the verified entries `[0, snapshot_epoch]` into `EpochInfoV2`
+    /// index rows. Each row's `system_state` is the digest-verified start state
+    /// of its own epoch (`start_system_states[i]`).
+    pub(crate) fn into_epoch_info_v2_rows(self) -> Vec<EpochInfoV2> {
+        let VerifiedEpochInfo {
+            epoch_info,
+            start_system_states,
+            ..
+        } = self;
+        // `start_system_states[i]` is epoch `i`'s start state; `zip` drops the
+        // trailing one (the state the last boundary proves, which has no row).
+        // Each epoch's start checkpoint is the previous epoch's last + 1 (0 for
+        // epoch 0), derived inline from the signed summaries.
+        let mut previous_end_checkpoint: Option<u64> = None;
+        epoch_info
+            .into_entries()
+            .into_iter()
+            .zip(start_system_states)
+            .map(|(entry, start_system_state)| {
+                let start_checkpoint = previous_end_checkpoint.map_or(0, |seq| seq + 1);
+                previous_end_checkpoint =
+                    Some(*entry.last_checkpoint_summary.data().sequence_number());
+                epoch_info_v2_row(entry, start_system_state, start_checkpoint)
+            })
+            .collect()
+    }
+
+    /// Restore the verified rows `[0, snapshot_epoch]` into the given
+    /// consumer's epoch store.
+    pub async fn restore_epoch_info(self, db: &impl RestoreEpochInfo) -> anyhow::Result<()> {
+        let rows = self.into_epoch_info_v2_rows();
+        db.restore_epoch_info(rows).await
+    }
+}
+
+/// Verify a snapshot's `EPOCH_INFO` against the operator's trust roots: the
+/// expected `chain_id`, the committee chain walked from `genesis_committee`,
+/// and `genesis_system_state` (epoch 0's start state, which no entry proves).
+/// Each entry must be the contiguous certified close of its epoch, signed by
+/// the committee the previous entry handed forward, with its proof bundle
+/// hashing back to the signed summary (see `verify_epoch_boundary_proof`).
+/// Nothing is written; the returned `VerifiedEpochInfo` is the witness
+/// consumers require.
+pub fn verify_epoch_info_chain(
+    epoch_info: EpochInfo,
+    genesis_committee: Committee,
+    genesis_system_state: IotaSystemState,
+    snapshot_chain_id: ChainIdentifier,
+    expected_chain_id: ChainIdentifier,
+) -> anyhow::Result<VerifiedEpochInfo> {
+    anyhow::ensure!(
+        snapshot_chain_id == expected_chain_id,
+        "snapshot chain_id {snapshot_chain_id} does not match this node's chain \
+         {expected_chain_id} (snapshot from the wrong network's bucket?)"
+    );
+    anyhow::ensure!(
+        genesis_committee.epoch == 0,
+        "the trust root must be the genesis committee, got epoch {}",
+        genesis_committee.epoch
+    );
+
+    let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
+    let mut committees = vec![chain_verifier.committee().clone()];
+    // `start_system_states[i]` is epoch `i`'s start state; epoch 0's is the
+    // genesis root, every later one is derived from the previous boundary.
+    let mut start_system_states = vec![genesis_system_state];
+    for (index, entry) in epoch_info.entries().iter().enumerate() {
+        // EPOCH_INFO-specific: entries must be the contiguous epochs from 0.
+        // The epoch comes from the signed summary, not a stored field, so it
+        // can't disagree with the data it anchors.
+        let epoch = entry.last_checkpoint_summary.epoch();
+        anyhow::ensure!(
+            epoch == index as u64,
+            "EPOCH_INFO entry at index {index} carries a summary for epoch {epoch}",
+        );
+
+        // Defense in depth: the committee in epoch `index`'s start state must
+        // match the one the chain certified — catches a tampered validator set
+        // that left the (separately signed) committee handover intact.
+        let start_committee = start_system_states[index].get_current_epoch_committee();
+        anyhow::ensure!(
+            start_committee.committee() == chain_verifier.committee(),
+            "EPOCH_INFO entry for epoch {index}: the committee in its start system \
+             state does not match the certified committee",
+        );
+
+        chain_verifier
+            .verify_epoch_close(entry.last_checkpoint_summary.clone())
+            .map_err(|e| {
+                anyhow::anyhow!("EPOCH_INFO entry for epoch {index} failed verification: {e}")
+            })?;
+
+        // Anchor the rest of the entry to the now-verified summary and derive
+        // epoch `index + 1`'s start state from the boundary objects.
+        let next_start_state = verify_epoch_boundary_proof(entry)
+            .map_err(|e| anyhow::anyhow!("EPOCH_INFO entry for epoch {index}: {e}"))?;
+
+        committees.push(chain_verifier.committee().clone());
+        start_system_states.push(next_start_state);
+    }
+
+    Ok(VerifiedEpochInfo {
+        epoch_info,
+        committees,
+        start_system_states,
+    })
+}
+
+/// Anchor an entry's proof bundle to its (already signature-verified)
+/// `last_checkpoint_summary` and return the next epoch's digest-verified start
+/// state — the system-state objects this boundary wrote. Each link (contents,
+/// effects, events, start-state objects) is checked below.
+fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaSystemState> {
+    let summary = entry.last_checkpoint_summary.data();
+
+    // 1. Contents hash to the signed summary.
+    anyhow::ensure!(
+        *entry.last_checkpoint_contents.digest() == summary.content_digest,
+        "last_checkpoint_contents does not hash to the signed content_digest",
+    );
+
+    // 2. The epoch-change effects are the last tx of the verified contents.
+    let expected_execution_digest = entry
+        .last_checkpoint_contents
+        .inner()
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
+    let effects = &entry.end_of_epoch_tx_effects;
+    anyhow::ensure!(
+        effects.execution_digests() == *expected_execution_digest,
+        "end_of_epoch_tx_effects digest pair does not match the closing checkpoint's last transaction",
+    );
+
+    // 3. Events hash to the effects' events_digest (`None` ⇒ events empty, the
+    // safe-mode boundary case).
+    match effects.events_digest() {
+        Some(events_digest) => anyhow::ensure!(
+            entry.end_of_epoch_tx_events.digest() == *events_digest,
+            "end_of_epoch_tx_events does not hash to the effects' events_digest",
+        ),
+        None => anyhow::ensure!(
+            entry.end_of_epoch_tx_events.is_empty(),
+            "the epoch-change effects carry no events_digest but \
+             end_of_epoch_tx_events is non-empty",
+        ),
+    }
+
+    // 4. Each start-state object's digest is one the effects wrote; `0x5` must
+    // be present. Decode `IotaSystemState` only from these verified bytes.
+    let written: HashSet<ObjectRef> = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _, _)| object_ref)
+        .collect();
+    let mut objects = Vec::with_capacity(entry.next_epoch_start_system_state_objects.len());
+    for raw in &entry.next_epoch_start_system_state_objects {
+        let object: Object = bcs::from_bytes(raw)
+            .map_err(|e| anyhow::anyhow!("decoding a next-epoch start-state object: {e}"))?;
+        anyhow::ensure!(
+            written.contains(&object.object_ref()),
+            "a next-epoch start-state object is not written by the epoch-change tx",
+        );
+        objects.push(object);
+    }
+    anyhow::ensure!(
+        objects
+            .iter()
+            .any(|o| o.id() == IOTA_SYSTEM_STATE_OBJECT_ID),
+        "the next-epoch start-state objects do not include the system-state object 0x5",
+    );
+    get_iota_system_state(&objects.as_slice())
+        .map_err(|e| anyhow::anyhow!("decoding the next-epoch system state: {e}"))
+}
+
+/// Build an `EpochInfoV2` index row from a verified entry, its digest-verified
+/// start system state, and its start checkpoint. The `epoch` comes from the
+/// entry's signed summary; the `end_*` facts are derived from the embedded
+/// entry by `EpochInfoV2`'s methods.
+fn epoch_info_v2_row(
+    entry: EpochInfoV1Entry,
+    system_state: IotaSystemState,
+    start_checkpoint: CheckpointSequenceNumber,
+) -> EpochInfoV2 {
+    EpochInfoV2 {
+        epoch: entry.last_checkpoint_summary.epoch(),
+        start_checkpoint,
+        start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
+        system_state,
+        epoch_close_proof: Some(entry),
     }
 }
 
@@ -329,17 +666,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        match live_object {
-            LiveObject::Normal(object) => {
-                acc.insert(object.object_ref().digest);
-            }
-            LiveObject::Wrapped(key) => {
-                acc.insert(
-                    bcs::to_bytes(&WrappedObject::new(key.0, key.1))
-                        .expect("Failed to serialize WrappedObject"),
-                );
-            }
-        }
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     accum_progress_bar.finish_with_message("DB live object accumulation completed");

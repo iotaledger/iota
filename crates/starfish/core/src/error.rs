@@ -357,14 +357,8 @@ pub(crate) enum ConsensusError {
     )]
     InconsistentTransactionRefVariants,
 
-    #[error(
-        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
-    )]
-    TransactionRefVariantMismatch {
-        protocol_flag_enabled: bool,
-        expected_variant: &'static str,
-        received_variant: &'static str,
-    },
+    #[error("Expected TransactionRef, but received {received_variant}")]
+    TransactionRefVariantMismatch { received_variant: &'static str },
 
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
@@ -372,26 +366,14 @@ pub(crate) enum ConsensusError {
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
     MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
 
-    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
-    // It's currently used to gate fast commit sync endpoints and features during the gradual
-    // rollout phase.
-    #[error("Fast commit sync is not enabled in the current protocol version")]
-    FastCommitSyncNotEnabled,
+    #[error("ShardWithProof variant {actual} is not the expected V2")]
+    WrongShardVersion { actual: &'static str },
 
     #[error(
-        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
-    )]
-    WrongShardVersionForFlags {
-        actual: &'static str,
-        fast_commit_sync: bool,
-    },
-
-    #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
+        "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"
     )]
     WrongCommitVersionForFlags {
         actual: &'static str,
-        fast_commit_sync: bool,
         starfish_speed: bool,
     },
 

@@ -70,7 +70,7 @@ impl AddressSwapMap {
             .filter_map(|a| (!a.is_swapped()).then_some(a.address()))
             .collect::<Vec<_>>();
         if !unswapped_addresses.is_empty() {
-            anyhow::bail!("unswapped addresses: {:?}", unswapped_addresses);
+            anyhow::bail!("unswapped addresses: {unswapped_addresses:?}");
         }
 
         Ok(())

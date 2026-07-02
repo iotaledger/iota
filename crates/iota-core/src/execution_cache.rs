@@ -261,7 +261,16 @@ pub type Batch = (Vec<Arc<TransactionOutputs>>, DBBatch);
 
 pub trait ExecutionCacheCommit: Send + Sync {
     /// Build a DBBatch containing the given transaction outputs.
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch;
+    ///
+    /// `checkpoint_sequence_number` is the sequence number of the checkpoint
+    /// that contains these transactions; it is stamped onto each newly
+    /// written object's `previous_transaction_checkpoint` field.
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch;
 
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs

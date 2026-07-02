@@ -144,9 +144,7 @@ pub fn read<R: Read + 'static>(
     let magic = reader.read_u32::<BigEndian>()?;
     if magic != expected_magic {
         Err(anyhow!(
-            "Unexpected magic string in file: {:?}, expected: {:?}",
-            magic,
-            expected_magic
+            "Unexpected magic string in file: {magic:?}, expected: {expected_magic:?}"
         ))
     } else {
         let storage_format = StorageFormat::try_from(reader.read_u8()?)?;

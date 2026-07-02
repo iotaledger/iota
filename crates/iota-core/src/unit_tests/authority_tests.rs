@@ -25,10 +25,10 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments,
-    EpochId, ExecutionError, ExecutionStatus, GasPayment, Identifier, MoveStruct, ObjectData,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
-    TransactionKind, TypeTag, Version, VersionAssignment,
+    Address, Argument, CancelledTransaction, CheckpointSequenceNumber, Command,
+    ConsensusDeterminedVersionAssignments, EpochId, ExecutionError, ExecutionStatus, GasPayment,
+    Identifier, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version, VersionAssignment,
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
@@ -3285,8 +3285,9 @@ fn build_and_commit(
     cache_commit: &Arc<dyn ExecutionCacheCommit>,
     epoch: EpochId,
     txs: &[TransactionDigest],
+    checkpoint: CheckpointSequenceNumber,
 ) {
-    let batch = cache_commit.build_db_batch(epoch, txs);
+    let batch = cache_commit.build_db_batch(epoch, checkpoint, txs);
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
 }
 
@@ -3312,6 +3313,7 @@ async fn test_store_revert_wrap_move_call() {
         authority_state.get_cache_commit(),
         authority_state.epoch_store_for_testing().epoch(),
         &[*create_effects.transaction_digest()],
+        0,
     );
 
     assert!(create_effects.status().is_success());
@@ -3409,6 +3411,7 @@ async fn test_store_revert_unwrap_move_call() {
             *create_effects.transaction_digest(),
             *wrap_effects.transaction_digest(),
         ],
+        0,
     );
 
     assert!(wrap_effects.status().is_success());
@@ -3691,6 +3694,7 @@ async fn test_store_revert_add_ofield() {
             *create_outer_effects.transaction_digest(),
             *create_inner_effects.transaction_digest(),
         ],
+        0,
     );
 
     let add_txn = to_sender_signed_transaction(
@@ -3816,6 +3820,7 @@ async fn test_store_revert_remove_ofield() {
             *create_inner_effects.transaction_digest(),
             *add_effects.transaction_digest(),
         ],
+        0,
     );
 
     let field_v0 = add_effects.created()[0].0;
