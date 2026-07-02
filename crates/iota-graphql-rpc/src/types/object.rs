@@ -665,7 +665,7 @@ impl ObjectImpl<'_> {
         let digest = native.previous_transaction;
         let key = transaction_block::DigestKey::new(digest.into(), self.0.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
