@@ -283,7 +283,8 @@ pub async fn find_all_dirs_with_epoch_prefix(
 }
 
 /// Finds all epochs in the store and returns them as a sorted list, paired
-/// with each epoch's start timestamp in ms when its metadata file is present.
+/// with each epoch's end timestamp in ms when its metadata file is present, or
+/// 0 otherwise.
 pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, u64)>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];

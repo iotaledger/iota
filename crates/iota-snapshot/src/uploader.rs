@@ -179,13 +179,12 @@ impl StateSnapshotUploader {
                     .write(*epoch, db, ECMHLiveObjectSetDigest { digest })
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
-                // Records the on-chain start timestamp of this epoch (= timestamp of the
-                // last checkpoint of the previous epoch, which is when advance_epoch ran;
-                // for epoch 0, the genesis checkpoint at sequence 0) in each epoch bucket,
+                // Records the on-chain end timestamp of this epoch (= timestamp of the
+                // last checkpoint of the epoch) in each epoch bucket,
                 // which will be read when updating the MANIFEST file.
-                let epoch_start_checkpoint =
+                let epoch_end_checkpoint =
                     self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?;
-                if let Some(checkpoint) = epoch_start_checkpoint {
+                if let Some(checkpoint) = epoch_end_checkpoint {
                     let metadata = EpochMetadata {
                         epoch_end_timestamp_ms: checkpoint.timestamp_ms,
                     };
