@@ -151,7 +151,7 @@ mod tests {
     use object_store::path::Path;
     use tempfile::TempDir;
 
-    use crate::object_store::http::HttpDownloaderBuilder;
+    use crate::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder};
 
     #[tokio::test]
     pub async fn test_local_download() -> anyhow::Result<()> {
@@ -175,6 +175,24 @@ mod tests {
 
         let downloaded = input_store.get_bytes(&Path::from("child/file1")).await?;
         assert_eq!(downloaded.to_vec(), b"Lorem ipsum");
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_local_exists() -> anyhow::Result<()> {
+        let input = TempDir::new()?;
+        let input_path = input.path();
+        fs::write(input_path.join("file1"), b"Lorem ipsum")?;
+
+        let input_store = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(input_path.to_path_buf()),
+            ..Default::default()
+        }
+        .make_http()?;
+
+        assert!(input_store.exists(&Path::from("file1")).await?);
+        assert!(!input_store.exists(&Path::from("missing")).await?);
         Ok(())
     }
 }

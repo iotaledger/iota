@@ -161,3 +161,25 @@ impl ObjectStoreDeleteExt for Arc<DynObjectStore> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use object_store::{ObjectStore, memory::InMemory, path::Path};
+
+    use crate::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
+
+    #[tokio::test]
+    async fn test_dyn_object_store_exists() -> anyhow::Result<()> {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("file1");
+        store
+            .put_bytes(&path, bytes::Bytes::from_static(b"Lorem ipsum"))
+            .await?;
+
+        assert!(store.exists(&path).await?);
+        assert!(!store.exists(&Path::from("missing")).await?);
+        Ok(())
+    }
+}

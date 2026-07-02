@@ -56,8 +56,7 @@ use iota_snapshot::{
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, exists, get_path},
-    verify_checkpoint_range,
+    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, get_path},
 };
 use iota_types::{
     base_types::*,
