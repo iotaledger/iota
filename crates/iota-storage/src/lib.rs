@@ -9,27 +9,19 @@ use std::{
     fs::File,
     io,
     io::{BufReader, Read, Write},
-    ops::Range,
     path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
 };
 
 use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
-use futures::StreamExt;
 use iota_types::{
     committee::Committee,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::WriteStore,
 };
-use itertools::Itertools;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::debug;
@@ -244,56 +236,4 @@ where
     });
 
     verify_checkpoint_with_committee(committee, current, checkpoint)
-}
-
-pub async fn verify_checkpoint_range<S>(
-    checkpoint_range: Range<CheckpointSequenceNumber>,
-    store: S,
-    checkpoint_counter: Arc<AtomicU64>,
-    max_concurrency: usize,
-) where
-    S: WriteStore + Clone,
-{
-    let range_clone = checkpoint_range.clone();
-    futures::stream::iter(range_clone.into_iter().tuple_windows())
-        .map(|(a, b)| {
-            let current = store
-                .get_checkpoint_by_sequence_number(a)
-                .unwrap_or_else(|| {
-                    panic!("Checkpoint {a} should exist in store after summary sync but does not");
-                });
-            let next = store
-                .get_checkpoint_by_sequence_number(b)
-                .unwrap_or_else(|| {
-                    panic!("Checkpoint {a} should exist in store after summary sync but does not");
-                });
-
-            let committee = store.get_committee(next.epoch()).unwrap_or_else(|| {
-                panic!(
-                    "BUG: should have committee for epoch {} before we try to verify checkpoint {}",
-                    next.epoch(),
-                    next.sequence_number()
-                )
-            });
-            tokio::spawn(async move {
-                verify_checkpoint_with_committee(committee, &current, next.clone().into())
-                    .expect("Checkpoint verification failed");
-            })
-        })
-        .buffer_unordered(max_concurrency)
-        .for_each(|result| {
-            result.expect("Checkpoint verification task failed");
-            checkpoint_counter.fetch_add(1, Ordering::Relaxed);
-            futures::future::ready(())
-        })
-        .await;
-    let last = checkpoint_range
-        .last()
-        .expect("Received empty checkpoint range");
-    let final_checkpoint = store
-        .get_checkpoint_by_sequence_number(last)
-        .expect("Expected end of checkpoint range to exist in store");
-    store
-        .try_update_highest_verified_checkpoint(&final_checkpoint)
-        .expect("Failed to update highest verified checkpoint");
 }
