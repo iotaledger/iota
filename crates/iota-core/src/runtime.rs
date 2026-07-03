@@ -9,6 +9,10 @@ use tokio::runtime::Runtime;
 const MIN_SERVING_THREADS: usize = 2;
 /// Minimum number of worker threads for the node-core runtime.
 const MIN_NODE_THREADS: usize = 4;
+/// Number of worker threads for the metrics runtime. Deliberately not part of
+/// the node/serving split: it is small and mostly idle, so oversubscribing by
+/// this amount is cheaper than taking the threads away from the core.
+const METRICS_THREADS: usize = 2;
 
 /// Splits the available cores between the node-core and serving runtimes,
 /// returning `(node_threads, serving_threads)`.
@@ -18,7 +22,9 @@ const MIN_NODE_THREADS: usize = 4;
 /// no consensus and exists primarily to serve reads, so it splits threads
 /// evenly. The two runtimes together never exceed `available`, except on
 /// machines with fewer than `MIN_NODE_THREADS + MIN_SERVING_THREADS` cores,
-/// where the minimum floors win.
+/// where the minimum floors win. The metrics runtime sits outside this split
+/// (see [`METRICS_THREADS`]), so the process as a whole runs `METRICS_THREADS`
+/// more workers than `available`.
 fn split_worker_threads(available: usize, is_validator: bool) -> (usize, usize) {
     let serving_share = if is_validator {
         available / 4
@@ -72,7 +78,7 @@ impl IotaRuntimes {
             .unwrap();
         let metrics = tokio::runtime::Builder::new_multi_thread()
             .thread_name("metrics-runtime")
-            .worker_threads(2)
+            .worker_threads(METRICS_THREADS)
             .enable_all()
             .build()
             .unwrap();
