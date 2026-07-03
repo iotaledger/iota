@@ -201,7 +201,7 @@ For these situations, the `nondeterministic!` macro is provided.
 It can be used to evaluate any expression in another thread, in which the system interceptor functions (e.g. `getrandom()`) are disabled.
 For example:
 
-    let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
+    let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectId::random())));
 
 Without the `nondeterministic!` macro, this code could generate the same path in two different tests (each test is started with the same seed).
 

@@ -4,6 +4,7 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
+use either::Either;
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::{fatal, sync::notify_read::NotifyRead};
 use iota_config::ExecutionCacheConfig;
@@ -23,6 +24,7 @@ use iota_types::{
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use itertools::Itertools;
 use prometheus_filtered::Registry;
 use tracing::instrument;
 use typed_store::rocks::DBBatch;
@@ -50,84 +52,6 @@ mod notify_read_input_objects_tests;
 
 use metrics::ExecutionCacheMetrics;
 pub use writeback_cache::WritebackCache;
-
-/// Shared implementation of `notify_read_input_objects` used by
-/// `WritebackCache`. Waits until all input and receiving objects become
-/// available by checking the cache/store via `ObjectCacheRead` trait methods
-/// and registering for notifications on missing keys.
-fn notify_read_input_objects_impl<'a>(
-    object_notify_read: &'a NotifyRead<InputKey, ()>,
-    cache: &'a (impl ObjectCacheRead + ?Sized),
-    input_and_receiving_keys: &'a [InputKey],
-    receiving_keys: &'a HashSet<InputKey>,
-    epoch: &'a EpochId,
-) -> BoxFuture<'a, Vec<()>> {
-    async move {
-        object_notify_read
-            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
-                let mut results = vec![None; keys.len()];
-
-                let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, key)| {
-                        if key.is_cancelled() {
-                            // Shared objects in canceled transactions are always available.
-                            results[*idx] = Some(());
-                            false
-                        } else {
-                            true
-                        }
-                    })
-                    .partition(|(_, key)| key.version().is_some());
-                let versioned_object_keys: Vec<_> = keys_with_version
-                    .iter()
-                    .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
-                    .collect();
-                ObjectCacheRead::multi_get_objects_by_key(cache, &versioned_object_keys)
-                    .into_iter()
-                    .zip(keys_with_version.iter())
-                    .for_each(|(o, (idx, input_key))| match o {
-                        Some(_) => results[*idx] = Some(()),
-                        None => {
-                            if receiving_keys.contains(input_key) {
-                                // There could be a more recent version of this object, and the
-                                // object at the specified version could have already been pruned.
-                                // In such a case `has_key` will be false, but since this is a
-                                // receiving object we should mark it as available if we can
-                                // determine that an object with a version greater than or equal to
-                                // the specified version exists or was deleted. We will then let
-                                // mark it as available to let the transaction through so it can
-                                // fail at execution.
-                                let is_available =
-                                    ObjectCacheRead::get_object(cache, &input_key.id())
-                                        .map(|obj| obj.version() >= input_key.version().unwrap())
-                                        .unwrap_or(false);
-                                if is_available {
-                                    results[*idx] = Some(());
-                                }
-                            } else if cache
-                                .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
-                                .is_some()
-                            {
-                                // If the shared object was deleted, mark it as
-                                // available so the transaction can proceed.
-                                results[*idx] = Some(());
-                            }
-                        }
-                    });
-                keys_without_version.iter().for_each(|(idx, key)| {
-                    if cache.get_package_object(&key.id()).is_some() {
-                        results[*idx] = Some(());
-                    }
-                });
-                Ok(results)
-            })
-            .await
-            .unwrap()
-    }
-    .boxed()
-}
 
 /// Notify waiters that a written object is now available. Packages are notified
 /// via `InputKey::Package`, non-child objects via `InputKey::VersionedObject`.
@@ -460,7 +384,7 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// Used by transaction manager to determine if input objects are ready.
+    /// Used by execution scheduler to determine if input objects are ready.
     /// Distinct from multi_get_object_by_key because it also consults
     /// markers to handle the case where an object will never become available
     /// (e.g. because it has been received by some other transaction
@@ -468,32 +392,40 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_multi_input_objects_available(
         &self,
         keys: &[InputKey],
-        receiving_objects: HashSet<InputKey>,
-        epoch: EpochId,
+        receiving_objects: &HashSet<InputKey>,
+        epoch: &EpochId,
     ) -> Result<Vec<bool>, IotaError> {
-        let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-            .iter()
-            .enumerate()
-            .partition(|(_, key)| key.version().is_some());
+        let mut results = vec![false; keys.len()];
+        let non_canceled_keys = keys.iter().enumerate().filter(|(idx, key)| {
+            if key.is_cancelled() {
+                // Shared objects in canceled transactions are always available.
+                results[*idx] = true;
+                false
+            } else {
+                true
+            }
+        });
+        let (move_object_keys, package_object_keys): (Vec<_>, Vec<_>) = non_canceled_keys
+            .partition_map(|(idx, key)| match key {
+                InputKey::VersionedObject { id, version } => Either::Left((idx, (id, version))),
+                InputKey::Package { id } => Either::Right((idx, id)),
+            });
 
-        let mut versioned_results = vec![];
-        for ((idx, input_key), has_key) in keys_with_version.iter().zip(
+        for ((idx, (id, version)), has_key) in move_object_keys.iter().zip(
             self.try_multi_object_exists_by_key(
-                &keys_with_version
+                &move_object_keys
                     .iter()
-                    .map(|(_, k)| ObjectKey(k.id(), k.version().unwrap()))
+                    .map(|(_, k)| ObjectKey(*k.0, *k.1))
                     .collect::<Vec<_>>(),
             )?,
         ) {
-            assert!(
-                input_key.version().is_none() || input_key.version().unwrap().is_valid(),
-                "Shared objects in cancelled transaction should always be available immediately,
-                 but it appears that transaction manager is waiting for {input_key:?} to become available"
-            );
             // If the key exists at the specified version, then the object is available.
             if has_key {
-                versioned_results.push((*idx, true))
-            } else if receiving_objects.contains(input_key) {
+                results[*idx] = true;
+            } else if receiving_objects.contains(&InputKey::VersionedObject {
+                id: **id,
+                version: **version,
+            }) {
                 // There could be a more recent version of this object, and the object at the
                 // specified version could have already been pruned. In such a case `has_key`
                 // will be false, but since this is a receiving object we should
@@ -502,63 +434,44 @@ pub trait ObjectCacheRead: Send + Sync {
                 // exists or was deleted. We will then let mark it as available
                 // to let the transaction through so it can fail at execution.
                 let is_available = self
-                    .try_get_object(&input_key.id())?
-                    .map(|obj| obj.version() >= input_key.version().unwrap())
+                    .try_get_object(id)?
+                    .map(|obj| obj.version() >= **version)
                     .unwrap_or(false)
-                    || self.try_have_deleted_owned_object_at_version_or_after(
-                        &input_key.id(),
-                        input_key.version().unwrap(),
-                        epoch,
-                    )?;
-                versioned_results.push((*idx, is_available));
-            } else if self
-                .try_get_deleted_shared_object_previous_tx_digest(
-                    &input_key.id(),
-                    input_key.version().unwrap(),
-                    epoch,
-                )?
-                .is_some()
-            {
+                    || self
+                        .try_have_deleted_owned_object_at_version_or_after(id, **version, *epoch)?;
+                results[*idx] = is_available;
+            } else {
                 // If the object is an already deleted shared object, mark it as available if
                 // the version for that object is in the shared deleted marker
                 // table.
-                versioned_results.push((*idx, true));
-            } else {
-                versioned_results.push((*idx, false));
+                let is_consensus_stream_ended = self
+                    .try_get_deleted_shared_object_previous_tx_digest(id, **version, *epoch)?
+                    .is_some();
+                results[*idx] = is_consensus_stream_ended;
             }
         }
 
-        let unversioned_results = keys_without_version.into_iter().map(|(idx, key)| {
-            (
-                idx,
-                match self
-                    .try_get_latest_object_ref_or_tombstone(key.id())
-                    .expect("read cannot fail")
-                {
-                    None => false,
-                    Some(entry) => entry.digest.is_alive(),
-                },
-            )
+        package_object_keys.into_iter().for_each(|(idx, id)| {
+            // unwrap is safe since this only errors when the object is not a package,
+            // which is impossible if we have a certificate for execution.
+            results[idx] = self.get_package_object(id).is_some();
         });
 
-        let mut results = versioned_results
-            .into_iter()
-            .chain(unversioned_results)
-            .collect::<Vec<_>>();
-        results.sort_by_key(|(idx, _)| *idx);
-        Ok(results.into_iter().map(|(_, result)| result).collect())
+        Ok(results)
     }
 
     /// Non-fallible version of `try_multi_input_objects_available`.
     fn multi_input_objects_available(
         &self,
         keys: &[InputKey],
-        receiving_objects: HashSet<InputKey>,
+        receiving_objects: &HashSet<InputKey>,
         epoch: EpochId,
     ) -> Vec<bool> {
-        self.try_multi_input_objects_available(keys, receiving_objects, epoch)
+        self.try_multi_input_objects_available(keys, receiving_objects, &epoch)
             .expect("storage access failed")
     }
+
+    fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool>;
 
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
@@ -778,7 +691,7 @@ pub trait ObjectCacheRead: Send + Sync {
         input_and_receiving_keys: &'a [InputKey],
         receiving_keys: &'a HashSet<InputKey>,
         epoch: &'a EpochId,
-    ) -> BoxFuture<'a, Vec<()>>;
+    ) -> BoxFuture<'a, ()>;
 }
 
 pub trait TransactionCacheRead: Send + Sync {
@@ -1098,6 +1011,12 @@ pub trait ExecutionCacheWrite: Send + Sync {
     /// Validates that all owned input objects exist and their versions/digests
     /// match the live objects. Does not acquire any locks.
     fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult;
+
+    /// Write an object entry directly to the cache for testing.
+    /// This allows us to write an object without constructing the entire
+    /// transaction outputs.
+    #[cfg(test)]
+    fn write_object_entry_for_test(&self, object: Object);
 }
 
 pub trait CheckpointCache: Send + Sync {

@@ -24,6 +24,8 @@ use iota_types::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::execution_scheduler::ExecutionSchedulerAPI;
+
 /// Maximum number of transactions allowed in a single `submit_tx` request.
 /// Sized so that per-item traffic tallies from a single max-batch request
 /// stay well under `PolicyConfig::channel_capacity` (default 100), leaving
@@ -602,8 +604,8 @@ impl ValidatorService {
             ValidatorHealthResponse {
                 num_inflight_execution_transactions: self
                     .state
-                    .transaction_manager()
-                    .inflight_queue_len()
+                    .execution_scheduler()
+                    .num_pending_certificates()
                     as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter

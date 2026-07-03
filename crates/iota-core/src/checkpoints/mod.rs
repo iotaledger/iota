@@ -267,7 +267,7 @@ impl CheckpointStore {
         &self,
         checkpoint: VerifiedCheckpoint,
         contents: CheckpointContents,
-        epoch_store: &AuthorityPerEpochStore,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         assert_eq!(
             checkpoint.epoch(),

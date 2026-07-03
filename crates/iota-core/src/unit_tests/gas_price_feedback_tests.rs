@@ -37,6 +37,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
         transaction_deferral::DeferralKey,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
     move_call,
 };
 
@@ -268,7 +269,7 @@ impl GasPriceFeedbackTester {
             .map(|tx| *tx.digest())
             .collect::<Vec<_>>();
 
-        self.authority_state.transaction_manager().enqueue(
+        self.authority_state.execution_scheduler().enqueue(
             transactions,
             &self.authority_state.epoch_store_for_testing(),
         );

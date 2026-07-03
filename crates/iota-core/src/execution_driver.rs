@@ -12,7 +12,7 @@ use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
 
-use crate::{authority::AuthorityState, transaction_manager::PendingTransaction};
+use crate::{authority::AuthorityState, execution_scheduler::PendingTransaction};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_driver_tests.rs"]
@@ -40,12 +40,14 @@ pub async fn execution_process(
         let transaction;
         let expected_effects_digest;
         let txn_ready_time;
+        let _executing_guard;
         tokio::select! {
             result = rx_ready_transactions.recv() => {
                 if let Some(pending_tx) = result {
                     transaction = pending_tx.transaction;
                     expected_effects_digest = pending_tx.expected_effects_digest;
                     txn_ready_time = pending_tx.stats.ready_time.unwrap();
+                    _executing_guard = pending_tx.executing_guard;
                 } else {
                     // Should only happen after the AuthorityState has shut down and
                     // tx_ready_transaction has been dropped by TransactionManager.
