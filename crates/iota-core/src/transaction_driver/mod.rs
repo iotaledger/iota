@@ -31,12 +31,16 @@ use tokio::{
 use tracing::instrument;
 use transaction_submitter::*;
 
+// `validator_client_monitor` is crate-internal, but `ValidatorClientMetrics`
+// appears in the public `TransactionDriver::new` signature. Re-export it here so
+// external callers (e.g., clients implementing custom transaction drivers) have
+// a nameable path to the type; without it the public constructor would take an
+// unnameable argument.
+pub use crate::validator_client_monitor::ValidatorClientMetrics;
 use crate::{
     authority_aggregator::AuthorityAggregator,
     authority_client::AuthorityAPI,
-    validator_client_monitor::{
-        OperationFeedback, OperationType, ValidatorClientMetrics, ValidatorClientMonitor,
-    },
+    validator_client_monitor::{OperationFeedback, OperationType, ValidatorClientMonitor},
 };
 
 pub mod reconfig_observer;
