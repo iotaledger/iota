@@ -252,6 +252,7 @@ async fn main() -> Result<()> {
                         None,
                     )
                     .await?
+                    .with_backoff(BigTableClient::default_backoff())
                 };
 
                 let kv_worker = match kv_config.tables.filter(|s| !s.is_empty()) {
