@@ -7202,6 +7202,113 @@ async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() 
     survivor_executes(true).await;
 }
 
+/// Under `ExecutionScheduler`, a transaction that has been dispatched to the
+/// execution driver but is still executing must be counted by
+/// `num_pending_certificates()` — the value that feeds overload admission —
+/// exactly as the legacy `TransactionManager` counts it.
+///
+/// This holds only if the scheduler's `ExecutingGuard` is kept alive for the
+/// whole execution. A scheduler that drops the guard at dispatch (as upstream
+/// SUI does) reports 0 here, silently under-counting in-flight work for
+/// overload control on the ExecutionScheduler path.
+///
+/// Simulator-only: it relies on the `transaction_execution_delay` fail point
+/// (a no-op outside `msim`) to freeze execution at a deterministic point, so
+/// the count can be observed mid-execution. Under the simulator the scheduling
+/// is deterministic, so the observation is race-free.
+#[sim_test]
+async fn execution_scheduler_counts_executing_transaction() {
+    use iota_macros::{clear_fail_point, register_fail_point_async};
+
+    // The fail point only fires under the simulator; outside it, execution would
+    // not pause and this test could not observe the mid-execution window.
+    if !cfg!(msim) {
+        return;
+    }
+
+    // Pin the ExecutionScheduler; this invariant is about its accounting.
+    // SAFETY (edition 2021): plain env mutation, no other threads race here.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    // Build the authority first, so the object-basics package publish executes
+    // before the fail point is registered — only our transfer should be frozen.
+    let (authority, _) =
+        init_state_with_ids_and_object_basics(vec![(sender, object_id), (sender, gas_id)]).await;
+    assert!(authority.uses_execution_scheduler());
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas = authority.get_object(&gas_id).unwrap();
+
+    // Freeze execution just before the transaction runs: signal when it has
+    // reached that point, then block until the test releases it.
+    let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+    let release = std::sync::Arc::new(tokio::sync::Notify::new());
+    {
+        let entered = entered.clone();
+        let release = release.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let entered = entered.clone();
+            let release = release.clone();
+            async move {
+                entered.notify_one();
+                release.notified().await;
+            }
+        });
+    }
+
+    let cert = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas.object_ref(),
+        &authority,
+    );
+    let digest = *cert.digest();
+
+    // The input is available, so the scheduler dispatches immediately and the
+    // transaction blocks at the fail point mid-execution.
+    authority
+        .execution_scheduler()
+        .enqueue_certificates(vec![cert], &epoch_store);
+
+    // Wait until the transaction is executing (blocked at the fail point).
+    tokio::time::timeout(std::time::Duration::from_secs(20), entered.notified())
+        .await
+        .expect("transaction did not reach execution within 20s");
+
+    // Dispatched but not finished, so it must still be counted.
+    let count = authority.execution_scheduler().num_pending_certificates();
+
+    // Release execution and let it finish before asserting, so the fail point is
+    // always cleared even if the assertion below fails.
+    release.notify_one();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects(&[digest]),
+    )
+    .await
+    .expect("transaction did not finish executing within 20s")
+    .unwrap();
+    clear_fail_point("transaction_execution_delay");
+
+    assert!(
+        count >= 1,
+        "an executing (dispatched, not-yet-finished) transaction must be counted by \
+         num_pending_certificates(); got {count}. If 0, the scheduler dropped its \
+         ExecutingGuard at dispatch instead of holding it through execution."
+    );
+}
+
 #[tokio::test]
 async fn test_single_authority_reconfigure() {
     let state = TestAuthorityBuilder::new().build().await;
