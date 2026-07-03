@@ -380,6 +380,15 @@ impl NativesCostTable {
                 multisig_multisig_validate_pubkey_cost_base: protocol_config
                     .multisig_multisig_validate_pubkey_cost_base_as_option()
                     .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_ed25519_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_ed25519_member_as_option()
+                    .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_secp256k1_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_secp256k1_member_as_option()
+                    .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_secp256r1_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_secp256r1_member_as_option()
+                    .map(Into::into),
             },
             // to_iota_address_impl
             public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams {
