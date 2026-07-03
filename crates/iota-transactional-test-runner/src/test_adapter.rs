@@ -1059,7 +1059,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     IotaValue::Object(fake_id, version) => {
                         let id = match self.fake_to_real_object_id(fake_id) {
                             Some(id) => id,
-                            None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
+                            None => bail!("INVALID TEST. Unknown object, object({fake_id})"),
                         };
                         let obj = self.get_object(&id, version)?;
                         let package = obj.data.as_opt_package().map(|package| {

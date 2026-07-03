@@ -93,8 +93,8 @@ async fn test_valid_user_transaction_passes() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
 
     let tx =
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
@@ -182,8 +182,8 @@ async fn test_duplicate_transaction_deduplicated() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
 
     let tx =
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
@@ -246,10 +246,10 @@ async fn test_mixed_batch_filtering() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let obj1_ref = authority.get_object(&obj1_id).await.unwrap().object_ref();
-    let gas1_ref = authority.get_object(&gas1_id).await.unwrap().object_ref();
-    let obj2_ref = authority.get_object(&obj2_id).await.unwrap().object_ref();
-    let gas2_ref = authority.get_object(&gas2_id).await.unwrap().object_ref();
+    let obj1_ref = authority.get_object(&obj1_id).unwrap().object_ref();
+    let gas1_ref = authority.get_object(&gas1_id).unwrap().object_ref();
+    let obj2_ref = authority.get_object(&obj2_id).unwrap().object_ref();
+    let gas2_ref = authority.get_object(&gas2_id).unwrap().object_ref();
 
     let tx1 =
         make_transfer_object_transaction(obj1_ref, gas1_ref, sender, &sender_key, recipient, rgp);
@@ -323,9 +323,9 @@ async fn test_simple_conflict() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object = authority.get_object(&object_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object.object_ref(),
@@ -423,8 +423,8 @@ async fn test_stale_version_dropped_fresh_kept() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let gas_stale = authority.get_object(&gas_stale_id).await.unwrap();
-    let gas_fresh = authority.get_object(&gas_fresh_id).await.unwrap();
+    let gas_stale = authority.get_object(&gas_stale_id).unwrap();
+    let gas_fresh = authority.get_object(&gas_fresh_id).unwrap();
 
     let fresh_ref = object.object_ref();
     // Stale reference: same object id and digest, but the previous version.
@@ -530,10 +530,10 @@ async fn test_no_conflict() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object1 = authority.get_object(&object1_id).await.unwrap();
-    let object2 = authority.get_object(&object2_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+    let object1 = authority.get_object(&object1_id).unwrap();
+    let object2 = authority.get_object(&object2_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object1.object_ref(),
@@ -620,11 +620,11 @@ async fn test_chain_conflict() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_a = authority.get_object(&object_a_id).await.unwrap();
-    let object_b = authority.get_object(&object_b_id).await.unwrap();
-    let object_c = authority.get_object(&object_c_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let shared_gas = authority.get_object(&shared_gas_id).await.unwrap();
+    let object_a = authority.get_object(&object_a_id).unwrap();
+    let object_b = authority.get_object(&object_b_id).unwrap();
+    let object_c = authority.get_object(&object_c_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let shared_gas = authority.get_object(&shared_gas_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object_a.object_ref(),
@@ -731,12 +731,12 @@ async fn test_multiple_conflicts_in_batch() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_a = authority.get_object(&object_a_id).await.unwrap();
-    let object_b = authority.get_object(&object_b_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
-    let gas3 = authority.get_object(&gas3_id).await.unwrap();
-    let gas4 = authority.get_object(&gas4_id).await.unwrap();
+    let object_a = authority.get_object(&object_a_id).unwrap();
+    let object_b = authority.get_object(&object_b_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
+    let gas3 = authority.get_object(&gas3_id).unwrap();
+    let gas4 = authority.get_object(&gas4_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object_a.object_ref(),
@@ -844,9 +844,9 @@ async fn test_gas_object_conflict() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object1 = authority.get_object(&object1_id).await.unwrap();
-    let object2 = authority.get_object(&object2_id).await.unwrap();
-    let shared_gas = authority.get_object(&shared_gas_id).await.unwrap();
+    let object1 = authority.get_object(&object1_id).unwrap();
+    let object2 = authority.get_object(&object2_id).unwrap();
+    let shared_gas = authority.get_object(&shared_gas_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object1.object_ref(),
@@ -934,11 +934,11 @@ async fn test_winner_blocks_multiple_losers() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_a = authority.get_object(&object_a_id).await.unwrap();
-    let object_b = authority.get_object(&object_b_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
-    let gas3 = authority.get_object(&gas3_id).await.unwrap();
+    let object_a = authority.get_object(&object_a_id).unwrap();
+    let object_b = authority.get_object(&object_b_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
+    let gas3 = authority.get_object(&gas3_id).unwrap();
 
     use iota_sdk_types::Identifier;
     use iota_types::transaction::{CallArg, TransactionData, TransactionDataAPI};
@@ -1056,11 +1056,11 @@ async fn test_dropped_tx_does_not_acquire_locks() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_a = authority.get_object(&object_a_id).await.unwrap();
-    let object_b = authority.get_object(&object_b_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
-    let shared_gas = authority.get_object(&shared_gas_id).await.unwrap();
+    let object_a = authority.get_object(&object_a_id).unwrap();
+    let object_b = authority.get_object(&object_b_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
+    let shared_gas = authority.get_object(&shared_gas_id).unwrap();
 
     let tx1 = make_transfer_object_transaction(
         object_a.object_ref(),
@@ -1203,8 +1203,8 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
 
     let tx =
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
@@ -1303,9 +1303,9 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
-    let gas_a_ref = authority.get_object(&gas_a).await.unwrap().object_ref();
-    let gas_b_ref = authority.get_object(&gas_b).await.unwrap().object_ref();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_a_ref = authority.get_object(&gas_a).unwrap().object_ref();
+    let gas_b_ref = authority.get_object(&gas_b).unwrap().object_ref();
 
     // Two transactions spending the same owned object — a double spend.
     let tx_winner = make_transfer_object_transaction(
@@ -1434,8 +1434,8 @@ async fn setup_lock_tier() -> LockTierSetup {
 
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
 
     LockTierSetup {
         authority,

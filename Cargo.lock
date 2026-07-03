@@ -286,12 +286,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.89"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
-dependencies = [
- "backtrace",
-]
+checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "append-only-vec"
@@ -5774,7 +5771,6 @@ dependencies = [
  "prometheus-filtered",
  "quinn-proto",
  "rand 0.8.6",
- "rayon",
  "reqwest",
  "roaring",
  "rstest",
@@ -5945,6 +5941,7 @@ dependencies = [
  "iota-sdk-grpc-types",
  "iota-sdk-types",
  "iota-simulator",
+ "iota-snapshot",
  "iota-storage",
  "iota-swarm",
  "iota-swarm-config",
@@ -7463,7 +7460,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "bech32 0.11.1",
  "bip32",
@@ -7486,7 +7483,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7515,7 +7512,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7523,7 +7520,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7542,7 +7539,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7558,7 +7555,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7577,7 +7574,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=60f2aed417eca3daad4ed8d957ea62a44a0d20cc#60f2aed417eca3daad4ed8d957ea62a44a0d20cc"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ce81341ac3fdb7204df112182c68319f26d5896b#ce81341ac3fdb7204df112182c68319f26d5896b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7680,6 +7677,7 @@ dependencies = [
  "num_enum",
  "object_store 0.13.1",
  "prometheus-filtered",
+ "rand 0.8.6",
  "serde",
  "tempfile",
  "tokio",
@@ -7952,7 +7950,6 @@ dependencies = [
  "colored",
  "comfy-table",
  "csv",
- "eyre",
  "fastcrypto",
  "futures",
  "hex",

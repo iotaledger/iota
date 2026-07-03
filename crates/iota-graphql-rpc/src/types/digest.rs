@@ -69,6 +69,12 @@ impl From<Digest> for ObjectDigest {
     }
 }
 
+impl From<Digest> for TransactionDigest {
+    fn from(digest: Digest) -> Self {
+        TransactionDigest::new(digest.0)
+    }
+}
+
 impl From<TransactionDigest> for Digest {
     fn from(digest: TransactionDigest) -> Self {
         Digest(digest.into_inner())

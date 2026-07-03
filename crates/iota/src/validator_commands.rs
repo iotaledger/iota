@@ -461,7 +461,7 @@ async fn get_cap_object_ref(
             )
             .await?
             .object_ref_if_exists()
-            .ok_or_else(|| anyhow!("OperationCap {} does not exist", operation_cap_id))?;
+            .ok_or_else(|| anyhow!("OperationCap {operation_cap_id} does not exist"))?;
         Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectReference), anyhow::Error>((
             status,
             summary,
@@ -472,7 +472,7 @@ async fn get_cap_object_ref(
         let validator_address = context.active_address()?;
         let (status, summary) = get_validator_summary(&iota_client, validator_address)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("{} is not a validator.", validator_address))?;
+            .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator."))?;
         // TODO we should allow validator to perform this operation even though the Cap
         // is not at hand. But for now we need to make sure the cap is owned by
         // the sender.
@@ -539,22 +539,16 @@ async fn get_validator_summary_from_cap_id(
         )
         .await?;
     let bcs = resp.move_object_bcs().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Object {} does not exist or does not return bcs bytes",
-            operation_cap_id
-        )
+        anyhow::anyhow!("Object {operation_cap_id} does not exist or does not return bcs bytes")
     })?;
     let cap = bcs::from_bytes::<UnverifiedValidatorOperationCap>(bcs).map_err(|e| {
         anyhow::anyhow!(
-            "Can't convert bcs bytes of object {} to UnverifiedValidatorOperationCapV1: {}",
-            operation_cap_id,
-            e,
-        )
+            "Can't convert bcs bytes of object {operation_cap_id} to UnverifiedValidatorOperationCapV1: {e}")
     })?;
     let validator_address = cap.authorizer_validator_address;
     let (status, summary) = get_validator_summary(client, validator_address)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("{} is not a validator", validator_address))?;
+        .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator"))?;
     if summary.operation_cap_id != operation_cap_id {
         anyhow::bail!(
             "Validator {}'s current operation cap id is {}",
@@ -1078,8 +1072,7 @@ async fn check_status(
         return Ok(status);
     }
     bail!(
-        "Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.",
-        status
+        "Validator {validator_address} is {status:?}, this operation is not supported in this tool or prohibited."
     )
 }
 

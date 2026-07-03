@@ -298,7 +298,7 @@ async fn build_shared_object_transaction(
     pkg_ref: iota_sdk_types::ObjectReference,
 ) -> Transaction {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let gas = state.get_object(&gas_object_id).await.unwrap();
+    let gas = state.get_object(&gas_object_id).unwrap();
     let tx_data = TransactionData::new_move_call(
         sender,
         pkg_ref.object_id,
@@ -421,8 +421,8 @@ async fn test_v2_submit_tx_success() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
     let tx_data = TransactionData::new_transfer(
@@ -484,8 +484,8 @@ async fn test_v2_submit_tx_invalid_signature() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
     let tx_data = TransactionData::new_transfer(
@@ -544,8 +544,8 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
     let tx_data = TransactionData::new_transfer(
@@ -603,8 +603,8 @@ async fn test_v2_submit_tx_already_executed() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
 
     let tx_data = TransactionData::new_transfer(
         dbg_addr(2),
@@ -715,7 +715,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
 
     let pt = ProgrammableTransaction {
         inputs: vec![],
@@ -779,7 +779,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
 
     let tx_data = TransactionData::new_transfer(
         dbg_addr(2),
@@ -836,8 +836,8 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas1 = authority_state.get_object(&gas_id1).await.unwrap();
-    let gas2 = authority_state.get_object(&gas_id2).await.unwrap();
+    let gas1 = authority_state.get_object(&gas_id1).unwrap();
+    let gas2 = authority_state.get_object(&gas_id2).unwrap();
 
     let tx_data1 = TransactionData::new_move_call(
         sender,
@@ -912,7 +912,7 @@ async fn test_v2_submit_tx_oversized_transaction() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
 
     // Build a PTB whose inputs alone total ~140 KiB > max_tx_size_bytes (128 KiB).
     let inputs: Vec<_> = (0u8..10)
@@ -1039,8 +1039,8 @@ async fn test_v2_get_tx_status_already_executed() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
 
     let tx_data = TransactionData::new_transfer(
         dbg_addr(2),
@@ -1114,8 +1114,8 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
 
     let tx_data = TransactionData::new_transfer(
         dbg_addr(2),
@@ -1187,10 +1187,10 @@ async fn test_v2_get_tx_status_multiple_queries() {
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let obj1 = authority_state.get_object(&object_id1).await.unwrap();
-    let gas1 = authority_state.get_object(&gas_id1).await.unwrap();
-    let obj2 = authority_state.get_object(&object_id2).await.unwrap();
-    let gas2 = authority_state.get_object(&gas_id2).await.unwrap();
+    let obj1 = authority_state.get_object(&object_id1).unwrap();
+    let gas1 = authority_state.get_object(&gas_id1).unwrap();
+    let obj2 = authority_state.get_object(&object_id2).unwrap();
+    let gas2 = authority_state.get_object(&gas_id2).unwrap();
 
     // Build and execute two transactions.
     let tx1 = to_sender_signed_transaction(

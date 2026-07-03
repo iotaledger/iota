@@ -245,23 +245,31 @@ impl JsonRpcServerBuilder {
             Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
         })?;
 
-        let fut = async move {
-            axum::serve(
-                listener,
-                app.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .await
-            .unwrap();
-            if let Some(cancel) = cancel {
-                // Signal that the server is shutting down, so other tasks can clean-up.
-                cancel.cancel();
+        let serve = axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        );
+        let shutdown = cancel.clone().map(|token| token.cancelled_owned());
+        let run_server = async move {
+            if let Some(shutdown) = shutdown {
+                serve
+                    .with_graceful_shutdown(shutdown)
+                    .await
+                    .inspect(|_| info!("Shutting down IOTA JSON-RPC server"))
+                    .unwrap()
+            } else {
+                serve.await.unwrap()
+            };
+            if let Some(token) = cancel {
+                token.cancel();
             }
         };
+
         let handle = if let Some(custom_runtime) = custom_runtime {
             debug!("Spawning server with custom runtime");
-            custom_runtime.spawn(fut)
+            custom_runtime.spawn(run_server)
         } else {
-            tokio::spawn(fut)
+            tokio::spawn(run_server)
         };
 
         let handle = ServerHandle {

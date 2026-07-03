@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, ObjectReference,
-    Owner, UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
+    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, ObjectReference, Owner,
+    UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
     effects::{
@@ -25,7 +25,7 @@ use crate::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
         default_hash,
     },
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     error::IotaResult,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -91,10 +91,10 @@ impl InputSharedObject {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                ObjectReference::new(*id, *version, Digest::OBJECT_DELETED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                ObjectReference::new(*id, *version, Digest::OBJECT_CANCELLED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }
@@ -111,9 +111,9 @@ impl InputSharedObject {
 pub struct ObjectChange {
     pub id: ObjectId,
     pub input_version: Option<Version>,
-    pub input_digest: Option<Digest>,
+    pub input_digest: Option<ObjectDigest>,
     pub output_version: Option<Version>,
-    pub output_digest: Option<Digest>,
+    pub output_digest: Option<ObjectDigest>,
     pub id_operation: IDOperation,
 }
 
@@ -176,19 +176,19 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
-    /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
+    /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
     fn deleted(&self) -> Vec<ObjectReference>;
 
     /// Objects that were unwrapped and then deleted within this same
     /// transaction (i.e. did not exist as top-level objects either before
     /// or after). References use the post-execution version and the
-    /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
+    /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
     fn unwrapped_then_deleted(&self) -> Vec<ObjectReference>;
 
     /// Objects that existed as top-level objects before this transaction and
     /// have been wrapped inside another object by it (i.e. no longer visible
     /// in the object store as top-level). References use the post-execution
-    /// version and the [`TransactionEffectsDigest::OBJECT_WRAPPED`] tombstone
+    /// version and the [`ObjectDigest::OBJECT_WRAPPED`] tombstone
     /// digest.
     fn wrapped(&self) -> Vec<ObjectReference>;
 

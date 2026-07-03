@@ -144,6 +144,13 @@ const RECONFIG_STATE_INDEX: u64 = 0;
 const OVERRIDE_PROTOCOL_UPGRADE_BUFFER_STAKE_INDEX: u64 = 0;
 pub const EPOCH_DB_PREFIX: &str = "epoch_";
 
+/// Retry-after hint returned when a transaction is dropped by post-consensus
+/// load shedding. Chosen to align with the pre-consensus hint
+/// (`SEED_UPDATE_DURATION_SECS`) so clients see a consistent backoff - but it's
+/// an independent knob: the post-consensus seed is the consensus round, not a
+/// time-based seed, so the seed-rotation rationale doesn't apply here.
+const POST_CONSENSUS_LOAD_SHEDDING_RETRY_AFTER_SECS: u64 = 30;
+
 // Types for randomness DKG.
 pub(crate) type PkG = bls12381::G2Element;
 pub(crate) type EncG = bls12381::G2Element;
@@ -3393,28 +3400,13 @@ impl AuthorityPerEpochStore {
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
             // In the P-COOL flow, randomness transactions are separated
-            // later in the flow to preserve ordering in conflict resolution, so
-            // should be included with the regular transactions here.
+            // later in the flow to preserve ordering in conflict resolution,
+            // so they should be included with the regular transactions in the
+            // else branch. The branch below is therefore reachable only
+            // when `!enable_pcool`, in which case `drop_percentage == 0`
+            // (load shedding is off) - hence no shedding check here, unlike
+            // the else branch.
             } else if !enable_pcool && tx.0.is_user_tx_with_randomness() {
-                // Only user-originated transactions are eligible for load shedding
-                if drop_percentage > 0 {
-                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
-                        if should_reject_tx(drop_percentage, digest, drop_seed) {
-                            authority_metrics
-                                .consensus_handler_load_shedding_dropped_transactions
-                                .inc();
-                            // The retry-after hint matches the pre-consensus
-                            // load-shedding window in `overload_monitor.rs`.
-                            load_shedding_dropped.push((
-                                digest,
-                                IotaError::ValidatorOverloadedRetryAfter {
-                                    retry_after_secs: 30,
-                                },
-                            ));
-                            continue;
-                        }
-                    }
-                }
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
                 // Only user-originated transactions are eligible for load shedding
@@ -3424,12 +3416,10 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .consensus_handler_load_shedding_dropped_transactions
                                 .inc();
-                            // The retry-after hint matches the pre-consensus
-                            // load-shedding window in `overload_monitor.rs`.
                             load_shedding_dropped.push((
                                 digest,
                                 IotaError::ValidatorOverloadedRetryAfter {
-                                    retry_after_secs: 30,
+                                    retry_after_secs: POST_CONSENSUS_LOAD_SHEDDING_RETRY_AFTER_SECS,
                                 },
                             ));
                             continue;
@@ -4346,15 +4336,9 @@ impl AuthorityPerEpochStore {
         // sees no new inbound traffic (e.g. one that restarted) can stay Pending
         // forever -- deferring all randomness-using transactions and blocking
         // epoch close.
-        //
-        // This changes when `advance_dkg` runs relative to consensus, so it is
-        // gated behind a protocol flag: every validator must flip the behavior
-        // at the same protocol-upgrade boundary, otherwise a mixed-version
-        // network could resolve DKG on different commits and diverge.
-        let dkg_pending = self.protocol_config.always_advance_dkg_to_resolution()
-            && randomness_manager
-                .as_ref()
-                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        let dkg_pending = randomness_manager
+            .as_ref()
+            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
         if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager

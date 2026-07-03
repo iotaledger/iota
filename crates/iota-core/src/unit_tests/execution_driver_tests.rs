@@ -736,9 +736,7 @@ async fn test_authority_txn_signing_pushback() {
         .with_authority_overload_config(overload_config)
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
 
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
@@ -777,7 +775,6 @@ async fn test_authority_txn_signing_pushback() {
     // Check that the input object should be locked by the above transaction.
     let lock_tx = authority_state
         .get_transaction_lock(&gas_object1.object_ref(), &epoch_store)
-        .await
         .unwrap()
         .unwrap();
     assert_eq!(tx.digest(), lock_tx.digest());
@@ -860,9 +857,7 @@ async fn test_authority_txn_execution_pushback() {
         .with_authority_overload_config(overload_config)
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
 
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(

@@ -1817,7 +1817,7 @@ impl IotaClientCommands {
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context).await?;
                     if !context.config().keystore().addresses().contains(&address) {
-                        bail!("Address {} not managed by wallet", address);
+                        bail!("Address {address} not managed by wallet");
                     }
                     context.config_mut().set_active_address(address);
                     addr = Some(address.to_string());

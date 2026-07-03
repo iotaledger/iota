@@ -14,7 +14,7 @@ members = [
 [workspace.dependencies]
 # external dependencies
 aes-gcm = "0.8.0"
-anyhow = "1.0.52"
+anyhow = "1.0.103"
 append-only-vec = "0.1.7"
 arbitrary = { version = "1.1.7", features = ["derive", "derive_arbitrary"] }
 async-trait = "0.1.42"

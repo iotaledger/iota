@@ -133,7 +133,7 @@ pub trait AccountKeystore: Send + Sync {
         alias: Option<String>,
     ) -> Result<Address, anyhow::Error> {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
-            .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {e:?}"))?;
         let seed = Seed::new(&mnemonic, "");
         self.import_from_seed(seed.as_bytes(), key_scheme, derivation_path, alias)
     }
@@ -150,7 +150,7 @@ pub trait AccountKeystore: Send + Sync {
                 self.add_key(alias, kp)?;
                 Ok(address)
             }
-            Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
+            Err(e) => Err(anyhow!("error getting keypair {e:?}")),
         }
     }
 

@@ -52,7 +52,7 @@ use rand::{
 };
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
-use serde_with::{Bytes, serde_as};
+use serde_with::{Bytes, DeserializeAs, serde_as};
 use strum::EnumString;
 use tracing::{instrument, warn};
 
@@ -702,8 +702,7 @@ impl<'de> Deserialize<'de> for Signature {
             let s = String::deserialize(deserializer)?;
             Base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?
         } else {
-            let data: Vec<u8> = Vec::deserialize(deserializer)?;
-            data
+            Bytes::deserialize_as(deserializer)?
         };
 
         Self::from_bytes(&bytes).map_err(|e| Error::custom(e.to_string()))

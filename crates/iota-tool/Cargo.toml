@@ -23,7 +23,6 @@ clap.workspace = true
 colored.workspace = true
 comfy-table = "6.1.3"
 csv.workspace = true
-eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 hex.workspace = true

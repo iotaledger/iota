@@ -642,29 +642,25 @@ mod sim_only_tests {
     ) -> TransactionEffects {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
-        node_handle
-            .with_async(|node| async {
-                let store = node.state().get_object_cache_reader().clone();
-                let framework = store.get_object(package);
-                let digest = framework.unwrap().previous_transaction;
-                let tx_store = node.state().get_transaction_cache_reader().clone();
-                let effects = tx_store.get_executed_effects(&digest);
-                effects.unwrap()
-            })
-            .await
+        node_handle.with(|node| {
+            let store = node.state().get_object_cache_reader().clone();
+            let framework = store.get_object(package);
+            let digest = framework.unwrap().previous_transaction;
+            let tx_store = node.state().get_transaction_cache_reader().clone();
+            let effects = tx_store.get_executed_effects(&digest);
+            effects.unwrap()
+        })
     }
 
     async fn get_object(cluster: &TestCluster, object_id: &ObjectId) -> Object {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
-        node_handle
-            .with_async(|node| async {
-                node.state()
-                    .get_object_cache_reader()
-                    .get_object(object_id)
-                    .unwrap()
-            })
-            .await
+        node_handle.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .get_object(object_id)
+                .unwrap()
+        })
     }
 
     #[sim_test]

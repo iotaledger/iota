@@ -478,7 +478,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
     }
 
-    async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
+    fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
         let transactions_map = std::mem::take(&mut self.reconstructed_transactions);
         // In most cases, all reconstructed transactions will go to the core
         let mut ready_to_be_sent_transactions = Vec::new();
@@ -525,7 +525,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     /// Send reconstructed transactions to the core
     async fn send_to_core(&mut self) -> ConsensusResult<()> {
-        let transactions = self.get_transactions_with_headers_in_dag_state().await;
+        let transactions = self.get_transactions_with_headers_in_dag_state();
         if !transactions.is_empty() {
             let highest_accepted_round = self.dag_state.read().highest_accepted_round();
             for transaction in &transactions {
@@ -1166,14 +1166,12 @@ mod tests {
             "Test pre-condition: carrier and shard-source blocks must differ"
         );
 
-        // GIVEN: a ShardWithProof whose block_ref points to shard_source (V1 variant,
-        // transaction_ref_enabled = false).
+        // GIVEN: a ShardWithProof whose block_ref points to shard_source.
         let shard_with_proof = ShardWithProof::new(
             vec![0u8; 32],
             vec![],
             shard_source_ref,
             shard_source.transactions_commitment(),
-            false,
         );
 
         // WHEN: build transaction messages using the carrier block together with a

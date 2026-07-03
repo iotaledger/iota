@@ -1,8 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(test)]
-use std::sync::Arc;
 use std::{
     fmt,
     hash::{Hash, Hasher},
@@ -13,8 +11,6 @@ use fastcrypto::hash::Digest;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
 
-#[cfg(test)]
-use crate::context::Context;
 use crate::{
     block_header::{BlockRef, Round, TransactionsCommitment},
     error::{ConsensusError, ConsensusResult},
@@ -113,32 +109,13 @@ impl GenericTransactionRefAPI for TransactionRef {
 }
 
 impl GenericTransactionRef {
-    /// Extract TransactionRef, returning error if this is a BlockRef variant.
-    /// This should only be called when consensus_fast_commit_sync flag is true.
+    /// Returns the transaction reference or an error for a legacy block
+    /// reference.
     pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
         match self {
             GenericTransactionRef::TransactionRef(tr) => Ok(tr),
             GenericTransactionRef::BlockRef(_) => {
                 Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: true,
-                    expected_variant: "TransactionRef",
-                    received_variant: self.variant_name(),
-                })
-            }
-        }
-    }
-
-    /// Extract BlockRef, returning error if this is a TransactionRef variant.
-    /// This should only be called when consensus_fast_commit_sync flag is
-    /// false.
-    #[allow(dead_code)]
-    pub(crate) fn expect_block_ref(self) -> ConsensusResult<BlockRef> {
-        match self {
-            GenericTransactionRef::BlockRef(br) => Ok(br),
-            GenericTransactionRef::TransactionRef(_) => {
-                Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: false,
-                    expected_variant: "BlockRef",
                     received_variant: self.variant_name(),
                 })
             }
@@ -164,33 +141,24 @@ impl Hash for GenericTransactionRef {
     }
 }
 
-/// Helper function to convert BlockRefs to GenericTransactionRefs based on
-/// protocol flag.
+/// Helper function to convert BlockRefs to GenericTransactionRefs, fetching
+/// each block header for its transactions commitment.
 #[cfg(test)]
 pub(crate) fn convert_block_refs_to_generic_transaction_refs(
-    context: &Arc<Context>,
     store: &dyn crate::storage::Store,
     block_refs: &[BlockRef],
 ) -> Vec<GenericTransactionRef> {
-    if context.protocol_config.consensus_fast_commit_sync() {
-        // Fetch headers to get transactions_commitment for TransactionRef
-        let headers = store.read_verified_block_headers(block_refs).unwrap();
-        block_refs
-            .iter()
-            .enumerate()
-            .map(|(idx, block_ref)| {
-                let header = headers[idx].as_ref().unwrap();
-                GenericTransactionRef::TransactionRef(TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: header.transactions_commitment(),
-                })
+    let headers = store.read_verified_block_headers(block_refs).unwrap();
+    block_refs
+        .iter()
+        .enumerate()
+        .map(|(idx, block_ref)| {
+            let header = headers[idx].as_ref().unwrap();
+            GenericTransactionRef::TransactionRef(TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: header.transactions_commitment(),
             })
-            .collect()
-    } else {
-        block_refs
-            .iter()
-            .map(|br| GenericTransactionRef::BlockRef(*br))
-            .collect()
-    }
+        })
+        .collect()
 }

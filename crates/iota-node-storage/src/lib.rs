@@ -19,7 +19,7 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
-        CoinInfo, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectCursor,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
@@ -37,6 +37,10 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
     fn get_chain_identifier(&self) -> Result<ChainIdentifier>;
 
     fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
+
+    /// Per-epoch verified metadata, held by every node in the CheckpointStore's
+    /// `epoch_info` table (served by `GetEpoch`).
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
 
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
@@ -72,11 +76,9 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 /// GRPC-index-specific queries.
 ///
 /// Provides access to the on-disk indexes needed by the gRPC server:
-/// epoch info, transaction-to-checkpoint mapping, owned objects, dynamic
-/// fields, coin info, and package versions.
+/// transaction-to-checkpoint mapping, owned objects, dynamic fields, coin
+/// info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
-
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
     /// Iterate over objects owned by `owner`, optionally filtered by

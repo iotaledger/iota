@@ -256,7 +256,7 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>> {
-        Ok(self.try_get_object(object_id).await?)
+        Ok(self.try_get_object(object_id)?)
     }
 
     fn get_past_object_read(
@@ -393,18 +393,14 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
-        Ok(self
-            .get_move_objects(owner, StructTag::new_staked_iota())
-            .await?)
+        Ok(self.get_move_objects(owner, StructTag::new_staked_iota())?)
     }
 
     async fn get_timelocked_staked_iota(
         &self,
         owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
-        Ok(self
-            .get_move_objects(owner, StructTag::new_timelocked_staked_iota())
-            .await?)
+        Ok(self.get_move_objects(owner, StructTag::new_timelocked_staked_iota())?)
     }
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {

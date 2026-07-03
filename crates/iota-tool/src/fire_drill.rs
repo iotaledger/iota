@@ -331,7 +331,7 @@ async fn execute_tx(
         .await
         .unwrap();
     if *resp.effects.unwrap().status() != IotaExecutionStatus::Success {
-        anyhow::bail!("Tx to update metadata {:?} failed", tx_digest);
+        anyhow::bail!("Tx to update metadata {tx_digest:?} failed");
     }
     info!("{action} succeeded");
     Ok(())
@@ -345,9 +345,7 @@ async fn wait_for_next_epoch(
         let epoch_id = current_epoch(iota_client).await?;
         if epoch_id > target_epoch {
             bail!(
-                "Current epoch ID {} is higher than target {}, likely something is off.",
-                epoch_id,
-                target_epoch
+                "Current epoch ID {epoch_id} is higher than target {target_epoch}, likely something is off."
             );
         }
         if epoch_id == target_epoch {

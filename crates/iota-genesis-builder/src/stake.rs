@@ -260,7 +260,7 @@ impl GenesisStake {
                 }
             } else {
                 // It means the delegator finished all the timelock or gas funds
-                bail!("Not enough funds for delegator {:?}", delegator);
+                bail!("Not enough funds for delegator {delegator:?}");
             }
         }
 
