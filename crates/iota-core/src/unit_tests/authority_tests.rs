@@ -7223,9 +7223,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
     let soft_limit = hard_limit * soft_limit_pct as usize / 100;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
-    authority_state
-        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
 
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockConsensusClient::new()),
