@@ -644,8 +644,12 @@ pub async fn backfill_checkpoint_summaries(
     let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
     let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
     let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
-    let state_sync_store =
-        RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
+    let state_sync_store = RocksDbStore::new(
+        cache_traits,
+        committee_store,
+        checkpoint_store.clone(),
+        None,
+    );
 
     let highest_synced = checkpoint_store
         .get_highest_synced_checkpoint()?

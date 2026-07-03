@@ -1,20 +1,27 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-epoch storage for superseded object versions.
+//! Per-epoch storage for pruned historic data.
 //!
-//! When the live-object/historic split is enabled, the pruner relocates
-//! superseded object versions into this store instead of deleting them. Rows
-//! are bucketed by their *supersession epoch* (the epoch of the checkpoint
-//! whose effects superseded them), one pair of column families per epoch, so
-//! that expiring an epoch of history is a constant-time `drop_cf` instead of
-//! per-key deletes.
+//! When the live/historic split is enabled, the pruner relocates data into
+//! this store instead of deleting it:
 //!
-//! The store is strictly outside the consensus/execution read paths: the only
-//! reader is the gRPC exact-version object lookup. Lookups carry no epoch
-//! hint, so they probe the per-epoch column families newest to oldest; a miss
-//! in a sealed, compacted column family is answered from the in-memory RocksDB
-//! bloom filters without touching disk.
+//! - superseded object versions, bucketed by their *supersession epoch* (the
+//!   epoch of the checkpoint whose effects superseded them);
+//! - checkpoint-keyed history (transactions, effects, events, checkpoint
+//!   contents and summaries), bucketed by the epoch of their checkpoint.
+//!
+//! Each epoch bucket is a fixed set of column families, so expiring an epoch
+//! of history is a constant-time `drop_cf` per family instead of per-key
+//! deletes.
+//!
+//! The store is strictly outside the consensus/execution write and read
+//! paths: readers are the gRPC exact-version object lookup and the
+//! RocksDbStore fallbacks serving old transactions/effects/checkpoints to
+//! gRPC and state sync. Lookups carry no epoch hint, so they probe the
+//! per-epoch column families newest to oldest; a miss in a sealed, compacted
+//! column family is answered from the in-memory RocksDB bloom filters without
+//! touching disk.
 
 use std::{
     collections::BTreeMap,
@@ -25,15 +32,22 @@ use std::{
 
 use iota_types::{
     base_types::EpochId,
+    digests::{TransactionDigest, TransactionEffectsDigest},
+    effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        TrustedCheckpoint,
+    },
     object::Object,
     storage::ObjectKey,
+    transaction::TrustedTransaction,
 };
 use prometheus_filtered::{
     Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use typed_store::{
     Map,
     database::Database,
@@ -51,6 +65,28 @@ const HISTORY_DIR_NAME: &str = "history";
 const META_CF_NAME: &str = "meta";
 const OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 const EXPIRY_CF_PREFIX: &str = "hist_exp_e";
+const TRANSACTIONS_CF_PREFIX: &str = "hist_tx_e";
+const EFFECTS_CF_PREFIX: &str = "hist_fx_e";
+const EXECUTED_EFFECTS_CF_PREFIX: &str = "hist_exec_fx_e";
+const EVENTS_CF_PREFIX: &str = "hist_ev_e";
+const CHECKPOINT_CONTENTS_CF_PREFIX: &str = "hist_ckpt_content_e";
+const CHECKPOINT_SEQ_CF_PREFIX: &str = "hist_ckpt_seq_e";
+const CHECKPOINTS_CF_PREFIX: &str = "hist_ckpt_e";
+
+/// Every column-family prefix of an epoch bucket. No prefix may be a prefix
+/// of another followed by a digit, so parsing an epoch from a name is
+/// unambiguous.
+const EPOCH_CF_PREFIXES: [&str; 9] = [
+    OBJECTS_CF_PREFIX,
+    EXPIRY_CF_PREFIX,
+    TRANSACTIONS_CF_PREFIX,
+    EFFECTS_CF_PREFIX,
+    EXECUTED_EFFECTS_CF_PREFIX,
+    EVENTS_CF_PREFIX,
+    CHECKPOINT_CONTENTS_CF_PREFIX,
+    CHECKPOINT_SEQ_CF_PREFIX,
+    CHECKPOINTS_CF_PREFIX,
+];
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE: &str = "HISTORY_BLOCK_CACHE_MB";
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
@@ -66,6 +102,15 @@ pub struct EpochBucketInfo {
     pub object_count: u64,
     /// Number of tombstone-head expiry entries in the bucket.
     pub expiry_count: u64,
+    /// Lowest checkpoint whose checkpoint-keyed history was relocated into
+    /// this bucket. `None` until checkpoint relocation reaches this epoch.
+    /// The earliest bucket may cover its epoch only partially (relocation
+    /// enabled mid-epoch), so this — not the epoch's first checkpoint — is
+    /// the availability horizon.
+    pub min_checkpoint: Option<CheckpointSequenceNumber>,
+    /// Highest checkpoint whose checkpoint-keyed history was relocated into
+    /// this bucket.
+    pub max_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
 struct EpochBucket {
@@ -76,10 +121,68 @@ struct EpochBucket {
     /// which point they are point-deleted from the live table right before
     /// the bucket is dropped.
     expiry: DBMap<ObjectKey, ()>,
+    /// Transactions of this epoch's pruned checkpoints.
+    transactions: DBMap<TransactionDigest, TrustedTransaction>,
+    /// Effects of this epoch's pruned checkpoints, by effects digest.
+    effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
+    /// Transaction digest to executed effects digest.
+    executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
+    /// Events by the digest of the transaction that produced them.
+    events: DBMap<TransactionDigest, TransactionEvents>,
+    /// Checkpoint contents by contents digest.
+    checkpoint_contents: DBMap<CheckpointContentsDigest, CheckpointContents>,
+    /// Checkpoint contents digest to checkpoint sequence number.
+    checkpoint_seq_by_contents: DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
+    /// Certified checkpoint summaries by checkpoint digest.
+    checkpoints: DBMap<CheckpointDigest, TrustedCheckpoint>,
 }
 
-pub struct HistoricObjectStoreMetrics {
+/// One epoch-homogeneous batch of checkpoint-keyed history to relocate.
+/// All keys must belong to checkpoints of the target bucket's epoch.
+#[derive(Default)]
+pub struct CheckpointHistoryBatch {
+    pub transactions: Vec<(TransactionDigest, TrustedTransaction)>,
+    pub effects: Vec<(TransactionEffectsDigest, TransactionEffects)>,
+    pub executed_effects: Vec<(TransactionDigest, TransactionEffectsDigest)>,
+    pub events: Vec<(TransactionDigest, TransactionEvents)>,
+    pub checkpoint_contents: Vec<(CheckpointContentsDigest, CheckpointContents)>,
+    pub checkpoint_seq_by_contents: Vec<(CheckpointContentsDigest, CheckpointSequenceNumber)>,
+    pub checkpoints: Vec<(CheckpointDigest, TrustedCheckpoint)>,
+    /// Inclusive checkpoint sequence range covered by this batch; drives the
+    /// bucket's availability watermark.
+    pub checkpoint_range: Option<(CheckpointSequenceNumber, CheckpointSequenceNumber)>,
+}
+
+impl EpochBucket {
+    fn flush_all(&self) -> IotaResult<()> {
+        self.objects.flush()?;
+        self.expiry.flush()?;
+        self.transactions.flush()?;
+        self.effects.flush()?;
+        self.executed_effects.flush()?;
+        self.events.flush()?;
+        self.checkpoint_contents.flush()?;
+        self.checkpoint_seq_by_contents.flush()?;
+        self.checkpoints.flush()?;
+        Ok(())
+    }
+}
+
+impl CheckpointHistoryBatch {
+    pub fn is_empty(&self) -> bool {
+        self.transactions.is_empty()
+            && self.effects.is_empty()
+            && self.executed_effects.is_empty()
+            && self.events.is_empty()
+            && self.checkpoint_contents.is_empty()
+            && self.checkpoint_seq_by_contents.is_empty()
+            && self.checkpoints.is_empty()
+    }
+}
+
+pub struct HistoricStoreMetrics {
     pub relocated_objects: IntCounter,
+    pub relocated_transactions: IntCounter,
     pub relocated_bytes: IntCounter,
     pub lookup_probes: Histogram,
     pub lookup_not_found: IntCounter,
@@ -87,42 +190,49 @@ pub struct HistoricObjectStoreMetrics {
     pub earliest_retained_epoch: IntGauge,
 }
 
-impl HistoricObjectStoreMetrics {
+impl HistoricStoreMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         Arc::new(Self {
             relocated_objects: register_int_counter_with_registry!(
-                "historic_object_store_relocated_objects",
+                "historic_store_relocated_objects",
                 "Number of superseded object versions relocated into the historic store",
                 registry
             )
             .unwrap(),
+            relocated_transactions: register_int_counter_with_registry!(
+                "historic_store_relocated_transactions",
+                "Number of transactions whose checkpoint-keyed history was relocated into the \
+                 historic store",
+                registry
+            )
+            .unwrap(),
             relocated_bytes: register_int_counter_with_registry!(
-                "historic_object_store_relocated_bytes",
-                "Serialized bytes relocated into the historic store",
+                "historic_store_relocated_bytes",
+                "Serialized bytes of object versions relocated into the historic store",
                 registry
             )
             .unwrap(),
             lookup_probes: register_histogram_with_registry!(
-                "historic_object_store_lookup_probes",
+                "historic_store_lookup_probes",
                 "Number of epoch buckets probed per historic lookup",
                 vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0],
                 registry
             )
             .unwrap(),
             lookup_not_found: register_int_counter_with_registry!(
-                "historic_object_store_lookup_not_found",
+                "historic_store_lookup_not_found",
                 "Historic lookups that missed every epoch bucket",
                 registry
             )
             .unwrap(),
             epochs_retained: register_int_gauge_with_registry!(
-                "historic_object_store_epochs_retained",
+                "historic_store_epochs_retained",
                 "Number of epoch buckets currently retained",
                 registry
             )
             .unwrap(),
             earliest_retained_epoch: register_int_gauge_with_registry!(
-                "historic_object_store_earliest_retained_epoch",
+                "historic_store_earliest_retained_epoch",
                 "Earliest epoch with a retained bucket",
                 registry
             )
@@ -139,7 +249,7 @@ impl HistoricObjectStoreMetrics {
 ///
 /// Writes come exclusively from the single pruner task; reads may come from
 /// any number of RPC threads concurrently.
-pub struct HistoricObjectStore {
+pub struct HistoricStore {
     db: Arc<Database>,
     /// Template options for per-epoch column families. All clones share one
     /// block cache through the cloned table factory.
@@ -147,10 +257,10 @@ pub struct HistoricObjectStore {
     meta: DBMap<EpochId, EpochBucketInfo>,
     buckets: RwLock<BTreeMap<EpochId, EpochBucket>>,
     disable_wal: bool,
-    metrics: Arc<HistoricObjectStoreMetrics>,
+    metrics: Arc<HistoricStoreMetrics>,
 }
 
-impl HistoricObjectStore {
+impl HistoricStore {
     pub fn path(parent_path: &Path) -> PathBuf {
         parent_path.join(HISTORY_DIR_NAME)
     }
@@ -165,7 +275,7 @@ impl HistoricObjectStore {
     pub fn open(
         parent_path: &Path,
         disable_wal: bool,
-        metrics: Arc<HistoricObjectStoreMetrics>,
+        metrics: Arc<HistoricStoreMetrics>,
     ) -> IotaResult<Self> {
         let path = Self::path(parent_path);
         let db_options = default_db_options().disable_write_throttling();
@@ -195,19 +305,18 @@ impl HistoricObjectStore {
 
         // Column family names on disk are the ground truth for which buckets
         // exist; `meta` may lag by one crash (bucket created, meta row not yet
-        // written) and is backfilled lazily on the next write. A bucket's two
+        // written) and is backfilled lazily on the next write. A bucket's
         // column families are created and dropped in separate operations, so
-        // a crash can leave one of the pair missing: recreate it (empty)
+        // a crash can leave some of the set missing: recreate them (empty)
         // here. A bucket half-dropped this way simply resurfaces and is
         // dropped again by the next retention pass.
         let mut epochs = std::collections::BTreeSet::new();
         for cf_name in &existing_cfs {
-            let epoch_str = match (
-                cf_name.strip_prefix(OBJECTS_CF_PREFIX),
-                cf_name.strip_prefix(EXPIRY_CF_PREFIX),
-            ) {
-                (Some(epoch_str), _) | (_, Some(epoch_str)) => epoch_str,
-                (None, None) => continue,
+            let Some(epoch_str) = EPOCH_CF_PREFIXES
+                .iter()
+                .find_map(|prefix| cf_name.strip_prefix(prefix))
+            else {
+                continue;
             };
             let epoch: EpochId = epoch_str.parse().map_err(|_| {
                 IotaError::Storage(format!("unparsable historic column family name: {cf_name}"))
@@ -216,7 +325,7 @@ impl HistoricObjectStore {
         }
         let mut buckets = BTreeMap::new();
         for epoch in epochs {
-            for cf_name in [Self::objects_cf_name(epoch), Self::expiry_cf_name(epoch)] {
+            for cf_name in Self::epoch_cf_names(epoch) {
                 if db.cf_handle(&cf_name).is_none() {
                     db.create_cf(&cf_name, &cf_options)
                         .map_err(|e| IotaError::Storage(e.to_string()))?;
@@ -263,23 +372,33 @@ impl HistoricObjectStore {
         format!("{EXPIRY_CF_PREFIX}{epoch}")
     }
 
+    fn epoch_cf_names(epoch: EpochId) -> [String; 9] {
+        EPOCH_CF_PREFIXES.map(|prefix| format!("{prefix}{epoch}"))
+    }
+
     fn reopen_bucket(db: &Arc<Database>, epoch: EpochId) -> IotaResult<EpochBucket> {
         // Per-epoch column families skip the periodic metrics reporter task:
         // with ~100 retained epochs the per-table metrics add little insight
         // and one task per column family adds up.
-        let objects = DBMap::reopen(
-            db,
-            Some(&Self::objects_cf_name(epoch)),
-            &ReadWriteOptions::default(),
-            true,
-        )?;
-        let expiry = DBMap::reopen(
-            db,
-            Some(&Self::expiry_cf_name(epoch)),
-            &ReadWriteOptions::default(),
-            true,
-        )?;
-        Ok(EpochBucket { objects, expiry })
+        fn map<K, V>(db: &Arc<Database>, cf_name: String) -> IotaResult<DBMap<K, V>> {
+            Ok(DBMap::reopen(
+                db,
+                Some(&cf_name),
+                &ReadWriteOptions::default(),
+                true,
+            )?)
+        }
+        Ok(EpochBucket {
+            objects: map(db, Self::objects_cf_name(epoch))?,
+            expiry: map(db, Self::expiry_cf_name(epoch))?,
+            transactions: map(db, format!("{TRANSACTIONS_CF_PREFIX}{epoch}"))?,
+            effects: map(db, format!("{EFFECTS_CF_PREFIX}{epoch}"))?,
+            executed_effects: map(db, format!("{EXECUTED_EFFECTS_CF_PREFIX}{epoch}"))?,
+            events: map(db, format!("{EVENTS_CF_PREFIX}{epoch}"))?,
+            checkpoint_contents: map(db, format!("{CHECKPOINT_CONTENTS_CF_PREFIX}{epoch}"))?,
+            checkpoint_seq_by_contents: map(db, format!("{CHECKPOINT_SEQ_CF_PREFIX}{epoch}"))?,
+            checkpoints: map(db, format!("{CHECKPOINTS_CF_PREFIX}{epoch}"))?,
+        })
     }
 
     fn update_retention_metrics(&self) {
@@ -335,6 +454,53 @@ impl HistoricObjectStore {
         Ok(())
     }
 
+    /// Durably persists one epoch-homogeneous batch of checkpoint-keyed
+    /// history into the bucket for `epoch`, creating the bucket on first use.
+    /// Idempotent: rewriting the same keys with the same bytes is harmless.
+    ///
+    /// Durability of the write is only guaranteed after a subsequent
+    /// [`Self::flush_epoch`]; callers must flush before deleting the source
+    /// rows.
+    pub fn put_checkpoint_data(
+        &self,
+        epoch: EpochId,
+        data: CheckpointHistoryBatch,
+    ) -> IotaResult<()> {
+        if data.is_empty() {
+            return Ok(());
+        }
+        self.ensure_bucket(epoch)?;
+        let buckets = self.buckets.read().expect("lock should not be poisoned");
+        let bucket = buckets.get(&epoch).expect("bucket was just created");
+
+        let num_transactions = data.transactions.len() as u64;
+        let mut batch = bucket.transactions.batch();
+        batch.insert_batch(&bucket.transactions, data.transactions)?;
+        batch.insert_batch(&bucket.effects, data.effects)?;
+        batch.insert_batch(&bucket.executed_effects, data.executed_effects)?;
+        batch.insert_batch(&bucket.events, data.events)?;
+        batch.insert_batch(&bucket.checkpoint_contents, data.checkpoint_contents)?;
+        batch.insert_batch(
+            &bucket.checkpoint_seq_by_contents,
+            data.checkpoint_seq_by_contents,
+        )?;
+        batch.insert_batch(&bucket.checkpoints, data.checkpoints)?;
+
+        let mut info = self.meta.get(&epoch)?.unwrap_or_default();
+        if let Some((batch_min, batch_max)) = data.checkpoint_range {
+            info.min_checkpoint = Some(info.min_checkpoint.unwrap_or(batch_min).min(batch_min));
+            info.max_checkpoint = Some(info.max_checkpoint.unwrap_or(batch_max).max(batch_max));
+        }
+        batch.insert_batch(&self.meta, [(epoch, info)])?;
+
+        let mut write_options = rocksdb::WriteOptions::default();
+        write_options.disable_wal(self.disable_wal);
+        batch.write_opt(&write_options)?;
+
+        self.metrics.relocated_transactions.inc_by(num_transactions);
+        Ok(())
+    }
+
     /// Flushes the bucket's memtables to disk. This is the durability barrier
     /// for WAL-less relocation writes: it must complete before the relocated
     /// rows are deleted from the live table.
@@ -343,8 +509,7 @@ impl HistoricObjectStore {
         let Some(bucket) = buckets.get(&epoch) else {
             return Ok(());
         };
-        bucket.objects.flush()?;
-        bucket.expiry.flush()?;
+        bucket.flush_all()?;
         Ok(())
     }
 
@@ -357,22 +522,16 @@ impl HistoricObjectStore {
             let Some(bucket) = buckets.get(&epoch) else {
                 return Ok(());
             };
-            bucket.objects.flush()?;
-            bucket.expiry.flush()?;
-            // Full-range manual compaction: object keys are 40-byte
+            bucket.flush_all()?;
+            // Full-range manual compaction: the longest keys are 40-byte
             // fix-int-serialized (ObjectId, version) tuples, so these raw
             // bounds cover every possible key.
             let full_range_end = vec![0xffu8; 48];
-            bucket.objects.compact_range_raw(
-                &Self::objects_cf_name(epoch),
-                vec![],
-                full_range_end.clone(),
-            )?;
-            bucket.expiry.compact_range_raw(
-                &Self::expiry_cf_name(epoch),
-                vec![],
-                full_range_end,
-            )?;
+            for cf_name in Self::epoch_cf_names(epoch) {
+                bucket
+                    .objects
+                    .compact_range_raw(&cf_name, vec![], full_range_end.clone())?;
+            }
         }
         let mut info = self.meta.get(&epoch)?.unwrap_or_default();
         if !info.sealed {
@@ -383,18 +542,90 @@ impl HistoricObjectStore {
     }
 
     /// Exact-key lookup with no epoch hint: probes buckets newest to oldest.
-    pub fn get_store_object(&self, key: &ObjectKey) -> IotaResult<Option<StoreObjectWrapper>> {
+    fn probe_newest_first<K, V>(
+        &self,
+        select: impl Fn(&EpochBucket) -> &DBMap<K, V>,
+        key: &K,
+    ) -> IotaResult<Option<V>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
         let buckets = self.buckets.read().expect("lock should not be poisoned");
         let mut probes = 0u64;
         for bucket in buckets.values().rev() {
             probes += 1;
-            if let Some(wrapper) = bucket.objects.get(key)? {
+            if let Some(value) = select(bucket).get(key)? {
                 self.metrics.lookup_probes.observe(probes as f64);
-                return Ok(Some(wrapper));
+                return Ok(Some(value));
             }
         }
         self.metrics.lookup_probes.observe(probes.max(1) as f64);
         self.metrics.lookup_not_found.inc();
+        Ok(None)
+    }
+
+    pub fn get_store_object(&self, key: &ObjectKey) -> IotaResult<Option<StoreObjectWrapper>> {
+        self.probe_newest_first(|bucket| &bucket.objects, key)
+    }
+
+    pub fn get_transaction(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TrustedTransaction>> {
+        self.probe_newest_first(|bucket| &bucket.transactions, digest)
+    }
+
+    pub fn get_effects(
+        &self,
+        digest: &TransactionEffectsDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
+        self.probe_newest_first(|bucket| &bucket.effects, digest)
+    }
+
+    pub fn get_executed_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffectsDigest>> {
+        self.probe_newest_first(|bucket| &bucket.executed_effects, digest)
+    }
+
+    pub fn get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
+        self.probe_newest_first(|bucket| &bucket.events, digest)
+    }
+
+    pub fn get_checkpoint_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> IotaResult<Option<CheckpointContents>> {
+        self.probe_newest_first(|bucket| &bucket.checkpoint_contents, digest)
+    }
+
+    pub fn get_checkpoint_seq_by_contents_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        self.probe_newest_first(|bucket| &bucket.checkpoint_seq_by_contents, digest)
+    }
+
+    pub fn get_checkpoint_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> IotaResult<Option<TrustedCheckpoint>> {
+        self.probe_newest_first(|bucket| &bucket.checkpoints, digest)
+    }
+
+    /// The lowest checkpoint whose checkpoint-keyed history is retained, if
+    /// any. Coverage is contiguous from here to the pruning watermark:
+    /// relocation processes checkpoints strictly in order, and buckets expire
+    /// oldest-first.
+    pub fn lowest_available_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        for entry in self.meta.safe_iter() {
+            let (_, info) = entry?;
+            if let Some(min_checkpoint) = info.min_checkpoint {
+                return Ok(Some(min_checkpoint));
+            }
+        }
         Ok(None)
     }
 
@@ -435,12 +666,11 @@ impl HistoricObjectStore {
             buckets.remove(&epoch)
         };
         if removed.is_some() {
-            self.db
-                .drop_cf(&Self::objects_cf_name(epoch))
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
-            self.db
-                .drop_cf(&Self::expiry_cf_name(epoch))
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
+            for cf_name in Self::epoch_cf_names(epoch) {
+                self.db
+                    .drop_cf(&cf_name)
+                    .map_err(|e| IotaError::Storage(e.to_string()))?;
+            }
         }
         self.meta.remove(&epoch)?;
         self.update_retention_metrics();
@@ -483,7 +713,7 @@ impl HistoricObjectStore {
         if buckets.contains_key(&epoch) {
             return Ok(());
         }
-        for cf_name in [Self::objects_cf_name(epoch), Self::expiry_cf_name(epoch)] {
+        for cf_name in Self::epoch_cf_names(epoch) {
             // The column family may already exist if a previous run crashed
             // between `create_cf` and the first batch write.
             if self.db.cf_handle(&cf_name).is_none() {
@@ -507,8 +737,8 @@ mod tests {
     use super::*;
     use crate::authority::authority_store_types::get_store_object;
 
-    fn open_store(path: &Path) -> HistoricObjectStore {
-        HistoricObjectStore::open(path, true, HistoricObjectStoreMetrics::new_for_test()).unwrap()
+    fn open_store(path: &Path) -> HistoricStore {
+        HistoricStore::open(path, true, HistoricStoreMetrics::new_for_test()).unwrap()
     }
 
     fn test_row(version: u64) -> (ObjectKey, StoreObjectWrapper) {
@@ -595,6 +825,88 @@ mod tests {
         let store = open_store(tmp_dir.path());
         assert_eq!(store.list_epochs(), vec![2]);
         assert!(store.get_object(&key_b).unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn checkpoint_history_roundtrip_and_watermark() {
+        use iota_types::{
+            base_types::ExecutionDigests,
+            digests::CheckpointContentsDigest,
+            effects::{TransactionEffectsAPI, TransactionEffectsExtForTesting},
+            messages_checkpoint::CheckpointContentsExt,
+        };
+
+        let tmp_dir = iota_common::tempdir();
+        let store = open_store(tmp_dir.path());
+
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::random());
+        let fx_digest = effects.digest();
+        let tx_digest = *effects.transaction_digest();
+        let contents =
+            CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
+        let contents_digest = contents.digest();
+
+        store
+            .put_checkpoint_data(
+                4,
+                CheckpointHistoryBatch {
+                    effects: vec![(fx_digest, effects)],
+                    executed_effects: vec![(tx_digest, fx_digest)],
+                    events: vec![(tx_digest, TransactionEvents(vec![]))],
+                    checkpoint_contents: vec![(contents_digest, contents)],
+                    checkpoint_seq_by_contents: vec![(contents_digest, 42)],
+                    checkpoint_range: Some((40, 45)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            store.get_effects(&fx_digest).unwrap().map(|e| e.digest()),
+            Some(fx_digest)
+        );
+        assert_eq!(
+            store.get_executed_effects(&tx_digest).unwrap(),
+            Some(fx_digest)
+        );
+        assert!(store.get_events(&tx_digest).unwrap().is_some());
+        assert!(
+            store
+                .get_checkpoint_contents(&contents_digest)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            store
+                .get_checkpoint_seq_by_contents_digest(&contents_digest)
+                .unwrap(),
+            Some(42)
+        );
+        assert_eq!(store.lowest_available_checkpoint().unwrap(), Some(40));
+
+        // An earlier batch of the same bucket lowers the watermark.
+        store
+            .put_checkpoint_data(
+                4,
+                CheckpointHistoryBatch {
+                    checkpoint_seq_by_contents: vec![(CheckpointContentsDigest::random(), 38)],
+                    checkpoint_range: Some((38, 39)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(store.lowest_available_checkpoint().unwrap(), Some(38));
+
+        // Everything survives a restart.
+        drop(store);
+        let store = open_store(tmp_dir.path());
+        assert!(store.get_effects(&fx_digest).unwrap().is_some());
+        assert_eq!(store.lowest_available_checkpoint().unwrap(), Some(38));
+
+        // Dropping the bucket clears the availability watermark.
+        store.drop_epoch(4).unwrap();
+        assert_eq!(store.lowest_available_checkpoint().unwrap(), None);
+        assert!(store.get_effects(&fx_digest).unwrap().is_none());
     }
 
     #[tokio::test]

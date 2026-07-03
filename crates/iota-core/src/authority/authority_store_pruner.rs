@@ -18,6 +18,7 @@ use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
@@ -48,7 +49,7 @@ use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTab
 use crate::{
     authority::{
         authority_store_types::{StoreObject, StoreObjectWrapper},
-        historic_object_store::HistoricObjectStore,
+        historic_store::HistoricStore,
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
@@ -239,7 +240,7 @@ pub enum PruningMode {
 /// deleting superseded object versions, move them into the historic store
 /// bucket of the epoch whose checkpoints superseded them.
 struct HistoricRelocation<'a> {
-    store: &'a Arc<HistoricObjectStore>,
+    store: &'a Arc<HistoricStore>,
     supersession_epoch: EpochId,
     max_batch_bytes: usize,
 }
@@ -428,15 +429,113 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Copies one epoch-homogeneous batch of checkpoint-keyed history into
+    /// the historic bucket of the checkpoints' epoch and flushes it, so the
+    /// caller may commit the corresponding deletes afterwards.
+    ///
+    /// Rows already deleted by a previous run that crashed before committing
+    /// its deletes are skipped, which keeps replay idempotent: their historic
+    /// copies were already written.
+    fn relocate_checkpoint_data(
+        perpetual_db: &Arc<AuthorityPerpetualTables>,
+        checkpoint_db: &Arc<CheckpointStore>,
+        relocation: &HistoricRelocation<'_>,
+        transactions: &[TransactionDigest],
+        checkpoints_to_prune: &[CheckpointDigest],
+        checkpoint_content_to_prune: &[CheckpointContents],
+        effects_to_prune: &[TransactionEffects],
+    ) -> anyhow::Result<()> {
+        fn present<K: Copy, V>(keys: &[K], values: Vec<Option<V>>) -> Vec<(K, V)> {
+            keys.iter()
+                .copied()
+                .zip(values)
+                .filter_map(|(key, value)| value.map(|value| (key, value)))
+                .collect()
+        }
+
+        let checkpoint_summaries = present(
+            checkpoints_to_prune,
+            checkpoint_db
+                .tables
+                .checkpoint_by_digest
+                .multi_get(checkpoints_to_prune.iter())?,
+        );
+        // The contents-digest-to-sequence-number rows are derived from the
+        // summaries instead of read from
+        // `checkpoint_sequence_by_contents_digest`, whose rows are already
+        // deleted after state accumulation.
+        let checkpoint_seq_by_contents: Vec<_> = checkpoint_summaries
+            .iter()
+            .map(|(_, summary)| {
+                let summary = summary.inner();
+                (summary.content_digest, summary.sequence_number)
+            })
+            .collect();
+        let checkpoint_range = checkpoint_summaries
+            .iter()
+            .map(|(_, summary)| summary.inner().sequence_number)
+            .fold(None, |range: Option<(u64, u64)>, seq| {
+                Some(range.map_or((seq, seq), |(min, max)| (min.min(seq), max.max(seq))))
+            });
+
+        let data = crate::authority::historic_store::CheckpointHistoryBatch {
+            transactions: present(
+                transactions,
+                perpetual_db.transactions.multi_get(transactions.iter())?,
+            ),
+            effects: effects_to_prune
+                .iter()
+                .map(|effects| (effects.digest(), effects.clone()))
+                .collect(),
+            executed_effects: present(
+                transactions,
+                perpetual_db
+                    .executed_effects
+                    .multi_get(transactions.iter())?,
+            ),
+            events: present(
+                transactions,
+                perpetual_db.events_2.multi_get(transactions.iter())?,
+            ),
+            checkpoint_contents: checkpoint_content_to_prune
+                .iter()
+                .map(|contents| (contents.digest(), contents.clone()))
+                .collect(),
+            checkpoint_seq_by_contents,
+            checkpoints: checkpoint_summaries,
+            checkpoint_range,
+        };
+        relocation
+            .store
+            .put_checkpoint_data(relocation.supersession_epoch, data)?;
+        // Durability barrier: the relocated rows must be on disk before the
+        // source rows disappear.
+        relocation
+            .store
+            .flush_epoch(relocation.supersession_epoch)?;
+        Ok(())
+    }
+
     /// Prunes checkpoint-related data from the `AuthorityStore`, including
     /// transaction effects, executed transactions, and checkpoint contents,
     /// based on the specified checkpoint number and list of checkpoints to
     /// prune. This function removes outdated data, updates pruning metrics,
     /// and maintains database consistency by updating watermarks.
+    ///
+    /// With `relocation` set, the checkpoint-keyed history (transactions,
+    /// effects, events, checkpoint contents and summaries) is durably copied
+    /// into the historic bucket of the checkpoints' epoch before the deletes
+    /// are committed; on a crash in between, replay finds the not-yet-deleted
+    /// rows and rewrites identical historic rows. Two families are still
+    /// deleted outright: the legacy `events` table (a duplicate of `events_2`
+    /// that is being migrated away) and `executed_transactions_to_checkpoint`
+    /// (only consumed by the JSON-RPC read path, which does not serve
+    /// historic data).
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
+        relocation: Option<HistoricRelocation<'_>>,
         checkpoint_number: CheckpointSequenceNumber,
         checkpoints_to_prune: Vec<CheckpointDigest>,
         checkpoint_content_to_prune: Vec<CheckpointContents>,
@@ -450,6 +549,18 @@ impl AuthorityStorePruner {
             .iter()
             .flat_map(|content| content.iter().map(|tx| tx.transaction))
             .collect();
+
+        if let Some(relocation) = &relocation {
+            Self::relocate_checkpoint_data(
+                perpetual_db,
+                checkpoint_db,
+                relocation,
+                &transactions,
+                &checkpoints_to_prune,
+                &checkpoint_content_to_prune,
+                effects_to_prune,
+            )?;
+        }
 
         perpetual_batch.delete_batch(&perpetual_db.transactions, transactions.iter())?;
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
@@ -518,7 +629,7 @@ impl AuthorityStorePruner {
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        historic_store: Option<&Arc<HistoricObjectStore>>,
+        historic_store: Option<&Arc<HistoricStore>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         epoch_duration_ms: u64,
@@ -541,10 +652,18 @@ impl AuthorityStorePruner {
             .get_highest_pruned_checkpoint()?
             .unwrap_or_default();
         let max_relocation_batch_bytes = config
-            .historic_object_store
+            .historic_store
             .as_ref()
             .map(|c| c.max_relocation_batch_bytes)
             .unwrap_or(usize::MAX);
+        // The pruning mode that lags decides when an epoch bucket is complete
+        // and seals it: the checkpoint pruner's eligibility is capped at the
+        // objects watermark, so it always trails the objects pruner. Only
+        // when checkpoint pruning is disabled does the objects pruner seal.
+        let seals_buckets = matches!(
+            config.num_epochs_to_retain_for_checkpoints(),
+            None | Some(u64::MAX) | Some(0)
+        );
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
@@ -552,6 +671,7 @@ impl AuthorityStorePruner {
             pruner_db,
             historic_store,
             max_relocation_batch_bytes,
+            seals_buckets,
             PruningMode::Objects,
             config.num_epochs_to_retain,
             pruned_checkpoint_number,
@@ -576,6 +696,7 @@ impl AuthorityStorePruner {
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
+        historic_store: Option<&Arc<HistoricStore>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
@@ -609,13 +730,21 @@ impl AuthorityStorePruner {
         let cutoff_timestamp_ms = last_executed_timestamp_ms
             .saturating_sub(num_epochs_to_retain.saturating_mul(epoch_duration_ms));
         debug!("Max eligible checkpoint {}", max_eligible_checkpoint);
+        let max_relocation_batch_bytes = config
+            .historic_store
+            .as_ref()
+            .map(|c| c.max_relocation_batch_bytes)
+            .unwrap_or(usize::MAX);
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
             grpc_indexes_store,
             pruner_db,
-            None,
-            usize::MAX,
+            historic_store,
+            max_relocation_batch_bytes,
+            // The checkpoint pruner always seals: its eligibility is capped
+            // at the objects watermark, so it is the lagging pruning mode.
+            true,
             PruningMode::Checkpoints,
             num_epochs_to_retain,
             pruned_checkpoint_number,
@@ -634,8 +763,9 @@ impl AuthorityStorePruner {
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        historic_store: Option<&Arc<HistoricObjectStore>>,
+        historic_store: Option<&Arc<HistoricStore>>,
         max_relocation_batch_bytes: usize,
+        seals_buckets: bool,
         mode: PruningMode,
         num_epochs_to_retain: u64,
         starting_checkpoint_number: CheckpointSequenceNumber,
@@ -645,12 +775,6 @@ impl AuthorityStorePruner {
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneForEligibleEpochs");
-
-        // Relocation only applies to object pruning.
-        let historic_store = match mode {
-            PruningMode::Objects => historic_store,
-            PruningMode::Checkpoints => None,
-        };
 
         let mut checkpoint_number = starting_checkpoint_number;
         let current_epoch = checkpoint_store
@@ -689,36 +813,49 @@ impl AuthorityStorePruner {
             }
 
             // With relocation enabled a batch must not span epochs: relocated
-            // rows are bucketed by the epoch of the checkpoint that superseded
-            // them. Flush the pending batch before crossing the boundary and
-            // seal the finished epoch's bucket.
+            // rows are bucketed by the epoch of their checkpoint. Flush the
+            // pending batch before crossing the boundary and seal the
+            // finished epoch's bucket.
             if let Some(store) = historic_store {
                 match batch_epoch {
                     Some(epoch) if epoch != checkpoint.epoch() => {
                         if !checkpoints_to_prune.is_empty() {
-                            Self::prune_objects(
-                                std::mem::take(&mut effects_to_prune),
+                            Self::prune_batch(
                                 perpetual_db,
+                                checkpoint_store,
+                                grpc_indexes_store,
                                 pruner_db,
                                 Some(HistoricRelocation {
                                     store,
                                     supersession_epoch: epoch,
                                     max_batch_bytes: max_relocation_batch_bytes,
                                 }),
+                                mode,
                                 checkpoint_number,
+                                std::mem::take(&mut checkpoints_to_prune),
+                                std::mem::take(&mut checkpoint_content_to_prune),
+                                std::mem::take(&mut effects_to_prune),
                                 metrics.clone(),
                             )
                             .await?;
-                            checkpoints_to_prune = vec![];
-                            checkpoint_content_to_prune = vec![];
                             if let Some(tracker) = progress_tracker {
-                                tracker.add_object_pruning_time(pruning_start.elapsed());
+                                let elapsed = pruning_start.elapsed();
+                                match mode {
+                                    PruningMode::Objects => {
+                                        tracker.add_object_pruning_time(elapsed)
+                                    }
+                                    PruningMode::Checkpoints => {
+                                        tracker.add_checkpoint_pruning_time(elapsed)
+                                    }
+                                }
                                 pruning_start = Instant::now();
                             }
                         }
-                        store.seal_epoch(epoch)?;
+                        if seals_buckets {
+                            store.seal_epoch(epoch)?;
+                        }
                     }
-                    None => {
+                    None if seals_buckets => {
                         // A previous run may have finished exactly at an
                         // epoch boundary without sealing; catch up on any
                         // unsealed earlier buckets.
@@ -757,34 +894,25 @@ impl AuthorityStorePruner {
             if effects_to_prune.len() >= MAX_TRANSACTIONS_IN_BATCH
                 || checkpoints_to_prune.len() >= MAX_CHECKPOINTS_IN_BATCH
             {
-                match mode {
-                    PruningMode::Objects => {
-                        Self::prune_objects(
-                            effects_to_prune,
-                            perpetual_db,
-                            pruner_db,
-                            historic_store.map(|store| HistoricRelocation {
-                                store,
-                                supersession_epoch: batch_epoch
-                                    .expect("batch epoch is set before batching"),
-                                max_batch_bytes: max_relocation_batch_bytes,
-                            }),
-                            checkpoint_number,
-                            metrics.clone(),
-                        )
-                        .await?
-                    }
-                    PruningMode::Checkpoints => Self::prune_checkpoints(
-                        perpetual_db,
-                        checkpoint_store,
-                        grpc_indexes_store,
-                        checkpoint_number,
-                        checkpoints_to_prune,
-                        checkpoint_content_to_prune,
-                        &effects_to_prune,
-                        metrics.clone(),
-                    )?,
-                };
+                Self::prune_batch(
+                    perpetual_db,
+                    checkpoint_store,
+                    grpc_indexes_store,
+                    pruner_db,
+                    historic_store.map(|store| HistoricRelocation {
+                        store,
+                        supersession_epoch: batch_epoch
+                            .expect("batch epoch is set before batching"),
+                        max_batch_bytes: max_relocation_batch_bytes,
+                    }),
+                    mode,
+                    checkpoint_number,
+                    std::mem::take(&mut checkpoints_to_prune),
+                    std::mem::take(&mut checkpoint_content_to_prune),
+                    std::mem::take(&mut effects_to_prune),
+                    metrics.clone(),
+                )
+                .await?;
 
                 // Report pruning time for this batch so the progress logger
                 // shows time alongside the checkpoint deltas it reads from the
@@ -798,43 +926,30 @@ impl AuthorityStorePruner {
                     pruning_start = Instant::now();
                 }
 
-                checkpoints_to_prune = vec![];
-                checkpoint_content_to_prune = vec![];
-                effects_to_prune = vec![];
                 // yield back to the tokio runtime. Prevent potential halt of other tasks
                 tokio::task::yield_now().await;
             }
         }
 
         if !checkpoints_to_prune.is_empty() {
-            match mode {
-                PruningMode::Objects => {
-                    Self::prune_objects(
-                        effects_to_prune,
-                        perpetual_db,
-                        pruner_db,
-                        historic_store.map(|store| HistoricRelocation {
-                            store,
-                            supersession_epoch: batch_epoch
-                                .expect("batch epoch is set before batching"),
-                            max_batch_bytes: max_relocation_batch_bytes,
-                        }),
-                        checkpoint_number,
-                        metrics.clone(),
-                    )
-                    .await?
-                }
-                PruningMode::Checkpoints => Self::prune_checkpoints(
-                    perpetual_db,
-                    checkpoint_store,
-                    grpc_indexes_store,
-                    checkpoint_number,
-                    checkpoints_to_prune,
-                    checkpoint_content_to_prune,
-                    &effects_to_prune,
-                    metrics.clone(),
-                )?,
-            };
+            Self::prune_batch(
+                perpetual_db,
+                checkpoint_store,
+                grpc_indexes_store,
+                pruner_db,
+                historic_store.map(|store| HistoricRelocation {
+                    store,
+                    supersession_epoch: batch_epoch.expect("batch epoch is set before batching"),
+                    max_batch_bytes: max_relocation_batch_bytes,
+                }),
+                mode,
+                checkpoint_number,
+                checkpoints_to_prune,
+                checkpoint_content_to_prune,
+                effects_to_prune,
+                metrics.clone(),
+            )
+            .await?;
 
             // Report pruning time for this batch so the progress logger
             // shows time alongside the checkpoint deltas it reads from the
@@ -851,6 +966,46 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
+    /// Dispatches one pruning batch to the mode-specific pruner.
+    async fn prune_batch(
+        perpetual_db: &Arc<AuthorityPerpetualTables>,
+        checkpoint_store: &Arc<CheckpointStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
+        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
+        relocation: Option<HistoricRelocation<'_>>,
+        mode: PruningMode,
+        checkpoint_number: CheckpointSequenceNumber,
+        checkpoints_to_prune: Vec<CheckpointDigest>,
+        checkpoint_content_to_prune: Vec<CheckpointContents>,
+        effects_to_prune: Vec<TransactionEffects>,
+        metrics: Arc<AuthorityStorePruningMetrics>,
+    ) -> anyhow::Result<()> {
+        match mode {
+            PruningMode::Objects => {
+                Self::prune_objects(
+                    effects_to_prune,
+                    perpetual_db,
+                    pruner_db,
+                    relocation,
+                    checkpoint_number,
+                    metrics,
+                )
+                .await
+            }
+            PruningMode::Checkpoints => Self::prune_checkpoints(
+                perpetual_db,
+                checkpoint_store,
+                grpc_indexes_store,
+                relocation,
+                checkpoint_number,
+                checkpoints_to_prune,
+                checkpoint_content_to_prune,
+                &effects_to_prune,
+                metrics,
+            ),
+        }
+    }
+
     /// Expires historic epoch buckets that have fallen out of retention:
     /// point-deletes the bucket's tombstone heads from the live `objects`
     /// table, then drops the whole bucket.
@@ -861,7 +1016,7 @@ impl AuthorityStorePruner {
     /// expiry list and leak the heads in the live table forever.
     fn drop_expired_historic_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
-        historic_store: &Arc<HistoricObjectStore>,
+        historic_store: &Arc<HistoricStore>,
         current_epoch: EpochId,
         num_epochs_to_retain: u64,
     ) -> anyhow::Result<()> {
@@ -974,7 +1129,7 @@ impl AuthorityStorePruner {
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         jsonrpc_index: Option<Arc<IndexStore>>,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        historic_store: Option<Arc<HistoricObjectStore>>,
+        historic_store: Option<Arc<HistoricStore>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
@@ -988,7 +1143,7 @@ impl AuthorityStorePruner {
         );
 
         let historic_epochs_to_retain = config
-            .historic_object_store
+            .historic_store
             .as_ref()
             .map(|c| c.num_epochs_to_retain)
             .unwrap_or(u64::MAX);
@@ -1120,6 +1275,7 @@ impl AuthorityStorePruner {
                         &checkpoint_store,
                         grpc_indexes_store.as_deref(),
                         pruner_db.as_ref(),
+                        historic_store.as_ref(),
                         config.clone(),
                         metrics.clone(),
                         archive_readers.clone(),
@@ -1178,7 +1334,7 @@ impl AuthorityStorePruner {
         registry: &Registry,
         archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        mut historic_store: Option<Arc<HistoricObjectStore>>,
+        mut historic_store: Option<Arc<HistoricStore>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
@@ -1391,7 +1547,7 @@ mod tests {
             authority_store_pruner::AuthorityStorePruningMetrics,
             authority_store_tables::AuthorityPerpetualTables,
             authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
-            historic_object_store::{HistoricObjectStore, HistoricObjectStoreMetrics},
+            historic_store::{HistoricStore, HistoricStoreMetrics},
         },
         checkpoints::CheckpointStore,
     };
@@ -1527,11 +1683,8 @@ mod tests {
         to_keep
     }
 
-    fn open_historic(path: &Path) -> Arc<HistoricObjectStore> {
-        Arc::new(
-            HistoricObjectStore::open(path, true, HistoricObjectStoreMetrics::new_for_test())
-                .unwrap(),
-        )
+    fn open_historic(path: &Path) -> Arc<HistoricStore> {
+        Arc::new(HistoricStore::open(path, true, HistoricStoreMetrics::new_for_test()).unwrap())
     }
 
     /// Builds effects with production shapes: superseded input versions land
@@ -1582,7 +1735,7 @@ mod tests {
 
     async fn relocate(
         db: &Arc<AuthorityPerpetualTables>,
-        historic: &Arc<HistoricObjectStore>,
+        historic: &Arc<HistoricStore>,
         supersession_epoch: u64,
         effects: TransactionEffects,
         checkpoint_number: u64,
@@ -1805,6 +1958,185 @@ mod tests {
         assert_eq!(live_set_before, live_set_after_expiry);
     }
 
+    /// Checkpoint pruning with relocation moves the checkpoint-keyed history
+    /// (transactions, effects, events, checkpoint contents and summaries)
+    /// into the epoch bucket before deleting it, records the availability
+    /// watermark, and replays idempotently.
+    #[tokio::test]
+    async fn checkpoint_relocation_moves_history_and_replays_idempotently() {
+        use fastcrypto::traits::KeyPair;
+        use iota_protocol_config::ProtocolConfig;
+        use iota_sdk_types::GasCostSummary;
+        use iota_types::{
+            base_types::ExecutionDigests,
+            committee::Committee,
+            effects::TransactionEvents,
+            messages_checkpoint::{
+                CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+                CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+                VerifiedCheckpoint,
+            },
+            transaction::VerifiedTransaction,
+        };
+
+        use crate::checkpoints::CheckpointStore;
+
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let checkpoint_db = CheckpointStore::new(&tmp_dir.path().join("checkpoints"));
+        let historic = open_historic(tmp_dir.path());
+
+        // One transaction with effects and events, wired into one checkpoint.
+        let transaction = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let tx_digest = *transaction.digest();
+        let effects = TransactionEffects::new_empty_v1_for_testing(tx_digest);
+        let fx_digest = effects.digest();
+        let contents =
+            CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::new(
+                tx_digest, fx_digest,
+            )]);
+
+        let (committee, keys) = Committee::new_simple_test_committee();
+        let summary = CheckpointSummary::new_with_protocol_config(
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+            committee.epoch,
+            9,
+            1,
+            &contents,
+            None,
+            GasCostSummary::default(),
+            None,
+            100,
+            Vec::new(),
+        );
+        let signatures = keys
+            .iter()
+            .map(|key| {
+                SignedCheckpointSummary::new(
+                    committee.epoch,
+                    summary.clone(),
+                    key,
+                    key.public().into(),
+                )
+                .auth_sig()
+                .clone()
+            })
+            .collect();
+        let cert = CertifiedCheckpointSummary::new(summary, signatures, &committee).unwrap();
+        let verified_checkpoint = VerifiedCheckpoint::new_unchecked(cert);
+        let ckpt_digest = *verified_checkpoint.digest();
+        let trusted_checkpoint = verified_checkpoint.serializable();
+
+        perpetual_db
+            .transactions
+            .insert(&tx_digest, transaction.serializable_ref())
+            .unwrap();
+        perpetual_db.effects.insert(&fx_digest, &effects).unwrap();
+        perpetual_db
+            .executed_effects
+            .insert(&tx_digest, &fx_digest)
+            .unwrap();
+        perpetual_db
+            .events_2
+            .insert(&tx_digest, &TransactionEvents(vec![]))
+            .unwrap();
+        checkpoint_db
+            .tables
+            .checkpoint_content
+            .insert(&contents.digest(), &contents)
+            .unwrap();
+        checkpoint_db
+            .tables
+            .checkpoint_by_digest
+            .insert(&ckpt_digest, &trusted_checkpoint)
+            .unwrap();
+
+        let run = || {
+            AuthorityStorePruner::prune_checkpoints(
+                &perpetual_db,
+                &checkpoint_db,
+                None,
+                Some(HistoricRelocation {
+                    store: &historic,
+                    supersession_epoch: committee.epoch,
+                    max_batch_bytes: usize::MAX,
+                }),
+                9,
+                vec![ckpt_digest],
+                vec![contents.clone()],
+                &vec![effects.clone()],
+                AuthorityStorePruningMetrics::new_for_test(),
+            )
+            .unwrap()
+        };
+        run();
+
+        // Source rows are gone.
+        assert!(perpetual_db.transactions.get(&tx_digest).unwrap().is_none());
+        assert!(perpetual_db.effects.get(&fx_digest).unwrap().is_none());
+        assert!(
+            perpetual_db
+                .executed_effects
+                .get(&tx_digest)
+                .unwrap()
+                .is_none()
+        );
+        // `events_2` rows are only deleted for effects that declare an
+        // events digest; the empty test effects do not, so the seeded row
+        // stays live (relocation still harvested it below).
+        assert!(perpetual_db.events_2.get(&tx_digest).unwrap().is_some());
+        assert!(
+            checkpoint_db
+                .tables
+                .checkpoint_content
+                .get(&contents.digest())
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            checkpoint_db
+                .tables
+                .checkpoint_by_digest
+                .get(&ckpt_digest)
+                .unwrap()
+                .is_none()
+        );
+
+        // Everything is served from the historic store.
+        assert!(historic.get_transaction(&tx_digest).unwrap().is_some());
+        assert!(historic.get_effects(&fx_digest).unwrap().is_some());
+        assert_eq!(
+            historic.get_executed_effects(&tx_digest).unwrap(),
+            Some(fx_digest)
+        );
+        assert!(historic.get_events(&tx_digest).unwrap().is_some());
+        assert!(
+            historic
+                .get_checkpoint_contents(&contents.digest())
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            historic
+                .get_checkpoint_by_digest(&ckpt_digest)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            historic
+                .get_checkpoint_seq_by_contents_digest(&contents.digest())
+                .unwrap(),
+            Some(9)
+        );
+        assert_eq!(historic.lowest_available_checkpoint().unwrap(), Some(9));
+
+        // Replaying after a crash between the historic write and the deletes
+        // (or after completion) converges: sources stay gone, history intact.
+        run();
+        assert!(historic.get_transaction(&tx_digest).unwrap().is_some());
+        assert_eq!(historic.lowest_available_checkpoint().unwrap(), Some(9));
+    }
+
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
@@ -2005,6 +2337,7 @@ mod tests {
             None,
             None,
             usize::MAX,
+            true,
             PruningMode::Checkpoints,
             num_epochs_to_retain,
             0,

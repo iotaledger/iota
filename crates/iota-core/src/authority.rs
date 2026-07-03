@@ -159,7 +159,7 @@ use crate::{
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
         authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
-        historic_object_store::HistoricObjectStore,
+        historic_store::HistoricStore,
     },
     authority_client::NetworkAuthorityClient,
     checkpoint_progress_tracker::CheckpointProgressTracker,
@@ -234,7 +234,7 @@ pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
-pub mod historic_object_store;
+pub mod historic_store;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
@@ -858,7 +858,7 @@ pub struct AuthorityState {
     /// Superseded object versions relocated out of the live objects table.
     /// Read exclusively by the gRPC exact-version object lookup; consensus
     /// and execution paths must never consult it.
-    pub historic_object_store: Option<Arc<HistoricObjectStore>>,
+    pub historic_store: Option<Arc<HistoricStore>>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
@@ -3266,7 +3266,7 @@ impl AuthorityState {
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        historic_object_store: Option<Arc<HistoricObjectStore>>,
+        historic_store: Option<Arc<HistoricStore>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
@@ -3304,7 +3304,7 @@ impl AuthorityState {
             prometheus_registry,
             archive_readers,
             pruner_db,
-            historic_object_store.clone(),
+            historic_store.clone(),
             checkpoint_progress_tracker.clone(),
         );
         let input_loader =
@@ -3334,7 +3334,7 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             indexes,
             grpc_indexes_store,
-            historic_object_store,
+            historic_store,
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
@@ -3437,6 +3437,7 @@ impl AuthorityState {
             &self.checkpoint_store,
             self.grpc_indexes_store.as_deref(),
             None,
+            self.historic_store.as_ref(),
             config.authority_store_pruning_config,
             metrics,
             archive_readers,

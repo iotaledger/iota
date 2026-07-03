@@ -40,7 +40,7 @@ use iota_core::{
         },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
-        historic_object_store::{HistoricObjectStore, HistoricObjectStoreMetrics},
+        historic_store::{HistoricStore, HistoricStoreMetrics},
     },
     authority_aggregator::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
@@ -423,11 +423,9 @@ impl IotaNode {
             None,
         ));
 
-        let mut historic_object_store_config = config
-            .authority_store_pruning_config
-            .historic_object_store
-            .clone();
-        if historic_object_store_config.is_some() {
+        let mut historic_store_config =
+            config.authority_store_pruning_config.historic_store.clone();
+        if historic_store_config.is_some() {
             // The compaction filter can only keep or remove rows at arbitrary
             // compaction times; it would destroy rows before relocation could
             // read them. This must be caught before the perpetual DB is
@@ -436,7 +434,7 @@ impl IotaNode {
                 !config
                     .authority_store_pruning_config
                     .enable_compaction_filter,
-                "`historic-object-store` and `enable-compaction-filter` are mutually exclusive; \
+                "`historic-store` and `enable-compaction-filter` are mutually exclusive; \
                  disable one of them"
             );
             if is_validator {
@@ -444,15 +442,15 @@ impl IotaNode {
                     "The historic object store is fullnode-only; ignoring the configuration on \
                      this validator."
                 );
-                historic_object_store_config = None;
+                historic_store_config = None;
             }
         }
-        let historic_object_store = historic_object_store_config
+        let historic_store = historic_store_config
             .map(|historic_config| {
-                HistoricObjectStore::open(
+                HistoricStore::open(
                     &config.db_path().join("store"),
                     historic_config.disable_wal,
-                    HistoricObjectStoreMetrics::new(&prometheus_registry),
+                    HistoricStoreMetrics::new(&prometheus_registry),
                 )
                 .map(Arc::new)
             })
@@ -462,7 +460,7 @@ impl IotaNode {
         if config
             .authority_store_pruning_config
             .enable_compaction_filter
-            && historic_object_store.is_none()
+            && historic_store.is_none()
         {
             pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
                 &config.db_path().join("store"),
@@ -608,6 +606,7 @@ impl IotaNode {
             cache_traits.clone(),
             committee_store.clone(),
             checkpoint_store.clone(),
+            historic_store.clone(),
         );
 
         let index_store = if is_full_node && config.enable_index_processing {
@@ -739,7 +738,7 @@ impl IotaNode {
             validator_tx_finalizer,
             chain_identifier,
             pruner_db,
-            historic_object_store,
+            historic_store,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),

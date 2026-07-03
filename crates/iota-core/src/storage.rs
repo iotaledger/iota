@@ -9,6 +9,7 @@ use iota_sdk_types::StructTag;
 use iota_types::{
     base_types::TransactionDigest,
     committee::{Committee, EpochId},
+    digests::TransactionEffectsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -27,8 +28,10 @@ use parking_lot::Mutex;
 use tracing::instrument;
 
 use crate::{
-    authority::AuthorityState, checkpoints::CheckpointStore,
-    epoch::committee_store::CommitteeStore, execution_cache::ExecutionCacheTraitPointers,
+    authority::{AuthorityState, historic_store::HistoricStore},
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCacheTraitPointers,
     grpc_indexes::GrpcIndexesStore,
 };
 
@@ -38,6 +41,11 @@ pub struct RocksDbStore {
 
     committee_store: Arc<CommitteeStore>,
     checkpoint_store: Arc<CheckpointStore>,
+    /// Relocated checkpoint-keyed history (transactions, effects, events,
+    /// checkpoint contents and summaries). Consulted only after a live-table
+    /// miss, so recent reads never touch it; extends the availability
+    /// horizon served to gRPC and state-sync peers.
+    historic_store: Option<Arc<HistoricStore>>,
     // in memory checkpoint watermark sequence numbers
     highest_verified_checkpoint: Arc<Mutex<Option<u64>>>,
     highest_synced_checkpoint: Arc<Mutex<Option<u64>>>,
@@ -48,14 +56,37 @@ impl RocksDbStore {
         cache_traits: ExecutionCacheTraitPointers,
         committee_store: Arc<CommitteeStore>,
         checkpoint_store: Arc<CheckpointStore>,
+        historic_store: Option<Arc<HistoricStore>>,
     ) -> Self {
         Self {
             cache_traits,
             committee_store,
             checkpoint_store,
+            historic_store,
             highest_verified_checkpoint: Arc::new(Mutex::new(None)),
             highest_synced_checkpoint: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Effects by effects digest, falling back to relocated history.
+    fn get_effects_with_historic_fallback(
+        &self,
+        digest: &TransactionEffectsDigest,
+    ) -> Result<Option<TransactionEffects>, StorageError> {
+        if let Some(effects) = self
+            .cache_traits
+            .transaction_cache_reader
+            .try_get_effects(digest)
+            .map_err(StorageError::custom)?
+        {
+            return Ok(Some(effects));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        historic_store
+            .get_effects(digest)
+            .map_err(StorageError::custom)
     }
 
     pub fn get_objects(&self, object_keys: &[ObjectKey]) -> Result<Vec<Option<Object>>, IotaError> {
@@ -74,9 +105,20 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>, StorageError> {
-        self.checkpoint_store
+        if let Some(checkpoint) = self
+            .checkpoint_store
             .get_checkpoint_by_digest(digest)
-            .map_err(Into::into)
+            .map_err(Into::<StorageError>::into)?
+        {
+            return Ok(Some(checkpoint));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        Ok(historic_store
+            .get_checkpoint_by_digest(digest)
+            .map_err(StorageError::custom)?
+            .map(Into::into))
     }
 
     fn try_get_checkpoint_by_sequence_number(
@@ -111,25 +153,48 @@ impl ReadStore for RocksDbStore {
     fn try_get_lowest_available_checkpoint(
         &self,
     ) -> Result<CheckpointSequenceNumber, StorageError> {
-        if let Some(highest_pruned_cp) = self
+        let after_pruned = if let Some(highest_pruned_cp) = self
             .checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()
             .map_err(Into::<StorageError>::into)?
         {
-            Ok(highest_pruned_cp + 1)
+            highest_pruned_cp + 1
         } else {
-            Ok(0)
-        }
+            0
+        };
+        // Relocated history extends availability below the pruning
+        // watermark; coverage is contiguous because relocation processes
+        // checkpoints in order and buckets expire oldest-first.
+        let Some(historic_lowest) = self
+            .historic_store
+            .as_ref()
+            .map(|store| store.lowest_available_checkpoint())
+            .transpose()
+            .map_err(StorageError::custom)?
+            .flatten()
+        else {
+            return Ok(after_pruned);
+        };
+        Ok(historic_lowest.min(after_pruned))
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
-        Ok(self
+        if let Some(contents) = self
             .checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
-            .map(|contents| contents.as_ref().clone()))
+        {
+            return Ok(Some(contents.as_ref().clone()));
+        }
+        // The full-checkpoint-contents cache only holds recent checkpoints;
+        // older ones are assembled from their components (with historic
+        // fallbacks) via the summary, which is never pruned.
+        match self.try_get_checkpoint_by_sequence_number(sequence_number)? {
+            Some(checkpoint) => self.try_get_full_checkpoint_contents(&checkpoint.content_digest),
+            None => Ok(None),
+        }
     }
 
     fn try_get_full_checkpoint_contents(
@@ -145,19 +210,15 @@ impl ReadStore for RocksDbStore {
             return Ok(Some(contents.as_ref().clone()));
         }
 
-        // Otherwise gather it from the individual components.
-        self.checkpoint_store
-            .get_checkpoint_contents(digest)
-            .map_err(iota_types::storage::error::Error::custom)?
+        // Otherwise gather it from the individual components, each falling
+        // back to relocated history for old checkpoints.
+        self.try_get_checkpoint_contents_by_digest(digest)?
             .map(|contents| {
                 let mut transactions = Vec::with_capacity(contents.len());
                 for tx in contents.iter() {
                     if let (Some(t), Some(e)) = (
                         self.try_get_transaction(&tx.transaction)?,
-                        self.cache_traits
-                            .transaction_cache_reader
-                            .try_get_effects(&tx.effects)
-                            .map_err(iota_types::storage::error::Error::custom)?,
+                        self.get_effects_with_historic_fallback(&tx.effects)?,
                     ) {
                         transactions.push(iota_types::base_types::ExecutionData::new(
                             (*t).clone().into_inner(),
@@ -193,19 +254,46 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<Arc<VerifiedTransaction>>, StorageError> {
-        self.cache_traits
+        if let Some(transaction) = self
+            .cache_traits
             .transaction_cache_reader
             .try_get_transaction_block(digest)
-            .map_err(StorageError::custom)
+            .map_err(StorageError::custom)?
+        {
+            return Ok(Some(transaction));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        Ok(historic_store
+            .get_transaction(digest)
+            .map_err(StorageError::custom)?
+            .map(|transaction| Arc::new(transaction.into())))
     }
 
     fn try_get_transaction_effects(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEffects>, StorageError> {
-        self.cache_traits
+        if let Some(effects) = self
+            .cache_traits
             .transaction_cache_reader
             .try_get_executed_effects(digest)
+            .map_err(StorageError::custom)?
+        {
+            return Ok(Some(effects));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        let Some(effects_digest) = historic_store
+            .get_executed_effects(digest)
+            .map_err(StorageError::custom)?
+        else {
+            return Ok(None);
+        };
+        historic_store
+            .get_effects(&effects_digest)
             .map_err(StorageError::custom)
     }
 
@@ -213,9 +301,19 @@ impl ReadStore for RocksDbStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
-        self.cache_traits
+        if let Some(events) = self
+            .cache_traits
             .transaction_cache_reader
             .try_get_events(digest)
+            .map_err(StorageError::custom)?
+        {
+            return Ok(Some(events));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        historic_store
+            .get_events(digest)
             .map_err(StorageError::custom)
     }
 
@@ -234,9 +332,19 @@ impl ReadStore for RocksDbStore {
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
-        self.checkpoint_store
+        if let Some(contents) = self
+            .checkpoint_store
             .get_checkpoint_contents(digest)
-            .map_err(iota_types::storage::error::Error::custom)
+            .map_err(iota_types::storage::error::Error::custom)?
+        {
+            return Ok(Some(contents));
+        }
+        let Some(historic_store) = &self.historic_store else {
+            return Ok(None);
+        };
+        historic_store
+            .get_checkpoint_contents(digest)
+            .map_err(StorageError::custom)
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
@@ -389,7 +497,7 @@ impl ObjectStore for GrpcReadStore {
         // constructed only for the gRPC server, so this fallback is
         // unreachable from consensus and execution: a live-table miss there
         // must stay a miss.
-        let Some(historic_store) = self.state.historic_object_store.as_ref() else {
+        let Some(historic_store) = self.state.historic_store.as_ref() else {
             return Ok(None);
         };
         historic_store
@@ -514,7 +622,7 @@ impl GrpcStateReader for GrpcReadStore {
         // back to the start of the earliest retained epoch bucket.
         let Some(earliest_epoch) = self
             .state
-            .historic_object_store
+            .historic_store
             .as_ref()
             .and_then(|store| store.earliest_epoch())
         else {

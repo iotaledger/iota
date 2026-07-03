@@ -1065,12 +1065,12 @@ pub struct AuthorityStorePruningConfig {
     /// once out of retention. Fullnode-only; incompatible with
     /// `enable_compaction_filter`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub historic_object_store: Option<HistoricObjectStoreConfig>,
+    pub historic_store: Option<HistoricStoreConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct HistoricObjectStoreConfig {
+pub struct HistoricStoreConfig {
     /// Number of epochs of superseded object versions to retain, bucketed by
     /// the epoch in which they were superseded. Whole epoch buckets are
     /// dropped once they fall out of this window.
@@ -1098,7 +1098,7 @@ fn default_historic_disable_wal() -> bool {
     true
 }
 
-impl Default for HistoricObjectStoreConfig {
+impl Default for HistoricStoreConfig {
     fn default() -> Self {
         Self {
             num_epochs_to_retain: default_historic_epochs_to_retain(),
@@ -1125,7 +1125,7 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
-            historic_object_store: None,
+            historic_store: None,
         }
     }
 }
