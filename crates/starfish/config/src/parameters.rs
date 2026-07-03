@@ -135,8 +135,10 @@ pub struct Parameters {
 
     /// Soft cap on total serialized transaction bytes accepted per fast commit
     /// sync fetch. When reached, the fetch finishes with the covered commit
-    /// prefix and the scheduler requeues the remainder. Also sent to the server
-    /// as a stream budget hint. 0 disables.
+    /// prefix and the scheduler requeues the remainder. At least the first
+    /// commit of the range is always fetched in full so the fetch makes forward
+    /// progress even when that commit alone exceeds the cap. Also sent to the
+    /// server as a stream budget hint. 0 disables.
     #[serde(default = "Parameters::default_fast_commit_sync_max_fetch_bytes")]
     pub fast_commit_sync_max_fetch_bytes: usize,
 

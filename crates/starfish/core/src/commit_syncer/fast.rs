@@ -623,6 +623,15 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         //    below recovers; any other error means the peer violated the protocol and
         //    fails the fetch.
         let max_fetch_bytes = inner.context.parameters.fast_commit_sync_max_fetch_bytes;
+        // Forward progress after a cap stop requires the covered prefix to
+        // include at least the first commit; otherwise the truncation below
+        // rejects the response and the range is retried forever. The cap stop
+        // is therefore deferred until every transaction of the first commit has
+        // been fetched.
+        let first_commit_tx_refs: Vec<GenericTransactionRef> = commits
+            .first()
+            .map(|commit| commit.committed_transactions().to_vec())
+            .unwrap_or_default();
         let mut transactions_map: BTreeMap<GenericTransactionRef, VerifiedTransactions> =
             BTreeMap::new();
         let mut accepted_bytes = 0usize;
@@ -685,19 +694,24 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     })
                     .await
-                    .expect("Spawn blocking should not fail")?;
+                    .expect("Tokio runtime should accept blocking tasks")?;
                 transactions_map.extend(verified);
             }
 
             if max_fetch_bytes != 0 && accepted_bytes >= max_fetch_bytes {
-                inner
-                    .context
-                    .metrics
-                    .node_metrics
-                    .commit_sync_fetch_cap_stops
-                    .with_label_values(&[inner.sync_type.as_str()])
-                    .inc();
-                break;
+                let first_commit_covered = first_commit_tx_refs
+                    .iter()
+                    .all(|tx_ref| transactions_map.contains_key(tx_ref));
+                if first_commit_covered {
+                    inner
+                        .context
+                        .metrics
+                        .node_metrics
+                        .commit_sync_fetch_cap_stops
+                        .with_label_values(&[inner.sync_type.as_str()])
+                        .inc();
+                    break;
+                }
             }
         }
 
@@ -1172,6 +1186,82 @@ mod tests {
             context
         }
 
+        /// Builds digest-chained commits, one per entry in `tx_counts`, where
+        /// each commit commits that many transactions (each transaction at its
+        /// own round with a distinct payload). Returns the commits, the
+        /// serialized `SerializedTransactionsV2` wire elements grouped per
+        /// commit (in commit and ref order), and a quorum of vote headers
+        /// certifying the last commit.
+        fn chained_commits_with_tx_counts(
+            context: &Arc<Context>,
+            tx_counts: &[u32],
+        ) -> (Vec<TrustedCommit>, Vec<Vec<Bytes>>, Vec<Bytes>) {
+            let mut encoder = create_encoder(context);
+            let mut commits = Vec::new();
+            let mut tx_elements = Vec::new();
+            let mut previous_digest = CommitDigest::MIN;
+            let mut round: u32 = 0;
+            for (i, &count) in tx_counts.iter().enumerate() {
+                let index = (i + 1) as u32;
+                let mut refs = Vec::new();
+                let mut commit_tx_elements = Vec::new();
+                for _ in 0..count {
+                    round += 1;
+                    let serialized =
+                        Transaction::serialize(&[Transaction::new(vec![round as u8; 16])]).unwrap();
+                    let commitment = TransactionsCommitment::compute_transactions_commitment(
+                        &serialized,
+                        context,
+                        &mut encoder,
+                    )
+                    .unwrap();
+                    let transaction_ref = TransactionRef {
+                        round,
+                        author: AuthorityIndex::new_for_test(0),
+                        transactions_commitment: commitment,
+                    };
+                    refs.push(GenericTransactionRef::TransactionRef(transaction_ref));
+                    commit_tx_elements.push(
+                        bcs::to_bytes(&SerializedTransactionsV2 {
+                            transaction_ref,
+                            serialized_transactions: serialized,
+                        })
+                        .unwrap()
+                        .into(),
+                    );
+                }
+                let leader = BlockRef::new(
+                    index,
+                    AuthorityIndex::new_for_test(((index - 1) % 4) as u8),
+                    BlockHeaderDigest::MIN,
+                );
+                let commit = TrustedCommit::new_for_test(
+                    context,
+                    index,
+                    previous_digest,
+                    0,
+                    leader,
+                    vec![leader],
+                    refs,
+                );
+                previous_digest = commit.digest();
+                commits.push(commit);
+                tx_elements.push(commit_tx_elements);
+            }
+            let last = commits.last().unwrap().reference();
+            let vote_headers = (0..3)
+                .map(|author| {
+                    let header = TestBlockHeader::new(round + 1, author)
+                        .set_commit_votes(vec![last])
+                        .build();
+                    VerifiedBlockHeader::new_for_test(header)
+                        .serialized()
+                        .clone()
+                })
+                .collect();
+            (commits, tx_elements, vote_headers)
+        }
+
         /// Builds `num_commits` digest-chained commits, each committing a
         /// single transaction, plus a quorum of vote headers certifying
         /// the last commit. Returns the commits, the serialized
@@ -1181,60 +1271,9 @@ mod tests {
             context: &Arc<Context>,
             num_commits: u32,
         ) -> (Vec<TrustedCommit>, Vec<Bytes>, Vec<Bytes>) {
-            let mut encoder = create_encoder(context);
-            let mut commits = Vec::new();
-            let mut tx_elements = Vec::new();
-            let mut previous_digest = CommitDigest::MIN;
-            for round in 1..=num_commits {
-                let serialized =
-                    Transaction::serialize(&[Transaction::new(vec![round as u8; 16])]).unwrap();
-                let commitment = TransactionsCommitment::compute_transactions_commitment(
-                    &serialized,
-                    context,
-                    &mut encoder,
-                )
-                .unwrap();
-                let transaction_ref = TransactionRef {
-                    round,
-                    author: AuthorityIndex::new_for_test(0),
-                    transactions_commitment: commitment,
-                };
-                let leader = BlockRef::new(
-                    round,
-                    AuthorityIndex::new_for_test(((round - 1) % 4) as u8),
-                    BlockHeaderDigest::MIN,
-                );
-                let commit = TrustedCommit::new_for_test(
-                    context,
-                    round,
-                    previous_digest,
-                    0,
-                    leader,
-                    vec![leader],
-                    vec![GenericTransactionRef::TransactionRef(transaction_ref)],
-                );
-                previous_digest = commit.digest();
-                tx_elements.push(
-                    bcs::to_bytes(&SerializedTransactionsV2 {
-                        transaction_ref,
-                        serialized_transactions: serialized,
-                    })
-                    .unwrap()
-                    .into(),
-                );
-                commits.push(commit);
-            }
-            let last = commits.last().unwrap().reference();
-            let vote_headers = (0..3)
-                .map(|author| {
-                    let header = TestBlockHeader::new(num_commits + 1, author)
-                        .set_commit_votes(vec![last])
-                        .build();
-                    VerifiedBlockHeader::new_for_test(header)
-                        .serialized()
-                        .clone()
-                })
-                .collect();
+            let (commits, tx_elements, vote_headers) =
+                chained_commits_with_tx_counts(context, &vec![1; num_commits as usize]);
+            let tx_elements = tx_elements.into_iter().flatten().collect();
             (commits, tx_elements, vote_headers)
         }
 
@@ -1387,6 +1426,54 @@ mod tests {
             // the first commit is covered.
             assert_eq!(output.commits.len(), 1);
             assert_eq!(output.commits[0].reference(), commits[0].reference());
+            assert_eq!(cap_stops(&context), 1);
+            assert_eq!(truncated_fetches(&context), 1);
+        }
+
+        /// When the first commit's transactions alone span more bytes than the
+        /// per-fetch cap and arrive across several chunks, the fetch must keep
+        /// consuming until that commit is fully covered before stopping, so the
+        /// covered prefix is non-empty and the fetch makes forward progress.
+        #[tokio::test]
+        async fn covers_first_commit_before_byte_cap_stop() {
+            let mut context = test_context();
+            // Any accepted transaction trips the cap after the first chunk, well
+            // before the first commit's three transactions are all fetched.
+            context.parameters.fast_commit_sync_max_fetch_bytes = 1;
+            let context = Arc::new(context);
+            // Commit 1 commits three transactions, commit 2 commits one.
+            let (commits, tx_elements, voting_headers) =
+                chained_commits_with_tx_counts(&context, &[3, 1]);
+
+            // Each transaction travels in its own chunk, so the cap is crossed
+            // long before commit 1 is covered.
+            let transaction_chunks: Vec<Vec<Bytes>> = tx_elements
+                .iter()
+                .flatten()
+                .map(|e| vec![e.clone()])
+                .collect();
+            let network_client = Arc::new(FakeFetchClient {
+                commits: commits.iter().map(|c| c.serialized().clone()).collect(),
+                voting_headers,
+                transaction_chunks,
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            // The first commit is fully covered (all three transactions), and the
+            // fetch stops after it rather than erroring on an empty prefix.
+            assert_eq!(output.commits.len(), 1);
+            assert_eq!(output.commits[0].reference(), commits[0].reference());
+            assert_eq!(output.committed_subdags.len(), 1);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 3);
             assert_eq!(cap_stops(&context), 1);
             assert_eq!(truncated_fetches(&context), 1);
         }

@@ -1293,6 +1293,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .flat_map(|commit| commit.committed_transactions())
             .collect();
 
+        // Number of leading refs that belong to the first commit. The budget
+        // stop is deferred until these have all been served so the client
+        // always receives a fully covered first commit and can make forward
+        // progress.
+        let first_commit_ref_count = commits
+            .first()
+            .map(|commit| commit.committed_transactions().len())
+            .unwrap_or(0);
+
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
             .map(|c| c.serialized().clone())
@@ -1308,6 +1317,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.dag_state.clone(),
             self.context.clone(),
             transaction_refs,
+            first_commit_ref_count,
             max_transaction_bytes,
         );
         Ok((serialized_commits, serialized_headers, transaction_stream))
@@ -1455,6 +1465,9 @@ struct TransactionCursor {
     context: Arc<Context>,
     /// Committed transaction refs in strict commit order.
     refs: Vec<GenericTransactionRef>,
+    /// Number of leading refs that belong to the first commit; the budget stop
+    /// is deferred until all of them have been served.
+    first_commit_ref_count: usize,
     /// Index of the next ref to read.
     pos: usize,
     /// Serialized bytes served across all chunks so far, for the budget check.
@@ -1537,13 +1550,17 @@ fn read_serialized_transaction_batch(
 /// element larger than the limit travels alone. Missing refs are skipped (the
 /// client recovers the covered prefix). When the served bytes cross
 /// `max_transaction_bytes` (`0` = unlimited) the crossing chunk is served in
-/// full and the stream then ends cleanly. Store read errors surface as a
-/// terminal `Err` item. Dropping the stream stops all further work.
+/// full and the stream then ends cleanly, except that the stop is held off
+/// until the first commit's refs (`first_commit_ref_count`) have all been
+/// served so the client always receives a fully covered first commit. Store
+/// read errors surface as a terminal `Err` item. Dropping the stream stops all
+/// further work.
 fn transaction_chunk_stream(
     store: Arc<dyn Store>,
     dag_state: Arc<RwLock<DagState>>,
     context: Arc<Context>,
     refs: Vec<GenericTransactionRef>,
+    first_commit_ref_count: usize,
     max_transaction_bytes: usize,
 ) -> TransactionChunkStream {
     let cursor = TransactionCursor {
@@ -1551,6 +1568,7 @@ fn transaction_chunk_stream(
         dag_state,
         context,
         refs,
+        first_commit_ref_count,
         pos: 0,
         served_bytes: 0,
         carry: None,
@@ -1606,7 +1624,13 @@ fn transaction_chunk_stream(
         metrics
             .commit_sync_fetch_tx_bytes_served
             .inc_by(chunk_bytes as u64);
-        if cursor.max_transaction_bytes != 0 && cursor.served_bytes >= cursor.max_transaction_bytes
+        // Refs whose elements have all been emitted in this or an earlier
+        // chunk. The carried element (at `pos - 1`) heads the next chunk and is
+        // not yet served, so it is excluded.
+        let served_ref_boundary = cursor.pos - usize::from(cursor.carry.is_some());
+        if cursor.max_transaction_bytes != 0
+            && cursor.served_bytes >= cursor.max_transaction_bytes
+            && served_ref_boundary >= cursor.first_commit_ref_count
         {
             metrics.commit_sync_fetch_budget_stops.inc();
             cursor.finished = true;
@@ -4643,7 +4667,7 @@ mod tests {
 
         // The store returns a payload for every below-GC ref it is asked for.
         let store = Arc::new(CountingStore::new(TxResponse::Present(128)));
-        let stream = transaction_chunk_stream(store, dag_state, context, refs.clone(), 0);
+        let stream = transaction_chunk_stream(store, dag_state, context, refs.clone(), 0, 0);
         let served: Vec<GenericTransactionRef> = collect_chunk_results(stream)
             .await
             .into_iter()
@@ -4677,6 +4701,7 @@ mod tests {
             dag_state,
             context,
             refs.to_vec(),
+            0,
             0,
         ))
         .await
@@ -4730,6 +4755,7 @@ mod tests {
                 context.clone(),
                 refs.clone(),
                 0,
+                0,
             ))
             .await
             .into_iter()
@@ -4744,14 +4770,16 @@ mod tests {
             .commit_sync_fetch_budget_stops
             .get();
 
-        // A budget of 1 byte is crossed by the first chunk; it must still be
-        // served whole, then the stream ends cleanly with no further chunks.
+        // A budget of 1 byte is crossed by the first chunk; with the first
+        // commit fully covered by that chunk, it must still be served whole,
+        // then the stream ends cleanly with no further chunks.
         let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
         let bounded = collect_chunk_results(transaction_chunk_stream(
             store,
             dag_state.clone(),
             context.clone(),
             refs.clone(),
+            0,
             1,
         ))
         .await
@@ -4774,9 +4802,10 @@ mod tests {
         let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
         let edge = collect_chunk_results(transaction_chunk_stream(
             store,
-            dag_state,
-            context,
-            refs,
+            dag_state.clone(),
+            context.clone(),
+            refs.clone(),
+            0,
             chunk0_bytes,
         ))
         .await
@@ -4784,6 +4813,45 @@ mod tests {
         .map(|item| item.expect("cursor should not error"))
         .collect::<Vec<_>>();
         assert_eq!(edge.len(), 1, "budget at the exact chunk edge still stops");
+
+        // Symmetric case: when the whole range is a single first commit whose
+        // transactions span all three chunks, a 1-byte budget must not end the
+        // stream mid-commit. Every chunk is served so the first commit is fully
+        // covered, and only then is the budget stop honored.
+        let budget_stops_before = context
+            .metrics
+            .node_metrics
+            .commit_sync_fetch_budget_stops
+            .get();
+        let store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
+        let first_commit = collect_chunk_results(transaction_chunk_stream(
+            store,
+            dag_state,
+            context.clone(),
+            refs.clone(),
+            refs.len(),
+            1,
+        ))
+        .await
+        .into_iter()
+        .map(|item| item.expect("cursor should not error"))
+        .collect::<Vec<_>>();
+        assert_eq!(
+            first_commit.len(),
+            3,
+            "all of the first commit's chunks are served before the budget stop"
+        );
+        let served: Vec<GenericTransactionRef> =
+            first_commit.iter().flat_map(|c| chunk_refs(c)).collect();
+        assert_eq!(served, refs, "the first commit is served in full");
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .commit_sync_fetch_budget_stops
+                .get(),
+            budget_stops_before + 1,
+        );
     }
 
     #[tokio::test]
@@ -4805,6 +4873,7 @@ mod tests {
             dag_state,
             context,
             refs.clone(),
+            0,
             0,
         ))
         .await
@@ -4831,9 +4900,10 @@ mod tests {
         let store = Arc::new(
             CountingStore::new(TxResponse::Present(128)).with_response(refs[1], TxResponse::Error),
         );
-        let items =
-            collect_chunk_results(transaction_chunk_stream(store, dag_state, context, refs, 0))
-                .await;
+        let items = collect_chunk_results(transaction_chunk_stream(
+            store, dag_state, context, refs, 0, 0,
+        ))
+        .await;
 
         assert_eq!(items.len(), 1, "the error item is terminal");
         assert!(
@@ -4870,6 +4940,7 @@ mod tests {
                 context.clone(),
                 refs.clone(),
                 0,
+                0,
             );
         }
         assert_eq!(
@@ -4882,7 +4953,7 @@ mod tests {
         // Polling once reads at most one sub-batch, far fewer than all refs.
         let polled_store = Arc::new(CountingStore::new(TxResponse::Present(payload)));
         let mut stream =
-            transaction_chunk_stream(polled_store.clone(), dag_state, context, refs, 0);
+            transaction_chunk_stream(polled_store.clone(), dag_state, context, refs, 0, 0);
         let first = stream.next().await;
         assert!(first.is_some(), "the first poll should yield a chunk");
         assert_eq!(
