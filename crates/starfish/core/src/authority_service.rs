@@ -1468,13 +1468,15 @@ struct TransactionCursor {
     /// Number of leading refs that belong to the first commit; the budget stop
     /// is deferred until all of them have been served.
     first_commit_ref_count: usize,
-    /// Index of the next ref to read.
+    /// Index of the next ref to read from storage.
     pos: usize,
     /// Serialized bytes served across all chunks so far, for the budget check.
     served_bytes: usize,
-    /// A serialized element that did not fit the previous chunk and heads the
-    /// next one.
-    carry: Option<Bytes>,
+    /// Elements decoded from storage in an earlier poll but not yet served,
+    /// each paired with its ref index. Draining these before the next storage
+    /// read keeps a chunk boundary from forcing a re-read of the sub-batch
+    /// tail.
+    pending: VecDeque<(usize, Bytes)>,
     /// Byte budget hint; `0` means unlimited.
     max_transaction_bytes: usize,
     /// Set once the budget has been crossed so the next poll ends the stream.
@@ -1571,7 +1573,7 @@ fn transaction_chunk_stream(
         first_commit_ref_count,
         pos: 0,
         served_bytes: 0,
-        carry: None,
+        pending: VecDeque::new(),
         max_transaction_bytes,
         finished: false,
     };
@@ -1583,35 +1585,53 @@ fn transaction_chunk_stream(
 
         let mut chunk: Vec<Bytes> = Vec::new();
         let mut chunk_bytes = 0usize;
-        if let Some(carried) = cursor.carry.take() {
-            chunk_bytes += carried.len();
-            chunk.push(carried);
+
+        // Serve elements decoded in an earlier poll before reading more.
+        while let Some((_, element)) = cursor.pending.front() {
+            if !chunk.is_empty() && chunk_bytes + element.len() > MAX_FETCH_RESPONSE_BYTES {
+                break;
+            }
+            let (_, element) = cursor
+                .pending
+                .pop_front()
+                .expect("front just returned Some");
+            chunk_bytes += element.len();
+            chunk.push(element);
         }
 
-        'fill: while cursor.pos < cursor.refs.len() {
-            let end = (cursor.pos + TRANSACTION_CURSOR_READ_BATCH).min(cursor.refs.len());
+        // Read further sub-batches only once the decoded tail is exhausted, so
+        // no ref is ever read from storage twice.
+        while cursor.pending.is_empty() && cursor.pos < cursor.refs.len() {
+            let start = cursor.pos;
+            let end = (start + TRANSACTION_CURSOR_READ_BATCH).min(cursor.refs.len());
+            // Re-read per sub-batch: if GC advances between reading this round
+            // and reading the dag state, the only effect is that some refs read
+            // as missing, which the client recovers through its covered-prefix
+            // logic.
             let gc_round = cursor.dag_state.read().gc_round_for_last_solid_commit();
             let batch = read_serialized_transaction_batch(
                 &cursor.store,
                 &cursor.dag_state,
-                &cursor.refs[cursor.pos..end],
+                &cursor.refs[start..end],
                 gc_round,
             )?;
+            cursor.pos = end;
 
             for (offset, element) in batch.into_iter().enumerate() {
                 let Some(element) = element else {
                     continue;
                 };
-                if !chunk.is_empty() && chunk_bytes + element.len() > MAX_FETCH_RESPONSE_BYTES {
-                    // Carry the overflow element and resume at the ref after it.
-                    cursor.pos += offset + 1;
-                    cursor.carry = Some(element);
-                    break 'fill;
+                if cursor.pending.is_empty()
+                    && (chunk.is_empty() || chunk_bytes + element.len() <= MAX_FETCH_RESPONSE_BYTES)
+                {
+                    chunk_bytes += element.len();
+                    chunk.push(element);
+                } else {
+                    // Once one element overflows, the rest of the sub-batch is
+                    // held decoded for the next poll rather than re-read.
+                    cursor.pending.push_back((start + offset, element));
                 }
-                chunk_bytes += element.len();
-                chunk.push(element);
             }
-            cursor.pos = end;
         }
 
         if chunk.is_empty() {
@@ -1624,10 +1644,12 @@ fn transaction_chunk_stream(
         metrics
             .commit_sync_fetch_tx_bytes_served
             .inc_by(chunk_bytes as u64);
-        // Refs whose elements have all been emitted in this or an earlier
-        // chunk. The carried element (at `pos - 1`) heads the next chunk and is
-        // not yet served, so it is excluded.
-        let served_ref_boundary = cursor.pos - usize::from(cursor.carry.is_some());
+        // Refs whose elements have all been emitted or skipped. Anything still
+        // pending is not yet served, so the boundary is the front pending ref.
+        let served_ref_boundary = cursor
+            .pending
+            .front()
+            .map_or(cursor.pos, |(index, _)| *index);
         if cursor.max_transaction_bytes != 0
             && cursor.served_bytes >= cursor.max_transaction_bytes
             && served_ref_boundary >= cursor.first_commit_ref_count
@@ -4966,5 +4988,17 @@ mod tests {
             polled_store.refs_read() < total_refs,
             "one poll must read far fewer than all {total_refs} refs"
         );
+
+        // A 64-ref sub-batch of ~300 KiB payloads spans several 4 MiB chunks, so
+        // the next poll is served entirely from the decoded tail without a
+        // second store read.
+        let second = stream.next().await;
+        assert!(second.is_some(), "the second poll should yield a chunk");
+        assert_eq!(
+            polled_store.read_calls(),
+            1,
+            "the decoded sub-batch tail is reused, not re-read"
+        );
+        assert_eq!(polled_store.refs_read(), TRANSACTION_CURSOR_READ_BATCH);
     }
 }
