@@ -133,10 +133,24 @@ iota/
 - [`RUST_CONVENTIONS.md`](RUST_CONVENTIONS.md) — full list of Rust style and safety rules (panics, error handling, naming, module layout, comment style, etc.).
 - [`REVIEW.md`](REVIEW.md) — review depth tiers, cross-cutting checks (license headers, breaking changes, dependency hygiene), and language-specific review guidance.
 
-### Comment style
+## Writing style
+
+These rules cover everything you write: code comments, commit messages, and PR and issue descriptions.
+
+### Code comments
 
 When writing or modifying comments, follow the **Comments** rules in [`RUST_CONVENTIONS.md`](RUST_CONVENTIONS.md#comments). In short:
 
 - Doc comments are for the **caller** — what they need to know to call it correctly, not how it works inside.
 - Inline comments explain a non-obvious **why**, never a **what**; default to none.
 - Never embed conversational or change history ("added for X", "as discussed", PR/issue numbers) — that belongs in the PR description or commit message, not the code.
+
+### PR and issue descriptions
+
+- Keep them compact and concise; no large blocks of written-out prose.
+- Prefer bullet points over full paragraphs.
+- Still state _why_ the change was made — the reviewer needs the intent (see [`REVIEW.md`](REVIEW.md)).
+
+### Plain language, no coined terms
+
+Applies to all of the above, and to review comments and reports: use plain words and terms already used in the project or the established domain, so a reader can follow the text without terminology the project doesn't already use. Do not invent a label for a concept and then reuse it as if it were established vocabulary. See [Plain Language, No Coined Terms](RUST_CONVENTIONS.md#plain-language-no-coined-terms) for the full rule.

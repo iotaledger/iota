@@ -117,6 +117,20 @@ pub fn next_committee(epoch: Epoch) -> Result<Committee, EpochError> { ... }
 
 If the stake-vs-VRF choice matters for a reader of the body, the comment goes inside the function at the sort step — not in the header.
 
+#### Plain Language, No Coined Terms
+
+This rule applies to every comment, and equally to PR and issue descriptions, review comments, and reports — all prose,
+not just code.
+
+Use plain words and the terms already used in the codebase or the established domain. Do not invent a label for a
+concept and then reuse it as if it were established vocabulary — this is a recurring problem, treat it as a hard rule. A
+reader should be able to follow the text without terminology the project doesn't already use. Before naming a concept,
+check whether the repo already has a word for it and reuse that. If a phrase wouldn't appear in the code or a standard
+reference, drop the label and describe the thing directly.
+
+Self-check before submitting: scan for any noun phrase acting as a _name_ for an idea. If you coined it — not the
+codebase, not the domain — delete the label and state the idea in plain words.
+
 ### Organization
 
 #### Absolute Imports
