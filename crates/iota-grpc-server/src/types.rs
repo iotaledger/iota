@@ -1140,6 +1140,9 @@ impl GrpcReader {
         digest: &TransactionDigest,
         fields: &TransactionReadFields,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
+        // TODO: fall back to the transaction key-value store for data pruned
+        // locally. Without it, reads of pruned transactions fail with
+        // `TransactionNotFound` even when the data is available from the archive.
         let (transaction, signatures) = if fields.include_transaction || fields.include_signatures {
             // Get the transaction if transaction data or signatures are requested
             let transaction = self

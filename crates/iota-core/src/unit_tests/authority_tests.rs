@@ -7,7 +7,6 @@ use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
     path::PathBuf,
-    str::FromStr,
     sync::Arc,
 };
 
@@ -16,10 +15,6 @@ use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::genesis::Genesis;
 use iota_framework::BuiltInFramework;
-use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaArgument, IotaExecutionResult,
-    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTypeTag,
-};
 use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
@@ -38,7 +33,6 @@ use iota_types::{
         random_committee_key_pairs_of_size,
     },
     digests::{Digest, ObjectDigest, TransactionDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{IotaError, IotaResult, UserInputError},
@@ -70,12 +64,12 @@ use rand::{
     prelude::StdRng,
     seq::SliceRandom,
 };
-use serde_json::json;
 
 pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore, SIMULATION_GAS_COIN_VALUE,
+        AuthorityState, AuthorityStore, DevInspectTransactionBlockResult,
+        SIMULATION_GAS_COIN_VALUE,
         authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
@@ -237,14 +231,14 @@ async fn test_dry_run_transaction_block() {
 
     let transaction_digest = *transaction.digest();
 
-    let (response, _, _, _) = fullnode
+    let (_, _, effects, _) = fullnode
         .dry_exec_transaction(
             transaction.data().intent_message().value.clone(),
             transaction_digest,
         )
         .unwrap();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
-    let gas_usage = response.effects.gas_cost_summary();
+    assert_eq!(*effects.status(), ExecutionStatus::Success);
+    let gas_usage = effects.gas_cost_summary().clone();
 
     // Make sure that objects are not mutated after dry run.
     let gas_object_version = fullnode.get_object(&gas_object_id).await.unwrap().version();
@@ -264,11 +258,11 @@ async fn test_dry_run_transaction_block() {
         txn_data.gas_budget(),
         txn_data.gas_price(),
     );
-    let (response, _, _, _) = fullnode
+    let (_, _, effects, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)
         .unwrap();
-    let gas_usage_no_gas = response.effects.gas_cost_summary();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+    let gas_usage_no_gas = effects.gas_cost_summary().clone();
+    assert_eq!(*effects.status(), ExecutionStatus::Success);
     assert_eq!(gas_usage, gas_usage_no_gas);
 }
 
@@ -294,13 +288,13 @@ async fn test_dry_run_no_gas_big_transfer() {
 
     let signed = to_sender_signed_transaction(data, &sender_key);
 
-    let (dry_run_res, _, _, _) = fullnode
+    let (_, _, effects, _) = fullnode
         .dry_exec_transaction(
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(*effects.status(), ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -311,9 +305,7 @@ async fn test_dev_inspect_object_by_bytes() {
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
     // test normal call
-    let DevInspectResults {
-        effects, results, ..
-    } = call_dev_inspect(
+    let (effects, _, results, ..) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -336,11 +328,7 @@ async fn test_dev_inspect_object_by_bytes() {
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = results.pop().unwrap();
     assert!(mutable_reference_outputs.is_empty());
     assert!(return_values.is_empty());
     let dev_inspect_gas_summary = effects.gas_cost_summary().clone();
@@ -376,9 +364,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.gas_cost_summary(), &dev_inspect_gas_summary);
 
     // use the created object directly, via its bytes
-    let DevInspectResults {
-        effects, results, ..
-    } = call_dev_inspect(
+    let (effects, _, results, ..) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -402,11 +388,7 @@ async fn test_dev_inspect_object_by_bytes() {
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = results.pop().unwrap();
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
     let updated_reference_bytes = &mutable_reference_outputs[0].1;
@@ -474,9 +456,7 @@ async fn test_dev_inspect_unowned_object() {
     assert_eq!(created_object.owner, Owner::Address(bob));
 
     // alice uses the object with dev inspect, despite not being the owner
-    let DevInspectResults {
-        effects, results, ..
-    } = call_dev_inspect(
+    let (effects, _, results, ..) = call_dev_inspect(
         &fullnode,
         &alice,
         &object_basics.object_id,
@@ -499,11 +479,7 @@ async fn test_dev_inspect_unowned_object() {
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = results.pop().unwrap();
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
 }
@@ -570,21 +546,19 @@ async fn test_dev_inspect_dynamic_field() {
         )],
     };
     let kind = TransactionKind::new_programmable(pt);
-    let DevInspectResults { error, .. } = fullnode
+    let (.., execution_result, _, _) = fullnode
         .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
         .await
         .unwrap();
     // produces an error
-    let err = error.unwrap();
+    let err = execution_result.unwrap_err().to_string();
     assert!(
         err.contains("CircularObjectOwnership"),
         "unexpected error: {err}"
     );
 
     // add a dynamic field to an object
-    let DevInspectResults {
-        effects, results, ..
-    } = call_dev_inspect(
+    let (effects, _, results, ..) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -608,11 +582,7 @@ async fn test_dev_inspect_dynamic_field() {
     assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = results.pop().unwrap();
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
 }
@@ -654,7 +624,7 @@ async fn test_dev_inspect_return_values() {
         .to_vec();
 
     // mutably borrow a value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let (.., results, _, _) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -667,21 +637,16 @@ async fn test_dev_inspect_return_values() {
     .unwrap();
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = results.pop().unwrap();
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // borrow a value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let (.., results, _, _) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -694,21 +659,16 @@ async fn test_dev_inspect_return_values() {
     .unwrap();
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = results.pop().unwrap();
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // read one value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let (.., results, _, _) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -721,18 +681,13 @@ async fn test_dev_inspect_return_values() {
     .unwrap();
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = results.pop().unwrap();
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // An unused value without drop is an error normally
     let effects = call_move_(
@@ -762,7 +717,7 @@ async fn test_dev_inspect_return_values() {
     );
 
     // An unused value without drop is not an error in dev inspect
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let (.., results, _, _) = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -775,11 +730,7 @@ async fn test_dev_inspect_return_values() {
     .unwrap();
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
-    let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = results.pop().unwrap();
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
@@ -789,7 +740,6 @@ async fn test_dev_inspect_return_values() {
         Identifier::from_static("Wrapper"),
         vec![],
     )));
-    let return_type: TypeTag = return_type.try_into().unwrap();
     assert_eq!(return_type, expected_type);
 }
 
@@ -813,18 +763,15 @@ async fn test_dev_inspect_gas_coin_argument() {
         .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
         .await
         .unwrap()
-        .results
+        .2
         .unwrap();
     assert_eq!(results.len(), 2);
     // Split results
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = &results[0];
+    let (mutable_reference_outputs, return_values) = &results[0];
     // check argument is the gas coin updated
     assert_eq!(mutable_reference_outputs.len(), 1);
     let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
-    assert_eq!(arg, &IotaArgument::GasCoin);
+    assert_eq!(arg, &Argument::Gas);
     check_coin_value(
         arg_value,
         arg_type,
@@ -836,10 +783,7 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(ret_value, ret_type, amount);
 
     // Transfer results
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = &results[1];
+    let (mutable_reference_outputs, return_values) = &results[1];
     assert!(mutable_reference_outputs.is_empty());
     assert!(return_values.is_empty());
 }
@@ -895,11 +839,10 @@ async fn test_dev_inspect_gas_price() {
     );
 }
 
-fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
-    let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
+fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: u64) {
     assert_eq!(
         actual_type,
-        TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
+        &TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
     );
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
     assert_eq!(actual_coin.value(), expected_value);
@@ -1083,7 +1026,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let kind = TransactionKind::new_programmable(pt.clone());
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     // dev inspect
-    let DevInspectResults { effects, .. } = fullnode
+    let (effects, ..) = fullnode
         .dev_inspect_transaction_block(sender, kind, Some(rgp), None, None, None, None, None)
         .await
         .unwrap();
@@ -1099,13 +1042,18 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     );
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
-    let DryRunTransactionBlockResponse {
-        effects,
-        execution_error_source,
-        ..
-    } = fullnode.dry_exec_transaction(data, digest).unwrap().0;
+    let (_, _, effects, _) = fullnode.dry_exec_transaction(data, digest).unwrap();
     assert_eq!(effects.deleted().len(), 0);
-    assert_eq!(execution_error_source, Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+    let ExecutionStatus::Failure {
+        error: ExecutionError::MoveAbort { location, code },
+        ..
+    } = effects.status()
+    else {
+        panic!("unexpected status: {:?}", effects.status());
+    };
+    assert_eq!(*code, 1);
+    assert_eq!(location.package, ObjectId::FRAMEWORK);
+    assert_eq!(location.module.as_str(), "dynamic_field");
 }
 
 // tests using a gas coin with version MAX - 1
@@ -1137,11 +1085,11 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     };
     let kind = TransactionKind::new_programmable(pt.clone());
     // dev inspect
-    let DevInspectResults { effects, .. } = fullnode
+    let (effects, ..) = fullnode
         .dev_inspect_transaction_block(sender, kind, Some(rgp + 100), None, None, None, None, None)
         .await
         .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 
     // dry run
     let data = TransactionData::new_programmable(
@@ -1153,9 +1101,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     );
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
-    let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).unwrap().0;
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    let (_, _, effects, _) = fullnode.dry_exec_transaction(data, digest).unwrap();
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -3474,183 +3421,6 @@ async fn test_store_revert_unwrap_move_call() {
 }
 
 #[tokio::test]
-async fn test_store_get_dynamic_object() {
-    let (_, fields) = create_and_retrieve_df_info(&Identifier::from_static("add_ofield")).await;
-    assert_eq!(fields.len(), 1);
-    assert_eq!(fields[0].type_, DynamicFieldType::DynamicObject);
-}
-
-#[tokio::test]
-async fn test_store_get_dynamic_field() {
-    let (_, fields) = create_and_retrieve_df_info(&Identifier::from_static("add_field")).await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(json!(true), fields[0].name.value);
-    assert_eq!(TypeTag::Bool, fields[0].name.type_)
-}
-
-async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectId::random();
-    let (authority_state, object_basics) =
-        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
-
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let create_outer_effects = create_move_object(
-        &object_basics.object_id,
-        &authority_state,
-        &gas_object_id,
-        &sender,
-        &sender_key,
-    )
-    .await
-    .unwrap();
-
-    assert!(
-        create_outer_effects.status().is_success(),
-        "{create_outer_effects:?}"
-    );
-    assert_eq!(create_outer_effects.created().len(), 1);
-
-    let create_inner_effects = create_move_object(
-        &object_basics.object_id,
-        &authority_state,
-        &gas_object_id,
-        &sender,
-        &sender_key,
-    )
-    .await
-    .unwrap();
-
-    assert!(create_inner_effects.status().is_success());
-    assert_eq!(create_inner_effects.created().len(), 1);
-
-    let outer_v0 = create_outer_effects.created()[0].0;
-    let inner_v0 = create_inner_effects.created()[0].0;
-
-    let add_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
-            sender,
-            object_basics.object_id,
-            Identifier::from_static("object_basics"),
-            function.to_owned(),
-            vec![],
-            create_inner_effects.gas_object().0,
-            vec![
-                CallArg::ImmutableOrOwned(outer_v0),
-                CallArg::ImmutableOrOwned(inner_v0),
-            ],
-            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-            rgp,
-        )
-        .unwrap(),
-        &sender_key,
-    );
-
-    let add_cert = init_certified_transaction(add_txn, &authority_state);
-
-    let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
-
-    assert!(
-        add_effects.status().is_success(),
-        "{:?}",
-        add_effects.status()
-    );
-    assert_eq!(add_effects.created().len(), 1);
-
-    (
-        sender,
-        authority_state
-            .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
-            .unwrap()
-            .into_iter()
-            .map(|x| x.1)
-            .collect(),
-    )
-}
-
-#[tokio::test]
-async fn test_dynamic_field_struct_name_parsing() {
-    let (_, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_struct_name")).await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
-    assert_eq!(
-        TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
-    )
-}
-
-#[tokio::test]
-async fn test_dynamic_field_bytearray_name_parsing() {
-    let (_, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_bytearray_name"))
-            .await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(
-        TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
-    );
-    assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
-}
-
-#[tokio::test]
-async fn test_dynamic_field_address_name_parsing() {
-    let (sender, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_address_name")).await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
-    assert_eq!(json!(sender), fields[0].name.value);
-}
-
-#[tokio::test]
-async fn test_dynamic_object_field_struct_name_parsing() {
-    let (_, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_struct_name")).await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
-    assert_eq!(
-        TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
-    )
-}
-
-#[tokio::test]
-async fn test_dynamic_object_field_bytearray_name_parsing() {
-    let (_, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_bytearray_name"))
-            .await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(
-        TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
-    );
-    assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
-}
-
-#[tokio::test]
-async fn test_dynamic_object_field_address_name_parsing() {
-    let (sender, fields) =
-        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_address_name")).await;
-
-    assert_eq!(fields.len(), 1);
-    assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
-    assert_eq!(json!(sender), fields[0].name.value);
-}
-
-#[tokio::test]
 async fn test_store_revert_add_ofield() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectId::random();
@@ -4496,7 +4266,7 @@ pub async fn call_dev_inspect(
     function: &str,
     type_arguments: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
-) -> IotaResult<DevInspectResults> {
+) -> IotaResult<DevInspectTransactionBlockResult> {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut arguments = Vec::with_capacity(test_args.len());
     for a in test_args {
@@ -5705,7 +5475,7 @@ async fn test_for_inc_201_dev_inspect() {
         BuiltInFramework::all_package_ids(),
     ));
     let kind = TransactionKind::new_programmable(builder.finish());
-    let DevInspectResults { events, .. } = fullnode
+    let (_, events, ..) = fullnode
         .dev_inspect_transaction_block(
             sender,
             kind,
@@ -5719,12 +5489,10 @@ async fn test_for_inc_201_dev_inspect() {
         .await
         .unwrap();
 
-    assert_eq!(1, events.data.len());
-    assert_eq!(
-        "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
-    );
-    assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
+    assert_eq!(1, events.0.len());
+    assert_eq!("PublishEvent", events.0[0].type_.name().as_str());
+    let foo: String = bcs::from_bytes(&events.0[0].contents).unwrap();
+    assert_eq!("bar", foo);
 }
 
 #[tokio::test]
@@ -5758,27 +5526,18 @@ async fn test_for_inc_201_dry_run() {
     );
 
     let signed = to_sender_signed_transaction(txn_data, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            events, effects, ..
-        },
-        _,
-        _,
-        _,
-    ) = fullnode
+    let (events, _, effects, _) = fullnode
         .dry_exec_transaction(
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 
-    assert_eq!(1, events.data.len());
-    assert_eq!(
-        "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
-    );
-    assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
+    assert_eq!(1, events.0.len());
+    assert_eq!("PublishEvent", events.0[0].type_.name().as_str());
+    let foo: String = bcs::from_bytes(&events.0[0].contents).unwrap();
+    assert_eq!("bar", foo);
 }
 
 #[tokio::test]
@@ -5810,16 +5569,7 @@ async fn test_function_not_found() {
     );
 
     let signed = to_sender_signed_transaction(txn_data, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            effects,
-            execution_error_source,
-            ..
-        },
-        _,
-        _,
-        _,
-    ) = fullnode
+    let (_, _, effects, _) = fullnode
         .dry_exec_transaction(
             signed.data().intent_message().value.clone(),
             *signed.digest(),
@@ -5827,12 +5577,11 @@ async fn test_function_not_found() {
         .unwrap();
     assert_eq!(
         effects.status(),
-        &IotaExecutionStatus::Failure {
-            error: "Function Not Found in command 0".to_string(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::FunctionNotFound,
+            command: Some(0),
         }
     );
-
-    assert_eq!(execution_error_source, Some("Could not resolve function 'bad_function' in module 0000000000000000000000000000000000000000000000000000000000000001::option".to_string()),)
 }
 
 #[tokio::test]
@@ -5866,16 +5615,7 @@ async fn test_arity_mismatch() {
     );
 
     let signed = to_sender_signed_transaction(txn_data, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            effects,
-            execution_error_source,
-            ..
-        },
-        _,
-        _,
-        _,
-    ) = authority
+    let (_, _, effects, _) = authority
         .dry_exec_transaction(
             signed.data().intent_message().value.clone(),
             *signed.digest(),
@@ -5883,15 +5623,11 @@ async fn test_arity_mismatch() {
         .unwrap();
     assert_eq!(
         effects.status(),
-        &IotaExecutionStatus::Failure {
-            error: "Arity mismatch for Move function. The number of arguments does not match the number of parameters in command 0".to_string(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::ArityMismatch,
+            command: Some(0),
         }
     );
-
-    assert_eq!(
-        execution_error_source,
-        Some("Expected 1 argument calling function 'is_none', but found 0".to_string()),
-    )
 }
 
 #[tokio::test]

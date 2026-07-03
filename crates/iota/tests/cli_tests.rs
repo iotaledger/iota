@@ -2,6 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// These tests drive the CLI against an indexer-backed wallet (reads via the
+// indexer's JSON-RPC, execution via node gRPC), which needs a real Postgres, so
+// the whole suite runs on real tokio and is excluded from the simulator.
+#![cfg(not(msim))]
+
+mod common;
+
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
 use std::{
@@ -4462,18 +4469,23 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn test_cluster_helper() -> (
+async fn test_cluster_helper(
+    db_name: &str,
+) -> (
     TestCluster,
+    iota_indexer::store::PgIndexerStore,
     IotaClient,
     u64,
     [ObjectId; 3],
     [KeyIdentity; 2],
     [Address; 2],
 ) {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
-        .build()
-        .await;
+    let (mut test_cluster, pg_store) = common::cluster_with_indexer_backed_wallet(
+        db_name,
+        TestClusterBuilder::new().with_num_validators(2),
+    )
+    .await;
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address1 = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -4507,6 +4519,7 @@ async fn test_cluster_helper() -> (
 
     (
         test_cluster,
+        pg_store,
         client,
         rgp,
         [object_id1, object_id2, object_id3],
@@ -4515,10 +4528,10 @@ async fn test_cluster_helper() -> (
     )
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_pay() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+    let (mut test_cluster, pg_store, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper("test_pay").await;
     let (object_id1, object_id2, object_id3) = (objects[0], objects[1], objects[2]);
     let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
     let (address2, address3) = (addresses[0], addresses[1]);
@@ -4557,6 +4570,8 @@ async fn test_pay() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
 
     // Pay command takes the input coins and transfers the given amounts from each
     // input coin (in order) to the recipients
@@ -4622,10 +4637,10 @@ async fn test_pay() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_pay_iota() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+    let (mut test_cluster, pg_store, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper("test_pay_iota").await;
     let (object_id1, object_id2) = (objects[0], objects[1]);
     let (recipient1, recipient2) = (&recipients[0], &recipients[1]);
     let (address2, address3) = (addresses[0], addresses[1]);
@@ -4643,6 +4658,8 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
 
     // pay iota takes the input coins and transfers from each of them (in order) the
     // amounts to the respective recipients.
@@ -4705,10 +4722,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+    let (mut test_cluster, pg_store, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper("test_pay_all_iota").await;
     let (object_id1, object_id2) = (objects[0], objects[1]);
     let recipient1 = &recipients[0];
     let address2 = addresses[0];
@@ -4724,6 +4741,8 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
 
     // pay all iota will take the input coins and smash them into one coin and
     // transfer that coin to the recipient, so we check that the recipient has
@@ -4755,10 +4774,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_transfer() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+    let (mut test_cluster, pg_store, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper("test_transfer").await;
     let (object_id1, object_id2) = (objects[0], objects[1]);
     let recipient1 = &recipients[0];
     let address2 = addresses[0];
@@ -4793,6 +4812,8 @@ async fn test_transfer() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
     // transfer command will transfer the object_id1 to address2, and use object_id2
     // as gas we check if object1 is owned by address 2 and if the gas object
     // used is object_id2
@@ -4825,11 +4846,11 @@ async fn test_transfer() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_transfer_gas_smash() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but using multiple gas objects.
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
+    let (mut test_cluster, pg_store, client, rgp, objects, recipients, addresses) =
+        test_cluster_helper("test_transfer_gas_smash").await;
     let (object_id0, object_id1, object_id2) = (objects[0], objects[1], objects[2]);
     let recipient1 = &recipients[0];
     let address2 = addresses[0];
@@ -4867,6 +4888,8 @@ async fn test_transfer_gas_smash() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
+    common::wait_for_indexer(&pg_store, &test_cluster).await;
+
     // transfer command will transfer the object_id2 to address2, and use
     // object_id0, and object_id1 as gas we check if object1 is owned by address
     // 2 and the gas object used.
@@ -4900,13 +4923,12 @@ async fn test_transfer_gas_smash() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the gas is sponsored by the recipient.
-    let (mut cluster, _, rgp, o, _, _) = test_cluster_helper().await;
+    let (mut cluster, _, _, rgp, o, _, _) = test_cluster_helper("test_transfer_sponsored").await;
     let a0 = cluster.get_address_0();
     let a1 = cluster.get_address_1();
-    let context = &mut cluster.wallet;
 
     // A0 sends O1 to A1
     let transfer = IotaClientCommands::Transfer {
@@ -4919,7 +4941,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut cluster.wallet)
     .await?;
 
     let IotaClientCommandResult::TransactionBlock(response) = transfer else {
@@ -4927,6 +4949,10 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
     };
 
     assert_eq!(response.status_ok(), Some(true));
+
+    // The second transfer resolves the coin's new owner (A1) via a node gRPC read,
+    // so wait for the fullnode to execute the first transfer.
+    common::wait_for_transaction_on_node(&cluster, response.digest).await;
 
     // A1 sends 01 back to A0, but sponsored by A0.
     let transfer_back = IotaClientCommands::Transfer {
@@ -4940,7 +4966,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
         },
         processing: TxProcessingArgs::default(),
     }
-    .execute(context)
+    .execute(&mut cluster.wallet)
     .await?;
 
     let IotaClientCommandResult::TransactionBlock(response) = transfer_back else {
@@ -4958,11 +4984,12 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
     // a Base64 string containing a Base64-encoded TransactionData.
-    let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
+    let (mut cluster, pg_store, client, rgp, o, _, a) =
+        test_cluster_helper("test_transfer_serialized_data").await;
     let context = &mut cluster.wallet;
 
     // Build the transaction without running it.
@@ -4994,6 +5021,8 @@ async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
+    common::wait_for_indexer(&pg_store, &cluster).await;
+
     let IotaClientCommandResult::TransactionBlock(response) = transfer_serialized else {
         panic!("Expected TransactionBlock result");
     };
@@ -5019,11 +5048,12 @@ async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_transfer_serialized_kind() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
     // a Base64 string containing a Base64-encoded TransactionKind.
-    let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
+    let (mut cluster, pg_store, client, rgp, o, _, a) =
+        test_cluster_helper("test_transfer_serialized_kind").await;
     let context = &mut cluster.wallet;
 
     // Build the transaction without running it.
@@ -5057,6 +5087,8 @@ async fn test_transfer_serialized_kind() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
+    common::wait_for_indexer(&pg_store, &cluster).await;
+
     let IotaClientCommandResult::TransactionBlock(response) = transfer_serialized else {
         panic!("Expected TransactionBlock result");
     };
@@ -5082,9 +5114,10 @@ async fn test_transfer_serialized_kind() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_gas_estimation() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, _, addresses) = test_cluster_helper().await;
+    let (mut test_cluster, _, client, rgp, objects, _, addresses) =
+        test_cluster_helper("test_gas_estimation").await;
     let object_id1 = objects[0];
     let address2 = addresses[0];
     let context = &mut test_cluster.wallet;
@@ -5316,10 +5349,7 @@ async fn test_balance() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_faucet() -> Result<(), anyhow::Error> {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_rpc_port(9000)
-        .build()
-        .await;
+    let test_cluster = TestClusterBuilder::new().build().await;
 
     let context = test_cluster.wallet;
 
@@ -5374,10 +5404,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_faucet_batch() -> Result<(), anyhow::Error> {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_rpc_port(9000)
-        .build()
-        .await;
+    let test_cluster = TestClusterBuilder::new().build().await;
 
     let context = test_cluster.wallet;
 
@@ -5501,10 +5528,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_rpc_port(9000)
-        .build()
-        .await;
+    let test_cluster = TestClusterBuilder::new().build().await;
 
     let context = test_cluster.wallet;
 
@@ -5970,9 +5994,11 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
 async fn test_new_env() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(1)
-        .with_fullnode_rpc_port(9009)
         .build()
         .await;
+    // `new-env` validates reachability against the gRPC endpoint, so use the
+    // cluster's real gRPC URL.
+    let grpc = Some(test_cluster.grpc_url());
     let context = &mut test_cluster.wallet;
 
     let alias = "network-alias".to_string();
@@ -5989,6 +6015,7 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
         ws: ws.clone(),
         basic_auth: basic_auth.clone(),
         faucet: faucet.clone(),
+        grpc: grpc.clone(),
     }
     .execute(context)
     .await
@@ -6007,6 +6034,7 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.ws(), ws);
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);
+    assert_eq!(*new_env.grpc(), grpc);
 
     Ok(())
 }

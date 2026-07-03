@@ -113,8 +113,7 @@ fn get_object_with_options(options: IotaObjectDataOptions) {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
 
-        let fullnode_objects = cluster
-            .rpc_client()
+        let objects = client
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new_with_options(options.clone())),
@@ -124,7 +123,8 @@ fn get_object_with_options(options: IotaObjectDataOptions) {
             .await
             .unwrap();
 
-        for obj in fullnode_objects.data {
+        assert!(!objects.data.is_empty());
+        for obj in objects.data {
             let indexer_obj = client
                 .get_object(obj.object_id().unwrap(), Some(options.clone()))
                 .await
@@ -147,8 +147,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
 
-        let fullnode_objects = cluster
-            .rpc_client()
+        let objects = client
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new_with_options(options.clone())),
@@ -158,7 +157,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .await
             .unwrap();
 
-        let object_ids = fullnode_objects
+        let object_ids = objects
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
@@ -169,53 +168,37 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .await
             .unwrap();
 
-        assert_eq!(fullnode_objects.data, indexer_objects);
+        assert_eq!(objects.data, indexer_objects);
     });
 }
 
 fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptions) {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
+        let checkpoint = client
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .unwrap();
 
-        let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
-
-        let fullnode_tx = cluster
-            .rpc_client()
-            .get_transaction_block(tx_digest, Some(options.clone()))
-            .await
-            .unwrap();
+        let tx_digest = *checkpoint.transactions.first().unwrap();
 
         let tx = client
             .get_transaction_block(tx_digest, Some(options.clone()))
             .await
             .unwrap();
 
-        // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-        // not match all options filters but is still good to check if both tx does
-        // match
-        assert_eq!(fullnode_tx, tx);
-
         // Those fields should be present for checkpoint indexed transactions
         assert!(tx.checkpoint.is_some());
         assert!(tx.timestamp_ms.is_some());
 
-        assert!(
-            match_transaction_block_resp_options(&options, &[fullnode_tx]),
-            "fullnode transaction block assertion failed"
-        );
         assert!(
             match_transaction_block_resp_options(&options, &[tx]),
             "indexer transaction block assertion failed"
@@ -226,45 +209,26 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
 fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
-        let fullnode_checkpoints = cluster
-            .rpc_client()
-            .get_checkpoints(None, Some(3), false)
-            .await
-            .unwrap();
+        let checkpoints = client.get_checkpoints(None, Some(3), false).await.unwrap();
 
-        let digests = fullnode_checkpoints
+        let digests = checkpoints
             .data
             .into_iter()
             .flat_map(|c| c.transactions)
             .collect::<Vec<TransactionDigest>>();
-
-        let fullnode_txs = cluster
-            .rpc_client()
-            .multi_get_transaction_blocks(digests.clone(), Some(options.clone()))
-            .await
-            .unwrap();
 
         let indexer_txs = client
             .multi_get_transaction_blocks(digests, Some(options.clone()))
             .await
             .unwrap();
 
-        // `IotaTransactionBlockResponse` does have a custom PartialEq impl which does
-        // not match all options filters but is still good to check if both tx does
-        // match
-        assert_eq!(fullnode_txs, indexer_txs);
-
-        assert!(
-            match_transaction_block_resp_options(&options, &fullnode_txs),
-            "fullnode multi transaction blocks assertion failed"
-        );
         assert!(
             match_transaction_block_resp_options(&options, &indexer_txs),
             "indexer multi transaction blocks assertion failed"
@@ -286,26 +250,23 @@ async fn wait_for_objects_history(
 fn get_checkpoint_by_seq_num() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
+        let checkpoint = client
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .unwrap();
 
-        let indexer_checkpoint = client
-            .get_checkpoint(CheckpointId::SequenceNumber(0))
-            .await
-            .unwrap();
-
-        assert_eq!(fullnode_checkpoint, indexer_checkpoint);
+        assert_eq!(checkpoint.sequence_number, 0);
+        assert_eq!(checkpoint.epoch, 0);
+        assert!(checkpoint.previous_digest.is_none());
+        assert!(!checkpoint.transactions.is_empty());
     })
 }
 
@@ -335,25 +296,24 @@ fn get_checkpoint_by_seq_num_not_found() {
 fn get_checkpoint_by_digest() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
+        let checkpoint_by_seq_num = client
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .unwrap();
 
-        let indexer_checkpoint = client
-            .get_checkpoint(CheckpointId::Digest(fullnode_checkpoint.digest))
+        let checkpoint_by_digest = client
+            .get_checkpoint(CheckpointId::Digest(checkpoint_by_seq_num.digest))
             .await
             .unwrap();
 
-        assert_eq!(fullnode_checkpoint, indexer_checkpoint);
+        assert_eq!(checkpoint_by_seq_num, checkpoint_by_digest);
     });
 }
 
@@ -623,13 +583,13 @@ fn get_object() {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
 
-        let fullnode_objects = cluster
-            .rpc_client()
+        let objects = client
             .get_owned_objects(address, None, None, None)
             .await
             .unwrap();
 
-        for obj in fullnode_objects.data {
+        assert!(!objects.data.is_empty());
+        for obj in objects.data {
             let indexer_obj = client
                 .get_object(obj.object_id().unwrap(), None)
                 .await
@@ -735,13 +695,12 @@ fn multi_get_objects() {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
 
-        let fullnode_objects = cluster
-            .rpc_client()
+        let objects = client
             .get_owned_objects(address, None, None, None)
             .await
             .unwrap();
 
-        let object_ids = fullnode_objects
+        let object_ids = objects
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
@@ -749,7 +708,7 @@ fn multi_get_objects() {
 
         let indexer_objects = client.multi_get_objects(object_ids, None).await.unwrap();
 
-        assert_eq!(fullnode_objects.data, indexer_objects);
+        assert_eq!(objects.data, indexer_objects);
     });
 }
 
@@ -815,13 +774,12 @@ fn multi_get_objects_found_and_not_found() {
         indexer_wait_for_checkpoint(store, 1).await;
         let address = cluster.get_address_0();
 
-        let fullnode_objects = cluster
-            .rpc_client()
+        let objects = client
             .get_owned_objects(address, None, None, None)
             .await
             .unwrap();
 
-        let mut object_ids = fullnode_objects
+        let mut object_ids = objects
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
@@ -908,21 +866,20 @@ fn multi_get_objects_with_storage_rebate() {
 fn get_events() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
+        let checkpoint = client
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .unwrap();
 
         let events = client
-            .get_events(*fullnode_checkpoint.transactions.first().unwrap())
+            .get_events(*checkpoint.transactions.first().unwrap())
             .await
             .unwrap();
 
@@ -1132,20 +1089,19 @@ fn get_events_not_found() {
 fn get_transaction_block() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
+        let checkpoint = client
             .get_checkpoint(CheckpointId::SequenceNumber(0))
             .await
             .unwrap();
 
-        let tx_digest = *fullnode_checkpoint.transactions.first().unwrap();
+        let tx_digest = *checkpoint.transactions.first().unwrap();
 
         let tx = client.get_transaction_block(tx_digest, None).await.unwrap();
 
@@ -1238,37 +1194,30 @@ fn get_transaction_block_with_input() {
 fn multi_get_transaction_blocks() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 3).await;
 
-        let fullnode_checkpoints = cluster
-            .rpc_client()
-            .get_checkpoints(None, Some(3), false)
-            .await
-            .unwrap();
+        let checkpoints = client.get_checkpoints(None, Some(3), false).await.unwrap();
 
-        let digests = fullnode_checkpoints
+        let digests = checkpoints
             .data
             .into_iter()
             .flat_map(|c| c.transactions)
             .collect::<Vec<TransactionDigest>>();
 
-        let fullnode_txs = cluster
-            .rpc_client()
+        let indexer_txs = client
             .multi_get_transaction_blocks(digests.clone(), None)
             .await
             .unwrap();
 
-        let indexer_txs = client
-            .multi_get_transaction_blocks(digests, None)
-            .await
-            .unwrap();
-
-        assert_eq!(fullnode_txs, indexer_txs);
+        assert_eq!(
+            digests,
+            indexer_txs.iter().map(|tx| tx.digest).collect::<Vec<_>>()
+        );
     });
 }
 
@@ -1337,29 +1286,28 @@ fn multi_get_transaction_blocks_with_input() {
 fn get_protocol_config() {
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_protocol_config = cluster
-            .rpc_client()
-            .get_protocol_config(None)
-            .await
-            .unwrap();
+        let latest_protocol_config = client.get_protocol_config(None).await.unwrap();
 
-        let indexer_protocol_config = client.get_protocol_config(None).await.unwrap();
+        // The test network runs on the latest protocol version, so the default
+        // (latest) config resolves to `ProtocolVersion::MAX`.
+        assert_eq!(
+            latest_protocol_config.protocol_version,
+            ProtocolVersion::MAX
+        );
 
-        assert_eq!(fullnode_protocol_config, indexer_protocol_config);
-
-        let indexer_protocol_config = client
+        let max_protocol_config = client
             .get_protocol_config(Some(ProtocolVersion::MAX.as_u64().into()))
             .await
             .unwrap();
 
-        assert_eq!(fullnode_protocol_config, indexer_protocol_config);
+        assert_eq!(latest_protocol_config, max_protocol_config);
     });
 }
 
@@ -1400,11 +1348,14 @@ fn get_chain_identifier() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let fullnode_chain_identifier = cluster.rpc_client().get_chain_identifier().await.unwrap();
+        let node_chain_identifier = cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.state().get_chain_identifier());
 
         let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
 
-        assert_eq!(fullnode_chain_identifier, indexer_chain_identifier)
+        assert_eq!(node_chain_identifier.to_string(), indexer_chain_identifier)
     });
 }
 
@@ -1413,9 +1364,9 @@ fn get_total_transaction_blocks() {
     let checkpoint = 5;
     let ApiTestSetup {
         runtime,
-        cluster,
         store,
         client,
+        ..
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
@@ -1423,20 +1374,11 @@ fn get_total_transaction_blocks() {
 
         let total_transaction_blocks = client.get_total_transaction_blocks().await.unwrap();
 
-        let fullnode_checkpoint = cluster
-            .rpc_client()
-            .get_checkpoint(CheckpointId::SequenceNumber(checkpoint))
-            .await
-            .unwrap();
-
         let indexer_checkpoint = client
             .get_checkpoint(CheckpointId::SequenceNumber(checkpoint))
             .await
             .unwrap();
 
-        assert!(
-            total_transaction_blocks.into_inner() >= fullnode_checkpoint.network_total_transactions
-        );
         assert!(
             total_transaction_blocks.into_inner() >= indexer_checkpoint.network_total_transactions,
         );
@@ -2550,22 +2492,24 @@ fn is_transaction_present() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
+        // address_2 is a genesis address holding several gas coins; transfer one
+        // to itself, paying gas with another.
         let address = cluster.get_address_2();
-
-        let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
-
-        let gas = owned_objects.last().unwrap().object_id().unwrap();
-
-        let object_ids = owned_objects
-            .iter()
-            .take(owned_objects.len() - 1)
-            .map(|obj| obj.object_id().unwrap())
-            .collect::<Vec<_>>();
-
-        let transaction = cluster
-            .transfer_object(address, address, object_ids[0], gas, None)
+        let gas_objects = cluster
+            .wallet
+            .get_gas_objects_owned_by_address(address, None)
             .await
             .unwrap();
+        let object_ref = gas_objects[0];
+        let gas = *gas_objects.last().unwrap();
+
+        let rgp = cluster.get_reference_gas_price().await;
+        let tx_data = TestTransactionBuilder::new(address, gas, rgp)
+            .transfer(object_ref, address)
+            .build();
+        let transaction = cluster
+            .execute_transaction(cluster.sign_transaction(&tx_data))
+            .await;
 
         assert!(
             client
@@ -2640,25 +2584,11 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
         indexer_wait_for_transaction(unwrap_res.digest, store, client).await;
 
         let options = IotaTransactionBlockResponseOptions::default().with_object_changes();
-        let fullnode_tx = cluster
-            .rpc_client()
-            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
-            .await
-            .unwrap();
         let indexer_tx = client
-            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
+            .get_transaction_block(unwrap_res.digest, Some(options))
             .await
             .unwrap();
 
-        assert!(
-            fullnode_tx
-                .object_changes
-                .as_ref()
-                .unwrap()
-                .iter()
-                .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
-            "fullnode response should contain Unwrapped object change"
-        );
         assert!(
             indexer_tx
                 .object_changes
@@ -2667,11 +2597,6 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
                 .iter()
                 .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
             "indexer response should contain Unwrapped object change"
-        );
-
-        assert_eq!(
-            fullnode_tx, indexer_tx,
-            "fullnode and indexer responses should match"
         );
 
         Ok(())

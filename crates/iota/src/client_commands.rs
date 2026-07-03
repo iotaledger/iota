@@ -311,6 +311,10 @@ pub enum IotaClientCommands {
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
         #[arg(long, value_hint = ValueHint::Url)]
         faucet: Option<String>,
+        /// Optional node gRPC Url, for example http://127.0.0.1:50051. Serves
+        /// wallet-level gas/object reads and transaction execution.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
     },
     /// Get object info
     Object {
@@ -1856,7 +1860,7 @@ impl IotaClientCommands {
                 }
                 let transaction = Transaction::from_generic_sig_data(data, sigs);
 
-                let response = context.execute_transaction_may_fail(transaction).await?;
+                let response = execute_signed_transaction(context, transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
@@ -1867,7 +1871,7 @@ impl IotaClientCommands {
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                 ).map_err(|_| anyhow!("Failed to parse SenderSignedData bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedData, EmptySignInfo>::new(data);
-                let response = context.execute_transaction_may_fail(transaction).await?;
+                let response = execute_signed_transaction(context, transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::Sign {
@@ -1924,6 +1928,7 @@ impl IotaClientCommands {
                 ws,
                 basic_auth,
                 faucet,
+                grpc,
             } => {
                 if context.config().get_env(&alias).is_some() {
                     warn!("Environment config with name [{alias}] already exists.");
@@ -1932,10 +1937,16 @@ impl IotaClientCommands {
                     .with_graphql(graphql)
                     .with_ws(ws)
                     .with_basic_auth(basic_auth)
-                    .with_faucet(faucet);
+                    .with_faucet(faucet)
+                    .with_grpc(grpc);
 
-                // Check urls are valid and server is reachable
+                // Check urls are valid and reachable. The rpc endpoint serves
+                // command-level reads; the gRPC endpoint serves wallet-level
+                // gas/object reads and transaction execution.
                 env.create_rpc_client(None, None).await?;
+                if env.grpc().is_some() {
+                    env.create_grpc_client()?.get_reference_gas_price().await?;
+                }
                 context.config_mut().set_env(env.clone());
                 context.config().save()?;
                 IotaClientCommandResult::NewEnv(env)
@@ -3552,6 +3563,24 @@ pub(crate) async fn prerender_clever_errors(
             *error = rendered;
         }
     }
+}
+
+/// Execute an already-signed transaction over the configured RPC client (the
+/// indexer in production) so the response carries the full parsed input,
+/// effects, events, and object/balance changes.
+async fn execute_signed_transaction(
+    context: &WalletContext,
+    transaction: Transaction,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    let client = context.get_client().await?;
+    Ok(client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            transaction,
+            opts_from_cli(HashSet::new()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?)
 }
 
 fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {

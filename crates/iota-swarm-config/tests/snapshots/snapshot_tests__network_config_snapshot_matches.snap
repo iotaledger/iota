@@ -13,7 +13,6 @@ validator_configs:
       value: iotaprivkey1qpj72v92mzfrlq3w3rk4flq676cn2s2znywfq0judp0cz6nm569dzwvvq2s
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -23,8 +22,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -51,7 +48,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -67,7 +63,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -113,7 +108,6 @@ validator_configs:
       value: iotaprivkey1qzj0qj46vz4eq3yynqygdla4rayvezy5pj9qjp4jkqt0g3q0drzgs580hm5
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -123,8 +117,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -151,7 +143,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -167,7 +158,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -213,7 +203,6 @@ validator_configs:
       value: iotaprivkey1qzfgl9dtym3ymyjzwfkg8j5rykwlzezjldpkfksl9eml0pu43hlgc4kp8cf
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -223,8 +212,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -251,7 +238,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -267,7 +253,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -313,7 +298,6 @@ validator_configs:
       value: iotaprivkey1qzs53qtrapxedl0lx5h075lucpdhzrpk9cumjdwxhlgxk9nkr78jy3z53gh
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -323,8 +307,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -351,7 +333,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -367,7 +348,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -413,7 +393,6 @@ validator_configs:
       value: iotaprivkey1qzgh9khy9vggfpfnjcg5zyz5el279vf849q3j93nxep68tpk56257n95j5f
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -423,8 +402,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -451,7 +428,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -467,7 +443,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -513,7 +488,6 @@ validator_configs:
       value: iotaprivkey1qpfy4xxkfkf2eyhnjh22sq4vcdnf6mae64arxvqe42yd4x69mrvexzudlfv
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -523,8 +497,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -551,7 +523,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -567,7 +538,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
@@ -613,7 +583,6 @@ validator_configs:
       value: iotaprivkey1qphkurf8frncqfca48klr7ykhrt4408hw8h6jktatrdm5gw380rggynrrlj
     db-path: /tmp/foo/
     network-address: ""
-    json-rpc-address: "0.0.0.0:1"
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -623,8 +592,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
-    jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit: 20000000000
     p2p-config:
@@ -651,7 +618,6 @@ validator_configs:
       force-disable-epoch-iota-conservation-check: false
       enable-state-consistency-check: false
       force-disable-state-consistency-check: false
-      enable-secondary-index-checks: false
     transaction-deny-config:
       package-publish-disabled: false
       package-upgrade-disabled: false
@@ -667,7 +633,6 @@ validator_configs:
     state-archive-read-config: []
     state-snapshot-write-config:
       concurrency: 0
-    indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000

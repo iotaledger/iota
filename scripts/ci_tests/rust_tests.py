@@ -59,13 +59,12 @@ class RustTestOrchestrator:
     
     # filter_set for tests that depend on the Move examples
     # iota-test-transaction-builder + iota-core provide functions that publish packages from the Move examples for other crates to use.
-    # iota-framework-tests, iota-json, iota-json-rpc-tests use the Move examples directly as part of their tests.
+    # iota-framework-tests, iota-json use the Move examples directly as part of their tests.
     FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS = [
         "rdeps(iota-test-transaction-builder)",
         "rdeps(iota-core)",
         "package(iota-framework-tests)",
         "(package(iota-json) and test(test_basic_args_linter_top_level))",
-        "(package(iota-json-rpc-tests) and (test(try_get_past_object_deleted) or test(test_publish)))"
     ]
     
     # initialize the orchestrator with configuration

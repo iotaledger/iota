@@ -1,25 +1,28 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
+use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
+use iota_keys::keystore::AccountKeystore;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
-    gas_coin::GAS,
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    gas_coin::{GAS, NANOS_PER_IOTA},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
+use test_cluster::TestClusterBuilder;
 
 use crate::common::{
-    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
-    indexer_wait_for_object, indexer_wait_for_transaction,
+    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_epoch,
+    indexer_wait_for_latest_checkpoint, indexer_wait_for_object, indexer_wait_for_transaction,
     start_test_cluster_with_read_write_indexer,
 };
 
@@ -596,5 +599,102 @@ fn get_validators_apy() {
 
         assert_eq!(apys.len(), 4);
         assert!(apys.iter().any(|apy| apy.apy >= 0.0));
+    });
+}
+
+/// Ensures the tokenomics implementation yields an ~6% APY (served by the
+/// indexer) under fixed assumptions: 3.5B IOTA total stake, 2% default
+/// commission, and a 767K IOTA validator subsidy. With 4 equal-voting-power
+/// validators, IIP-8's dynamic minimum commission `max(commission_rate,
+/// voting_power)` makes the effective commission 25% (not 2%), reducing the
+/// staker APY from ~8% to ~6%. APY is derived from a single pool's exchange
+/// rates (independent of total stake), so staking a quarter of 3.5B IOTA
+/// (875M) to one validator suffices; at least two non-genesis exchange rates
+/// are needed, so we advance three epochs.
+#[test]
+fn get_validators_apy_tokenomics() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // A large stake keeps APY above the calculation's filter floor.
+        let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let mut genesis_config = GenesisConfig::for_local_testing();
+        genesis_config.accounts.extend([AccountConfig {
+            address: Some(address),
+            gas_amounts: vec![DEFAULT_GAS_AMOUNT, pool_stake],
+        }]);
+
+        let (mut cluster, store, client) = start_test_cluster_with_read_write_indexer(
+            Some("get_validators_apy_tokenomics"),
+            Some(Box::new(move |builder: TestClusterBuilder| {
+                builder
+                    .set_genesis_config(genesis_config)
+                    .with_epoch_duration_ms(10_000)
+                    .with_num_validators(4)
+            })),
+            None,
+        )
+        .await;
+
+        // The staker's address must be signable by the cluster wallet.
+        cluster
+            .wallet
+            .config_mut()
+            .keystore_mut()
+            .add_key(None, IotaKeyPair::Ed25519(keypair))
+            .unwrap();
+
+        indexer_wait_for_checkpoint(&store, 1).await;
+
+        let ref_gas_price = cluster.get_reference_gas_price().await;
+        let mut coins = client
+            .get_coins(address, None, None, None)
+            .await
+            .unwrap()
+            .data
+            .into_iter();
+        let (gas_coin, stake_coin) = {
+            let coin1 = coins.next().expect("there should be at least two coins");
+            let coin2 = coins.next().expect("there should be at least two coins");
+            if coin1.balance > coin2.balance {
+                (coin2, coin1)
+            } else {
+                (coin1, coin2)
+            }
+        };
+
+        let validator_address = cluster
+            .swarm
+            .active_validators()
+            .next()
+            .unwrap()
+            .config()
+            .iota_address();
+        let transaction =
+            TestTransactionBuilder::new(address, gas_coin.object_ref(), ref_gas_price)
+                .call_staking(stake_coin.object_ref(), validator_address)
+                .build();
+        cluster.sign_and_execute_transaction(&transaction).await;
+
+        // Advance three epochs so the exchange-rate sample yields an accurate
+        // statistical APY estimate, then let the indexer catch up.
+        cluster.wait_for_epoch(None).await;
+        cluster.wait_for_epoch(None).await;
+        cluster.wait_for_epoch(None).await;
+        indexer_wait_for_epoch(&store, 3).await;
+
+        let apys = client.get_validators_apy().await.unwrap();
+        assert_eq!(apys.epoch, 3);
+
+        let validator_apy = apys
+            .apys
+            .iter()
+            .find(|validator_apy| validator_apy.address == validator_address)
+            .unwrap();
+
+        // Effective commission = max(2%, 25%) = 25% for 4 validators:
+        // APY = 191750 * 0.75 / 876_500_000 * 365 ≈ 0.060. Allow ±0.2pp.
+        assert!((validator_apy.apy - 0.06).abs() < 0.002);
     });
 }

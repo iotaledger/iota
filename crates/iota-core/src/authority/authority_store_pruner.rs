@@ -43,7 +43,6 @@ use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     grpc_indexes::GrpcIndexesStore,
-    jsonrpc_index::IndexStore,
 };
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
@@ -60,7 +59,6 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     .collect()
 });
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
-pub const MIN_EPOCHS_TO_RETAIN_FOR_INDEXES: u64 = 7;
 
 /// The `AuthorityStorePruner` manages the pruning process for object stores
 /// within the `AuthorityStore`. It includes a cancellation handle that can be
@@ -78,7 +76,6 @@ pub struct AuthorityStorePruningMetrics {
     pub num_pruned_objects: IntCounter,
     pub num_pruned_tombstones: IntCounter,
     pub last_pruned_effects_checkpoint: IntGauge,
-    pub last_pruned_indexes_transaction: IntGauge,
     pub num_epochs_to_retain_for_objects: IntGauge,
     pub num_epochs_to_retain_for_checkpoints: IntGauge,
 }
@@ -110,12 +107,6 @@ impl AuthorityStorePruningMetrics {
             last_pruned_effects_checkpoint: register_int_gauge_with_registry!(
                 "last_pruned_effects_checkpoint",
                 "Last pruned effects checkpoint",
-                registry
-            )
-            .unwrap(),
-            last_pruned_indexes_transaction: register_int_gauge_with_registry!(
-                "last_pruned_indexes_transaction",
-                "Last pruned indexes transaction",
                 registry
             )
             .unwrap(),
@@ -597,32 +588,6 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
-    fn prune_indexes(
-        indexes: Option<&IndexStore>,
-        config: &AuthorityStorePruningConfig,
-        epoch_duration_ms: u64,
-        metrics: &AuthorityStorePruningMetrics,
-    ) -> anyhow::Result<()> {
-        if let (Some(mut epochs_to_retain), Some(indexes)) =
-            (config.num_epochs_to_retain_for_indexes, indexes)
-        {
-            if epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
-                warn!("num_epochs_to_retain_for_indexes is too low. Resetting it to 7");
-                epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
-            }
-            let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-            if let Some(cut_time_ms) =
-                u64::try_from(now)?.checked_sub(epochs_to_retain * epoch_duration_ms)
-            {
-                let transaction_id = indexes.prune(cut_time_ms)?;
-                metrics
-                    .last_pruned_indexes_transaction
-                    .set(transaction_id as i64);
-            }
-        }
-        Ok(())
-    }
-
     /// Identifies and compacts the next eligible SST file in the
     /// `AuthorityStore` that meets the specified conditions for manual
     /// compaction. This function checks each SST file's metadata, including
@@ -720,7 +685,6 @@ impl AuthorityStorePruner {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
-        jsonrpc_index: Option<Arc<IndexStore>>,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
@@ -742,8 +706,6 @@ impl AuthorityStorePruner {
         let mut objects_prune_interval =
             tokio::time::interval_at(Instant::now() + pruning_initial_delay, tick_duration);
         let mut checkpoints_prune_interval =
-            tokio::time::interval_at(Instant::now() + pruning_initial_delay, tick_duration);
-        let mut indexes_prune_interval =
             tokio::time::interval_at(Instant::now() + pruning_initial_delay, tick_duration);
 
         let perpetual_db_for_compaction = perpetual_db.clone();
@@ -793,11 +755,6 @@ impl AuthorityStorePruner {
                             error!("Failed to prune checkpoints: {:?}", err);
                         }
                     },
-                    _ = indexes_prune_interval.tick(), if config.num_epochs_to_retain_for_indexes.is_some() => {
-                        if let Err(err) = Self::prune_indexes(jsonrpc_index.as_deref(), &config, epoch_duration_ms, &metrics) {
-                            error!("Failed to prune indexes: {:?}", err);
-                        }
-                    }
                     _ = &mut recv => break,
                 }
             }
@@ -811,7 +768,6 @@ impl AuthorityStorePruner {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
-        jsonrpc_index: Option<Arc<IndexStore>>,
         mut pruning_config: AuthorityStorePruningConfig,
         is_validator: bool,
         epoch_duration_ms: u64,
@@ -840,7 +796,6 @@ impl AuthorityStorePruner {
                 perpetual_db,
                 checkpoint_store,
                 grpc_indexes_store,
-                jsonrpc_index,
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
                 archive_readers,

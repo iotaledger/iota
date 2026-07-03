@@ -5,7 +5,7 @@ use std::{str::FromStr, sync::OnceLock};
 
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
-    ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    ExtendedApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
@@ -15,10 +15,14 @@ use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
     gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore,
 };
+use jsonrpsee::http_client::HttpClient;
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 
-use crate::common::{ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint};
+use crate::common::{
+    ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint,
+    indexer_wait_for_latest_checkpoint,
+};
 
 static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<SimulacrumTestSetup> =
     OnceLock::new();
@@ -315,14 +319,9 @@ fn get_move_call_metrics() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        execute_move_fn(cluster).await.unwrap();
+        execute_move_fn(cluster, client).await.unwrap();
 
-        let latest_checkpoint_sn = cluster
-            .rpc_client()
-            .get_latest_checkpoint_sequence_number()
-            .await
-            .unwrap();
-        indexer_wait_for_checkpoint(store, latest_checkpoint_sn.into_inner()).await;
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
 
         let move_call_metrics = client.get_move_call_metrics().await.unwrap();
 
@@ -410,8 +409,12 @@ fn get_total_transactions() {
     });
 }
 
-async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
-    let http_client = cluster.rpc_client();
+// Reads, transaction building and execution all go through the indexer's
+// JSON-RPC (`http_client`).
+async fn execute_move_fn(
+    cluster: &TestCluster,
+    http_client: &HttpClient,
+) -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
 
     let objects = http_client

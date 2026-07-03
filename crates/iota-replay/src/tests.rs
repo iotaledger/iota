@@ -15,7 +15,7 @@ use crate::{LocalExec, types::ReplayEngineError};
 #[sim_test]
 async fn verify_tx_replay() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let rpc_url = test_cluster.rpc_url();
+    let grpc_url = test_cluster.grpc_url();
 
     // Advance past epoch 0 since the replay engine does not support it
     test_cluster.force_new_epoch().await;
@@ -30,12 +30,12 @@ async fn verify_tx_replay() {
     let tx_digest = response.digest;
 
     // Replay with authority certificate execution
-    execute_replay(rpc_url, &tx_digest, true)
+    execute_replay(&grpc_url, &tx_digest, true)
         .await
         .expect("Replay with authority failed");
 
     // Replay with execution engine
-    execute_replay(rpc_url, &tx_digest, false)
+    execute_replay(&grpc_url, &tx_digest, false)
         .await
         .expect("Replay with execution engine failed");
 }

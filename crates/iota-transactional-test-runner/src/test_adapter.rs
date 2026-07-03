@@ -26,19 +26,12 @@ use fastcrypto::{
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
-};
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
     ObjectData, ObjectId, ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag,
     gas::GasCostSummary, move_package::MovePackage,
-};
-use iota_storage::{
-    key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
@@ -1901,13 +1894,10 @@ impl IotaTestAdapter {
 
     async fn dry_run(&mut self, transaction: TransactionData) -> anyhow::Result<TxnSummary> {
         let digest = transaction.digest();
-        let results = self
+        let (events, _, effects, _) = self
             .executor
             .dry_run_transaction_block(transaction, digest)
             .await?;
-        let DryRunTransactionBlockResponse {
-            effects, events, ..
-        } = results;
 
         self.tx_summary_from_effects(effects, events)
     }
@@ -1918,29 +1908,42 @@ impl IotaTestAdapter {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
-        let results = self
+        let (effects, events, ..) = self
             .executor
             .dev_inspect_transaction_block(sender, transaction_kind, gas_price)
             .await?;
-        let DevInspectResults {
-            effects, events, ..
-        } = results;
         self.tx_summary_from_effects(effects, events)
     }
 
     fn tx_summary_from_effects(
         &mut self,
-        effects: IotaTransactionBlockEffects,
-        events: IotaTransactionBlockEvents,
+        effects: TransactionEffects,
+        events: TransactionEvents,
     ) -> anyhow::Result<TxnSummary> {
-        if let IotaExecutionStatus::Failure { error } = effects.status() {
+        if let ExecutionStatus::Failure { error, command } = effects.status() {
+            let error = match command {
+                Some(idx) => format!("{error} in command {idx}"),
+                None => error.to_string(),
+            };
             bail!(self.stabilize_str(format!(
                 "Transaction Effects Status: {error}\nExecution Error: {error}",
             )));
         }
-        let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
-        let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
-        let mut unwrapped_ids: Vec<_> = effects.unwrapped().iter().map(|o| o.object_id()).collect();
+        let mut created_ids: Vec<_> = effects
+            .created()
+            .iter()
+            .map(|(oref, _)| oref.object_id)
+            .collect();
+        let mut mutated_ids: Vec<_> = effects
+            .mutated()
+            .iter()
+            .map(|(oref, _)| oref.object_id)
+            .collect();
+        let mut unwrapped_ids: Vec<_> = effects
+            .unwrapped()
+            .iter()
+            .map(|(oref, _)| oref.object_id)
+            .collect();
         let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.object_id).collect();
         let mut unwrapped_then_deleted_ids: Vec<_> = effects
             .unwrapped_then_deleted()
@@ -1975,11 +1978,7 @@ impl IotaTestAdapter {
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
-        let events = events
-            .data
-            .into_iter()
-            .map(|iota_event| iota_event.into())
-            .collect();
+        let events = events.0;
 
         Ok(TxnSummary {
             events,
@@ -2538,16 +2537,9 @@ async fn create_val_fullnode_executor(
 ) -> ValidatorWithFullnode {
     let (validator, fullnode) = create_validator_fullnode(protocol_config, objects).await;
 
-    let metrics = KeyValueStoreMetrics::new_for_tests();
-    let kv_store = Arc::new(TransactionKeyValueStore::new(
-        "rocksdb",
-        metrics,
-        validator.clone(),
-    ));
     ValidatorWithFullnode {
         validator,
         fullnode,
-        kv_store,
     }
 }
 

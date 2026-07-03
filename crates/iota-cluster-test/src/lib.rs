@@ -20,7 +20,6 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::TransactionDigest,
     gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
@@ -29,7 +28,7 @@ use jsonrpsee::{
     http_client::HttpClientBuilder,
 };
 use test_case::{
-    coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
+    coin_merge_split_test::CoinMergeSplitTest,
     fullnode_build_publish_transaction_test::FullNodeBuildPublishTransactionTest,
     fullnode_execute_transaction_test::FullNodeExecuteTransactionTest,
     native_transfer_test::NativeTransferTest, random_beacon_test::RandomBeaconTest,
@@ -95,38 +94,17 @@ impl TestContext {
         self.client.get_fullnode_client()
     }
 
-    fn clone_fullnode_client(&self) -> IotaClient {
-        self.client.get_fullnode_client().clone()
-    }
-
     fn get_fullnode_rpc_url(&self) -> &str {
-        self.cluster.fullnode_url()
-    }
-
-    fn get_fullnode_grpc_url(&self) -> Option<&str> {
-        self.cluster.grpc_url()
+        // JSON-RPC is served by the indexer locally, and by the fullnode
+        // endpoint on remote clusters.
+        self.cluster
+            .indexer_url()
+            .as_deref()
+            .unwrap_or_else(|| self.cluster.fullnode_url())
     }
 
     fn get_wallet(&self) -> &WalletContext {
         self.client.get_wallet()
-    }
-
-    async fn get_latest_iota_system_state(&self) -> IotaSystemStateSummary {
-        self.client
-            .get_fullnode_client()
-            .governance_api()
-            .get_latest_iota_system_state()
-            .await
-            .unwrap()
-    }
-
-    async fn get_reference_gas_price(&self) -> u64 {
-        self.client
-            .get_fullnode_client()
-            .governance_api()
-            .get_reference_gas_price()
-            .await
-            .unwrap()
     }
 
     fn get_wallet_address(&self) -> Address {
@@ -315,7 +293,6 @@ impl ClusterTest {
             TestCase::new(SharedCounterTest {}),
             TestCase::new(FullNodeExecuteTransactionTest {}),
             TestCase::new(FullNodeBuildPublishTransactionTest {}),
-            TestCase::new(CoinIndexTest {}),
             TestCase::new(RandomBeaconTest {}),
         ];
 

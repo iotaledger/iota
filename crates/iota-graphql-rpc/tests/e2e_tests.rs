@@ -114,7 +114,6 @@ mod tests {
 
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -136,11 +135,9 @@ mod tests {
         let chain_id_actual = cluster
             .validator_fullnode_handle
             .fullnode_handle
-            .iota_client
-            .read_api()
-            .get_chain_identifier()
-            .await
-            .unwrap();
+            .iota_node
+            .with(|node| node.state().get_chain_identifier())
+            .to_string();
 
         let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
         assert_eq!(&format!("{res}"), &exp);
@@ -364,7 +361,6 @@ mod tests {
     async fn test_transaction_is_indexed_on_node() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -401,7 +397,6 @@ mod tests {
     async fn test_transaction_not_indexed_on_node() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -417,7 +412,6 @@ mod tests {
     async fn test_transaction_execution() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -565,7 +559,6 @@ mod tests {
     async fn test_transaction_blocks_by_digests() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -653,7 +646,6 @@ mod tests {
 
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -744,7 +736,6 @@ mod tests {
 
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -817,7 +808,6 @@ mod tests {
 
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -905,7 +895,6 @@ mod tests {
 
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -948,7 +937,6 @@ mod tests {
     async fn test_timeout() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -998,7 +986,6 @@ mod tests {
         let connection_config = ConnectionConfig::ci_integration_test_cfg();
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             connection_config,
-            None,
             ServiceConfig::test_defaults(),
         )
         .await;
@@ -1131,7 +1118,6 @@ mod tests {
             .init();
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::ci_integration_test_cfg(),
-            None,
             ServiceConfig {
                 limits: Limits {
                     max_query_payload_size: 5000,

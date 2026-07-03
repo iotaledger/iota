@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_json_rpc::coin_api::parse_to_struct_tag;
+use iota_json_rpc::utils::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::ObjectId;

@@ -24,14 +24,13 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
-use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, indexer_wait_for_object,
-    indexer_wait_for_transaction, publish_test_move_package,
+    ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, indexer_wait_for_latest_checkpoint,
+    indexer_wait_for_object, indexer_wait_for_transaction, publish_test_move_package,
     start_test_cluster_with_read_write_indexer,
 };
 
@@ -56,13 +55,19 @@ async fn create_addr_and_custom_coins(
             .await;
     }
 
-    let (coin_name, _) = create_trusted_coins(cluster, address, &keypair)
+    let (coin_name, _) = create_trusted_coins(indexer_client, address, &keypair)
         .await
         .unwrap();
 
-    let coin_object_ref = mint_trusted_coin(cluster, coin_name.clone(), address, &keypair, 100_000)
-        .await
-        .unwrap();
+    let coin_object_ref = mint_trusted_coin(
+        indexer_client,
+        coin_name.clone(),
+        address,
+        &keypair,
+        100_000,
+    )
+    .await
+    .unwrap();
 
     indexer_wait_for_object(
         indexer_client,
@@ -97,11 +102,9 @@ fn get_coins_basic_scenario() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, None, None).await;
+        let result_indexer = get_coins_indexer(client, *owner, None, None, None).await;
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        assert_eq!(result_indexer.data.len(), 5);
     });
 }
 
@@ -115,18 +118,13 @@ fn get_coins_with_cursor() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let all_coins = cluster
-            .rpc_client()
-            .get_coins(*owner, None, None, None)
-            .await
-            .unwrap();
+        let all_coins = client.get_coins(*owner, None, None, None).await.unwrap();
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None).await;
+        let result_indexer = get_coins_indexer(client, *owner, None, Some(cursor), None).await;
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        // The page holds exactly the coins strictly after the cursor.
+        assert_eq!(result_indexer.data.as_slice(), &all_coins.data[4..]);
     });
 }
 
@@ -141,11 +139,9 @@ fn get_coins_with_limit() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, None, Some(2)).await;
+        let result_indexer = get_coins_indexer(client, *owner, None, None, Some(2)).await;
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        assert_eq!(result_indexer.data.len(), 2);
     });
 }
 
@@ -160,18 +156,10 @@ fn get_coins_custom_coin() {
     runtime.block_on(async move {
         let (owner, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) = get_coins_fullnode_indexer(
-            cluster,
-            client,
-            *owner,
-            Some(coin_name.clone()),
-            None,
-            None,
-        )
-        .await;
+        let result_indexer =
+            get_coins_indexer(client, *owner, Some(coin_name.clone()), None, None).await;
 
         assert_eq!(result_indexer.data.len(), 1);
-        assert_eq!(result_fullnode, result_indexer);
     });
 }
 
@@ -186,22 +174,9 @@ fn get_all_coins_basic_scenario() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
+        let result_indexer = get_all_coins_indexer(client, *owner, None, None).await;
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(
-            result_fullnode
-                .data
-                .iter()
-                .sorted_by_key(|coin| coin.coin_object_id)
-                .collect::<Vec<_>>(),
-            result_indexer
-                .data
-                .iter()
-                .sorted_by_key(|coin| coin.coin_object_id)
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(result_indexer.data.len(), 6);
     });
 }
 
@@ -278,10 +253,10 @@ fn get_balance_iota_coin() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_balance_fullnode_indexer(cluster, client, *owner, None).await;
+        let result_indexer = get_balance_indexer(client, *owner, None).await;
 
-        assert_eq!(result_fullnode, result_indexer);
+        // The address is funded with 5 IOTA coins.
+        assert_eq!(result_indexer.coin_object_count, 5);
     });
 }
 
@@ -296,11 +271,11 @@ fn get_balance_custom_coin() {
     runtime.block_on(async move {
         let (owner, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_balance_fullnode_indexer(cluster, client, *owner, Some(coin_name.to_string()))
-                .await;
+        let result_indexer = get_balance_indexer(client, *owner, Some(coin_name.to_string())).await;
 
-        assert_eq!(result_fullnode, result_indexer);
+        // A single custom coin minted with 100_000.
+        assert_eq!(result_indexer.coin_object_count, 1);
+        assert_eq!(result_indexer.total_balance, 100_000);
     });
 }
 
@@ -315,13 +290,10 @@ fn get_all_balances() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (mut result_fullnode, mut result_indexer) =
-            get_all_balances_fullnode_indexer(cluster, client, *owner).await;
+        let result_indexer = get_all_balances_indexer(client, *owner).await;
 
-        result_fullnode.sort_by_key(|balance: &Balance| balance.coin_type.clone());
-        result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
-
-        assert_eq!(result_fullnode, result_indexer);
+        // One IOTA balance + one custom-coin balance.
+        assert_eq!(result_indexer.len(), 2);
     });
 }
 
@@ -339,17 +311,14 @@ fn get_all_balances_with_zero_iotas() {
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call
-        get_all_balances_fullnode_indexer(cluster, client, owner).await;
+        get_all_balances_indexer(client, owner).await;
 
-        transfer_all_coins(cluster, client, store, owner, &keypair, coins_dump_address).await;
+        transfer_all_coins(client, store, owner, &keypair, coins_dump_address).await;
 
-        let (mut result_fullnode, mut result_indexer) =
-            get_all_balances_fullnode_indexer(cluster, client, owner).await;
+        let result_indexer = get_all_balances_indexer(client, owner).await;
 
-        result_fullnode.sort_by_key(|balance: &Balance| balance.coin_type.clone());
-        result_indexer.sort_by_key(|balance: &Balance| balance.coin_type.clone());
-
-        assert_eq!(result_fullnode, result_indexer);
+        // All IOTA coins were transferred away; only the custom coin remains.
+        assert_eq!(result_indexer.len(), 1);
     });
 }
 
@@ -364,11 +333,12 @@ fn get_coin_metadata() {
     runtime.block_on(async move {
         let (_, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_coin_metadata_indexer(client, coin_name.to_string()).await;
 
-        assert!(result_indexer.is_some());
-        assert_eq!(result_fullnode, result_indexer);
+        let metadata = result_indexer.expect("custom coin metadata should exist");
+        assert_eq!(metadata.decimals, 2);
+        assert_eq!(metadata.symbol, "TRUSTED");
+        assert_eq!(metadata.name, "Trusted Coin");
     });
 }
 
@@ -388,21 +358,12 @@ fn fullnode_get_coin_metadata_with_migrated_coin_manager_coins() {
                 .await
                 .unwrap();
 
-        let (result_fullnode, result_indexer) =
-            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_coin_metadata_indexer(client, coin_name.to_string()).await;
+        assert!(result_indexer.is_some());
 
-        assert!(result_fullnode.is_some());
-        assert_eq!(result_fullnode, result_indexer);
-
-        let (result_fullnode, result_indexer) = get_coin_metadata_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
-
-        assert!(result_fullnode.is_some());
-        assert_eq!(result_fullnode, result_indexer);
+        let result_indexer =
+            get_coin_metadata_indexer(client, immutable_metadata_coin_name.to_string()).await;
+        assert!(result_indexer.is_some());
     });
 }
 
@@ -434,8 +395,7 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
         .await
         .unwrap();
 
-        let (_, result_indexer) =
-            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_coin_metadata_indexer(client, coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
         let result_indexer = result_indexer.unwrap();
@@ -446,12 +406,8 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
         assert_eq!(result_indexer.icon_url, None);
         assert!(result_indexer.id.is_some());
 
-        let (_, result_indexer) = get_coin_metadata_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
+        let result_indexer =
+            get_coin_metadata_indexer(client, immutable_metadata_coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
         let result_indexer = result_indexer.unwrap();
@@ -495,22 +451,15 @@ fn get_coin_metadata_with_native_coin_manager_coins() {
         .await
         .unwrap();
 
-        let (result_fullnode, result_indexer) =
-            get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_coin_metadata_indexer(client, coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
-        assert_eq!(result_fullnode, result_indexer);
         assert!(result_indexer.unwrap().id.is_some());
 
-        let (result_fullnode, result_indexer) = get_coin_metadata_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
+        let result_indexer =
+            get_coin_metadata_indexer(client, immutable_metadata_coin_name.to_string()).await;
 
         assert!(result_indexer.is_some());
-        assert_eq!(result_fullnode, result_indexer);
         assert!(result_indexer.unwrap().id.is_none()); // Immutable data is stored in struct that doesn't have ID
     });
 }
@@ -527,10 +476,8 @@ fn get_coin_metadata_with_nonexistent_coin() {
         let (_, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
         let nonexistent_coin = format!("{coin_name}_some_suffix");
 
-        let (result_fullnode, result_indexer) =
-            get_coin_metadata_fullnode_indexer(cluster, client, nonexistent_coin).await;
+        let result_indexer = get_coin_metadata_indexer(client, nonexistent_coin).await;
 
-        assert!(result_fullnode.is_none());
         assert!(result_indexer.is_none());
     });
 }
@@ -546,11 +493,10 @@ fn get_total_supply() {
     runtime.block_on(async move {
         let (_, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_total_supply_indexer(client, coin_name.to_string()).await;
 
-        assert!(result_indexer.is_some());
-        assert_eq!(result_fullnode, result_indexer);
+        // The custom coin was minted with a supply of 100_000.
+        assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
     });
 }
 
@@ -582,16 +528,11 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
         .await
         .unwrap();
 
-        let (_, result_indexer) =
-            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_total_supply_indexer(client, coin_name.to_string()).await;
         assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
 
-        let (_, result_indexer) = get_total_supply_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
+        let result_indexer =
+            get_total_supply_indexer(client, immutable_metadata_coin_name.to_string()).await;
         assert_eq!(result_indexer, Some(Supply { value: 0 }));
     });
 }
@@ -624,19 +565,12 @@ fn get_total_supply_with_native_coin_manager_coins() {
         .await
         .unwrap();
 
-        let (result_fullnode, result_indexer) =
-            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        let result_indexer = get_total_supply_indexer(client, coin_name.to_string()).await;
         assert_eq!(result_indexer, Some(Supply { value: 0 }));
-        assert_eq!(result_fullnode, result_indexer);
 
-        let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
-            cluster,
-            client,
-            immutable_metadata_coin_name.to_string(),
-        )
-        .await;
+        let result_indexer =
+            get_total_supply_indexer(client, immutable_metadata_coin_name.to_string()).await;
         assert_eq!(result_indexer, Some(Supply { value: 0 }));
-        assert_eq!(result_fullnode, result_indexer);
     });
 }
 
@@ -652,115 +586,66 @@ fn get_total_supply_with_nonexistent_coin() {
         let (_, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
         let nonexistent_coin = format!("{coin_name}_some_suffix");
 
-        let (result_fullnode, result_indexer) =
-            get_total_supply_fullnode_indexer(cluster, client, nonexistent_coin).await;
+        let result_indexer = get_total_supply_indexer(client, nonexistent_coin).await;
 
-        assert!(result_fullnode.is_none());
         assert!(result_indexer.is_none());
     });
 }
 
-async fn get_coins_fullnode_indexer(
-    cluster: &TestCluster,
+async fn get_coins_indexer(
     client: &HttpClient,
     owner: Address,
     coin_type: Option<String>,
     cursor: Option<ObjectId>,
     limit: Option<usize>,
-) -> (CoinPage, CoinPage) {
-    let result_fullnode = cluster
-        .rpc_client()
-        .get_coins(owner, coin_type.clone(), cursor, limit)
-        .await
-        .unwrap();
-    let result_indexer = client
+) -> CoinPage {
+    client
         .get_coins(owner, coin_type, cursor, limit)
         .await
-        .unwrap();
-    (result_fullnode, result_indexer)
+        .unwrap()
 }
 
-async fn get_all_coins_fullnode_indexer(
-    cluster: &TestCluster,
+async fn get_all_coins_indexer(
     client: &HttpClient,
     owner: Address,
     cursor: Option<ObjectId>,
     limit: Option<usize>,
-) -> (CoinPage, CoinPage) {
-    let result_fullnode = cluster
-        .rpc_client()
-        .get_all_coins(owner, cursor, limit)
-        .await
-        .unwrap();
-    let result_indexer = client.get_all_coins(owner, cursor, limit).await.unwrap();
-    (result_fullnode, result_indexer)
+) -> CoinPage {
+    client.get_all_coins(owner, cursor, limit).await.unwrap()
 }
 
-async fn get_balance_fullnode_indexer(
-    cluster: &TestCluster,
+async fn get_balance_indexer(
     client: &HttpClient,
     owner: Address,
     coin_type: Option<String>,
-) -> (Balance, Balance) {
-    let result_fullnode = cluster
-        .rpc_client()
-        .get_balance(owner, coin_type.clone())
-        .await
-        .unwrap();
-    let result_indexer = client.get_balance(owner, coin_type).await.unwrap();
-    (result_fullnode, result_indexer)
+) -> Balance {
+    client.get_balance(owner, coin_type).await.unwrap()
 }
 
-async fn get_all_balances_fullnode_indexer(
-    cluster: &TestCluster,
-    client: &HttpClient,
-    owner: Address,
-) -> (Vec<Balance>, Vec<Balance>) {
-    let result_fullnode = cluster.rpc_client().get_all_balances(owner).await.unwrap();
-    let result_indexer = client.get_all_balances(owner).await.unwrap();
-    (result_fullnode, result_indexer)
+async fn get_all_balances_indexer(client: &HttpClient, owner: Address) -> Vec<Balance> {
+    client.get_all_balances(owner).await.unwrap()
 }
 
-async fn get_coin_metadata_fullnode_indexer(
-    cluster: &TestCluster,
+async fn get_coin_metadata_indexer(
     client: &HttpClient,
     coin_type: String,
-) -> (Option<IotaCoinMetadata>, Option<IotaCoinMetadata>) {
-    let result_fullnode = cluster
-        .rpc_client()
-        .get_coin_metadata(coin_type.clone())
-        .await
-        .unwrap();
-    let result_indexer = client.get_coin_metadata(coin_type).await.unwrap();
-    (result_fullnode, result_indexer)
+) -> Option<IotaCoinMetadata> {
+    client.get_coin_metadata(coin_type).await.unwrap()
 }
 
-async fn get_total_supply_fullnode_indexer(
-    cluster: &TestCluster,
-    client: &HttpClient,
-    coin_type: String,
-) -> (Option<Supply>, Option<Supply>) {
-    let result_fullnode = cluster
-        .rpc_client()
-        .get_total_supply(coin_type.clone())
-        .await
-        .map(Into::into)
-        .ok();
-    let result_indexer = client
+async fn get_total_supply_indexer(client: &HttpClient, coin_type: String) -> Option<Supply> {
+    client
         .get_total_supply(coin_type)
         .await
         .map(Into::into)
-        .ok();
-    (result_fullnode, result_indexer)
+        .ok()
 }
 
 async fn create_trusted_coins(
-    cluster: &TestCluster,
+    http_client: &HttpClient,
     address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
-    let http_client = cluster.rpc_client();
-
     let (package_object_ref, _) = publish_test_move_package(
         http_client,
         address,
@@ -828,14 +713,12 @@ pub async fn execute_move_call(
 }
 
 async fn mint_trusted_coin(
-    cluster: &TestCluster,
+    http_client: &HttpClient,
     coin_name: String,
     address: Address,
     account_keypair: &IotaKeyPair,
     amount: u64,
 ) -> Result<ObjectRef, anyhow::Error> {
-    let http_client = cluster.rpc_client();
-
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await
@@ -875,10 +758,15 @@ async fn create_migrated_coin_manager_coins(
     address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
+    let http_client = indexer_client;
+    // Gas is selected from the indexer, so catch it up to the node before every
+    // tx to avoid selecting a stale gas-coin version.
+    indexer_wait_for_latest_checkpoint(pg_store, cluster).await;
     let (coin_name, immutable_metadata_coin_name) =
-        create_trusted_coins(cluster, address, account_keypair).await?;
+        create_trusted_coins(http_client, address, account_keypair).await?;
+    indexer_wait_for_latest_checkpoint(pg_store, cluster).await;
     mint_trusted_coin(
-        cluster,
+        http_client,
         coin_name.clone(),
         address,
         account_keypair,
@@ -886,8 +774,8 @@ async fn create_migrated_coin_manager_coins(
     )
     .await
     .unwrap();
+    indexer_wait_for_latest_checkpoint(pg_store, cluster).await;
 
-    let http_client = cluster.rpc_client();
     let (package_object_ref, _) = publish_test_move_package(
         http_client,
         address,
@@ -895,6 +783,7 @@ async fn create_migrated_coin_manager_coins(
         "migrate_to_coin_manager",
     )
     .await?;
+    indexer_wait_for_latest_checkpoint(pg_store, cluster).await;
 
     {
         let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
@@ -1024,8 +913,11 @@ async fn create_native_coin_manager_coins(
     address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
-    let http_client = cluster.rpc_client();
+    let http_client = indexer_client;
 
+    // Gas is selected from the indexer, so catch it up to the node first to
+    // avoid selecting a stale gas-coin version.
+    indexer_wait_for_latest_checkpoint(pg_store, cluster).await;
     let (package_object_ref, tx_response) =
         publish_test_move_package(http_client, address, account_keypair, "coin_manager_coins")
             .await?;
@@ -1064,15 +956,13 @@ async fn get_single_owned_object_by_type(
 }
 
 async fn transfer_all_coins(
-    cluster: &TestCluster,
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     from_address: Address,
     keypair: &IotaKeyPair,
     to_address: Address,
 ) {
-    let coins: Vec<_> = cluster
-        .rpc_client()
+    let coins: Vec<_> = indexer_client
         .get_coins(from_address, None, None, None)
         .await
         .unwrap()

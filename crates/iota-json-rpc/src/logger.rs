@@ -2,20 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
-use anyhow::anyhow;
-use futures::Future;
-use iota_json_rpc_api::error_object_from_rpc;
-use jsonrpsee::{
-    MethodKind,
-    core::{ClientError as RpcError, RpcResult},
-    server::HttpRequest,
-    types::Params,
-};
-use tracing::{Instrument, Span, error, info};
-
-use crate::error::RpcInterimResult;
+use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
 
 /// The transport protocol used to send or receive a call or request.
 #[derive(Debug, Copy, Clone)]
@@ -154,39 +143,3 @@ where
         self.1.on_disconnect(remote_addr, transport);
     }
 }
-
-pub(crate) trait FutureWithTracing<O>: Future<Output = RpcInterimResult<O>> {
-    fn trace(self) -> impl Future<Output = RpcResult<O>>
-    where
-        Self: Sized,
-    {
-        self.trace_timeout(Duration::from_secs(1))
-    }
-
-    fn trace_timeout(self, timeout: Duration) -> impl Future<Output = RpcResult<O>>
-    where
-        Self: Sized,
-    {
-        async move {
-            let start = std::time::Instant::now();
-            let interim_result: RpcInterimResult<_> = self.await;
-            let elapsed = start.elapsed();
-            let result = interim_result.map_err(|e| {
-                let anyhow_error = anyhow!("{e:?}");
-
-                let rpc_error: RpcError = e.into();
-                if !matches!(rpc_error, RpcError::Call(_)) {
-                    error!(error=?anyhow_error);
-                }
-                error_object_from_rpc(rpc_error)
-            });
-
-            if elapsed > timeout {
-                info!(?elapsed, "RPC took longer than threshold to complete.");
-            }
-            result
-        }
-        .instrument(Span::current())
-    }
-}
-impl<F: Future<Output = RpcInterimResult<O>>, O> FutureWithTracing<O> for F {}

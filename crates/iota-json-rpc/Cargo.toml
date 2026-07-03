@@ -19,7 +19,6 @@ backoff.workspace = true
 bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
-eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http-body.workspace = true
@@ -47,7 +46,6 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-mainnet-unlocks.workspace = true
 iota-metrics.workspace = true
-iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
@@ -67,6 +65,8 @@ typed-store.workspace = true
 expect-test.workspace = true
 mockall.workspace = true
 roaring.workspace = true
+serial_test.workspace = true
 
 # internal dependencies
+iota-open-rpc-macros.workspace = true
 telemetry-subscribers.workspace = true

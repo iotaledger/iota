@@ -6,95 +6,25 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
-use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{TransactionBuilderOpenRpc, TransactionBuilderServer, internal_error};
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_types::{Address, ObjectId};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{IotaRpcModule, authority_state::StateRead};
+use crate::IotaRpcModule;
 
 pub struct TransactionBuilderApi(TransactionBuilder);
 
 impl TransactionBuilderApi {
-    pub fn new(state: Arc<AuthorityState>) -> Self {
-        let reader = Arc::new(AuthorityStateDataReader::new(state));
-        Self(TransactionBuilder::new(reader))
-    }
-
-    pub fn new_with_data_reader(data_reader: Arc<dyn DataReader + Sync + Send>) -> Self {
+    pub fn new(data_reader: Arc<dyn DataReader + Sync + Send>) -> Self {
         Self(TransactionBuilder::new(data_reader))
-    }
-}
-
-pub struct AuthorityStateDataReader(Arc<dyn StateRead>);
-
-impl AuthorityStateDataReader {
-    pub fn new(state: Arc<AuthorityState>) -> Self {
-        Self(state)
-    }
-}
-
-#[async_trait]
-impl DataReader for AuthorityStateDataReader {
-    async fn get_owned_objects(
-        &self,
-        address: Address,
-        object_type: StructTag,
-        cursor: Option<ObjectId>,
-        limit: Option<usize>,
-        options: IotaObjectDataOptions,
-    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
-        let limit = limit.unwrap_or(50);
-        let mut result = self
-            .0
-            .get_owner_objects_with_limit(
-                address,
-                cursor,
-                limit + 1,
-                Some(IotaObjectDataFilter::StructType(object_type)),
-            )?
-            .into_iter()
-            .map(|info| {
-                let read = self.0.get_object_read(&info.object_id)?;
-                IotaObjectResponse::try_from_object_read_and_options(read, &options)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let next_cursor = if result.len() > limit {
-            // Here the cursor is the first object id of the next page
-            result.pop().unwrap().object_id().ok()
-        } else {
-            None
-        };
-
-        Ok(iota_json_rpc_types::ObjectsPage {
-            data: result,
-            next_cursor,
-            has_next_page: next_cursor.is_some(),
-        })
-    }
-
-    async fn get_object_with_options(
-        &self,
-        object_id: ObjectId,
-        options: IotaObjectDataOptions,
-    ) -> Result<IotaObjectResponse, anyhow::Error> {
-        let result = self.0.get_object_read(&object_id)?;
-        IotaObjectResponse::try_from_object_read_and_options(result, &options)
-    }
-
-    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let epoch_store = self.0.load_epoch_store_one_call_per_task();
-        Ok(epoch_store.reference_gas_price())
     }
 }
 

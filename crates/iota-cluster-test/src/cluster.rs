@@ -170,11 +170,6 @@ impl LocalNewCluster {
 impl Cluster for LocalNewCluster {
     async fn start(options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
         let data_ingestion_path = tempdir()?.keep();
-        // TODO: options should contain port instead of address
-        let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
-            addr.parse::<SocketAddr>()
-                .expect("unable to parse fullnode address")
-        });
 
         let indexer_address = options.indexer_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
@@ -233,10 +228,6 @@ impl Cluster for LocalNewCluster {
             if let Some(epoch_duration_ms) = options.epoch_duration_ms {
                 cluster_builder = cluster_builder.with_epoch_duration_ms(epoch_duration_ms);
             }
-        }
-
-        if let Some(fullnode_rpc_addr) = fullnode_rpc_addr {
-            cluster_builder = cluster_builder.with_fullnode_rpc_addr(fullnode_rpc_addr);
         }
 
         let mut test_cluster = cluster_builder.build().await;
@@ -385,8 +376,14 @@ pub fn new_wallet_context_from_cluster(
 ) -> WalletContext {
     let config_dir = cluster.config_directory();
     let wallet_config_path = config_dir.join("client.yaml");
-    let fullnode_url = cluster.fullnode_url();
-    info!("Use RPC: {fullnode_url}");
+    // The local node no longer serves JSON-RPC (the indexer does); remote
+    // clusters serve JSON-RPC on their fullnode endpoint.
+    let rpc_url = cluster
+        .indexer_url()
+        .clone()
+        .unwrap_or_else(|| cluster.fullnode_url().to_string());
+    info!("Use RPC: {rpc_url}");
+    let grpc_url = cluster.grpc_url().map(|url| url.to_string());
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let address = address_from_iota_pub_key(key_pair.public());
@@ -394,7 +391,7 @@ pub fn new_wallet_context_from_cluster(
         .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();
     IotaClientConfig::new(keystore)
-        .with_envs([IotaEnv::new("localnet", fullnode_url)])
+        .with_envs([IotaEnv::new("localnet", rpc_url).with_grpc(grpc_url)])
         .with_active_address(address)
         .with_active_env("localnet".to_string())
         .persisted(&wallet_config_path)

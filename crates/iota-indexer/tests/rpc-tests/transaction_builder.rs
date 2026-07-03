@@ -671,11 +671,12 @@ fn request_withdraw_timelocked_stake_from_pending() {
     runtime
         .block_on(async move {
             let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-            let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
-                address,
-                "transaction_builder_request_withdraw_timelocked_stake_from_pending",
-            )
-            .await;
+            let (_cluster, store, client, timelocked_balance) =
+                create_cluster_with_timelocked_iota(
+                    address,
+                    "transaction_builder_request_withdraw_timelocked_stake_from_pending",
+                )
+                .await;
             indexer_wait_for_checkpoint(&store, 1).await;
 
             let coin = get_gas_object_id(&client, address).await;
@@ -691,13 +692,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer_checkpoint(
-                cluster.rpc_client(),
-                &store,
-                tx_bytes,
-                &keypair,
-            )
-            .await;
+            execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -855,9 +850,11 @@ async fn create_cluster_with_timelocked_iota(
     )
     .await;
 
-    let fullnode_client = cluster.rpc_client();
+    // The timelock object is seeded at genesis; wait for the indexer to index it
+    // before reading the owner's objects.
+    indexer_wait_for_latest_checkpoint(&store, &cluster).await;
 
-    let objects: ObjectsPage = fullnode_client
+    let objects: ObjectsPage = client
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new_with_options(

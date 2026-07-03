@@ -8,6 +8,6 @@ use crate::read::IndexerReader;
 
 impl From<IndexerReader> for TransactionBuilderApi {
     fn from(inner: IndexerReader) -> Self {
-        Self::new_with_data_reader(std::sync::Arc::new(inner))
+        Self::new(std::sync::Arc::new(inner))
     }
 }

@@ -15,13 +15,12 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
-        RunWithRange, StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
+        RunWithRange, StateArchiveConfig, StateSnapshotConfig,
         default_end_of_epoch_broadcast_channel_capacity,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
-use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
@@ -142,7 +141,6 @@ impl ValidatorConfigBuilder {
             .join(key_path.clone());
         let network_address = validator.network_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
-        let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
             db_path: consensus_db_path,
             db_retention_epochs: None,
@@ -196,11 +194,7 @@ impl ValidatorConfigBuilder {
             network_address,
             metrics_address: validator.metrics_address,
             admin_interface_address: validator.admin_interface_address,
-            json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -222,20 +216,17 @@ impl ValidatorConfigBuilder {
             state_archive_write_config: StateArchiveConfig::default(),
             state_archive_read_config: vec![],
             state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
-            iota_names_config: None,
             enable_grpc_api: false,
             grpc_api_config: None,
             chain_override_for_testing: self.chain_override,
@@ -266,15 +257,11 @@ impl ValidatorConfigBuilder {
 #[derive(Clone, Debug, Default)]
 pub struct FullnodeConfigBuilder {
     config_directory: Option<PathBuf>,
-    // port for json rpc api
-    rpc_port: Option<u16>,
-    rpc_addr: Option<SocketAddr>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     db_checkpoint_config: Option<DBCheckpointConfig>,
     expensive_safety_check_config: Option<ExpensiveSafetyCheckConfig>,
     db_path: Option<PathBuf>,
     network_address: Option<Multiaddr>,
-    json_rpc_address: Option<SocketAddr>,
     metrics_address: Option<SocketAddr>,
     admin_interface_address: Option<SocketAddr>,
     genesis: Option<Genesis>,
@@ -286,7 +273,6 @@ pub struct FullnodeConfigBuilder {
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
-    iota_names_config: Option<IotaNamesConfig>,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
@@ -306,18 +292,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
         self.config_directory = Some(config_directory);
-        self
-    }
-
-    pub fn with_rpc_port(mut self, port: u16) -> Self {
-        assert!(self.rpc_addr.is_none() && self.rpc_port.is_none());
-        self.rpc_port = Some(port);
-        self
-    }
-
-    pub fn with_rpc_addr(mut self, addr: impl Into<SocketAddr>) -> Self {
-        assert!(self.rpc_addr.is_none() && self.rpc_port.is_none());
-        self.rpc_addr = Some(addr.into());
         self
     }
 
@@ -351,11 +325,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_address(mut self, network_address: Multiaddr) -> Self {
         self.network_address = Some(network_address);
-        self
-    }
-
-    pub fn with_json_rpc_address(mut self, json_rpc_address: impl Into<SocketAddr>) -> Self {
-        self.json_rpc_address = Some(json_rpc_address.into());
         self
     }
 
@@ -414,11 +383,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_data_ingestion_dir(mut self, path: Option<PathBuf>) -> Self {
         self.data_ingestion_dir = path;
-        self
-    }
-
-    pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
-        self.iota_names_config = config;
         self
     }
 
@@ -497,13 +461,6 @@ impl FullnodeConfigBuilder {
             }
         };
 
-        let json_rpc_address = self.rpc_addr.unwrap_or_else(|| {
-            let rpc_port = self
-                .rpc_port
-                .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{ip}:{rpc_port}").parse().unwrap()
-        });
-
         let grpc_api_config = self.grpc_api_config.or_else(|| {
             if self.enable_grpc_api {
                 Some(GrpcApiConfig {
@@ -549,9 +506,7 @@ impl FullnodeConfigBuilder {
             admin_interface_address: self
                 .admin_interface_address
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
-            json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -573,12 +528,10 @@ impl FullnodeConfigBuilder {
             state_archive_write_config: StateArchiveConfig::default(),
             state_archive_read_config: vec![],
             state_snapshot_write_config: StateSnapshotConfig::default(),
-            indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
-            jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
             execution_cache_config: ExecutionCacheConfig::default(),
@@ -589,7 +542,6 @@ impl FullnodeConfigBuilder {
             enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
-            iota_names_config: self.iota_names_config,
             enable_grpc_api: self.enable_grpc_api,
             grpc_api_config,
             chain_override_for_testing: self.chain_override,

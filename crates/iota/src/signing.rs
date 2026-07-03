@@ -73,7 +73,6 @@ pub(crate) async fn sign_transaction(
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<GenericSignature> {
-    let iota_client = context.get_client().await?;
     let key = context.config().keystore().get_key(signer_address)?;
 
     match key {
@@ -84,6 +83,7 @@ pub(crate) async fn sign_transaction(
         // contexts), so we forward empty `CallArg` / `TypeTag` vectors and let the validator
         // reject the transaction at runtime if the on-chain function actually requires more.
         StoredKey::Account(_) => {
+            let iota_client = context.get_client().await?;
             let (auth_call_args, auth_type_args) = auth_args.unwrap_or_default();
             let initial_shared_version =
                 get_shared_object_version(&iota_client, signer_address).await?;
@@ -131,6 +131,7 @@ pub(crate) async fn sign_transaction(
                         );
                     };
 
+                    let iota_client = context.get_client().await?;
                     let signer =
                         LedgerSigner::new_with_default(derivation_path.clone(), Some(iota_client))?;
                     // pass the transaction sender to the signer to ensure the correct

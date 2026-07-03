@@ -2,17 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Raise rustc's query-depth limit for monomorphizing deeply-nested generic
-// futures. The JSON-RPC handler routes requests through axum → orchestrator
-// → `submit_with_checkpoint_race` (a `tokio::select!` over the driver and
-// checkpoint-inclusion arms) → transaction_driver → effects_certifier →
-// `FuturesUnordered` of per-validator queries → safe_client RPC. Each
-// `.await` and combinator adds one nested anonymous Future type, and when
-// `iota_metrics::spawn_monitored_task!` wraps the resulting future, computing
-// its layout walks the entire chain — overshooting the default limit of 128
-// by ~2 today. 256 leaves headroom; if a future change pushes us past it,
-// that is the signal to box-pin a major arm rather than bump again. See
-// `iota-indexer/src/lib.rs` for the same pattern, same reason.
+// Raise rustc's query-depth limit for monomorphizing the deeply-nested generic
+// futures in the async RPC handlers; the default limit of 128 is not enough.
+// See `iota-indexer/src/lib.rs` for the same pattern, same reason.
 #![recursion_limit = "256"]
 
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
@@ -51,21 +43,17 @@ use crate::{
     routing_layer::RpcRouter,
 };
 
-pub mod authority_state;
 pub mod axum_router;
 mod balance_changes;
-pub mod coin_api;
 pub mod error;
 pub mod governance_api;
-pub mod indexer_api;
 pub mod logger;
 mod metrics;
-pub mod move_utils;
 mod object_changes;
 pub mod read_api;
 mod routing_layer;
 pub mod transaction_builder_api;
-pub mod transaction_execution_api;
+pub mod utils;
 
 pub const APP_NAME_HEADER: &str = "app-name";
 

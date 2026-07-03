@@ -25,7 +25,6 @@ mod execution_driver;
 mod fallback_fetch;
 pub mod global_state_hasher;
 pub mod grpc_indexes;
-pub mod jsonrpc_index;
 pub mod metrics;
 pub mod mock_consensus;
 pub mod module_cache_metrics;
@@ -40,8 +39,6 @@ mod stake_aggregator;
 pub mod starfish_adapter;
 pub mod status_aggregator;
 pub mod storage;
-pub mod streamer;
-pub mod subscription_handler;
 pub mod test_utils;
 pub mod traffic_controller;
 pub mod transaction_driver;
@@ -51,7 +48,6 @@ pub mod transaction_orchestrator;
 mod transaction_outputs;
 pub(crate) mod validator_client_monitor;
 pub mod validator_tx_finalizer;
-pub mod verify_indexes;
 
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]

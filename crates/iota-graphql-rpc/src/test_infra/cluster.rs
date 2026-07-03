@@ -53,16 +53,13 @@ pub struct Cluster {
 /// Starts a validator, fullnode, indexer, and graphql service for testing.
 pub async fn start_cluster(
     graphql_connection_config: ConnectionConfig,
-    internal_data_source_rpc_port: Option<u16>,
     service_config: ServiceConfig,
 ) -> Cluster {
     let data_ingestion_path = iota_common::tempdir().keep();
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
-    let test_cluster =
-        start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
-            .await;
+    let test_cluster = start_validator_with_fullnode(data_ingestion_path.clone()).await;
 
     let grpc_url = test_cluster.grpc_url();
     // Starts indexer
@@ -242,11 +239,8 @@ pub async fn start_graphql_server_with_fn_rpc(
     })
 }
 
-async fn start_validator_with_fullnode(
-    internal_data_source_rpc_port: Option<u16>,
-    data_ingestion_dir: PathBuf,
-) -> TestCluster {
-    let mut test_cluster_builder = TestClusterBuilder::new()
+async fn start_validator_with_fullnode(data_ingestion_dir: PathBuf) -> TestCluster {
+    TestClusterBuilder::new()
         .with_num_validators(VALIDATOR_COUNT)
         .with_epoch_duration_ms(EPOCH_DURATION_MS)
         .with_data_ingestion_dir(data_ingestion_dir)
@@ -257,13 +251,9 @@ async fn start_validator_with_fullnode(
             };
             ACCOUNT_NUM
         ])
-        .with_fullnode_enable_grpc_api(true);
-
-    if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
-        test_cluster_builder =
-            test_cluster_builder.with_fullnode_rpc_port(internal_data_source_rpc_port);
-    };
-    test_cluster_builder.build().await
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await
 }
 
 /// Repeatedly ping the GraphQL server for 10s, until it responds

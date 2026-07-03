@@ -27,14 +27,21 @@ impl WalletClient {
         let key = cluster.user_key();
         let address = address_from_iota_pub_key(key.public());
         let wallet_context = new_wallet_context_from_cluster(cluster, key)
-            .instrument(info_span!("init_wallet_context_for_test_user"));
+            .instrument(info_span!("init_wallet_context_for_test_user"))
+            .into_inner();
 
-        let rpc_url = String::from(cluster.fullnode_url());
-        info!("Use fullnode rpc: {rpc_url}");
+        // The local node no longer serves JSON-RPC (the indexer does); remote
+        // clusters serve JSON-RPC on their fullnode endpoint. The wallet builds
+        // its gRPC client lazily from the env configured above.
+        let rpc_url = cluster
+            .indexer_url()
+            .clone()
+            .unwrap_or_else(|| cluster.fullnode_url().to_string());
+        info!("Use RPC: {rpc_url}");
         let fullnode_client = IotaClientBuilder::default().build(rpc_url).await.unwrap();
 
         Self {
-            wallet_context: wallet_context.into_inner(),
+            wallet_context,
             address,
             fullnode_client,
         }

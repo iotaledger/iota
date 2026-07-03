@@ -40,6 +40,7 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk::iota_client_config::IotaEnv;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     crypto::{IotaKeyPair, Signature},
@@ -153,7 +154,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         builder = builder_modifier(builder);
     };
 
-    let cluster = builder.build().await;
+    let mut cluster = builder.build().await;
 
     // start indexer in write mode
     let (pg_store, _pg_store_handle, _) = start_test_indexer(
@@ -169,11 +170,18 @@ pub async fn start_test_cluster_with_read_write_indexer(
 
     // start indexer in read mode
     let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
+    let reader_url = format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}");
+
+    // Point the wallet's JSON-RPC reads at the indexer (the node no longer serves
+    // JSON-RPC); execution stays on the node gRPC.
+    let active_env = cluster.wallet.config().get_active_env().unwrap().clone();
+    cluster.wallet.config_mut().set_env(
+        IotaEnv::new(active_env.alias().clone(), reader_url.clone())
+            .with_grpc(active_env.grpc().clone()),
+    );
 
     // create an RPC client by using the indexer url
-    let rpc_client = HttpClientBuilder::default()
-        .build(format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}"))
-        .unwrap();
+    let rpc_client = HttpClientBuilder::default().build(reader_url).unwrap();
 
     (cluster, pg_store, rpc_client)
 }
@@ -204,11 +212,15 @@ pub async fn indexer_wait_for_checkpoint(
 /// number. Indexer starts storing data after checkpoint 0
 pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, cluster: &TestCluster) {
     let latest_checkpoint = cluster
-        .iota_client()
-        .read_api()
-        .get_latest_checkpoint_sequence_number()
-        .await
-        .unwrap();
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            node.state()
+                .get_checkpoint_store()
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+        })
+        .expect("fullnode has not executed any checkpoint yet");
 
     indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
 }
@@ -299,9 +311,18 @@ pub async fn node_wait_for_object(
     object_id: ObjectId,
     sequence_number: SequenceNumber,
 ) {
-    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
-        .await
-        .expect("timeout waiting for node to catchup to given object's sequence number");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if let Some(object) = cluster.get_object_from_fullnode_store(&object_id).await {
+                if object.version() == sequence_number {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for node to catchup to given object's sequence number");
 }
 
 pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {

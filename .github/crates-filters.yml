@@ -66,8 +66,6 @@ iota-json-rpc:
   - "crates/iota-json-rpc/**"
 iota-json-rpc-api:
   - "crates/iota-json-rpc-api/**"
-iota-json-rpc-tests:
-  - "crates/iota-json-rpc-tests/**"
 iota-json-rpc-types:
   - "crates/iota-json-rpc-types/**"
 iota-keys:
