@@ -1259,8 +1259,8 @@ mod tests {
             refs.iter().map(|r| (*r, Bytes::new())).collect()
         }
 
-        #[test]
-        fn keeps_all_commits_when_all_transactions_fetched() {
+        #[tokio::test]
+        async fn keeps_all_commits_when_all_transactions_fetched() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
             let (tx_a, tx_b, tx_c) = (transaction_ref(1), transaction_ref(2), transaction_ref(3));
@@ -1281,8 +1281,8 @@ mod tests {
             assert_eq!(transactions.len(), 3);
         }
 
-        #[test]
-        fn truncates_to_prefix_and_drops_unreferenced_transactions() {
+        #[tokio::test]
+        async fn truncates_to_prefix_and_drops_unreferenced_transactions() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
             let (tx_a, tx_b, tx_c, tx_d) = (
@@ -1311,8 +1311,8 @@ mod tests {
             assert_eq!(transactions.into_keys().collect::<Vec<_>>(), vec![tx_a]);
         }
 
-        #[test]
-        fn errors_when_first_commit_transactions_missing() {
+        #[tokio::test]
+        async fn errors_when_first_commit_transactions_missing() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
             let (tx_a, tx_b) = (transaction_ref(1), transaction_ref(2));
@@ -1332,8 +1332,8 @@ mod tests {
             ));
         }
 
-        #[test]
-        fn commit_without_transactions_counts_toward_prefix() {
+        #[tokio::test]
+        async fn commit_without_transactions_counts_toward_prefix() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
             let tx_a = transaction_ref(1);
