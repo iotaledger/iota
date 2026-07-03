@@ -187,6 +187,22 @@ pub async fn start_test_cluster_with_read_write_indexer_and_url(
     // start indexer in read mode
     let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
 
+    // The reader is spawned on a background task; wait until its JSON-RPC
+    // server actually accepts connections, so callers can issue requests
+    // right away. This also surfaces a failed startup (e.g. a lost port
+    // race) as a clear panic instead of connection-refused errors later.
+    let indexer_address = format!("{DEFAULT_INDEXER_IP}:{indexer_port}");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while tokio::net::TcpStream::connect(&indexer_address)
+            .await
+            .is_err()
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("indexer JSON-RPC reader did not start listening");
+
     // create an RPC client by using the indexer url
     let rpc_url = format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}");
     let rpc_client = HttpClientBuilder::default().build(&rpc_url).unwrap();
