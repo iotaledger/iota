@@ -177,6 +177,64 @@ async fn test_claim_plain_race_pcool() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Determinism race with an IMMUTABLE claim: a `claim` of A finalized with
+/// `build_immutable_v1` and a plain transfer from A, submitted concurrently into
+/// the same consensus commit. A claim is detected by its use of the
+/// `ClaimRegistry` (not the finalizer name), so the immutable claim is
+/// recognized and the racing transfer is dropped with `AccountClaimConflict`.
+/// Regression for the previous `build_v1`-name detection, under which an
+/// immutable claim went undetected and the racing transfer would finalize.
+#[sim_test]
+async fn test_claim_immutable_plain_race_pcool() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let test_cluster = TestClusterBuilder::new().with_pcool_enabled().build().await;
+    let mut actor = Actor::ed25519(45);
+    let sender = actor.address();
+
+    // Independent gas coins so the two transactions do not conflict on gas.
+    let claim_gas = fund(&test_cluster, sender).await;
+    let transfer_gas = fund(&test_cluster, sender).await;
+
+    let registry = claim_registry_arg(&test_cluster).await;
+    // `true` => finalize the claim with `build_immutable_v1`.
+    let claim_pt = claim_ptb(registry, actor.prefixed_pk_bytes(), true)?;
+    let claim_data = ptb_tx_data(&test_cluster, sender, claim_gas, claim_pt).await;
+    let claim_sig = actor.sign(&claim_data).await;
+    let claim_tx = Transaction::from_generic_sig_data(claim_data, vec![claim_sig]);
+
+    let transfer_data = transfer_tx_data(&test_cluster, sender, transfer_gas).await;
+    let transfer_sig = actor.sign(&transfer_data).await;
+    let transfer_tx = Transaction::from_generic_sig_data(transfer_data, vec![transfer_sig]);
+
+    let (claim_res, transfer_res) = tokio::join!(
+        test_cluster.wallet.execute_transaction_may_fail(claim_tx),
+        test_cluster
+            .wallet
+            .execute_transaction_may_fail(transfer_tx),
+    );
+
+    assert_eq!(
+        claim_res?.status_ok(),
+        Some(true),
+        "immutable claim must succeed"
+    );
+
+    // The racing plain transfer shares the claimed sender, so it is dropped
+    // (`AccountClaimConflict`) and never finalizes — even though the claim was
+    // finalized with `build_immutable_v1`.
+    let transfer_succeeded = transfer_res.as_ref().ok().and_then(|r| r.status_ok()) == Some(true);
+    assert!(
+        !transfer_succeeded,
+        "plain transfer racing the immutable claim must be dropped, not finalized, got {transfer_res:?}"
+    );
+
+    assert!(
+        account_object(&test_cluster, sender).await.is_some(),
+        "the account must exist after the immutable claim"
+    );
+    Ok(())
+}
+
 /// rotate-then-plain (sequential) under P-COOL: after claiming A and rotating
 /// its on-chain key (via a `MoveAuthenticator`), a plain transfer signed with
 /// the OLD key is rejected — once claimed, A only accepts a

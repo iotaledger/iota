@@ -1475,3 +1475,102 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     assert_eq!(sender_digest, blake2b256_of_sig(sender_sig));
     assert_eq!(sponsor_digest.unwrap(), blake2b256_of_sig(sponsor_sig));
 }
+
+/// A transaction is recognized as an account claim by its use of the
+/// `ClaimRegistry` (`0x10`) as a *mutable* input — the input taken only by
+/// `smart_account::claim_builder_v1`, the sole minter of an account at
+/// `ObjectId::from(sender)`. Detection is therefore independent of the finalizer
+/// (`build_v1` / `build_immutable_v1`) and of the call arguments.
+#[test]
+fn test_claims_smart_account_detection() {
+    use iota_sdk_types::{Identifier, ObjectId};
+
+    use crate::{
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        object::OBJECT_START_VERSION,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, ProgrammableTransactionExt, SharedObjectRef},
+    };
+
+    let smart_account = |name: &str| {
+        (
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::new("smart_account").unwrap(),
+            Identifier::new(name).unwrap(),
+        )
+    };
+    let registry_input = |mutable: bool| {
+        CallArg::Shared(SharedObjectRef::new(
+            ObjectId::CLAIM_REGISTRY,
+            OBJECT_START_VERSION,
+            mutable,
+        ))
+    };
+
+    // A mutable `ClaimRegistry` input marks a claim, finalized with `build_v1`.
+    let claim_build_v1 = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let reg = b.obj(registry_input(true)).unwrap();
+        let (pkg, module, func) = smart_account("claim_builder_v1");
+        b.programmable_move_call(pkg, module, func, vec![], vec![reg]);
+        let (pkg, module, func) = smart_account("build_v1");
+        b.programmable_move_call(pkg, module, func, vec![], vec![]);
+        b.finish()
+    };
+    assert!(
+        claim_build_v1.claims_smart_account(),
+        "a claim (mutable ClaimRegistry input) must be detected"
+    );
+
+    // The same claim finalized with `build_immutable_v1` — the finalizer the old
+    // `build_v1`-name match missed — is still detected via the registry input.
+    let claim_build_immutable_v1 = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let reg = b.obj(registry_input(true)).unwrap();
+        let (pkg, module, func) = smart_account("claim_builder_v1");
+        b.programmable_move_call(pkg, module, func, vec![], vec![reg]);
+        let (pkg, module, func) = smart_account("build_immutable_v1");
+        b.programmable_move_call(pkg, module, func, vec![], vec![]);
+        b.finish()
+    };
+    assert!(
+        claim_build_immutable_v1.claims_smart_account(),
+        "an immutable claim must be detected via the registry input"
+    );
+
+    // A read-only `ClaimRegistry` input (e.g. a view) does not claim — a claim
+    // needs `&mut ClaimRegistry`.
+    let registry_read_only = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        b.obj(registry_input(false)).unwrap();
+        b.finish()
+    };
+    assert!(
+        !registry_read_only.claims_smart_account(),
+        "a read-only ClaimRegistry input is not a claim"
+    );
+
+    // A `build_v1` call WITHOUT the registry — e.g. `builtin_auth_builder_v1`
+    // creating a fresh-UID account — must NOT be treated as a claim of the
+    // sender's address.
+    let fresh_uid_build_v1 = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let (pkg, module, func) = smart_account("builtin_auth_builder_v1");
+        let builder = b.programmable_move_call(pkg, module, func, vec![], vec![]);
+        let (pkg, module, func) = smart_account("build_v1");
+        b.programmable_move_call(pkg, module, func, vec![], vec![builder]);
+        b.finish()
+    };
+    assert!(
+        !fresh_uid_build_v1.claims_smart_account(),
+        "build_v1 without the ClaimRegistry must not be a claim"
+    );
+
+    // A transaction that never touches the registry is not a claim.
+    let no_registry = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        b.transfer_object(Address::ZERO, random_object_ref()).unwrap();
+        b.finish()
+    };
+    assert!(!no_registry.claims_smart_account());
+}

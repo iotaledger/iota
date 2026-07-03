@@ -114,6 +114,37 @@ fn claim_registry_object() -> Object {
     )
 }
 
+/// Builds and signs a transaction that creates a FRESH-UID smart account
+/// (`build_v1` with no `ClaimRegistry` input, as `builtin_auth_builder_v1`
+/// would). It does NOT claim `sender`'s address, so it must not be detected as
+/// a claim.
+fn make_fresh_smart_account_transaction(
+    sender: Address,
+    sender_key: &AccountKeyPair,
+    gas_ref: ObjectRef,
+    rgp: u64,
+) -> iota_types::transaction::Transaction {
+    use iota_sdk_types::Identifier;
+    use iota_types::{
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        transaction::{TransactionData, TransactionDataAPI},
+        utils::to_sender_signed_transaction,
+    };
+    let data = TransactionData::new_move_call(
+        sender,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("smart_account"),
+        Identifier::from_static("build_v1"),
+        vec![],
+        gas_ref,
+        vec![],
+        rgp * 1000,
+        rgp,
+    )
+    .unwrap();
+    to_sender_signed_transaction(data, sender_key)
+}
+
 /// Wraps an `EndOfPublish` message as a consensus transaction.
 fn make_end_of_publish() -> VerifiedSequencedConsensusTransaction {
     use iota_types::base_types::AuthorityName;
@@ -2301,4 +2332,77 @@ async fn test_account_claim_already_executed_exempt() {
             .try_is_tx_already_executed(&plain_digest)
             .unwrap()
     );
+}
+
+/// A fresh-UID smart-account creation (`build_v1` without the `ClaimRegistry`)
+/// does NOT claim the sender's address, so it must not be treated as a claim: a
+/// concurrent plain transaction from the same sender is retained, not dropped.
+/// Regression for the previous `build_v1`-name detection, which misdetected such
+/// a transaction as a claim and bricked the sender's implicit account.
+#[sim_test]
+async fn test_account_claim_fresh_uid_build_v1_not_dropped() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = account_claim_overrides(true);
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_fresh_id = ObjectId::random();
+    let gas_plain_id = ObjectId::random();
+
+    // No `ClaimRegistry` object is seeded: the fresh-UID transaction does not
+    // reference it.
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_fresh_id, sender),
+        Object::with_id_owner_for_testing(gas_plain_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
+    let gas_fresh_ref = authority
+        .get_object(&gas_fresh_id)
+        .await
+        .unwrap()
+        .object_ref();
+    let gas_plain_ref = authority
+        .get_object(&gas_plain_id)
+        .await
+        .unwrap()
+        .object_ref();
+
+    let fresh_tx = make_fresh_smart_account_transaction(sender, &sender_key, gas_fresh_ref, rgp);
+    let plain_tx = make_transfer_object_transaction(
+        object_ref,
+        gas_plain_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_fresh = epoch_store.verify_transaction(fresh_tx).unwrap();
+    let verified_plain = epoch_store.verify_transaction(plain_tx).unwrap();
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_fresh),
+        make_user_tx_v1_verified(verified_plain),
+    ];
+
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "a fresh-UID smart account is not a claim; nothing should be dropped, got {dropped:?}"
+    );
+    assert_eq!(transactions.len(), 2, "both transactions must be kept");
 }
