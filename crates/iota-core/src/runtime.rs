@@ -7,13 +7,15 @@ use tokio::runtime::Runtime;
 
 pub struct IotaRuntimes {
     // Order in this struct is the order in which runtimes are stopped.
+    /// Client-facing servers (validator gRPC, JSON-RPC, gRPC read API) and the
+    /// per-request handlers they spawn. Isolated from `iota_node` so that a
+    /// flood of external requests cannot starve the node core. Stopped first so
+    /// that client requests are cut off before the node core they call into is
+    /// torn down.
+    pub serving: Runtime,
     /// Node core: consensus, execution, state sync, checkpoints and p2p
     /// networking.
     pub iota_node: Runtime,
-    /// Client-facing servers (validator gRPC, JSON-RPC, gRPC read API) and the
-    /// per-request handlers they spawn. Isolated from `iota_node` so that a
-    /// flood of external requests cannot starve the node core.
-    pub serving: Runtime,
     pub metrics: Runtime,
 }
 
@@ -56,8 +58,8 @@ impl IotaRuntimes {
             .unwrap();
 
         Self {
-            iota_node,
             serving,
+            iota_node,
             metrics,
         }
     }
