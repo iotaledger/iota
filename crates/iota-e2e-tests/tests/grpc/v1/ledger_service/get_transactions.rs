@@ -11,7 +11,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::Digest;
+use iota_sdk_types::{Digest, TransactionDigest};
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -22,7 +22,7 @@ use crate::utils::{
 /// Helper function to make GetTransactions requests and validate responses..
 async fn assert_get_transactions_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
-    digests: Vec<Digest>,
+    digests: Vec<TransactionDigest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,
     expected_field_mask_paths: &[&str],

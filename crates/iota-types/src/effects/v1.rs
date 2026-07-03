@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{Address, Digest};
+use iota_sdk_types::Address;
 
 use super::{
     EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
@@ -12,7 +12,7 @@ use super::{
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{
-    digests::{TransactionDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
     execution::SharedInput,
     object::OBJECT_START_VERSION,
@@ -201,7 +201,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                         Some(ObjectRef::new(
                             changed.object_id,
                             self.lamport_version,
-                            Digest::OBJECT_DELETED,
+                            ObjectDigest::OBJECT_DELETED,
                         ))
                     }
                     _ => None,
@@ -223,7 +223,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                         Some(ObjectRef::new(
                             changed.object_id,
                             self.lamport_version,
-                            Digest::OBJECT_DELETED,
+                            ObjectDigest::OBJECT_DELETED,
                         ))
                     }
                     _ => None,
@@ -245,7 +245,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                         Some(ObjectRef::new(
                             changed.object_id,
                             self.lamport_version,
-                            Digest::OBJECT_WRAPPED,
+                            ObjectDigest::OBJECT_WRAPPED,
                         ))
                     }
                     _ => None,
@@ -301,7 +301,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             }
         } else {
             (
-                ObjectRef::new(ObjectId::ZERO, Version::default(), Digest::MIN),
+                ObjectRef::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
                 Owner::Address(Address::ZERO),
             )
         }
