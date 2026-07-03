@@ -6,6 +6,7 @@ mod causal_order;
 pub mod checkpoint_executor;
 mod checkpoint_output;
 mod epoch_info;
+mod full_checkpoint_contents_cache;
 mod metrics;
 
 use std::{
@@ -71,6 +72,7 @@ pub use crate::checkpoints::{
     checkpoint_output::{
         LogCheckpointOutput, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
     },
+    full_checkpoint_contents_cache::{FullCheckpointContentsCache, FullContentsCacheMetrics},
     metrics::CheckpointMetrics,
 };
 use crate::{
@@ -158,17 +160,21 @@ pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
-    /// Maps checkpoint contents digest to checkpoint sequence number.
-    /// Entries from this table are deleted after state accumulation has
-    /// completed together with the corresponding full_checkpoint_content.
-    pub(crate) checkpoint_sequence_by_contents_digest:
-        DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
+    /// Deprecated: the contents-digest to sequence-number mapping moved to
+    /// the in-memory [`FullCheckpointContentsCache`]. Dropped on open; not
+    /// migrated (entries were a short-lived cache).
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    checkpoint_sequence_by_contents_digest: Option<DBMap<(), ()>>,
 
-    /// Stores entire checkpoint contents from state sync, indexed by sequence
-    /// number, for efficient reads of full checkpoints. Entries from this
-    /// table are deleted after state accumulation has completed. See
-    /// NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
-    full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
+    /// Deprecated: full checkpoint contents moved to the in-memory
+    /// [`FullCheckpointContentsCache`]. Dropped on open; not migrated
+    /// (entries were a short-lived cache, and readers can reconstruct full
+    /// contents from `checkpoint_content` plus the transaction and effects
+    /// stores).
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    full_checkpoint_content: Option<DBMap<(), ()>>,
 
     /// Stores certified checkpoints
     pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
@@ -229,15 +235,24 @@ impl CheckpointStoreTables {
 
 pub struct CheckpointStore {
     pub(crate) tables: CheckpointStoreTables,
+    full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
 }
 
 impl CheckpointStore {
     pub fn new(path: &Path) -> Arc<Self> {
+        Self::new_with_contents_cache(path, FullCheckpointContentsCache::default())
+    }
+
+    pub fn new_with_contents_cache(
+        path: &Path,
+        contents_cache: FullCheckpointContentsCache,
+    ) -> Arc<Self> {
         let tables = CheckpointStoreTables::new(path, "checkpoint");
         Arc::new(Self {
             tables,
+            full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
         })
@@ -252,6 +267,7 @@ impl CheckpointStore {
         let tables = CheckpointStoreTables::new(path, "db_checkpoint");
         Arc::new(Self {
             tables,
+            full_checkpoint_contents_cache: FullCheckpointContentsCache::default(),
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
         })
@@ -332,26 +348,17 @@ impl CheckpointStore {
             .get(&sequence_number)
     }
 
-    /// Get checkpoint sequence number by contents digest.
+    /// Get full checkpoint contents by contents digest from the in-memory
+    /// contents cache.
     ///
-    /// Entries from this table are deleted after state accumulation has
-    /// completed together with the corresponding full_checkpoint_content.
-    pub fn get_sequence_number_by_contents_digest(
+    /// Returns `None` once the entry has been evicted; callers reconstruct
+    /// full contents from `checkpoint_content` and the transaction and
+    /// effects stores instead.
+    pub fn get_full_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.tables
-            .checkpoint_sequence_by_contents_digest
-            .get(digest)
-    }
-
-    pub fn delete_contents_digest_sequence_number_mapping(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> Result<(), TypedStoreError> {
-        self.tables
-            .checkpoint_sequence_by_contents_digest
-            .remove(digest)
+    ) -> Option<Arc<FullCheckpointContents>> {
+        self.full_checkpoint_contents_cache.get_by_digest(digest)
     }
 
     pub fn get_latest_certified_checkpoint(
@@ -489,11 +496,15 @@ impl CheckpointStore {
         self.tables.checkpoint_content.get(digest)
     }
 
+    /// Get full checkpoint contents from the in-memory contents cache.
+    ///
+    /// Returns `None` once the entry has been evicted; callers fall back to
+    /// loading the individual transactions and effects from their stores.
     pub fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         seq: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>, TypedStoreError> {
-        self.tables.full_checkpoint_content.get(&seq)
+    ) -> Option<Arc<FullCheckpointContents>> {
+        self.full_checkpoint_contents_cache.get_by_seq(seq)
     }
 
     fn prune_local_summaries(&self) -> IotaResult {
@@ -787,44 +798,36 @@ impl CheckpointStore {
             .insert(&contents.digest(), &contents)
     }
 
-    /// Inserts the full checkpoint contents along with the mapping from
-    /// contents digest to sequence number, and the checkpoint contents.
+    /// Persists the checkpoint contents in digest form and caches the full
+    /// contents in memory, where they serve the checkpoint executor's bulk
+    /// transaction loads and contents requests from state-sync peers.
     ///
-    /// The entries for mapping the contents digest to sequence number,
-    /// and the full_checkpoint_content are deleted after state accumulation has
-    /// completed. See NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
+    /// The caller must have durably written the contained transactions and
+    /// effects beforehand: once the cache evicts the entry (or after a
+    /// restart), readers reconstruct the full contents from those stores.
     pub fn insert_verified_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
-        let mut batch = self.tables.full_checkpoint_content.batch();
-        batch.insert_batch(
-            &self.tables.checkpoint_sequence_by_contents_digest,
-            [(&checkpoint.content_digest, checkpoint.sequence_number())],
-        )?;
         let full_contents = full_contents.into_inner();
-        batch.insert_batch(
-            &self.tables.full_checkpoint_content,
-            [(checkpoint.sequence_number(), &full_contents)],
-        )?;
+        let size = bcs::serialized_size(&full_contents)
+            .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
 
-        let contents = full_contents.into_checkpoint_contents();
+        let contents = full_contents.checkpoint_contents();
         assert_eq!(checkpoint.content_digest, contents.digest());
 
-        batch.insert_batch(
-            &self.tables.checkpoint_content,
-            [(contents.digest(), &contents)],
-        )?;
+        self.tables
+            .checkpoint_content
+            .insert(&contents.digest(), &contents)?;
 
-        batch.write()
-    }
-
-    pub fn delete_full_checkpoint_contents(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Result<(), TypedStoreError> {
-        self.tables.full_checkpoint_content.remove(&seq)
+        self.full_checkpoint_contents_cache.insert(
+            checkpoint.sequence_number(),
+            checkpoint.content_digest,
+            Arc::new(full_contents),
+            size,
+        );
+        Ok(())
     }
 
     pub fn get_epoch_last_checkpoint(
@@ -2826,6 +2829,90 @@ mod tests {
 
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+    #[tokio::test]
+    async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
+        let tempdir = iota_common::tempdir();
+        let path = tempdir.path();
+
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let contents = full_contents.checkpoint_contents();
+        let content_digest = contents.digest();
+        let summary = CheckpointSummary {
+            epoch: 0,
+            sequence_number: 0,
+            network_total_transactions: full_contents.size() as u64,
+            content_digest,
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+            end_of_epoch_data: None,
+            timestamp_ms: 0,
+            version_specific_data: Vec::new(),
+            checkpoint_commitments: Vec::new(),
+        };
+        let sig = AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        };
+        let checkpoint = VerifiedCheckpoint::new_unchecked(
+            iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
+        );
+
+        {
+            let store = CheckpointStore::new(path);
+            store
+                .insert_verified_checkpoint_contents(
+                    &checkpoint,
+                    VerifiedCheckpointContents::new_unchecked(full_contents.clone()),
+                )
+                .unwrap();
+
+            // Full contents are served from the in-memory cache.
+            assert_eq!(
+                store
+                    .get_full_checkpoint_contents_by_sequence_number(0)
+                    .unwrap()
+                    .as_ref(),
+                &full_contents
+            );
+            assert_eq!(
+                store
+                    .get_full_checkpoint_contents_by_digest(&content_digest)
+                    .unwrap()
+                    .as_ref(),
+                &full_contents
+            );
+            // The digest-form contents are durable.
+            assert_eq!(
+                store
+                    .get_checkpoint_contents(&content_digest)
+                    .unwrap()
+                    .map(|c| c.digest()),
+                Some(content_digest)
+            );
+        }
+
+        // Reopening drops the in-memory cache, but the digest-form contents
+        // survive for readers to reconstruct full contents from.
+        let store = CheckpointStore::new(path);
+        assert!(
+            store
+                .get_full_checkpoint_contents_by_sequence_number(0)
+                .is_none()
+        );
+        assert!(
+            store
+                .get_full_checkpoint_contents_by_digest(&content_digest)
+                .is_none()
+        );
+        assert!(
+            store
+                .get_checkpoint_contents(&content_digest)
+                .unwrap()
+                .is_some()
+        );
+    }
 
     #[sim_test]
     pub async fn checkpoint_builder_test() {

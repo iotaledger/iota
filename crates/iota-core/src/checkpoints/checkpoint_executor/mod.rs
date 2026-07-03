@@ -722,9 +722,9 @@ impl CheckpointExecutor {
         if let Some(full_contents) = self
             .checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(seq)
-            .expect("Failed to get checkpoint contents from store")
             .tap_some(|_| debug!("loaded full checkpoint contents in bulk for sequence {seq}"))
         {
+            let full_contents = full_contents.as_ref().clone();
             let num_txns = full_contents.size();
             let mut tx_digests = Vec::with_capacity(num_txns);
             let mut transactions = Vec::with_capacity(num_txns);
@@ -929,8 +929,7 @@ impl CheckpointExecutor {
             .await;
     }
 
-    // Increment the highest executed checkpoint watermark and prune old
-    // full-checkpoint contents
+    // Increment the highest executed checkpoint watermark
     #[instrument(level = "debug", skip_all)]
     fn bump_highest_executed_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
         // Ensure that we are not skipping checkpoints at any point
@@ -946,35 +945,6 @@ impl CheckpointExecutor {
             assert_eq!(seq, 0);
         }
         fail_point!("highest-executed-checkpoint");
-
-        // We store a fixed number of additional FullCheckpointContents after execution
-        // is complete for use in state sync.
-        const NUM_SAVED_FULL_CHECKPOINT_CONTENTS: u64 = 5_000;
-        if seq >= NUM_SAVED_FULL_CHECKPOINT_CONTENTS {
-            let prune_seq = seq - NUM_SAVED_FULL_CHECKPOINT_CONTENTS;
-            if let Some(prune_checkpoint) = self
-                .checkpoint_store
-                .get_checkpoint_by_sequence_number(prune_seq)
-                .expect("Failed to fetch checkpoint")
-            {
-                self.checkpoint_store
-                    .delete_full_checkpoint_contents(prune_seq)
-                    .expect("Failed to delete full checkpoint contents");
-                self.checkpoint_store
-                    .delete_contents_digest_sequence_number_mapping(
-                        &prune_checkpoint.content_digest,
-                    )
-                    .expect("Failed to delete contents digest -> sequence number mapping");
-            } else {
-                // If this is directly after a snapshot restore with skiplisting,
-                // this is expected for the first `NUM_SAVED_FULL_CHECKPOINT_CONTENTS`
-                // checkpoints.
-                debug!(
-                    "Failed to fetch checkpoint with sequence number {:?}",
-                    prune_seq
-                );
-            }
-        }
 
         self.checkpoint_store
             .update_highest_executed_checkpoint(checkpoint)

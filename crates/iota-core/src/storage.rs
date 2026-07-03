@@ -126,36 +126,26 @@ impl ReadStore for RocksDbStore {
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
-        self.checkpoint_store
+        Ok(self
+            .checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
-            .map_err(Into::into)
+            .map(|contents| contents.as_ref().clone()))
     }
 
     fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
-        // First look to see if we saved the complete contents already.
-        if let Some(seq_num) = self
+        // First look to see if the in-memory cache still holds the complete
+        // contents.
+        if let Some(contents) = self
             .checkpoint_store
-            .get_sequence_number_by_contents_digest(digest)
-            .map_err(iota_types::storage::error::Error::custom)?
+            .get_full_checkpoint_contents_by_digest(digest)
         {
-            let contents = self
-                .checkpoint_store
-                .get_full_checkpoint_contents_by_sequence_number(seq_num)
-                .map_err(iota_types::storage::error::Error::custom)?;
-            if contents.is_some() {
-                return Ok(contents);
-            }
+            return Ok(Some(contents.as_ref().clone()));
         }
 
         // Otherwise gather it from the individual components.
-        // Note we can't insert the constructed contents into `full_checkpoint_content`,
-        // because it needs to be inserted along with
-        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
-        // However at this point it's likely we don't know the corresponding
-        // sequence number yet.
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)?

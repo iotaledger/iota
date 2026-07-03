@@ -50,8 +50,8 @@ use iota_core::{
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
-        CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
-        SubmitCheckpointToConsensus,
+        CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+        FullContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
     connection_monitor::ConnectionMonitor,
@@ -448,7 +448,13 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
-        let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new_with_contents_cache(
+            &config.db_path().join("checkpoints"),
+            FullCheckpointContentsCache::new(
+                config.full_checkpoint_contents_cache_size_mb * 1024 * 1024,
+                FullContentsCacheMetrics::new(&prometheus_registry),
+            ),
+        );
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 

@@ -46,6 +46,9 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VA
 /// Default commission rate of 2%
 pub const DEFAULT_COMMISSION_RATE: u64 = 200;
 
+/// Default budget in MiB for the in-memory full-checkpoint-contents cache.
+pub const DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB: usize = 1024;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct NodeConfig {
@@ -226,6 +229,15 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
+
+    /// Approximate memory budget in MiB for the in-memory cache of full
+    /// checkpoint contents, which serves the checkpoint executor's bulk
+    /// transaction loads and checkpoint-contents requests from state-sync
+    /// peers. When the budget is exceeded, the oldest checkpoints are evicted
+    /// first. Set to 0 to disable the cache; consumers then fall back to
+    /// reconstructing contents from the transaction and effects stores.
+    #[serde(default = "default_full_checkpoint_contents_cache_size_mb")]
+    pub full_checkpoint_contents_cache_size_mb: usize,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -679,6 +691,10 @@ pub fn default_concurrency_limit() -> Option<usize> {
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
     128
+}
+
+pub fn default_full_checkpoint_contents_cache_size_mb() -> usize {
+    DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB
 }
 
 pub fn bool_true() -> bool {
