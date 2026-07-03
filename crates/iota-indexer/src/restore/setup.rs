@@ -21,7 +21,7 @@ const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 const DEVNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.devnet.iota.cafe";
 
-const VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS: Duration = Duration::from_secs(5);
+const VERIFY_COMPLETED_SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, strum_macros::AsRefStr, ValueEnum)]
 #[strum(serialize_all = "lowercase")]
@@ -151,7 +151,7 @@ impl FormalSnapshotStore {
     async fn verify_completed_snapshot(&self, epoch: u64) -> IndexerResult<()> {
         let success_marker_path = format!("epoch_{epoch}/{SUCCESS_MARKER}");
         let backoff = backoff::ExponentialBackoff {
-            max_elapsed_time: Some(VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS),
+            max_elapsed_time: Some(VERIFY_COMPLETED_SNAPSHOT_TIMEOUT),
             ..Default::default()
         };
         let path = success_marker_path.as_str().into();
