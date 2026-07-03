@@ -1193,6 +1193,7 @@ impl CheckpointBuilder {
             // Min interval has elapsed, we can now coalesce and build a checkpoint.
             last_height = Some(height);
             last_timestamp = Some(current_timestamp);
+            let commits_in_checkpoint = grouped_pending_checkpoints.len();
             debug!(
                 checkpoint_commit_height_from = grouped_pending_checkpoints
                     .first()
@@ -1208,6 +1209,11 @@ impl CheckpointBuilder {
                 .await
             {
                 Ok(seq) => {
+                    // Count only on success; a failed build retries the same
+                    // group and would otherwise double-count it.
+                    self.metrics
+                        .commits_per_checkpoint
+                        .observe(commits_in_checkpoint as f64);
                     // Advance the window anchor to the highest checkpoint just
                     // built (a single call may emit several when chunked).
                     last_seq = Some(seq);
