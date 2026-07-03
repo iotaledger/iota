@@ -163,6 +163,13 @@ impl ExecutionSchedulerWrapper {
             ))
         }
     }
+
+    /// Whether the new `ExecutionScheduler` is in use (vs the legacy
+    /// `TransactionManager`). Used by tests to assert which implementation a
+    /// parameterized run actually selected, guarding against a silent fallback.
+    pub fn uses_execution_scheduler(&self) -> bool {
+        matches!(self, Self::ExecutionScheduler(_))
+    }
 }
 
 impl ExecutingGuard {

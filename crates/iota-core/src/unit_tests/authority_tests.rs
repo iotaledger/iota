@@ -91,6 +91,7 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
+    execution_scheduler::ExecutionSchedulerAPI,
     test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
     transaction_input_loader::TransactionInputLoader,
 };
@@ -7029,6 +7030,176 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     // TODO: tx2 should have a status (dropped)
     // assert!(
     //     epoch_store
+}
+
+/// Seam test: proves the P-COOL post-consensus resolver hands its conflict
+/// winner to the *active scheduler* and that the winner actually executes while
+/// the dropped loser never does — parameterized over both schedulers so the
+/// migration is verified to be behavior-preserving at this seam.
+///
+/// This completes the `TODO`s left in
+/// `test_post_consensus_white_flag_simple_conflict` (which stops at "winner is
+/// executable"): here we additionally enqueue the survivor and observe real
+/// execution.
+///
+/// The execution signal is observed black-box via the shared write path
+/// (`executed_effects_digests` notify-read), not any
+/// TransactionManager-specific hook, so the assertion is identical for both
+/// schedulers.
+async fn survivor_executes(use_execution_scheduler: bool) {
+    telemetry_subscribers::init_for_testing();
+
+    // Select the scheduler before the authority is built (read by
+    // `ExecutionSchedulerWrapper::new`). Both env vars are set explicitly so the
+    // choice is pinned regardless of `DEFAULT_USE_EXECUTION_SCHEDULER`; the
+    // `uses_execution_scheduler()` assertion below double-checks it.
+    // nextest/simtest run each test in its own process, so this does not leak
+    // between entry points. SAFETY (edition 2021): plain env mutation, no other
+    // threads race here.
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
+
+    // Enable the P-COOL flow.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Setup: two transactions competing for the same owned object.
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient1 = dbg_addr(2);
+    let recipient2 = dbg_addr(3);
+    let object_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
+
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient1,
+        object.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let verified_tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient2,
+        object.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let sequenced_txs = vec![
+        SequencedConsensusTransaction::new_test(consensus_tx1),
+        SequencedConsensusTransaction::new_test(consensus_tx2),
+    ];
+
+    // Run the full post-consensus pipeline (validation + owned-object conflict
+    // resolution). Only the winner (tx1, first in consensus order) survives.
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_txs,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        executable_txs.len(),
+        1,
+        "only the conflict winner should survive post-consensus validation"
+    );
+    assert_eq!(
+        executable_txs[0].inner().transaction_data().digest(),
+        *verified_tx1.digest(),
+        "the survivor should be tx1 (first in consensus order)"
+    );
+
+    // Confirm the wrapper selected the scheduler this run is meant to exercise
+    // (guards against a silent fallback making the test pass for the wrong
+    // implementation).
+    assert_eq!(
+        authority.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
+
+    // Hand the survivor to the active scheduler via the `enqueue` seam. In
+    // production the consensus handler submits through AsyncTransactionScheduler;
+    // here we enqueue directly to keep the test focused on the seam.
+    authority
+        .execution_scheduler()
+        .enqueue(executable_txs, &epoch_store);
+
+    // The winner's owned input is available, so it must become ready and execute.
+    // Bound the wait so a regression where the scheduler never makes the winner
+    // ready fails clearly instead of hanging until the harness slow-timeout.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects(&[*verified_tx1.digest()]),
+    )
+    .await
+    .expect("conflict winner did not execute within 20s after being enqueued")
+    .unwrap();
+    assert!(
+        authority.is_tx_already_executed(verified_tx1.digest()),
+        "the conflict winner must execute after being enqueued"
+    );
+
+    // The dropped loser was never enqueued, so it must never execute.
+    assert!(
+        !authority.is_tx_already_executed(verified_tx2.digest()),
+        "the dropped conflict loser must not execute"
+    );
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_transaction_manager() {
+    survivor_executes(false).await;
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() {
+    survivor_executes(true).await;
 }
 
 #[tokio::test]

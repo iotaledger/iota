@@ -3457,6 +3457,13 @@ impl AuthorityState {
         &self.execution_scheduler
     }
 
+    /// Whether this authority runs the new `ExecutionScheduler` (vs the legacy
+    /// `TransactionManager`). Used by tests to confirm the scheduler under
+    /// test.
+    pub fn uses_execution_scheduler(&self) -> bool {
+        self.execution_scheduler.uses_execution_scheduler()
+    }
+
     /// Adds transactions / certificates to transaction manager for ordered
     /// execution.
     pub fn enqueue_transactions_for_execution(
