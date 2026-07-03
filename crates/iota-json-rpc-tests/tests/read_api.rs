@@ -1612,7 +1612,7 @@ async fn try_get_past_object_deleted() {
         .data
         .unwrap();
 
-    let arg = CallArg::ImmutableOrOwned(iota_sdk_types::ObjectReference::new(
+    let arg = CallArg::ImmutableOrOwned(ObjectReference::new(
         created_object.object_id,
         created_object.version,
         created_object.digest,

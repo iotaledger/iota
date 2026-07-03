@@ -2,15 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectReference;
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::Owner;
-use iota_types::{
-    base_types::{SequenceNumber},
-    digests::ObjectDigest,
-};
+use iota_sdk_types::{ObjectReference, Owner};
+use iota_types::{base_types::SequenceNumber, digests::ObjectDigest};
 use serde::Deserialize;
 
 use crate::board::Board;

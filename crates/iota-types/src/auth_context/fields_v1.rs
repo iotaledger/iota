@@ -17,7 +17,7 @@ use crate::{
 pub const CALL_ARG_MODULE_NAME: &IdentStr = ident_str!("ptb_call_arg");
 pub const CALL_ARG_STRUCT_NAME: &IdentStr = ident_str!("CallArg");
 pub const OBJECT_ARG_STRUCT_NAME: &IdentStr = ident_str!("ObjectArg");
-pub const OBJECT_REF_STRUCT_NAME: &IdentStr = ident_str!("ObjectReference");
+pub const OBJECT_REF_STRUCT_NAME: &IdentStr = ident_str!("ObjectRef");
 
 pub const COMMAND_MODULE_NAME: &IdentStr = ident_str!("ptb_command");
 pub const COMMAND_STRUCT_NAME: &IdentStr = ident_str!("Command");
