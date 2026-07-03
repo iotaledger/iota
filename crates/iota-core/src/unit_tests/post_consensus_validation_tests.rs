@@ -2604,3 +2604,72 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
          is still locked"
     );
 }
+
+/// A transient input-load miss must NOT drop a sequenced `UserTransactionV1`.
+/// V1's post-consensus path (`handle_transaction_validation_checks` ->
+/// `read_objects_for_validation`) loads owned inputs at their referenced
+/// versions; post-consensus validation runs ahead of execution, so a
+/// not-yet-executed predecessor's output reads back as `ObjectNotFound`.
+/// Dropping on it is per-node and forks the checkpoint. RED before the fix,
+/// GREEN after.
+#[sim_test]
+async fn test_v1_transient_missing_input_must_not_drop() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Reference the object at version+1 — the version a predecessor tx WOULD have
+    // produced but that is absent from this node's store.
+    // `read_objects_for_validation` (inside
+    // `handle_transaction_validation_checks`) returns ObjectNotFound for it.
+    let absent_ref = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version.next().unwrap(),
+        object_ref.digest,
+    );
+
+    let tx =
+        make_transfer_object_transaction(absent_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, _locks, _user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    // FIX INVARIANT (RED until implemented): a transient input-load miss must NOT
+    // drop a sequenced V1 tx. Today it drops via
+    // handle_transaction_validation_checks (ObjectNotFound); because that
+    // decision depends on local store timing, it diverges checkpoint roots
+    // across validators -> fatal fork. The tx must instead be kept until its
+    // input is available.
+    assert!(
+        dropped.is_empty(),
+        "transient ObjectNotFound must NOT drop a sequenced UserTransactionV1 -- a \
+         per-node drop forks the checkpoint; the tx should be kept until its \
+         input arrives. Got dropped={dropped:?}",
+    );
+}

@@ -64,7 +64,7 @@ use iota_types::{
     attestation::Attestation,
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
@@ -433,14 +433,40 @@ pub async fn validate_and_resolve_conflicts(
                     if e.is_storage_or_epoch_error() {
                         return Err(e);
                     }
-                    warn!(
-                        ?digest,
-                        error = ?e,
-                        "UserTransactionV1 failed post-consensus deny checks, dropping"
-                    );
-                    dropped.push((digest, e));
-                    keep[i] = false;
-                    continue;
+                    // These checks load the owned inputs at their referenced
+                    // versions (`read_objects_for_validation`). Post-consensus
+                    // validation runs ahead of execution, so a not-yet-executed
+                    // predecessor's output reads back as `ObjectNotFound` -- a
+                    // per-node, timing-dependent condition. Dropping on it would
+                    // make checkpoint membership non-deterministic and fork the
+                    // chain. Keep the transaction: its inputs are present at
+                    // execution (dependency order), where these checks re-run.
+                    if matches!(
+                        &e,
+                        IotaError::UserInput {
+                            error: UserInputError::ObjectNotFound { .. }
+                                | UserInputError::ObjectVersionUnavailableForConsumption { .. }
+                        }
+                    ) {
+                        debug!(
+                            ?digest,
+                            error = ?e,
+                            "UserTransactionV1 inputs not yet available post-consensus; keeping for execution"
+                        );
+                        // The inputs could not be loaded, so no owner-filtered
+                        // set exists. Fall back to the probed references, the
+                        // same set `UserTransactionV2` locks.
+                        owned_inputs.clone()
+                    } else {
+                        warn!(
+                            ?digest,
+                            error = ?e,
+                            "UserTransactionV1 failed post-consensus deny checks, dropping"
+                        );
+                        dropped.push((digest, e));
+                        keep[i] = false;
+                        continue;
+                    }
                 }
             }
         } else {
