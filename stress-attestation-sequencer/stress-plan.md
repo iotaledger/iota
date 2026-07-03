@@ -88,6 +88,13 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
 
 ## Current test framework: what it can and cannot do
 
+> [!NOTE]
+> The `iota-benchmark` stress tool now lives in the sibling repository
+> [`network-benchmark`](https://github.com/iotaledger/network-benchmark)
+> (`crates/iota-benchmark/`), not in this monorepo. It is built against the `iota`
+> commit under test and produces the `iotaledger/stress` docker image. The
+> workload and knob references below live in that repo.
+
 - The `iota-benchmark` stress tool has two submission paths, and only one
   exercises attestation:
   - Direct to validators (`--local`, or remote with
@@ -114,11 +121,14 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
     `--shared-counter-hotness-factor`, `--num-shared-counters`,
     `--shared-counter-max-tip-amount`. This is the W1 baseline and the main
     workload for comparing the congestion modes against each other.
-  - `--slow`: runs the Move call `slow::bimodal` and adds a mutable
-    shared-object input specifically to activate congestion control, so it is a
-    shared-object transaction with variable / heavy computation. Best workload
-    for W5 (heavy compute) and for the scheduling-accuracy check, since the
-    attested cost actually varies.
+  - `--slow`: runs the clock-driven Move call `slow::bimodal` (two hardcoded cost
+    levels toggled every 10s) and adds a mutable shared-object input specifically
+    to activate congestion control, so it is a shared-object transaction with
+    variable / heavy computation. The workload for W4 (owned-object, used for H1)
+    and W5 (shared-object, for the mode comparisons and the scheduling-accuracy
+    check), since the attested cost actually varies. (Extended for this plan with
+    configurable knobs — see the "Configurable slow mode" entry under workloads
+    added below.)
   - `--adversarial`: generates max-resource / edge-case transactions
     (selectable payload types: large objects / events / runtime vectors / pure
     arguments, dynamic-field reads, max shared-object reads, max package
@@ -140,7 +150,13 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
     Move call on a shared object.
   - Other workloads exist but are mostly owned-object, so they do not exercise
     per-object congestion control and are not relevant here.
-- Workloads to be added to the `iota-benchmark` stress:
+- Workloads added or to be added in the `iota-benchmark` stress:
+  - Configurable slow mode (added): `--slow-n` / `--slow-size` select the fixed
+    `slow::slow(n, size)` cost, and `--slow-shared` toggles a shared vs
+    owned-object input - giving W5 (shared-object, cost sweep) and W4
+    (owned-object, pure compute, used for H1). Previously `--slow` ran only the
+    clock-driven `slow::bimodal` with a shared input (two hardcoded cost levels,
+    not settable). See the `--slow` entry above.
   - W2 (inflated budget): a gas-budget knob, so a shared-object workload can set
     its gas budget well above its real computation cost (one run per 1x / 10x /
     100x ratio). No such knob exists today (`options.rs` has none) and
@@ -285,8 +301,9 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ## What we want to check/confirm
 
-- H1 - attestation overhead: measure and report what attestation costs, from
-  W4 (V1 vs V2): `validator_attestation_latency`, and the V1->V2 deltas in
+- H1 - attestation overhead: measure and report what attestation costs, using
+  W4 traffic (slow owned-object) run V1 vs V2:
+  `validator_attestation_latency`, and the V1->V2 deltas in
   `settlement_finality_latency`, `submit_transaction_latency`, and container
   CPU. Only report the numbers; no pass/fail threshold.
 - H2 - new mode vs `TotalTxCount`: measure and report the difference in
@@ -303,6 +320,10 @@ They are needed for the testing only, not to be merged to upstream branches.
   report the numbers; no pass/fail threshold.
 - H4 - safety: no transactions get stuck and no validators fork. This one is
   pass/fail: any occurrence is a failure, not a number to report.
+  - Note: H4 caught a real fork on the attested path -
+    `check_coin_deny_list_for_attested_tx` dropped transactions on a transient
+    post-consensus input-load race, diverging checkpoints. Root-caused and fixed
+    (see stress-test.md H4 warning); tracked in iota-private#438.
 
 ---
 
@@ -368,35 +389,48 @@ They are needed for the testing only, not to be merged to upstream branches.
   without breaking the attestation or scheduling path.
 - Tests: supports H4 (safety) - aborts must not break attestation or scheduling.
 
-### W4 - V1 vs V2 (attestation overhead)
+### W4 - slow owned-object transactions (attestation overhead, V1 vs V2)
 
 - Network parameters: white-flag flow on; two runs at the same mode
   (`TotalComputationUnits`): (i) attestation off (all V1, fallback
   `gas_budget / gas_price`) and attestation on (all V2, attested computation
   cost). The two kinds never coexist in a run.
-- Stress parameters: the same workload, seed, and rate in both runs (e.g., W1 or
-  W5 traffic). Uses existing workloads.
-- Measure: compare scheduling and throughput between the two runs.
+- Stress parameters: `--slow` in owned-object mode (`--slow-shared false`), so the
+  transactions are pure per-transaction compute with no shared-object congestion
+  control to confound the A↔B delta; sweep `--slow-n`/`--slow-size` across the
+  compute range; same workload, seed, and rate in both runs.
+- Measure: diff scheduling, throughput, and latency between the two runs.
 - Tests: H1. The V1 run is the zero-attestation control, so this isolates
   attestation overhead: diff the e2e latency (`settlement_finality_latency`,
   `submit_transaction_latency`), the validator `validator_attestation_latency`,
   and container CPU.
 
-### W5 - heavy / variable-computation transactions
+### W5 - slow shared-object transactions
 
 - Network parameters: attestation on, white-flag flow on; one run per mode
   (especially `TotalComputationUnits` vs `TotalTxCount` / `TotalGasBudget`);
   per-object cost limit set per mode to the same effective capacity, not the
   same numeric value (see P0b); watch the overshoot limit.
-- Stress parameters: `--slow` (runs `slow::bimodal`) with a mutable
-  shared-object input to activate congestion control, giving real, varying
-  computation cost; raise the rate to saturation. Uses the existing workload.
+- Stress parameters: the same configurable `--slow` workload as W4 but in
+  shared-object mode (`--slow-shared true`, the default), which attaches a mutable
+  shared-object input to activate congestion control; set `--slow-n`/`--slow-size`
+  to run the fixed `slow::slow(n, size)` for a controllable per-transaction
+  compute cost; sweep `n`/`size` for a real, varying cost spread and raise the
+  rate to saturation.
+- Note on the workload: W4 (owned) and W5 (shared) are the same `--slow` workload
+  with `--slow-shared` toggled. The `--slow-n`/`--slow-size` (fixed, controllable
+  cost) and `--slow-shared` (shared vs owned) knobs were added for this plan;
+  originally `--slow` only ran `slow::bimodal`, which is clock-driven rather than
+  configurable - it toggles every 10s between two hardcoded levels
+  (`slow(100, 100)` heavy / `slow(10, 10)` light), so the per-tx cost was limited
+  to two discrete points chosen by wall-clock timing. Leaving both `--slow-n` and
+  `--slow-size` unset still selects the old bimodal behavior.
 - Measure and test: `TotalComputationUnits` should defer these correctly without
   overloading execution; throughput vs the other modes. Best workload for the
   scheduling-accuracy check (attested vs actual ratio near 1.0). This is where
   variable cost makes the new mode behave differently from `TotalTxCount`.
 - Tests: H3 (accuracy ratio near 1.0) and the cost-based differentiation behind
-  H2/H3.
+  H2/H3. To be run later.
 
 ### W6 - under-reporting attestor
 
@@ -554,7 +588,7 @@ transaction rate until it saturates.
 2. Setup. Rebuild the docker images with those changes, bootstrap, bring up the
    network and monitoring (`start.sh`), set the per-mode cost limit, and verify
    the overrides applied (P0b, P0c).
-3. H1 - attestation overhead (W4): V1 vs V2.
+3. H1 - attestation overhead (W4, owned-object): V1 vs V2.
 4. H2 - new mode vs `TotalTxCount` (W1).
 5. H3 - new mode vs `TotalGasBudget`, plus accuracy (W2, W5).
 6. H4 - safety / robustness: W6, W7, one run per cost limit, fallback.

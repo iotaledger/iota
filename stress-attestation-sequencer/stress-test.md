@@ -3,12 +3,11 @@
 Running log of the stress tests from `stress-plan.md`: the exact commands,
 the results of each run, and a brief analysis.
 
-All commands are run from the `iota` monorepo root unless noted. Paths assume
-the local private network under `dev-tools/iota-private-network/`.
+All commands are run from the `iota` monorepo root unless noted.
 
 ---
 
-## H1 — attestation overhead (W4: V1 vs V2)
+## H1 — attestation overhead (W4: slow owned-object; V1 vs V2)
 
 **Goal.** Measure what attestation costs. Attestation (the pre-consensus
 dry-run) happens in the `submit_tx` path independent of the congestion mode, so
@@ -110,11 +109,15 @@ dry-run.
 `consensus_handler_validation_dropped_transactions` is non-zero only on A
 (attestation OFF), and only at high per-transaction load: slow200-v-q1000
 ≈ 64/s, slow200-v-q2000 ≈ 43/s, slow200-f-q2000 ≈ 2/s, slow200-f-q1000 ≈ 0.8/s,
-slow500-v-q200 ≈ 0.35/s. B (attestation ON) shows zero drops in every
-configuration. A and B run identical inputs on a fresh genesis, so this is a real
-correlation with attestation state, but the mechanism (why unattested
-transactions get dropped post-consensus under load, while attested ones do not)
-is not established here and warrants a dedicated follow-up.
+slow500-v-q200 ≈ 0.35/s. B (attestation ON) shows near-zero drops in every
+configuration — but note these runs carry the coin-deny fix (see the H4
+warning), which converts attested transactions' transient post-consensus
+load-error drops into keeps. Those are the same drops that previously hit the
+attested path and forked it, so B's zero is partly the fix, not an intrinsic
+property of attestation. The open question is the V1 side: the unattested path
+still drops under load via `handle_transaction_validation_checks` (the same
+input-loading path), yet V1 does not fork. That asymmetry warrants a dedicated
+follow-up.
 
 **7. Compute-unit accounting is exact.** Attested computation units equal actual
 computation units for every owned-object configuration (ratio = 1.0), confirming
@@ -142,7 +145,10 @@ throughput/liveness observation, not a safety-counter failure.
 > test-branch fix that drops only on a genuine deny-list verdict
 > (`CoinTypeGlobalPause` / `AddressDeniedForCoin`) and keeps the transaction on
 > any load error (its inputs are present at execution, where the V1 deny-list check
-> still catches global-pause / denied recipients). Tracking:
+> still catches global-pause / denied recipients). The fix lives on
+> `protocol-research/fix/attestation-coin-deny-post-consensus-drop-fork` and is
+> confirmed: the same workload that forked ~35 % of iterations ran 10/10 clean on
+> EPYC (no restarts, no `exit=139`). Tracking:
 > [iota-private#438](https://github.com/iotaledger/iota-private/issues/438#issuecomment-4866911507).
 
 ### Takeaway
