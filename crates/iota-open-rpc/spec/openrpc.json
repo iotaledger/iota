@@ -2029,6 +2029,9 @@
                   "u32": "7"
                 },
                 "multisig_multisig_validate_pubkey_cost_base": null,
+                "multisig_multisig_validate_pubkey_cost_per_ed25519_member": null,
+                "multisig_multisig_validate_pubkey_cost_per_secp256k1_member": null,
+                "multisig_multisig_validate_pubkey_cost_per_secp256r1_member": null,
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
