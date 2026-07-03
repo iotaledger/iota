@@ -9,32 +9,26 @@ build_one() {
   local subdir="$1"
   pushd "$REPO_ROOT/docker/$subdir" >/dev/null
   ./build.sh
-  # Capture rc explicitly: when build_all is called from a conditional (`if`,
-  # `||`), bash suspends `set -e` inside the function body, so a failed
-  # ./build.sh would otherwise be masked by a successful popd.
+  # Capture rc across popd: set -e is suspended inside a function called from
+  # a conditional, so a failed ./build.sh must be propagated explicitly.
   local rc=$?
   popd >/dev/null
   return $rc
 }
 
 build_all() {
-  # `&&` chain (not just sequential calls): when build_all is called from a
-  # conditional, bash suspends `set -e` inside the function, so without the
-  # short-circuit a failed iota-node build would still let iota-indexer and
-  # iota-tools run, and build_all would return the last call's exit code —
-  # masking the earlier failure from build_all_with_retry.
+  # &&-chain so a failed build short-circuits instead of running the rest and
+  # returning only the last build's status.
   build_one iota-node \
     && build_one iota-indexer \
     && build_one iota-tools
 }
 
-# Symmetric to the post-build HEAD-vs-label check below: when BuildKit's cargo
-# cache mount has stale .rlib files (e.g., after a develop rebase removed a
-# symbol the working tree still references), the inner `cargo build` fails
-# before any image is produced — so the post-build verifier can't catch it.
-# Try the build once against the existing cache; on failure prune just the
-# cache mounts and retry once. A second failure means staleness was not the
-# issue, so propagate that exit code and let the user see the real error.
+# BuildKit's cargo cache mount can serve stale .rlib files (e.g. after a
+# develop rebase removed a symbol the working tree still references), failing
+# the inner `cargo build` before any image is produced. Try once against the
+# existing cache; on failure prune just the cache mounts and retry once. A
+# second failure is a real error — propagate it.
 build_all_with_retry() {
   if build_all; then
     return 0
@@ -46,13 +40,9 @@ build_all_with_retry() {
   build_all
 }
 
-# Verify each image's git-revision label matches HEAD. BuildKit's cargo-cache
-# mount can silently serve a stale binary across rebuilds even when crates/
-# source changed. The official
-# Docker Hub `iotaledger/iota-{node,tools,indexer}:latest` tags can also clobber
-# the local tag via an implicit `docker pull` from external tooling. In both
-# cases the resulting binary's git-revision won't match HEAD, so we detect and
-# self-heal here rather than silently running stale code.
+# Verify each image's git-revision label matches HEAD: a stale cargo cache
+# mount, or an implicit `docker pull` retagging :latest, can leave an image
+# whose binary predates HEAD. Detect and self-heal rather than run stale code.
 HEAD_REV="$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD)"
 
 verify_image() {
@@ -82,12 +72,8 @@ echo "=== Verifying built images match HEAD ($HEAD_REV) ==="
 if ! verify_all; then
   echo
   echo "=== Stale image(s) detected — pruning cache mounts and rebuilding once ==="
-  # Only prune `--mount=type=cache` data (cargo target, cargo registry, cargo git).
-  # The plain layer cache (Debian base, apt steps, etc.) is preserved so other
-  # users on this shared Docker daemon don't pay a from-scratch rebuild cost when
-  # our verifier fires on a tag revert. This narrow prune is sufficient because
-  # the staleness path is always BuildKit's cargo cache mount serving outdated
-  # compilation output — not stale Dockerfile layers.
+  # Prune only the cargo cache mounts (target/registry/git); keep the layer
+  # cache so other users on this shared daemon don't pay a full rebuild.
   docker builder prune -f --filter type=exec.cachemount
   build_all
   echo

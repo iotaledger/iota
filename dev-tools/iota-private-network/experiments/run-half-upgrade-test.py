@@ -5,24 +5,13 @@
 
 """Half-network upgrade test.
 
-Brings up all validators on a released image, then mid-epoch-0 rolls out the
-locally-built upgrade image to a deterministic random half of the network.
-Observes the resulting mixed-binary network for one full epoch (protocol
-stays at the lower-of-the-two MAX_PROTOCOL_VERSION values because the
-new-binary half doesn't reach 2f+1 supermajority). Mid-epoch-1, upgrades the
-remaining half. After the next epoch boundary the network has unanimous
-support for the higher protocol version (if HEAD's MAX_PROTOCOL_VERSION is
-higher than the release image's), advances, and any new feature flags
-become active. Observes one final epoch under the new protocol.
-
-When HEAD's MAX_PROTOCOL_VERSION equals the release image's, no protocol
-advance occurs at any boundary — the test still exercises the heterogeneous
-binary path but only verifies stability, not feature-flag activation.
-
-Reuses the setup / latency / monitoring / phase plumbing from
-run-migration-test.py via importlib because hyphenated module names cannot
-be imported the normal way. The only orchestration-specific helpers we
-define locally are `split_halves` and `rolling_upgrade(indices)`.
+Brings up all validators on a released image, then mid-epoch-0 rolls the
+locally-built upgrade image out to a deterministic random half of the
+network. The mixed-binary network holds the lower of the two halves'
+MAX_PROTOCOL_VERSION values (the new-binary half is below 2f+1). Mid-epoch-1,
+upgrades the rest; after the next boundary the whole network supports (and,
+if HEAD's version is higher, advances to) the new protocol. Observes one
+final epoch.
 
 Run from: iota/dev-tools/iota-private-network/experiments/
 """
@@ -42,11 +31,9 @@ from pathlib import Path
 
 # ========================= Load migration_test as a module =========================
 #
-# `run-migration-test.py` contains all the heavy lifting (Config, docker_compose,
-# get_current_epoch / wait_for_epoch_change, phase1..phase7, phase10, log helpers,
-# cleanup, _read_validator_protocol_info, etc.). Hyphens block normal `import`,
-# so we load it via importlib. A future cleanup is to refactor those helpers
-# into a hyphen-free `migration_lib.py`; until then this is the pragmatic path.
+# run-migration-test.py holds the shared machinery (Config, phases, log
+# helpers, cleanup). Its hyphenated filename blocks a normal import, so load
+# it via importlib.
 
 _HERE = Path(__file__).resolve().parent
 _MIGRATION_PATH = _HERE / "run-migration-test.py"
@@ -78,8 +65,6 @@ phase3_bootstrap_genesis = mt.phase3_bootstrap_genesis
 phase4_start_validators = mt.phase4_start_validators
 phase5_start_monitoring = mt.phase5_start_monitoring
 phase6_apply_latency = mt.phase6_apply_latency
-phase7_wait_mid_epoch = mt.phase7_wait_mid_epoch
-phase10_observation = mt.phase10_observation
 cleanup = mt.cleanup
 _signal_handler = mt._signal_handler
 _C = mt._C
@@ -87,20 +72,13 @@ _C = mt._C
 
 # ========================= Patch Config for half-upgrade timing =========================
 #
-# Migration test's Config.__post_init__ reserves an epoch budget for both phase
-# 8 (rolling upgrade) AND phase 9 (restart-stress with/without DB wipe). The
-# half-upgrade test doesn't run phase 9 at all, so we override __post_init__
-# to zero the phase-9 budget and recompute mid_epoch_wait without it.
-#
-# Mode is forced to "advanced" because we use phase 7's mid-epoch wait and do
-# NOT use simple-mode block-production measurement. The new dataclass has a
-# few simple-mode-only fields (phase8_simple_estimate, pre_rolling_wait,
-# stable_window_seconds) that we set to safe placeholders for dataclass
-# completeness even though the half-upgrade test's flow does not consult them.
+# Override migration_test's __post_init__ to drop the phase-9 (restart-stress)
+# epoch budget this test never uses, and force advanced mode. Simple-mode-only
+# fields get placeholder values so the dataclass stays complete.
 
 
 def _half_upgrade_post_init(self: Config) -> None:
-    # Validation mirrored from migration_test.Config.__post_init__
+    # Input validation.
     mt.ec.validate_num_validators(self.num_validators)
     if self.load_qps < 0:
         raise ValueError("load qps must be >= 0")
@@ -108,8 +86,7 @@ def _half_upgrade_post_init(self: Config) -> None:
         raise ValueError("load in-flight ratio must be > 0")
     if self.load_transfer_objects <= 0:
         raise ValueError("load transfer objects must be > 0")
-    # Force advanced-mode semantics: we use phase 7 and skip simple-mode's
-    # block-production measurement.
+    # Force advanced mode: phase 7 wait, no simple-mode measurement.
     self.mode = "advanced"
 
     epoch_s = self.epoch_duration_ms // 1000
@@ -123,7 +100,7 @@ def _half_upgrade_post_init(self: Config) -> None:
     )
     self.fresh_db_restart_pause_min = self.rolling_restart_pause_min
     self.fresh_db_restart_pause_max = self.rolling_restart_pause_max
-    # Migration test pins this to 15s. Match that.
+    # 15s, matching the base config.
     self.protocol_probe_wait = 15
     self.restart_settle_wait = min(10, max(1, self.rolling_restart_pause_max // 3))
     self.restart_pause_keep_db = max(
@@ -135,9 +112,9 @@ def _half_upgrade_post_init(self: Config) -> None:
         n * (self.rolling_restart_pause_max + self.upgrade_delay)
         + self.protocol_probe_wait
     )
-    # *** Half-upgrade-specific: no restart-stress phase ***
+    # Half-upgrade-specific: no restart-stress phase.
     self.phase9_epoch0_worst_case = 0
-    # Simple-mode-only fields. Set safe placeholders for dataclass completeness.
+    # Simple-mode-only placeholders (unused in this test).
     self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait + 5
     self.pre_rolling_wait = 0
     self.stable_window_seconds = 0
@@ -179,13 +156,8 @@ Config.__post_init__ = _half_upgrade_post_init
 
 
 def split_halves(num_validators: int, seed: int) -> tuple[list[int], list[int]]:
-    """Deterministic random partition of [1..num_validators] into two halves.
-
-    First returned list has floor(N/2) entries (upgraded first, mid-epoch 0).
-    Second list has the remaining ceil(N/2) (upgraded mid-epoch 1).
-    Both lists are sorted for readability; the seeded shuffle determines
-    which validators go in which half, not the iteration order within.
-    """
+    """Deterministic random partition of [1..num_validators] into two sorted
+    halves: floor(N/2) upgraded first (mid-epoch 0), the rest second."""
     indices = list(range(1, num_validators + 1))
     random.Random(seed).shuffle(indices)
     half = num_validators // 2
@@ -193,12 +165,8 @@ def split_halves(num_validators: int, seed: int) -> tuple[list[int], list[int]]:
 
 
 def rolling_upgrade(cfg: Config, indices: list[int], label: str) -> None:
-    """Roll the given subset of validators forward to cfg.image_upgrade.
-
-    Mirrors the per-validator mechanism of run-migration-test.py's
-    phase8_rolling_upgrade but takes an explicit list of validator indices
-    so it can be called twice (once per half) instead of iterating all.
-    """
+    """Roll the given validator subset forward to cfg.image_upgrade, one at a
+    time with a randomized offline pause. Called once per half."""
     env_path = cfg.network_dir / cfg.env_migration_file
     rng = random.Random(cfg.seed + sum(indices))  # tied to the subset for determinism
 
@@ -255,12 +223,9 @@ def rolling_upgrade(cfg: Config, indices: list[int], label: str) -> None:
 
 
 def _wait_for_epoch_with_log_save(cfg: Config, epoch_before: int) -> int:
-    """Like migration_test.wait_for_epoch_change but also saves validator logs
-    every cfg.log_interval seconds during the wait. The migration test's wait
-    polls every 30 s without saving logs, so for long waits (e.g. a full epoch)
-    we lose the live-log snapshot of that whole window. This version preserves
-    it.
-    """
+    """Wait for the epoch to advance past `epoch_before`, saving validator
+    logs every cfg.log_interval seconds during the wait. Returns the new
+    epoch (or the current one if the timeout elapses)."""
     timeout = cfg.epoch_duration_ms // 1000 * 3 // 2  # 1.5x epoch duration
     start = time.time()
     last_log_save = start
@@ -291,10 +256,8 @@ def _wait_for_epoch_with_log_save(cfg: Config, epoch_before: int) -> int:
 
 
 def _wait_mid_epoch(cfg: Config, epoch_start: float, phase_label: str) -> None:
-    """Local copy of migration test's phase7_wait_mid_epoch with a customizable
-    banner label so the half-upgrade test's two mid-epoch waits get monotonic
-    phase numbers (7a, 7b) instead of both reading "PHASE 7".
-    """
+    """Wait until mid-epoch before the rolling upgrade, with a caller-supplied
+    phase-banner label."""
     phase_start = time.time()
     epoch_s = cfg.epoch_duration_ms // 1000
     elapsed = int(time.time() - epoch_start)
@@ -341,13 +304,8 @@ def phase11_second_half(cfg: Config, second_half: list[int]) -> None:
 
 
 def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tuple[int, float]:
-    """Wait through the 0->1 boundary, then hold the mixed-binary network
-    through `cfg.mid_observation_epochs` extra full epochs. Protocol version
-    is expected to stay at the lower of the two halves' MAX_PROTOCOL_VERSION
-    values because the new-binary half is below 2f+1. Returns
-    (current_epoch, current_epoch_start_time) — the most recent epoch and
-    when it started, used to anchor the next mid-epoch wait.
-    """
+    """Hold the mixed-binary network from the 0→1 boundary through
+    `cfg.mid_observation_epochs` extra epochs. Returns (epoch, epoch_start)."""
     phase_start = time.time()
     log(_phase_banner("Waiting for epoch 0→1 transition (mixed binaries)", "PHASE 9"))
 
@@ -384,13 +342,9 @@ def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tup
 
 
 def phase12_observe_upgraded(cfg: Config, epoch_1: int) -> int:
-    """Wait through the next epoch boundary. If HEAD's MAX_PROTOCOL_VERSION
-    is higher than the release image's, the protocol advances here (whole
-    network now supports the new version) and any new feature flags become
-    active; otherwise the protocol stays put and this is just steady-state
-    observation. Holds the resulting state for `cfg.post_observation_epochs`
-    additional full epochs. Periodically saves validator logs throughout.
-    """
+    """Cross the post-upgrade epoch boundary (protocol advances here if HEAD's
+    version is higher), then hold `cfg.post_observation_epochs` extra epochs.
+    Returns the final epoch."""
     phase_start = time.time()
     log(_phase_banner("Waiting for post-second-half-upgrade epoch boundary", "PHASE 12"))
 
@@ -509,14 +463,9 @@ def parse_args() -> argparse.Namespace:
         "--head-only",
         action="store_true",
         help=(
-            "Start every validator on the locally-built HEAD image from the "
-            "very beginning (image_old := image_upgrade) instead of on the "
-            "release image. All phases still run; the rolling 'upgrades' "
-            "in phases 8 and 11 become same-binary restarts. Used to isolate "
-            "orchestrator overhead (compose file, network-benchmark.sh) from "
-            "binary-version effects: compare the pre-phase-8 window of a "
-            "--head-only run against the same window of a normal run, where "
-            "the only difference is release vs HEAD binary."
+            "Start every validator on the locally-built HEAD image from "
+            "genesis (rolling upgrades become same-binary restarts). Isolates "
+            "orchestrator overhead from binary-version effects."
         ),
     )
     return parser.parse_args()
@@ -528,12 +477,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # The other orchestrators (run-fuzz, run-benchmark, run-migration-test)
-    # all acquire /tmp/iota-experiments.lock at startup. They share container
-    # names, the docker network, and the tc/iptables state on validators —
-    # concurrent runs silently corrupt each other (one run's cleanup tears
-    # down the other run's network mid-flight). Acquire it here too so the
-    # half-upgrade test plays nicely alongside them.
+    # Shared with the other orchestrators via /tmp/iota-experiments.lock: they
+    # share container names, the docker network, and validator tc/iptables
+    # state, so concurrent runs corrupt each other. Acquire it here too.
     mt.ec.acquire_single_run_lock("run-half-upgrade-test.py")
 
     try:
@@ -552,8 +498,7 @@ def main() -> None:
 
     # Distinct log file from the migration test so transcripts don't get clobbered
     cfg.log_file = cfg.log_dir / "half_upgrade_script_latest.log"
-    # Attach half-upgrade-specific observation knobs (extra attrs on the Config
-    # instance — Config is a non-frozen dataclass so this is allowed).
+    # Extra observation knobs (Config is a non-frozen dataclass).
     cfg.mid_observation_epochs = max(0, args.mid_observation_epochs)
     cfg.post_observation_epochs = max(0, args.post_observation_epochs)
     cfg.head_only = bool(args.head_only)
@@ -563,9 +508,7 @@ def main() -> None:
         print("Error: run from experiments/", file=sys.stderr)
         sys.exit(1)
 
-    # Routes future log() calls to the half-upgrade-specific log file. The
-    # function also mkdir -p's log_dir; migration test's cleanup() will close
-    # the handle via ec.close_logging().
+    # Route log() to the half-upgrade log file.
     mt.ec.setup_logging(cfg.log_file)
 
     atexit.register(cleanup)
@@ -595,12 +538,8 @@ def main() -> None:
     # --- Setup phases (reused from migration test) ---
     local_branch, local_commit = phase1_docker_images(cfg)
 
-    # In head-only mode, every validator starts directly on the HEAD-built
-    # image. Overriding image_old here means phase2's compose template, phase4's
-    # boot, and the env-file substitution all see the upgrade image as the
-    # default. We deliberately do this AFTER phase1 so phase1's release-image
-    # pull/tag still runs (it's cached anyway, and keeping the unconditional
-    # pull avoids forking the phase1 logic just for this mode).
+    # head-only: every validator starts on the HEAD image. Do this after
+    # phase1 so its (cached) release-image pull still runs unchanged.
     if cfg.head_only:
         log(
             f"  {_C.BOLD}--head-only{_C.RESET}: overriding image_old "
@@ -632,12 +571,9 @@ def main() -> None:
     epoch_0 = get_current_epoch()
     epoch_1, epoch_1_start = phase9_observe_mixed(cfg, epoch_0_start, epoch_0)
 
-    # --- Second half upgrade — skip the mid-epoch wait so Phase 11 starts at
-    # the beginning of the current (mixed-binary) epoch. That leaves most of
-    # the epoch for an "all-on-HEAD on the still-old protocol" steady-state
-    # window before the next epoch boundary fires the protocol advance (if
-    # any). With -e 15 this is ~9 min of steady state instead of just the
-    # tail of the rolling-upgrade recovery.
+    # --- Second half upgrade — skip the mid-epoch wait so it rolls at the
+    # start of the mixed-binary epoch, leaving most of the epoch as all-on-HEAD
+    # steady state before the boundary fires the protocol advance.
     phase11_second_half(cfg, second_half)
 
     # --- Cross the post-upgrade epoch boundary (protocol advance if applicable) ---

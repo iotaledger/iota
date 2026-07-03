@@ -250,12 +250,10 @@ main() {
       exit 1
     fi
 
-  # Refuse to regenerate genesis / wipe data while another experiment runner
-  # holds the shared lock. Same env-var / flag bypass shape as cleanup.sh
-  # and run.sh; orchestrators pass IOTA_EXPERIMENT_LOCK_HELD=1 through sudo
-  # so the runner-internal `sudo ./bootstrap.sh` path skips this check.
-  # Read-only FD + shared flock: see cleanup.sh for the rationale (avoids
-  # false positives under fs.protected_regular).
+  # Refuse to regenerate genesis / wipe data while another runner holds the
+  # lock. Bypass via IOTA_EXPERIMENT_LOCK_HELD (orchestrators pass it through
+  # sudo) or an explicit -f. Read-only FD + shared flock avoid a false
+  # "locked" under fs.protected_regular.
   LOCK_PATH="/tmp/iota-experiments.lock"
   if [ "$FORCE" != "true" ] \
      && [ "${IOTA_EXPERIMENT_LOCK_HELD:-0}" != "1" ] \
@@ -269,9 +267,7 @@ main() {
 
   [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
 
-  # bootstrap.sh has already gated the lock above; pass -f so the inner
-  # cleanup.sh skips its (now-redundant) check rather than fighting the
-  # same lock we already saw is free.
+  # Lock already checked above; -f skips cleanup.sh's redundant re-check.
   [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh -f
 
   # Generate genesis template if missing

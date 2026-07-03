@@ -16,14 +16,12 @@ while getopts "n:fh" opt; do
 done
 shift $((OPTIND -1))
 
-# Refuse to bring up validators on top of another active experiment's
-# network — different docker compose project, same `iota-network` and
-# container names; recreates / port conflicts ensue. Same env-var /
-# explicit-flag bypass shape as cleanup.sh.
+# Refuse to bring up validators over another active run's network — same
+# `iota-network` and container names, so recreates / port conflicts ensue.
+# Bypass via IOTA_EXPERIMENT_LOCK_HELD or an explicit -f.
 LOCK_PATH="/tmp/iota-experiments.lock"
-# Read-only FD + shared flock: see cleanup.sh for the rationale (avoids
-# false positives under fs.protected_regular when the lock file was left
-# behind by a dead orchestrator from another user).
+# Read-only FD + shared flock avoid a false "locked" under fs.protected_regular
+# when a dead orchestrator left the lock file behind.
 if [ "$FORCE" != "true" ] \
    && [ "${IOTA_EXPERIMENT_LOCK_HELD:-0}" != "1" ] \
    && [ -f "$LOCK_PATH" ] \

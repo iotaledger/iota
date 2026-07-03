@@ -338,11 +338,8 @@ def acquire_single_run_lock(runner: str) -> None:
     )
     fh.flush()
     _run_lock_fh = fh  # keep the fd open: the flock dies with the process
-    # Signal child processes (bootstrap.sh -> cleanup.sh chain, plus any
-    # direct invocations of cleanup.sh / run.sh from within an orchestrator)
-    # that the shared lock is already held by their parent, so their own
-    # lock-checks should not fire. Default subprocess.run inherits env, so
-    # setting this in os.environ propagates cleanly.
+    # Child scripts (bootstrap.sh -> cleanup.sh, direct cleanup.sh/run.sh)
+    # inherit this and skip their own lock check, since we already hold it.
     os.environ["IOTA_EXPERIMENT_LOCK_HELD"] = "1"
 
 
@@ -747,12 +744,8 @@ def generate_compose_file(
 def bootstrap_genesis(network_dir: Path, num_validators: int, epoch_ms: int) -> None:
     """Run bootstrap.sh under sudo (writes the root-owned data dir).
 
-    `IOTA_EXPERIMENT_LOCK_HELD=1` is passed as a sudo command-line env
-    assignment so bootstrap.sh's (and its inner cleanup.sh's) lock check
-    bypasses — the orchestrator already holds the shared lock. sudo's
-    default env_reset strips inherited variables, so the explicit cmdline
-    assignment is required (relying on os.environ alone would not survive
-    sudo)."""
+    Passes the lock-held flag as a sudo cmdline assignment (sudo's env_reset
+    strips inherited env) so the child's lock check is bypassed."""
     run_timed(
         [
             "sudo", "IOTA_EXPERIMENT_LOCK_HELD=1",
@@ -962,12 +955,8 @@ def _update_or_clone_benchmark_repo() -> None:
 
 
 def ensure_iota_spammer_script() -> None:
-    """Verify the iota-spammer fuzz script is reachable BEFORE the network
-    comes up. Mirrors `ensure_stress_image` for the iota-spammer backend:
-    skipping the check leaves the run to fail in `start_spammer` ~5 minutes
-    in, after bootstrap + validator startup. The script lives in a separate
-    private repo, so a missing checkout is a likely-enough misconfiguration
-    to be worth surfacing up front."""
+    """Fail fast if the iota-spammer fuzz script is missing, before the
+    network comes up (otherwise the run fails in start_spammer ~5 min in)."""
     script = Path.home() / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
     if script.is_file():
         return
@@ -1211,11 +1200,8 @@ def stop_spammer(cfg, proc: subprocess.Popen[str] | None) -> None:
 
 def run_loop(cfg, prefix: str, final_prefix: str) -> str:
     """Sleep for cfg.run_duration with a progress bar, saving validator logs
-    every cfg.log_interval seconds and once more at the end.
-
-    Returns the timestamp string used for the final per-validator archives
-    (`{final_prefix}-<ts>-validator-<i>.log`) so callers can pass it on to
-    `post_run_canary`."""
+    every cfg.log_interval seconds and once more at the end. Returns the
+    timestamp used in the final archive filenames."""
     log(_phase_banner(
         f"Running for {cfg.run_duration}s (logs every {cfg.log_interval}s)", "RUN",
     ))
@@ -1279,23 +1265,13 @@ def post_run_canary(
     *,
     grace_seconds: int = 30,
 ) -> None:
-    """Post-run analysis that classifies panic/fork/split-brain markers in
-    per-validator archives, filtering shutdown-race noise by time-window
-    correlation.
+    """Classify panic/fork/split-brain markers in per-validator archives.
 
-    A panic in validator-N's archive is treated as expected shutdown noise
-    iff its timestamp falls within `grace_seconds` of a
-    `Stopping validator-N for ...` event in the fuzz log. The grace window
-    covers the tokio runtime-drop duration, during which receivers may be
-    cancelled before senders and the `.expect(...)` assertions on closed
-    channels fire.
-
-    Any marker that does not fall in such a window is logged as an
-    "unknown" hit and counts toward a `Canary FAILURE` verdict.
-
-    If `fuzz_log_path` is None, no shutdown windows are derived; every
-    marker is treated as unknown. Use this for orchestrators that never
-    restart validators mid-run (e.g. benchmark).
+    A marker within `grace_seconds` of a `Stopping validator-N` fuzz-log
+    event is treated as expected shutdown-race noise; anything else counts
+    toward a `Canary FAILURE` verdict. With `fuzz_log_path=None` there are no
+    shutdown windows, so every marker is unknown (for runners that never
+    restart validators mid-run, e.g. benchmark).
     """
     # Locate per-validator archives written by `run_loop`.
     archives = [
@@ -1339,9 +1315,8 @@ def post_run_canary(
                 continue
             ts_match = _VAL_LINE_TS_RE.match(line)
             if not ts_match:
-                # Marker on a line without a timestamp (continuation of a
-                # multi-line panic message). Skip; the first line of the
-                # panic carries the timestamp and is what we classify on.
+                # Continuation line of a multi-line panic; the first line
+                # carries the timestamp we classify on. Skip.
                 continue
             try:
                 ts = _parse_iso_utc(ts_match.group(1))
