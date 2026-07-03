@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Per-runtime observability for the tokio runtimes the node runs on.
@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
