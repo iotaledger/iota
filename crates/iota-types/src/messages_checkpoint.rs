@@ -119,10 +119,15 @@ impl Message for CheckpointSummary {
     }
 }
 
+mod checkpoint_summary_ext {
+    pub trait Sealed {}
+    impl Sealed for super::CheckpointSummary {}
+}
+
 /// Node-only helpers for [`CheckpointSummary`], which is defined in
 /// `iota_sdk_types`. These live on an extension trait because inherent methods
 /// cannot be added to a type that is foreign to this crate.
-pub trait CheckpointSummaryExt: Sized {
+pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
     fn new_with_protocol_config(
         protocol_config: &ProtocolConfig,
         epoch: EpochId,
