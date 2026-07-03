@@ -290,14 +290,22 @@ impl SharedObjVerManager {
         // have executed yet. Only the presence of the entry matters; the value
         // (the claim's Lamport version) is not read. Same-commit transfers are
         // dropped by the claim-conflict whiteflag before reaching version
-        // assignment. Claims cannot be sponsored, so only the sender's
-        // account is recorded.
+        // assignment. A claim mints the account at `ObjectId::from(sender)`
+        // (via `smart_account::claim_builder_v1`), so only the sender's account
+        // is recorded regardless of who sponsors gas.
+        //
+        // The marker is written whenever a claim is ordered and not cancelled,
+        // independent of whether the claim later succeeds. A claim that aborts
+        // at execution (e.g. a mismatched public key) still marks the sender for
+        // the epoch; this is deterministic and only affects a self-inflicted
+        // malformed claim, since a well-formed `claim_builder_v1` derives the
+        // sender's own address.
         if assign_implicit_accounts_flag
             && !txn_cancelled
             && transaction
                 .data()
                 .transaction_data()
-                .calls_smart_account_build_v1()
+                .claims_smart_account()
         {
             let account_id = ObjectId::from(transaction.data().transaction_data().sender());
             shared_input_next_versions.insert(account_id, next_version);
@@ -811,9 +819,9 @@ mod tests {
                 .obj(CallArg::Shared(SharedObjectRef::new(*id, *init, *mutable)))
                 .unwrap();
         }
-        // A MoveCall to `0x2::smart_account::build_v1` is what marks the transaction
-        // as a claim (matched by `calls_smart_account_build_v1`); the arguments are
-        // irrelevant to version assignment.
+        // The `ClaimRegistry` (`0x10`) passed as a mutable shared input is what
+        // marks the transaction as a claim (matched by `claims_smart_account`);
+        // the MoveCall and its arguments are irrelevant to version assignment.
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::new("smart_account").unwrap(),
@@ -845,12 +853,15 @@ mod tests {
     /// deterministically (without an execution-lag-dependent store read).
     #[tokio::test]
     async fn test_assign_versions_anchors_claimed_account() {
-        let registry = Object::shared_for_testing();
+        // The claim is detected by its use of the `ClaimRegistry` (`0x10`) as a
+        // mutable shared input, so the registry object must live at that id.
+        let registry = Object::with_id_owner_version_for_testing(
+            ObjectId::CLAIM_REGISTRY,
+            OBJECT_START_VERSION,
+            iota_sdk_types::Owner::Shared(OBJECT_START_VERSION),
+        );
         let registry_id = registry.id();
-        let registry_init_version = registry
-            .owner
-            .into_shared_opt()
-            .expect("expected shared object");
+        let registry_init_version = OBJECT_START_VERSION;
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_enable_move_authentication_for_testing(true);
         protocol_config.set_enable_builtin_move_authenticators_for_testing(true);

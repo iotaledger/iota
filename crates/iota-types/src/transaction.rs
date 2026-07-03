@@ -36,8 +36,7 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
@@ -72,11 +71,6 @@ pub const GAS_PRICE_FOR_SYSTEM_TX: u64 = 1;
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 
 const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
-
-/// `0x2::smart_account` module name.
-const SMART_ACCOUNT_MODULE_NAME: &str = "smart_account";
-/// `0x2::smart_account::build_v1` function name.
-const SMART_ACCOUNT_BUILD_V1_FUNCTION_NAME: &str = "build_v1";
 
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
@@ -587,7 +581,7 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
-    fn calls_smart_account_build_v1(&self) -> bool;
+    fn claims_smart_account(&self) -> bool;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
 
@@ -700,16 +694,16 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             .collect()
     }
 
-    fn calls_smart_account_build_v1(&self) -> bool {
-        self.commands.iter().any(|command| {
-            matches!(
-                command,
-                Command::MoveCall(m)
-                    if m.package == IOTA_FRAMEWORK_PACKAGE_ID
-                        && m.module.as_str() == SMART_ACCOUNT_MODULE_NAME
-                        && m.function.as_str() == SMART_ACCOUNT_BUILD_V1_FUNCTION_NAME
-            )
-        })
+    fn claims_smart_account(&self) -> bool {
+        // A claim mints an on-chain account at `ObjectId::from(sender)` via
+        // `0x2::smart_account::claim_builder_v1`, which is the only caller of
+        // `iota::claim_registry::claim` and thus the only way to take the
+        // `ClaimRegistry` (`0x10`) as a mutable input. Detecting that input is
+        // therefore complete (covers every claim finalizer, e.g. `build_v1` and
+        // `build_immutable_v1`) and precise (fresh-UID builders never touch the
+        // registry) — and it is decidable before execution.
+        self.shared_input_objects()
+            .any(|shared| shared.object_id == ObjectId::CLAIM_REGISTRY && shared.mutable)
     }
 
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> {
@@ -760,9 +754,10 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
-    /// Returns `true` if this transaction is programmable and contains a Move
-    /// call to `0x2::smart_account::build_v1`.
-    fn calls_smart_account_build_v1(&self) -> bool;
+    /// Returns `true` if this transaction claims a smart account for its
+    /// sender, detected by its use of the `ClaimRegistry` (`0x10`) as a
+    /// mutable input.
+    fn claims_smart_account(&self) -> bool;
     /// Returns the objects received by this transaction.
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     /// Return the metadata of each of the input objects for the transaction.
@@ -844,9 +839,9 @@ impl TransactionKindExt for TransactionKind {
         }
     }
 
-    fn calls_smart_account_build_v1(&self) -> bool {
+    fn claims_smart_account(&self) -> bool {
         match &self {
-            Self::Programmable(pt) => pt.calls_smart_account_build_v1(),
+            Self::Programmable(pt) => pt.claims_smart_account(),
             _ => false,
         }
     }
@@ -1038,9 +1033,10 @@ pub trait TransactionDataAPI {
     /// function_name)` tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
 
-    /// Returns `true` if any command is a Move call to
-    /// `0x2::smart_account::build_v1`.
-    fn calls_smart_account_build_v1(&self) -> bool;
+    /// Returns `true` if this transaction claims a smart account for its
+    /// sender, detected by its use of the `ClaimRegistry` (`0x10`) as a
+    /// mutable input.
+    fn claims_smart_account(&self) -> bool;
 
     /// Returns all input objects required by this transaction.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
@@ -1365,8 +1361,8 @@ impl TransactionDataAPI for TransactionData {
         self.kind().move_calls()
     }
 
-    fn calls_smart_account_build_v1(&self) -> bool {
-        self.kind().calls_smart_account_build_v1()
+    fn claims_smart_account(&self) -> bool {
+        self.kind().claims_smart_account()
     }
 
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {

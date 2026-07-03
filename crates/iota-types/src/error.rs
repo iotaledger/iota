@@ -524,7 +524,7 @@ pub enum IotaError {
     },
     #[error(
         "Transaction invalidated: sender or sponsor {address} has a concurrent account-claim \
-         (0x2::smart_account::build_v1) transaction {claiming_transaction} in the same consensus commit"
+         (0x2::smart_account::claim_builder_v1) transaction {claiming_transaction} in the same consensus commit"
     )]
     AccountClaimConflict {
         address: Address,

@@ -16,11 +16,12 @@
 //! and skips expensive validation for transactions that can't acquire object
 //! locks anyway.
 //!
-//! When account-claim invalidation is enabled (issue #11900), the
-//! `0x2::smart_account::build_v1` claimers are validated first (recording their
-//! senders), then every other transaction whose sender or sponsor matches a
-//! claim is dropped. `build_v1` transactions themselves are never dropped by
-//! this rule.
+//! When account-claim invalidation is enabled (issue #11900), the account-claim
+//! transactions (those taking the `ClaimRegistry` as a mutable input, i.e.
+//! `0x2::smart_account::claim_builder_v1` claimers) are validated first
+//! (recording their senders), then every other transaction whose sender or
+//! sponsor matches a claim is dropped. Claim transactions themselves are never
+//! dropped by this rule.
 //!
 //! # Per-transaction order within the loop
 //!
@@ -146,7 +147,7 @@ pub async fn validate_and_resolve_conflicts(
         let (build_account_txs, remaining_txs): (Vec<_>, Vec<_>) = transactions
             .iter()
             .enumerate()
-            .partition(|(_, tx)| is_smart_account_build_user_transaction(tx));
+            .partition(|(_, tx)| is_smart_account_claim_user_transaction(tx));
 
         // Validate the claimers first so their claims are recorded before any
         // other transaction is judged against them.
@@ -540,15 +541,15 @@ fn extract_owned_input_objects(
     Ok(owned_objects)
 }
 
-/// Returns `true` if `tx` is a `UserTransactionV1` that calls
-/// `0x2::smart_account::build_v1`.
-fn is_smart_account_build_user_transaction(tx: &VerifiedSequencedConsensusTransaction) -> bool {
+/// Returns `true` if `tx` is a `UserTransactionV1` that claims a smart account
+/// (detected by its use of the `ClaimRegistry` as a mutable input).
+fn is_smart_account_claim_user_transaction(tx: &VerifiedSequencedConsensusTransaction) -> bool {
     matches!(
         &tx.0.transaction,
         SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(t),
             ..
-        }) if t.data().transaction_data().calls_smart_account_build_v1()
+        }) if t.data().transaction_data().claims_smart_account()
     )
 }
 

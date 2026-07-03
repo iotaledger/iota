@@ -56,13 +56,18 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
 }
 
-/// Builds and signs a transaction whose single command calls
-/// `0x2::smart_account::build_v1`, paid by `gas_ref` owned by `sender`.
+/// Builds and signs a transaction that claims a smart account for `sender`,
+/// paid by `gas_ref` owned by `sender`.
 ///
-/// The call is never executed in these tests — it only needs to make
-/// `TransactionKind::calls_smart_account_build_v1()` return `true` and survive
-/// the post-consensus deny checks, which do not resolve the Move function.
-fn make_build_v1_transaction(
+/// A claim is detected by its use of the `ClaimRegistry` (`0x10`) as a mutable
+/// shared input (`TransactionData::claims_smart_account()`), so the transaction
+/// takes that input and passes it to `smart_account::claim_builder_v1`. The
+/// call is never executed in these tests — the transaction only needs to be
+/// recognized as a claim and survive the post-consensus deny checks, which do
+/// not resolve the Move function. Callers must seed the authority with
+/// [`claim_registry_object`] so the mutable shared input loads during
+/// validation.
+fn make_claim_transaction(
     sender: Address,
     sender_key: &AccountKeyPair,
     gas_ref: ObjectRef,
@@ -71,22 +76,42 @@ fn make_build_v1_transaction(
     use iota_sdk_types::Identifier;
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
-        transaction::{TransactionData, TransactionDataAPI},
+        object::OBJECT_START_VERSION,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, SharedObjectRef, TransactionData, TransactionDataAPI},
         utils::to_sender_signed_transaction,
     };
-    let data = TransactionData::new_move_call(
-        sender,
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let registry = builder
+        .obj(CallArg::Shared(SharedObjectRef::new(
+            ObjectId::CLAIM_REGISTRY,
+            OBJECT_START_VERSION,
+            true,
+        )))
+        .unwrap();
+    builder.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
         Identifier::from_static("smart_account"),
-        Identifier::from_static("build_v1"),
+        Identifier::from_static("claim_builder_v1"),
         vec![],
-        gas_ref,
-        vec![],
-        rgp * 1000,
-        rgp,
-    )
-    .unwrap();
+        vec![registry],
+    );
+    let data =
+        TransactionData::new_programmable(sender, vec![gas_ref], builder.finish(), rgp * 1000, rgp);
     to_sender_signed_transaction(data, sender_key)
+}
+
+/// A shared `ClaimRegistry` object at `ObjectId::CLAIM_REGISTRY`. Seed it into
+/// the authority so a claim transaction's mutable shared input loads during
+/// post-consensus validation. Its `Owner::Shared` version must match the
+/// `initial_shared_version` used by [`make_claim_transaction`].
+fn claim_registry_object() -> Object {
+    use iota_types::object::OBJECT_START_VERSION;
+    Object::with_id_owner_version_for_testing(
+        ObjectId::CLAIM_REGISTRY,
+        OBJECT_START_VERSION,
+        Owner::Shared(OBJECT_START_VERSION),
+    )
 }
 
 /// Wraps an `EndOfPublish` message as a consensus transaction.
@@ -1693,11 +1718,12 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
 // Account-claim conflict invalidation (issue #11900)
 // ---------------------------------------------------------------------------
 //
-// A transaction calling `0x2::smart_account::build_v1` ("B") turns the implicit
-// account at its sender's address into an explicit one. Any *other* transaction
-// in the same commit whose sender or sponsor is that same address ("A") would
-// race the transition and execute non-deterministically, so it is dropped with
-// `AccountClaimConflict`. The behavior is gated on
+// A claim transaction ("B") — one taking the `ClaimRegistry` (`0x10`) as a
+// mutable input, i.e. calling `0x2::smart_account::claim_builder_v1` — turns the
+// implicit account at its sender's address into an explicit one. Any *other*
+// transaction in the same commit whose sender or sponsor is that same address
+// ("A") would race the transition and execute non-deterministically, so it is
+// dropped with `AccountClaimConflict`. The behavior is gated on
 // `enable_account_claim_conflict_invalidation`.
 
 /// Installs the P-COOL flow plus the account-claim invalidation flag.
@@ -1724,6 +1750,7 @@ async fn test_account_claim_drops_same_sender_plain_tx() {
     let gas_plain_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(object_id, sender),
         Object::with_id_owner_for_testing(gas_claim_id, sender),
         Object::with_id_owner_for_testing(gas_plain_id, sender),
@@ -1745,7 +1772,7 @@ async fn test_account_claim_drops_same_sender_plain_tx() {
         .unwrap()
         .object_ref();
 
-    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let claim_tx = make_claim_transaction(sender, &sender_key, gas_claim_ref, rgp);
     let plain_tx = make_transfer_object_transaction(
         object_ref,
         gas_plain_ref,
@@ -1793,6 +1820,7 @@ async fn test_account_claim_two_build_v1_same_sender_both_kept() {
     let gas2_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(gas1_id, sender),
         Object::with_id_owner_for_testing(gas2_id, sender),
     ])
@@ -1804,8 +1832,8 @@ async fn test_account_claim_two_build_v1_same_sender_both_kept() {
     let gas1_ref = authority.get_object(&gas1_id).await.unwrap().object_ref();
     let gas2_ref = authority.get_object(&gas2_id).await.unwrap().object_ref();
 
-    let b1 = make_build_v1_transaction(sender, &sender_key, gas1_ref, rgp);
-    let b2 = make_build_v1_transaction(sender, &sender_key, gas2_ref, rgp);
+    let b1 = make_claim_transaction(sender, &sender_key, gas1_ref, rgp);
+    let b2 = make_claim_transaction(sender, &sender_key, gas2_ref, rgp);
     let v1 = epoch_store.verify_transaction(b1).unwrap();
     let v2 = epoch_store.verify_transaction(b2).unwrap();
     assert_ne!(v1.digest(), v2.digest());
@@ -1837,16 +1865,17 @@ async fn test_account_claim_lone_build_v1_kept() {
     let gas_id = ObjectId::random();
 
     let (authority, _) =
-        init_state_with_objects_and_object_basics(vec![Object::with_id_owner_for_testing(
-            gas_id, sender,
-        )])
+        init_state_with_objects_and_object_basics(vec![
+            claim_registry_object(),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
         .await;
 
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_ref = authority.get_object(&gas_id).await.unwrap().object_ref();
 
-    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_ref, rgp);
+    let claim_tx = make_claim_transaction(sender, &sender_key, gas_ref, rgp);
     let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
 
     let mut transactions = vec![make_user_tx_v1_verified(verified_claim)];
@@ -1879,6 +1908,7 @@ async fn test_account_claim_unrelated_sender_kept() {
     let gas_other_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(gas_claim_id, claimer),
         Object::with_id_owner_for_testing(object_id, other),
         Object::with_id_owner_for_testing(gas_other_id, other),
@@ -1900,7 +1930,7 @@ async fn test_account_claim_unrelated_sender_kept() {
         .unwrap()
         .object_ref();
 
-    let claim_tx = make_build_v1_transaction(claimer, &claimer_key, gas_claim_ref, rgp);
+    let claim_tx = make_claim_transaction(claimer, &claimer_key, gas_claim_ref, rgp);
     let other_tx = make_transfer_object_transaction(
         object_ref,
         gas_other_ref,
@@ -1953,6 +1983,7 @@ async fn test_account_claim_drops_sponsored_tx_by_sponsor() {
     let object_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         // Both gas objects are owned by the sponsor.
         Object::with_id_owner_for_testing(gas_claim_id, sponsor),
         Object::with_id_owner_for_testing(gas_sponsored_id, sponsor),
@@ -1977,7 +2008,7 @@ async fn test_account_claim_drops_sponsored_tx_by_sponsor() {
     let object_ref = authority.get_object(&object_id).await.unwrap().object_ref();
 
     // `build_v1` from the sponsor.
-    let claim_tx = make_build_v1_transaction(sponsor, &sponsor_key, gas_claim_ref, rgp);
+    let claim_tx = make_claim_transaction(sponsor, &sponsor_key, gas_claim_ref, rgp);
     let verified_claim = epoch_store.verify_transaction(claim_tx).unwrap();
 
     // Sponsored transfer: sender is `tx_sender`, gas owner is `sponsor`.
@@ -2043,6 +2074,7 @@ async fn test_account_claim_dropped_build_v1_does_not_invalidate() {
     let plain_gas_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(claim_gas_id, sender),
         Object::with_id_owner_for_testing(plain_object_id, sender),
         Object::with_id_owner_for_testing(plain_gas_id, sender),
@@ -2074,7 +2106,7 @@ async fn test_account_claim_dropped_build_v1_does_not_invalidate() {
     let other_digest = TransactionDigest::random();
     seed_quarantined_lock(&epoch_store, claim_gas_ref, other_digest);
 
-    let claim_tx = make_build_v1_transaction(sender, &sender_key, claim_gas_ref, rgp);
+    let claim_tx = make_claim_transaction(sender, &sender_key, claim_gas_ref, rgp);
     // Plain tx from the same sender, independent objects.
     let plain_tx = make_transfer_object_transaction(
         plain_object_ref,
@@ -2131,6 +2163,7 @@ async fn test_account_claim_disabled_flag_no_drop() {
     let gas_plain_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(object_id, sender),
         Object::with_id_owner_for_testing(gas_claim_id, sender),
         Object::with_id_owner_for_testing(gas_plain_id, sender),
@@ -2152,7 +2185,7 @@ async fn test_account_claim_disabled_flag_no_drop() {
         .unwrap()
         .object_ref();
 
-    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let claim_tx = make_claim_transaction(sender, &sender_key, gas_claim_ref, rgp);
     let plain_tx = make_transfer_object_transaction(
         object_ref,
         gas_plain_ref,
@@ -2199,6 +2232,7 @@ async fn test_account_claim_already_executed_exempt() {
     let gas_plain_id = ObjectId::random();
 
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        claim_registry_object(),
         Object::with_id_owner_for_testing(object_id, sender),
         Object::with_id_owner_for_testing(gas_claim_id, sender),
         Object::with_id_owner_for_testing(gas_plain_id, sender),
@@ -2220,7 +2254,7 @@ async fn test_account_claim_already_executed_exempt() {
         .unwrap()
         .object_ref();
 
-    let claim_tx = make_build_v1_transaction(sender, &sender_key, gas_claim_ref, rgp);
+    let claim_tx = make_claim_transaction(sender, &sender_key, gas_claim_ref, rgp);
     let plain_tx = make_transfer_object_transaction(
         object_ref,
         gas_plain_ref,
