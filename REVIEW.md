@@ -212,7 +212,7 @@ For each finding: state the file and line, describe the problem precisely, expla
 
 ### Additional guidelines
 
-Write the comment in plain language: bullet points over prose, and no coined terms or metaphors — use only vocabulary already used in the project or the established domain (see [Plain Language, No Coined Terms](RUST_CONVENTIONS.md#plain-language-no-coined-terms)).
+Write the comment in plain language: bullet points over prose, and no coined terms or metaphors — use only vocabulary already used in the project or the established domain (see [Plain language, no coined terms](AGENTS.md#plain-language-no-coined-terms)).
 
 Do not flag formatting or style issues enforced by CI (`rustfmt`, Prettier, ESLint auto-fixable rules). These are not review concerns.
 

@@ -152,4 +152,8 @@ When writing or modifying comments, follow the **Comments** rules in [`RUST_CONV
 
 ### Plain language, no coined terms
 
-Applies to all of the above, and to review comments and reports: use plain words and terms already used in the project or the established domain, so a reader can follow the text without terminology the project doesn't already use. Do not invent a label for a concept and then reuse it as if it were established vocabulary. See [Plain Language, No Coined Terms](RUST_CONVENTIONS.md#plain-language-no-coined-terms) for the full rule.
+Applies to all of the above, and to review comments and reports — all prose, not just code.
+
+Use plain words and terms already used in the codebase or the established domain, so a reader can follow the text without terminology the project doesn't already use. Do not invent a label for a concept and then reuse it as if it were established vocabulary — this is a recurring problem, treat it as a hard rule. Before naming a concept, check whether the repo already has a word for it and reuse that. If a phrase wouldn't appear in the code or a standard reference, drop the label and describe the thing directly.
+
+Self-check before submitting: scan for any noun phrase acting as a _name_ for an idea. If you coined it — not the codebase, not the domain — delete the label and state the idea in plain words.
