@@ -338,7 +338,9 @@ impl AuthorityPerpetualTables {
 
         if let Some(Ok((object_key, value))) = iterator.next() {
             if object_key.0 == object_id {
-                return Ok(Some((object_key, value)));
+                // Migrate legacy V1 rows before returning; callers inspect the
+                // wrapper via `inner()`, which panics on an un-migrated V1.
+                return Ok(Some((object_key, value.migrate())));
             }
         }
         Ok(None)
@@ -818,5 +820,46 @@ mod tests {
             Some(distinct_checkpoint),
             "LiveSetIter must surface the on-row checkpoint, not a default"
         );
+    }
+
+    /// A legacy V1 row (written by a pre-V2 binary, e.g. restored from a V1
+    /// formal snapshot) must be migrated to the latest version at the read
+    /// boundary. `get_latest_object_or_tombstone` feeds its result to
+    /// `tombstone_reference`, which reaches `StoreObjectWrapper::inner()` and
+    /// panics on an un-migrated V1 wrapper.
+    #[tokio::test]
+    async fn get_latest_object_or_tombstone_migrates_legacy_v1_row() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        let object_id = ObjectId::random();
+        let object = Object::immutable_with_id_for_testing(object_id);
+        let object_ref = object.object_ref();
+        perpetual_db
+            .insert_store_object_v1_test_only(object)
+            .unwrap();
+
+        let (object_key, wrapper) = perpetual_db
+            .get_latest_object_or_tombstone(object_id)
+            .unwrap()
+            .expect("row must be found");
+        assert!(
+            matches!(wrapper, StoreObjectWrapper::V2(_)),
+            "read boundary must migrate the V1 row to V2"
+        );
+
+        // Both consumers of the returned wrapper must run without panicking.
+        assert!(
+            perpetual_db
+                .tombstone_reference(&object_key, &wrapper)
+                .unwrap()
+                .is_none(),
+            "a live value is not a tombstone"
+        );
+        let reconstructed = perpetual_db
+            .object(&object_key, wrapper)
+            .unwrap()
+            .expect("value must reconstruct");
+        assert_eq!(reconstructed.object_ref(), object_ref);
     }
 }

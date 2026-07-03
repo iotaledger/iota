@@ -33,8 +33,8 @@ use iota_types::{
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, ECMHLiveObjectSetDigest,
-        EndOfEpochData, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, CheckpointSummaryExt,
+        ECMHLiveObjectSetDigest, EndOfEpochData, SignedCheckpointSummary,
     },
     object::Object,
     storage::EpochInfoV2,

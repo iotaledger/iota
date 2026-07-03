@@ -56,7 +56,7 @@ use iota_snapshot::{
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, exists, get_path},
+    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, get_path},
 };
 use iota_types::{
     base_types::*,
@@ -872,7 +872,10 @@ pub async fn check_completed_snapshot(
     } else {
         snapshot_store_config.make().map(Arc::new)?
     };
-    if exists(&remote_object_store, &get_path(success_marker.as_str())).await {
+    if remote_object_store
+        .exists(&get_path(success_marker.as_str()))
+        .await?
+    {
         Ok(())
     } else {
         bail!(

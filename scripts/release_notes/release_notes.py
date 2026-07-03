@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import datetime
 from collections import defaultdict
 import json
 import os
@@ -11,6 +12,7 @@ import re
 import subprocess
 import sys
 from typing import NamedTuple
+import urllib.error
 import urllib.request
 
 GH_TOKEN = os.environ.get("GH_TOKEN")
@@ -80,6 +82,14 @@ RE_ROLLOUT_ACTION_LINE = re.compile(
 )
 
 ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
+
+# Networks a release can target, keyed off the release tag suffix in
+# release.yml (alpha/beta/rc/none). Used to look up the network's current epoch.
+UPGRADE_NETWORKS = ("alphanet", "devnet", "testnet", "mainnet")
+
+# Public JSON-RPC endpoint of a network's fullnode, used to look up the current
+# epoch when reporting the earliest time a new protocol version can be enabled.
+IOTA_RPC_URL_TEMPLATE = "https://api.{network}.iota.cafe"
 
 # Only commits that affect changes in these directories will be
 # considered when generating release notes.
@@ -187,6 +197,17 @@ def parse_args():
         help="The commit to end at (inclusive), defaults to HEAD.",
     )
 
+    generate_p.add_argument(
+        "--network",
+        choices=UPGRADE_NETWORKS,
+        default=None,
+        help=(
+            "Target network of this release. When a new protocol version is "
+            "introduced, the network's fullnode is queried to report the "
+            "earliest epoch at which the version can be enabled."
+        ),
+    )
+
     test_p = sub_parser.add_parser(
         "dry-run",
         description="Generate release notes from local git commits without PR lookup.",
@@ -202,6 +223,17 @@ def parse_args():
         nargs="?",
         default="HEAD",
         help="The commit to end at (inclusive), defaults to HEAD.",
+    )
+
+    test_p.add_argument(
+        "--network",
+        choices=UPGRADE_NETWORKS,
+        default=None,
+        help=(
+            "Target network of this release. When a new protocol version is "
+            "introduced, the network's fullnode is queried to report the "
+            "earliest epoch at which the version can be enabled."
+        ),
     )
 
     check_p = sub_parser.add_parser(
@@ -482,6 +514,59 @@ def extract_protocol_version(commit):
         return match[0]
 
 
+def earliest_protocol_upgrade(network):
+    """Earliest epoch and time at which `network` can enable a new protocol version.
+
+    A protocol version can be enabled no earlier than the next epoch boundary,
+    i.e. the end of the current epoch (`epoch_start_timestamp_ms +
+    epoch_duration_ms`). The current epoch is read from the network's public
+    fullnode.
+
+    Returns a `(next_epoch, "YYYY-MM-DD HH:MM UTC")` tuple, or `None` if the
+    network could not be reached or returned unexpected data, in which case the
+    caller omits the date rather than failing the whole run.
+    """
+    url = IOTA_RPC_URL_TEMPLATE.format(network=network)
+    payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "iotax_getLatestIotaSystemStateV2",
+            "params": [],
+        }
+    ).encode()
+    req = urllib.request.Request(
+        url, data=payload, headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.load(response)["result"]
+
+        # `getLatestIotaSystemStateV2` returns an externally-tagged enum, e.g.
+        # `{"V2": {...}}`; unwrap the single variant to reach the summary fields.
+        summary = (
+            next(iter(result.values())) if set(result) <= {"V1", "V2"} else result
+        )
+
+        next_epoch = int(summary["epoch"]) + 1
+        boundary_ms = int(summary["epochStartTimestampMs"]) + int(
+            summary["epochDurationMs"]
+        )
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+        print(
+            f"Warning: could not determine the earliest protocol upgrade time "
+            f"for '{network}': {exc}",
+            file=sys.stderr,
+        )
+        return None
+
+    when = datetime.datetime.fromtimestamp(
+        boundary_ms / 1000, tz=datetime.timezone.utc
+    ).strftime("%Y-%m-%d %H:%M UTC")
+    return next_epoch, when
+
+
 def print_changelog(pr, log, commit=None, is_dry_run=False):
     if pr:
         print(f"[#{pr}](https://github.com/iotaledger/iota/pull/{pr}): ", end="")
@@ -558,7 +643,7 @@ def do_check(commit_or_pr, is_pr):
     sys.exit(1)
 
 
-def do_generate(from_, to, is_dry_run):
+def do_generate(from_, to, is_dry_run, network=None):
     """Generate release notes from git commits.
 
     This will extract the release notes from all commits between
@@ -569,7 +654,9 @@ def do_generate(from_, to, is_dry_run):
     Only looks for commits affecting INTERESTING_DIRECTORIES.
 
     Additionally injects the current protocol version into the
-    "Protocol" changelog.
+    "Protocol" changelog. When `network` is given and the release
+    introduces a new protocol version, also reports the earliest epoch
+    at which that network can enable it, read from its fullnode.
 
     """
     results = defaultdict(list)
@@ -623,6 +710,13 @@ def do_generate(from_, to, is_dry_run):
                 print(f"\n#### This release does not introduce a new protocol version (current version: `{protocol_version_to}`)")
             else:
                 print(f"\n#### This release introduces protocol version `{protocol_version_to}`")
+                upgrade = earliest_protocol_upgrade(network) if network else None
+                if upgrade:
+                    next_epoch, when = upgrade
+                    print(
+                        f"\nOn `{network}`, this protocol version can be enabled no "
+                        f"earlier than `{when}` (start of epoch {next_epoch})."
+                    )
         print()
 
         if notes:
@@ -655,9 +749,9 @@ def do_generate(from_, to, is_dry_run):
 
 args = parse_args()
 if args["command"] == "generate":
-    do_generate(args["from"], args["to"], False)
+    do_generate(args["from"], args["to"], False, args["network"])
 if args["command"] == "dry-run":
-    do_generate(args["from"], args["to"], True)
+    do_generate(args["from"], args["to"], True, args["network"])
 elif args["command"] == "check":
     do_check(args["commit"], False)
 elif args["command"] == "check-pr":
