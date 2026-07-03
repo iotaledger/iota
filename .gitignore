@@ -118,6 +118,10 @@ authenticator_gas_profile.speedscope.json
 # stress-test attestation and total execution cost mode
 dev-tools/iota-private-network/configs/genesis/benchmark.keystore
 
-# stress-test run artifacts: per-experiment data + plots (e.g. h1/run.sh -> h1/results/)
-stress-attestation-sequencer/*/results*/
+# stress-test run artifacts: per-experiment data + plots (e.g. h1/run.sh -> h1/results/).
+# Summary figures are whitelisted so they can be committed and stress-test.md renders on GitHub.
+stress-attestation-sequencer/*/results*/*
+!stress-attestation-sequencer/*/results*/summary_plots/
+stress-attestation-sequencer/*/results*/summary_plots/*
+!stress-attestation-sequencer/*/results*/summary_plots/*.png
 sweeps/

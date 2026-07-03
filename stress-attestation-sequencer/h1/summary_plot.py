@@ -213,7 +213,7 @@ def unit_of(metric):
 
 
 def strip_unit(metric):
-    """metric without its trailing (unit) — e.g. 'node mem. RSS (bytes)' -> 'node mem. RSS'."""
+    """metric without its trailing (unit) — e.g. 'node memory RSS (bytes)' -> 'node memory RSS'."""
     return re.sub(r"\s*\([^)]*\)\s*$", "", metric).strip()
 
 
@@ -229,19 +229,34 @@ def base_of(metric):
 # covering every table metric. `file` is the output basename; `metrics` are stacked
 # top→bottom (percentiles descending); `versions` overrides the auto A/B selection.
 FIGURES = [
-    {"file": "TPS", "metrics": ["TPS", "attest. / sec", "valid. drop. / sec"]},
-    {"file": "CUs", "metrics": ["CUs"]},
+    {
+        "file": "TPS",
+        "title": "Throughput, attestation rate, and validation drops rate",
+        "metrics": ["TPS", "attest. / sec", "valid. drop. / sec"],
+        "subtitles": {
+            "attest. / sec": "attestations / sec",
+            "valid. drop. / sec": "post-consensus validation drops / sec",
+        },
+    },
     {
         "file": "attestation_latency",
+        "title": "Attestation: computation units and latency",
         "metrics": [
-            "attest. lat. p99 (s)",
-            "attest. lat. p95 (s)",
+            "CUs",
             "attest. lat. p50 (s)",
+            "attest. lat. p95 (s)",
             "exec. lat. p95 (s)",
         ],
+        "subtitles": {
+            "CUs": "computation units",
+            "attest. lat. p95 (s)": "attestation p95",
+            "attest. lat. p50 (s)": "attestation p50",
+            "exec. lat. p95 (s)": "execution p95",
+        },
     },
     {
         "file": "receipt_to_exec_latency",
+        "title": "Receipt → execution latency",
         "metrics": [
             "rec. → exec. p99 (s)",
             "rec. → exec. p95 (s)",
@@ -250,10 +265,12 @@ FIGURES = [
     },
     {
         "file": "post_consensus_validation_latency",
+        "title": "Post-consensus validation latency",
         "metrics": ["pc valid. lat. p95 (s)", "pc valid. lat. p50 (s)"],
     },
     {
         "file": "settlement_finality_latency",
+        "title": "Settlement finality latency (client-side)",
         "metrics": [
             "final. lat. p99 (s)",
             "final. lat. p95 (s)",
@@ -262,23 +279,38 @@ FIGURES = [
     },
     {
         "file": "submit_latency",
+        "title": "Submit-transaction latency (client-side)",
         "metrics": ["submit lat. p95 (s)", "submit lat. p50 (s)"],
     },
     {
         "file": "queues",
+        "title": "Execution queues and backpressure",
         "metrics": [
             "exec. dispatch queue",
             "pending txs",
             "exec. queue. delay p95 (s)",
         ],
+        "subtitles": {
+            "exec. dispatch queue": "execution dispatch queue",
+            "pending txs": "pending transactions",
+            "exec. queue. delay p95 (s)": "execution queue delay p95",
+        },
     },
-    {"file": "resources", "metrics": ["host CPU", "node CPU", "node mem. RSS (bytes)"]},
+    {
+        "file": "resources",
+        "title": "CPU and memory (host and per-validator)",
+        "metrics": ["host CPU", "node CPU", "node memory RSS (bytes)"],
+    },
 ]
 
 
-def make_figure(csv_path, configs, metrics, out, versions_mode, disp, logy):
+def make_figure(
+    csv_path, configs, metrics, out, versions_mode, disp, logy, title=None, subtitles=None
+):
     """Render one figure (one metric = single axes; several = stacked shared-x
-    subplots) to `out`. Returns the output path, or None if no data."""
+    subplots) to `out`. Returns the output path, or None if no data. `title` is a
+    descriptive figure title; the A-vs-B version tag is appended to it. `subtitles`
+    optionally overrides individual subplot titles (metric name -> label)."""
     n = len(metrics)
     metric_data = {m: load(csv_path, m) for m in metrics}  # m -> (rows, unit)
 
@@ -287,6 +319,10 @@ def make_figure(csv_path, configs, metrics, out, versions_mode, disp, logy):
     if not versions:
         print(f"skip {out}: no data for {metrics}", file=sys.stderr)
         return None
+
+    # Version tag (A vs B) and the composed figure title.
+    tag = " vs ".join(vi[3] for vi in versions)
+    composed = f"{title} — {tag}" if title else tag
 
     # A homogeneous percentile family (e.g. attest. lat. p99/p95/p50) gets percentile
     # subplot titles + a shared suptitle; a heterogeneous set (e.g. host/node CPU, mem)
@@ -300,12 +336,15 @@ def make_figure(csv_path, configs, metrics, out, versions_mode, disp, logy):
     axes = [axes] if n == 1 else list(axes)
     for i, (ax, metric) in enumerate(zip(axes, metrics)):
         if n == 1:
-            title, ylabel = None, None  # keep single-metric look (version-tag title)
+            # single metric: the composed figure title goes on the one axes.
+            subplot_title, ylabel = composed, None
         elif homogeneous:
-            title, ylabel = pct_of(metric), (unit_of(metric) or None)
+            subplot_title, ylabel = pct_of(metric), (unit_of(metric) or None)
         else:
             # heterogeneous: metric name (minus unit) as title, unit on the y-axis
-            title, ylabel = strip_unit(metric), unit_of(metric)
+            subplot_title, ylabel = strip_unit(metric), unit_of(metric)
+        if n > 1 and subtitles and metric in subtitles:
+            subplot_title = subtitles[metric]  # per-figure subplot-title override
         rows, unit = metric_data[metric]
         draw_metric(
             ax,
@@ -318,13 +357,16 @@ def make_figure(csv_path, configs, metrics, out, versions_mode, disp, logy):
             versions,
             show_xlabels=(i == n - 1),  # only the bottom subplot
             show_legend=(i == 0),  # only the top subplot
-            title=title,
+            title=subplot_title,
             ylabel=ylabel,
         )
 
     if n > 1:
-        tag = " vs ".join(vi[3] for vi in versions)
-        fig.suptitle(f"{bases.pop()} — {tag}" if homogeneous else tag, fontsize=11)
+        if title:
+            sup = composed
+        else:
+            sup = f"{bases.pop()} — {tag}" if homogeneous else tag
+        fig.suptitle(sup, fontsize=11)
         fig.tight_layout(rect=(0, 0, 1, 0.97))
     else:
         fig.tight_layout()
@@ -367,6 +409,11 @@ def main():
         help="output png for a single custom --metric figure "
         "(default: results/summary_plots/<metric(s)>.png)",
     )
+    ap.add_argument(
+        "--title",
+        default=None,
+        help="figure title (suptitle / single-axes title); the A-vs-B tag is appended",
+    )
     args = ap.parse_args()
 
     configs = all_configs(args.csv)
@@ -381,7 +428,14 @@ def main():
             + ".png",
         )
         make_figure(
-            args.csv, configs, args.metric, out, args.versions, args.disp, args.logy
+            args.csv,
+            configs,
+            args.metric,
+            out,
+            args.versions,
+            args.disp,
+            args.logy,
+            title=args.title,
         )
     else:
         # no --metric: render the whole default set.
@@ -394,6 +448,8 @@ def main():
                 spec.get("versions", "auto"),
                 args.disp,
                 args.logy,
+                title=spec.get("title"),
+                subtitles=spec.get("subtitles"),
             )
 
 

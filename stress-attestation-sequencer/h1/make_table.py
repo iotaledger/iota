@@ -204,7 +204,7 @@ RENAME_COLUMNS = {
     "execution queueing delay p95": {"name": "exec. queue. delay p95 (s)", "unit": ""},
     "per-validator CPU (busy cores, cadvisor)": {"name": "node CPU", "unit": ""},
     "per-validator memory RSS (cadvisor)": {
-        "name": "node mem. RSS (bytes)",
+        "name": "node memory RSS (bytes)",
         "unit": "",
     },
 }

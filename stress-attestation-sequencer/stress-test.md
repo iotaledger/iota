@@ -79,6 +79,11 @@ throughput) sit at the resolution limit, which is itself the finding. Figure
 error bars are ±1 std (signal variability) by default; `summary_plot.py --disp
 sem` switches them to the standard error of the mean.
 
+In the figures below, blue = **A (V1, attestation off)** and red = **B (V2,
+attestation on)**; the x-axis is one group per configuration
+(`s<size>·q<qps>·<path>`, `f` = fullnode, `v` = direct-to-validator), with dashed
+separators between computation sizes; the y-axis is log-scaled.
+
 **1. Attestation is a full execution dry-run — its cost tracks execution.**
 `validator_attestation_latency` (B only) scales with the transaction's
 computation cost and converges to the actual execution latency:
@@ -96,16 +101,31 @@ dry-run machinery. As the computation cost grows the dry-run dominates and its l
 approaches the execution cost itself: an attested transaction is executed once
 for the dry-run and once for real, so heavy transactions pay roughly twice.
 
+![Attestation computation units and latency](h1/results/summary_plots/attestation_latency.png)
+
+*Computation units, attestation latency (p50/p95), and actual execution latency
+(p95) — findings 1, 5, and 7. CUs sit at the gas floor for `slow0`/`slow50` and
+step up from `slow100`; attestation latency converges to execution latency.*
+
 **2. Throughput: no penalty.** Finalized TPS
 (`transactions_included_in_checkpoint`) is statistically identical A↔B — median
 (B−A)/A = **+0.1 %**, within the ~0.6 % standard error. Attestation does not
 reduce throughput at any computation level or rate. (The wide raw range is confined
 to the slow500 configurations, where absolute throughput is small and noisy.)
 
+![Throughput, attestation rate, and validation-drop rate](h1/results/summary_plots/TPS.png)
+
+*Finalized TPS, attestations / sec, and post-consensus validation-drops / sec —
+findings 2 and 6. TPS is A≈B; drops appear only on A.*
+
 **3. CPU: attestation adds ~30 % busy cores.** Per-validator CPU (busiest
 validator, cadvisor) B/A median = **1.29×** (range 1.02–1.95×) — e.g.
 slow100-f-q1000 8.7 → 11.1 cores, slow500-f-q1000 21.0 → 24.8 cores. Consistent
 with the extra dry-run execution.
+
+![CPU and memory](h1/results/summary_plots/resources.png)
+
+*Whole-machine host CPU and busiest-validator CPU / memory (RSS) — finding 3.*
 
 **4. Submit latency (fullnode path): a fixed per-transaction addition.** B's
 submit `p50` exceeds A's by roughly the attestation latency, so the *ratio* is
@@ -113,6 +133,10 @@ largest where the baseline is smallest (low rate / low computation cost): slow0-
 4.4 ms → 16.7 ms (3.8×), slow500-q200 26 ms → 693 ms (26×, i.e. +667 ms ≈ the
 attestation cost). At high rate the queueing baseline dominates and the ratio
 shrinks (~1.1–4×). The *added* latency is essentially the dry-run time.
+
+![Submit-transaction latency](h1/results/summary_plots/submit_latency.png)
+
+*Client submit latency, fullnode path only — finding 4.*
 
 **5. Internal execution latency: unchanged.**
 `authority_state_internal_execution_latency` (the real, post-consensus VM
@@ -137,6 +161,29 @@ follow-up.
 **7. Compute-unit accounting is exact.** Attested computation units equal actual
 computation units for every owned-object configuration (ratio = 1.0), confirming
 attestation predicts the computation cost precisely for these transactions.
+
+### Supporting figures
+
+Metrics not tied to a specific finding above, kept for completeness (same axes and
+A/B colors as the figures above).
+
+![Settlement finality latency](h1/results/summary_plots/settlement_finality_latency.png)
+
+*Client settlement-finality latency, fullnode path only.*
+
+![Receipt → execution latency](h1/results/summary_plots/receipt_to_exec_latency.png)
+
+*Validator-internal receipt → executed latency — the pure pipeline, with no
+client/fullnode time.*
+
+![Post-consensus validation latency](h1/results/summary_plots/post_consensus_validation_latency.png)
+
+*Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is the
+attestation-added work on this path.*
+
+![Execution queues and backpressure](h1/results/summary_plots/queues.png)
+
+*Execution dispatch queue, pending transactions, and execution queue delay (p95).*
 
 ### H4 — safety (pass/fail)
 
