@@ -504,7 +504,7 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        let qd = match &self.driver {
+        match &self.driver {
             Driver::Transaction(td) => {
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
@@ -513,25 +513,23 @@ where
                 epoch_store
                     .verify_transaction(request.transaction.clone())
                     .map_err(QuorumDriverError::InvalidUserSignature)?;
-                return self
-                    .submit_with_transaction_driver(
-                        td.clone(),
-                        request,
-                        client_addr,
-                        skip_certification,
-                    )
-                    .await
-                    .map_err(map_td_error_to_qd);
+                self.submit_with_transaction_driver(
+                    td.clone(),
+                    request,
+                    client_addr,
+                    skip_certification,
+                )
+                .await
+                .map_err(map_td_error_to_qd)
             }
-            Driver::Quorum(qd) => qd,
-        };
-
-        let qd_resp = self
-            .execute_transaction_impl(qd, &epoch_store, request, client_addr)
-            .await
-            .map(|(_, r)| r)?;
-
-        Ok(quorum_driver_response_to_v1(qd_resp))
+            Driver::Quorum(qd) => {
+                let qd_resp = self
+                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
+                    .await
+                    .map(|(_, r)| r)?;
+                Ok(quorum_driver_response_to_v1(qd_resp))
+            }
+        }
     }
 
     /// Submit on the skip-effect-certification path while concurrently
