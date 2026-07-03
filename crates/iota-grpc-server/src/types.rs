@@ -596,14 +596,17 @@ impl GrpcReader {
     }
 
     pub fn get_latest_checkpoint(&self) -> anyhow::Result<CertifiedCheckpointSummary> {
-        let seq = latest_checkpoint_seq(&*self.state_reader)?.ok_or_else(|| {
-            anyhow::anyhow!("Unable to determine current epoch: no checkpoints available")
-        })?;
-        self.state_reader
-            .try_get_checkpoint_by_sequence_number(seq)
-            .map_err(anyhow::Error::from)?
-            .map(CertifiedCheckpointSummary::from)
-            .ok_or_else(|| anyhow::anyhow!("Checkpoint {seq} not found"))
+        match self.state_reader.try_get_latest_checkpoint() {
+            Ok(checkpoint) => Ok(CertifiedCheckpointSummary::from(checkpoint)),
+            Err(e) => match e.kind() {
+                Kind::Missing => Err(anyhow::anyhow!(
+                    "Unable to determine current epoch: no checkpoints available"
+                )),
+                _ => Err(anyhow::anyhow!(
+                    "Storage error getting latest checkpoint: {e}"
+                )),
+            },
+        }
     }
 
     pub fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
