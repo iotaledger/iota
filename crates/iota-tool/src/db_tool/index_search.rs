@@ -30,7 +30,7 @@ where
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let last_key = T::from_str(s).map_err(|e| anyhow!("Failed to parse last_key: {:?}", e))?;
+        let last_key = T::from_str(s).map_err(|e| anyhow!("Failed to parse last_key: {e:?}"))?;
         Ok(SearchRange::ExclusiveLastKey(last_key))
     }
 }
@@ -152,7 +152,7 @@ pub fn search_index(
                 termination
             )
         }
-        _ => bail!("Invalid or unsupported table: {}", table_name),
+        _ => bail!("Invalid or unsupported table: {table_name}"),
     }
 }
 

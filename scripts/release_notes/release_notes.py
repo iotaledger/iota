@@ -27,14 +27,17 @@ RE_HEADING = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
-RE_CHECK = re.compile(
-    r"^\s*-\s*\[.\]",
-    re.MULTILINE,
-)
-
 RE_NOTE = re.compile(
     r"^\s*-\s*\[( |x)?\]\s*([^:]+):",
     re.MULTILINE | re.IGNORECASE,
+)
+
+# A note's value ends at the next checkbox, a heading, or a blank line. The
+# blank-line boundary keeps content appended after the release notes block
+# (e.g. tooling attribution footers) from being absorbed into the last note.
+RE_NOTE_END = re.compile(
+    r"^[ \t]*$|^\s*#|^\s*-\s*\[.\]",
+    re.MULTILINE,
 )
 
 RE_BREAKING = re.compile(
@@ -444,8 +447,9 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
         impacted = match.group(2)
         begin = match.end()
 
-        # Find the end of the note, or the end of the commit
-        match = RE_CHECK.search(notes, begin)
+        # Find the end of the note: the next checkbox, heading, or blank line,
+        # whichever comes first, or the end of the commit.
+        match = RE_NOTE_END.search(notes, begin)
         end = match.start() if match else len(notes)
 
         result[impacted] = Note(

@@ -4341,15 +4341,9 @@ impl AuthorityPerEpochStore {
         // sees no new inbound traffic (e.g. one that restarted) can stay Pending
         // forever -- deferring all randomness-using transactions and blocking
         // epoch close.
-        //
-        // This changes when `advance_dkg` runs relative to consensus, so it is
-        // gated behind a protocol flag: every validator must flip the behavior
-        // at the same protocol-upgrade boundary, otherwise a mixed-version
-        // network could resolve DKG on different commits and diverge.
-        let dkg_pending = self.protocol_config.always_advance_dkg_to_resolution()
-            && randomness_manager
-                .as_ref()
-                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        let dkg_pending = randomness_manager
+            .as_ref()
+            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
         if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager

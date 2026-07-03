@@ -415,7 +415,6 @@ pub async fn make_authority(config: Config, commit_consumer: CommitConsumer) -> 
         commit_sync_parallel_fetches: 2,
         commit_sync_batch_size: 3,
         sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-        enable_fast_commit_syncer: protocol_config.consensus_fast_commit_sync(),
         ..Default::default()
     };
     let txn_verifier = NoopTransactionVerifier {};

@@ -34,6 +34,7 @@ iota-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+rand.workspace = true
 tempfile.workspace = true
 
 [lints]
