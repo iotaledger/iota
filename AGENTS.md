@@ -135,7 +135,7 @@ iota/
 
 ## Writing style
 
-These rules cover everything you write: code comments, commit messages, and PR and issue descriptions.
+These rules cover everything you write: function and variable names, code comments, commit messages, and PR and issue descriptions.
 
 ### Code comments
 
