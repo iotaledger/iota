@@ -147,9 +147,8 @@ When writing or modifying comments, follow the **Comments** rules in [`RUST_CONV
 
 ### PR and issue descriptions
 
-- Keep them compact and concise; no large blocks of written-out prose.
-- Prefer bullet points over full paragraphs.
-- Still state _why_ the change was made — the reviewer needs the intent (see [`REVIEW.md`](REVIEW.md)).
+- Keep them compact and concise; bullet points over full paragraphs.
+- Say at a high level _what_ the change does and _why_ — the code-level details belong in the diff, not the description (see [`REVIEW.md`](REVIEW.md)).
 
 ### Plain language, no coined terms
 
