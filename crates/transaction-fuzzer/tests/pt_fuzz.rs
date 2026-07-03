@@ -46,8 +46,8 @@ fn publish_coin_factory(
         .into_iter()
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
-                .rt
-                .block_on(exec.state.get_object(&obj_ref.object_id))
+                .state
+                .get_object(&obj_ref.object_id)
                 .unwrap()
                 .data
                 .opt_struct_tag()
@@ -103,8 +103,8 @@ pub fn run_pt_success(
         .into_iter()
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
-                .rt
-                .block_on(exec.state.get_object(&obj_ref.object_id))
+                .state
+                .get_object(&obj_ref.object_id)
                 .unwrap()
                 .data
                 .opt_struct_tag()
