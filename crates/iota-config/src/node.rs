@@ -38,16 +38,8 @@ use crate::{
     transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
 };
 
-// Effectively-unlimited concurrency, used by tests that must not be throttled.
+// Default max number of concurrent requests served
 pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
-
-// Per-core ceiling on concurrent in-flight validator gRPC requests. Most
-// request time is spent awaiting locks, I/O or consensus rather than on-CPU, so
-// the ceiling is generous; its purpose is to bound total in-flight work so a
-// request flood cannot grow queues and memory without limit, not to throttle
-// normal load. Operators wanting hard load-shedding can lower
-// `grpc_concurrency_limit` and set `grpc_load_shed`.
-const GRPC_CONCURRENCY_LIMIT_PER_CORE: usize = 1000;
 
 /// Default gas price of 1000 Nanos
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;
@@ -707,7 +699,7 @@ pub fn available_cpu_cores() -> usize {
 }
 
 pub fn default_concurrency_limit() -> Option<usize> {
-    Some(available_cpu_cores().saturating_mul(GRPC_CONCURRENCY_LIMIT_PER_CORE))
+    Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
