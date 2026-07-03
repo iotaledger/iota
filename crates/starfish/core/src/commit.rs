@@ -21,7 +21,7 @@ use tracing::debug;
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
-        VerifiedBlockHeader, VerifiedTransactions, uleb128_len,
+        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -916,19 +916,6 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
         result.push_str(&block.digest().to_string());
         result.push('@');
         result.push_str(&block.round().to_string());
-    }
-    result
-}
-
-fn format_block_digests(blocks: &[BlockRef]) -> String {
-    let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
-        if idx > 0 {
-            result.push_str(", ");
-        }
-        result.push_str(&block.digest.to_string());
-        result.push('@');
-        result.push_str(&block.round.to_string());
     }
     result
 }

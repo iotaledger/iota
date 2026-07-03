@@ -387,7 +387,7 @@ impl Core {
             self.block_manager.try_accept_blocks(blocks, source);
 
         let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
-            debug!(
+            trace!(
                 "Accepted block headers: {}",
                 accepted_blocks_headers
                     .iter()
@@ -461,7 +461,7 @@ impl Core {
         }
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
-            debug!(
+            trace!(
                 "Accepted block headers: {}",
                 accepted_block_headers
                     .iter()
