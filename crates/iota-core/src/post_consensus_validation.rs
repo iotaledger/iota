@@ -371,14 +371,36 @@ pub async fn validate_and_resolve_conflicts(
                 if e.is_storage_or_epoch_error() {
                     return Err(e);
                 }
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "UserTransactionV1 failed post-consensus deny checks, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
+                // These checks load the owned inputs at their referenced
+                // versions (`read_objects_for_validation`). Post-consensus
+                // validation runs ahead of execution, so a not-yet-executed
+                // predecessor's output reads back as `ObjectNotFound` -- a
+                // per-node, timing-dependent condition. Dropping on it would make
+                // checkpoint membership non-deterministic and fork the chain.
+                // Keep the transaction: its inputs are present at execution
+                // (dependency order), where these checks re-run.
+                if matches!(
+                    &e,
+                    IotaError::UserInput {
+                        error: UserInputError::ObjectNotFound { .. }
+                            | UserInputError::ObjectVersionUnavailableForConsumption { .. }
+                    }
+                ) {
+                    debug!(
+                        ?digest,
+                        error = ?e,
+                        "UserTransactionV1 inputs not yet available post-consensus; keeping for execution"
+                    );
+                } else {
+                    warn!(
+                        ?digest,
+                        error = ?e,
+                        "UserTransactionV1 failed post-consensus deny checks, dropping"
+                    );
+                    dropped.push((digest, e));
+                    keep[i] = false;
+                    continue;
+                }
             }
         } else {
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
