@@ -130,7 +130,16 @@ impl LocalVm {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, &[], 0)?
+            prepare_transaction(
+                &env,
+                &backend,
+                tx,
+                opts.mode,
+                &opts.deny_config,
+                &[],
+                &[],
+                0,
+            )?
         };
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -213,6 +222,7 @@ impl LocalVm {
                 opts.mode,
                 &opts.deny_config,
                 &tx_signatures,
+                &move_authenticators,
                 authenticator_gas_budget,
             )?
         };

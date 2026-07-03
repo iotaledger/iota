@@ -67,6 +67,7 @@ pub(super) fn prepare_transaction(
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
     tx_signatures: &[GenericSignature],
+    move_authenticators: &[MoveAuthenticator],
     authenticator_gas_budget: u64,
 ) -> Result<PreparedTransaction, VmSdkError> {
     if transaction.kind().is_system() {
@@ -126,9 +127,38 @@ pub(super) fn prepare_transaction(
         .map_err(|e| ValidationError::new("collect input objects", e))?;
     let receiving_object_refs = transaction.receiving_objects();
 
-    let (input_object_kinds, mut input_objects) =
-        build_input_objects(store, &raw_input_object_kinds)?;
-    let receiving_objects = build_receiving_objects(store, &receiving_object_refs)?;
+    // Apply the deny-list policy before loading input objects from the store: it
+    // gates on transaction-derived data (signers, commands, object ids, the
+    // shared/owned kind) that store loading does not change, so a denied
+    // transaction is rejected without the intervening object I/O.
+    //
+    // The node deny-checks `SenderSignedData::input_objects()`, which merges
+    // every `MoveAuthenticator`'s input objects into the transaction's; mirror
+    // that merge so denied objects are also caught as authenticator inputs.
+    let mut deny_check_input_kinds = raw_input_object_kinds.clone();
+    for auth_object in move_authenticators.iter().flat_map(|a| a.input_objects()) {
+        let existing = deny_check_input_kinds
+            .iter_mut()
+            .find(|o| o.object_id() == auth_object.object_id());
+        match existing {
+            None => deny_check_input_kinds.push(auth_object),
+            Some(existing) => existing
+                .left_union_with_checks(&auth_object)
+                .map_err(|e| ValidationError::new("merge authenticator inputs", e))?,
+        }
+    }
+    iota_transaction_checks::deny::check_transaction_for_validation(
+        &transaction,
+        tx_signatures,
+        &deny_check_input_kinds,
+        &receiving_object_refs,
+        deny_config,
+        store,
+    )
+    .map_err(|e| ValidationError::new("deny-list check", e))?;
+
+    let mut input_objects = load_input_objects(store, &raw_input_object_kinds)?;
+    let receiving_objects = load_receiving_objects(store, &receiving_object_refs)?;
 
     // Mint a one-shot mock gas coin if the transaction carries no gas payment,
     // the same coin the node mints on its simulation paths. `Execute` commits
@@ -157,16 +187,6 @@ pub(super) fn prepare_transaction(
     } else {
         None
     };
-
-    iota_transaction_checks::deny::check_transaction_for_validation(
-        &transaction,
-        tx_signatures,
-        &input_object_kinds,
-        &receiving_object_refs,
-        deny_config,
-        store,
-    )
-    .map_err(|e| ValidationError::new("deny-list check", e))?;
 
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
         let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
@@ -322,26 +342,24 @@ pub(super) fn execute_with_move_authenticators(
     // per-authenticator object restrictions a node enforces at signing time
     // (no packages, no address-owned objects, no mutable shared objects, …)
     // are applied to each authenticator's inputs.
-    let mut union_inputs = checked_input_objects.into_inner();
+    let mut union_checked = checked_input_objects;
     let mut prepared_auths = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
         let auth_input_object_kinds = authenticator.input_objects();
-        let (_, auth_input_objects) = build_input_objects(store, &auth_input_object_kinds)?;
-        let auth_input_objects =
-            iota_transaction_checks::check_move_authenticator_input_for_validation(
-                auth_input_objects,
-            )
-            .map_err(|e| ValidationError::new("authenticator input check", e))?
-            .into_inner();
-        for obj in auth_input_objects.iter() {
-            if union_inputs.find_object_id_mut(obj.id()).is_none() {
-                union_inputs.push(obj.clone());
-            }
-        }
+        let auth_input_objects = load_input_objects(store, &auth_input_object_kinds)?;
+        let auth_checked = iota_transaction_checks::check_move_authenticator_input_for_validation(
+            auth_input_objects,
+        )
+        .map_err(|e| ValidationError::new("authenticator input check", e))?;
+        // Union each authenticator's inputs into the running set, enforcing
+        // consistency (matching object read results, compatible shared-object
+        // kinds) for ids that appear in more than one set.
+        union_checked =
+            iota_transaction_checks::checked_input_objects_union(union_checked, &auth_checked)
+                .map_err(|e| ValidationError::new("union authenticator inputs", e))?;
         let fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
-        prepared_auths.push((authenticator, fn_ref, auth_input_objects));
+        prepared_auths.push((authenticator, fn_ref, auth_checked.into_inner()));
     }
-    let union_checked = CheckedInputObjects::new_with_checked_transaction_inputs(union_inputs);
 
     let tx_data_bytes = bcs::to_bytes(&transaction)
         .map_err(|e| VmError::new(format!("serialize transaction data: {e}")))?;
@@ -427,13 +445,10 @@ pub(super) fn execute_with_move_authenticators(
                 )
             })
             .collect::<Vec<_>>();
-        let per_auth_checked: Vec<CheckedInputObjects> = prepared_auths
+        let per_auth_checked_refs: Vec<&CheckedInputObjects> = verdict_authenticators
             .iter()
-            .map(|(_, _, inputs)| {
-                CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone())
-            })
+            .map(|(_, _, checked)| checked)
             .collect();
-        let per_auth_checked_refs: Vec<&CheckedInputObjects> = per_auth_checked.iter().collect();
         let aggregated_auth_inputs =
             iota_transaction_checks::aggregate_authenticator_input_objects(&per_auth_checked_refs)
                 .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
@@ -512,11 +527,10 @@ fn resolve_authenticator_function_ref(
 }
 
 /// Build `InputObjects` from a store, using the latest fetched versions.
-fn build_input_objects(
+fn load_input_objects(
     store: &dyn BackingStore,
     input_object_kinds: &[InputObjectKind],
-) -> Result<(Vec<InputObjectKind>, InputObjects), VmSdkError> {
-    let mut updated_kinds = Vec::new();
+) -> Result<InputObjects, VmSdkError> {
     let mut input_objects = Vec::new();
     for kind in input_object_kinds {
         let obj = store
@@ -525,7 +539,7 @@ fn build_input_objects(
             .map_err(|e| StoreError::new("load input object", e))?
             .ok_or(VmSdkError::missing_object(kind.object_id(), kind.version()))?;
 
-        let updated_kind = match kind {
+        let loaded_kind = match kind {
             InputObjectKind::MovePackage(_) => *kind,
             InputObjectKind::ImmOrOwnedMoveObject(_) => {
                 InputObjectKind::ImmOrOwnedMoveObject(obj.object_ref())
@@ -541,13 +555,12 @@ fn build_input_objects(
             },
         };
 
-        input_objects.push(ObjectReadResult::new(updated_kind, obj.into()));
-        updated_kinds.push(updated_kind);
+        input_objects.push(ObjectReadResult::new(loaded_kind, obj.into()));
     }
-    Ok((updated_kinds, input_objects.into()))
+    Ok(input_objects.into())
 }
 
-fn build_receiving_objects(
+fn load_receiving_objects(
     store: &dyn BackingStore,
     receiving_object_refs: &[iota_types::base_types::ObjectRef],
 ) -> Result<ReceivingObjects, VmSdkError> {
