@@ -878,7 +878,9 @@ impl ObjectsCompactionFilter {
             .with_fixint_encoding()
             .deserialize(key)?;
         let object: StoreObjectWrapper = bcs::from_bytes(value)?;
-        if matches!(object.into_inner(), StoreObject::Value(_)) {
+        // Compaction sees raw on-disk rows, which may be legacy V1; migrate
+        // before `into_inner()`, which panics on an un-migrated V1.
+        if matches!(object.migrate().into_inner(), StoreObject::Value(_)) {
             if let Some(db) = self.db.upgrade() {
                 match db.object_tombstones.get(&object_id)? {
                     Some(gc_version) => {
@@ -1181,5 +1183,64 @@ mod tests {
         );
         ma::assert_le!(after_compaction_size, before_compaction_size);
         Ok(())
+    }
+
+    /// A legacy V1 row reaching the objects compaction filter (a pre-V2 object
+    /// left on disk after an in-place upgrade or a V1 formal-snapshot restore)
+    /// must be migrated before `into_inner()`, which panics on an un-migrated
+    /// V1 wrapper.
+    #[tokio::test]
+    async fn compaction_filter_handles_legacy_v1_row() {
+        use bincode::Options;
+        use iota_sdk_types::Owner;
+        use typed_store::rocksdb::compaction_filter::Decision;
+
+        use super::ObjectsCompactionFilter;
+        use crate::authority::{
+            authority_store_tables::AuthorityPrunerTables,
+            authority_store_types::{StoreData, StoreObjectV1, StoreObjectValue},
+        };
+
+        // A V1 `Value` row is what a pre-V2 binary wrote for a live object;
+        // only `Value` rows reach the tombstone lookup.
+        let object_key = ObjectKey(ObjectId::random(), SequenceNumber::from_u64(1));
+        let v1_value = StoreObjectValue {
+            data: StoreData::Coin(42),
+            owner: Owner::Immutable,
+            previous_transaction: TransactionDigest::random(),
+            storage_rebate: 7,
+        };
+        let key_bytes = bincode::DefaultOptions::new()
+            .with_big_endian()
+            .with_fixint_encoding()
+            .serialize(&object_key)
+            .unwrap();
+        let value_bytes = bcs::to_bytes(&StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(
+            v1_value,
+        ))))
+        .unwrap();
+
+        // The filter holds only a `Weak`, so keep a strong ref alive for the
+        // tombstone lookup to run.
+        let tmp_dir = iota_common::tempdir();
+        let pruner_db = Arc::new(AuthorityPrunerTables::open(tmp_dir.path()));
+        let mut filter = ObjectsCompactionFilter::new(pruner_db.clone(), &Registry::default());
+
+        // No tombstone: the row must survive.
+        let decision = filter
+            .filter(&key_bytes, &value_bytes)
+            .expect("legacy V1 row must not panic");
+        assert!(matches!(decision, Decision::Keep));
+
+        // Tombstoned at this version: the row must be compacted away, which
+        // proves the migrated row reached the tombstone-lookup branch.
+        pruner_db
+            .object_tombstones
+            .insert(&object_key.0, &object_key.1)
+            .unwrap();
+        let decision = filter
+            .filter(&key_bytes, &value_bytes)
+            .expect("legacy V1 row must not panic");
+        assert!(matches!(decision, Decision::Remove));
     }
 }
