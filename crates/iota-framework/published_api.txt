@@ -2293,6 +2293,9 @@ from_flag
 flag
 	public fun
 	0x2::signature_scheme
+multisig_validate_pubkey
+	public fun
+	0x2::multisig
 ed25519_validate_pubkey
 	public fun
 	0x2::ed25519
@@ -2338,13 +2341,10 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-multisig_to_hash_input
-	fun
-	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
-validate_multisig_public_key
+to_iota_address_impl
 	fun
 	0x2::public_key
 is_feature_enabled

@@ -2028,6 +2028,10 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
+                "multisig_multisig_validate_pubkey_cost_base": null,
+                "multisig_multisig_validate_pubkey_cost_per_ed25519_member": null,
+                "multisig_multisig_validate_pubkey_cost_per_secp256k1_member": null,
+                "multisig_multisig_validate_pubkey_cost_per_secp256r1_member": null,
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2079,6 +2083,7 @@
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
                 },
+                "public_key_to_iota_address_impl_cost_base": null,
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
                 },
