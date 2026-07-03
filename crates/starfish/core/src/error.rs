@@ -292,6 +292,18 @@ pub(crate) enum ConsensusError {
         received: usize,
     },
 
+    #[error("Peer {peer} sent commit data after transactions in a fetch response")]
+    UnexpectedCommitDataAfterTransactions { peer: AuthorityIndex },
+
+    #[error(
+        "Commit range from peer {peer} references {count} committed transactions, exceeding the allowed envelope of {limit}"
+    )]
+    TooManyCommittedTransactionsInRange {
+        peer: AuthorityIndex,
+        count: usize,
+        limit: usize,
+    },
+
     #[error("RocksDB failure: {0}")]
     RocksDBFailure(#[from] TypedStoreError),
 

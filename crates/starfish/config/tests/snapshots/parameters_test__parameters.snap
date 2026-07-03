@@ -47,6 +47,7 @@ tonic:
     max_transaction_fetches_per_peer: 0
     max_commit_fetches_per_peer: 0
 fast_commit_sync_batch_size: 1000
+fast_commit_sync_max_fetch_bytes: 134217728
 commit_sync_gap_threshold: 1000
 enable_fast_commit_syncer: true
 enable_starfish_speed_adaptive_acknowledgments: true

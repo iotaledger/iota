@@ -15,7 +15,7 @@ use crate::{
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     error::ConsensusResult,
-    network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
+    network::{BlockBundleStream, NetworkService, SerializedBlockBundle, TransactionChunkStream},
     transaction_ref::GenericTransactionRef,
 };
 
@@ -24,6 +24,7 @@ pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
+    pub(crate) handle_fetch_commits_and_transactions: Vec<(AuthorityIndex, CommitRange, usize)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
 }
 
@@ -35,6 +36,7 @@ impl TestService {
             handle_subscribed_block_bundle_requests: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
+            handle_fetch_commits_and_transactions: Vec::new(),
         }
     }
 
@@ -102,10 +104,16 @@ impl NetworkService for Mutex<TestService> {
 
     async fn handle_fetch_commits_and_transactions(
         &self,
-        _peer: AuthorityIndex,
-        _commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-        unimplemented!("Unimplemented")
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        max_transaction_bytes: usize,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
+        self.lock().handle_fetch_commits_and_transactions.push((
+            peer,
+            commit_range,
+            max_transaction_bytes,
+        ));
+        Ok((vec![], vec![], Box::pin(stream::empty())))
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -120,7 +128,6 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _block_refs: Vec<GenericTransactionRef>,
-        _fetch_mode: crate::network::TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")
     }

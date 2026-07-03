@@ -801,7 +801,7 @@ mod tests {
         error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
         misbehavior_store::MisbehaviorStore,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, NetworkClient, TransactionChunkStream},
         storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
     };
@@ -854,7 +854,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
             unimplemented!("Unimplemented")
         }
 

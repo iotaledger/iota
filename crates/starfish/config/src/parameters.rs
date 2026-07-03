@@ -133,6 +133,15 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
     pub fast_commit_sync_batch_size: u32,
 
+    /// Soft cap on total serialized transaction bytes accepted per fast commit
+    /// sync fetch. When reached, the fetch finishes with the covered commit
+    /// prefix and the scheduler requeues the remainder. At least the first
+    /// commit of the range is always fetched in full so the fetch makes forward
+    /// progress even when that commit alone exceeds the cap. Also sent to the
+    /// server as a stream budget hint. 0 disables.
+    #[serde(default = "Parameters::default_fast_commit_sync_max_fetch_bytes")]
+    pub fast_commit_sync_max_fetch_bytes: usize,
+
     // Gap threshold for switching between commit syncers. When the gap between quorum and local
     // commit index is larger than this threshold, FastCommitSyncer fetches. Otherwise,
     // CommitSyncer fetches.
@@ -403,6 +412,16 @@ impl Parameters {
         }
     }
 
+    pub(crate) fn default_fast_commit_sync_max_fetch_bytes() -> usize {
+        if cfg!(msim) {
+            // Small enough that simtests routinely hit the cap, exercising
+            // cap-stop -> covered prefix -> requeue.
+            1 << 10
+        } else {
+            128 << 20
+        }
+    }
+
     pub(crate) fn default_commit_sync_gap_threshold() -> u32 {
         if cfg!(msim) {
             // Use smaller threshold for testing.
@@ -453,6 +472,8 @@ impl Default for Parameters {
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
+            fast_commit_sync_max_fetch_bytes: Parameters::default_fast_commit_sync_max_fetch_bytes(
+            ),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
             enable_starfish_speed_adaptive_acknowledgments:

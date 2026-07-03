@@ -73,6 +73,13 @@ use crate::{
 // author, so a response never needs more than one header per authority.
 pub(crate) const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
 
+/// Expected upper bound on the number of transaction rounds each commit
+/// advances the DAG. A commit advances at least once per wave (3 rounds); the
+/// extra round adds slack for skipped leaders. Used to derive the honest
+/// envelope bounding how many committed transactions a fetch response may
+/// reference.
+pub(crate) const AVG_TX_ROUNDS_PER_COMMIT: usize = 4;
+
 pub(crate) enum CommitSyncType {
     Fast,
     Regular,
