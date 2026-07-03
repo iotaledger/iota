@@ -30,9 +30,9 @@ which runs A then B back-to-back on a fresh network, scrapes Prometheus into
 per-run JSON, aggregates, and plots):
 
 - **Workload**: `slow::slow(n, size)` with `n == size`, owned-object
-  (`SLOW_SHARED=false`) — each transaction only does CPU work (no shared objects),
-  so no congestion control or scheduling noise, so nothing but attestation
-  drives the A vs B difference.
+  (`SLOW_SHARED=false`) — each transaction only does CPU work (no shared
+  objects), so no congestion control or scheduling noise, so nothing but
+  attestation drives the A vs B difference.
 - **Computation** (`slow_size`, with `n == size`): {0, 50, 100, 200, 500} — the
   argument passed to `slow::slow(n, size)`; larger values mean more CPU work
   per transaction. But gas is bucketed (rounded up to `gas_rounding_step`), so
@@ -72,34 +72,55 @@ Aggregation and reporting tooling (all under `h1/` directory):
 
 ### Findings (10 iterations per configuration)
 
-Numbers below are pooled means. Per-configuration means are tight
-(cross-iteration standard error ≈ 0.3–2 % for the stable metrics), so 10
-iterations resolve every effect reported here; the near-parity metrics (e.g.
-throughput) sit at the resolution limit, which is itself the finding. Figure
-error bars are ±1 std (signal variability) by default; `summary_plot.py --disp
-sem` switches them to the standard error of the mean.
+Numbers below are means pooled over time × iterations. Per-configuration means
+are steady — they vary only about 0.3–2 % from run to run — so 10 iterations
+are enough to pin down every effect below. Where A and B come out almost equal,
+such as throughput, the gap is smaller than that run-to-run noise: we can't
+tell them apart, which is exactly the point — attestation makes no measurable
+difference there. Figure error bars are ±1 std (signal variability) by default;
+`summary_plot.py --disp sem` switches them to the standard error of the mean.
 
 In the figures below, blue = **A (V1, attestation off)** and red = **B (V2,
 attestation on)**; the x-axis is one group per configuration
-(`s<size>·q<qps>·<path>`, `f` = fullnode, `v` = direct-to-validator), with dashed
-separators between computation sizes; the y-axis is log-scaled.
+(`s<size>·q<qps>·<path>`, `f` = fullnode, `v` = direct-to-validator), with
+dashed separators between computation sizes; the y-axis is log-scaled.
 
-**1. Attestation is a full execution dry-run — its cost tracks execution.**
-`validator_attestation_latency` (B only) scales with the transaction's
-computation cost and converges to the actual execution latency:
+**1. Attestation is a full execution dry-run, plus a small fixed overhead.**
+`validator_attestation_latency` (B only) grows with the transaction's
+computation cost and, once that cost is large, lands close to the actual
+execution latency. Both client paths, at `qps1000`:
 
-| slow_size | attest. lat. p50 | attest. lat. p99 | actual internal exec. p95 |
+Fullnode path (`f`):
+
+| slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 |
 | --- | --- | --- | --- |
-| 0   | 2.5 ms  | 5.0 ms  | 1.6 ms |
-| 50  | 2.5 ms  | 5.4 ms  | 6.0 ms |
-| 100 | 8.5 ms  | 20 ms   | 21 ms  |
-| 200 | 129 ms  | 731 ms  | 198 ms |
-| 500 | 944 ms  | 994 ms  | 1.28 s |
+| 0   | 2.5 ms | 4.8 ms | 1.6 ms |
+| 50  | 2.5 ms | 4.8 ms | 6.0 ms |
+| 100 | 6.6 ms | 17 ms  | 21 ms  |
+| 200 | 129 ms | 498 ms | 198 ms |
+| 500 | 961 ms | 1.00 s | 1.28 s |
 
-At the no-op floor (slow0) attestation costs ~2.5 ms — the fixed cost of the
-dry-run machinery. As the computation cost grows the dry-run dominates and its latency
-approaches the execution cost itself: an attested transaction is executed once
-for the dry-run and once for real, so heavy transactions pay roughly twice.
+Direct-to-one-validator path (`v`):
+
+| slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 |
+| --- | --- | --- | --- |
+| 0   | 2.5 ms | 4.8 ms | 1.2 ms |
+| 50  | 2.5 ms | 4.8 ms | 6.3 ms |
+| 100 | 6.9 ms | 18 ms  | 22 ms  |
+| 200 | 64 ms  | 517 ms | 210 ms |
+| 500 | 482 ms | 988 ms | 973 ms |
+
+Attestation and execution are close but not the same number, because they don't
+time the same thing. `validator_attestation_latency` covers the whole
+attestation call — loading the inputs, the deny / input / coin-deny checks, the
+Move dry-run, building the attestation, and moving the work onto a separate
+worker thread — while `exec. lat. p95` times only the execute step. For a
+no-op transaction (`slow0`) the Move work is almost nothing, so both are just
+fixed overhead; attestation carries more of it, so it sits a little above
+execution (~2.5 vs ~1.6 ms). As the transaction does real work, that shared
+Move cost dominates both and the fixed overhead fades, so the two move
+together. A heavy attested transaction is still executed twice, though — once
+for the dry-run, once for real — so it costs the validator roughly double.
 
 ![Attestation computation units and latency](h1/results/summary_plots/attestation_latency.png)
 
@@ -108,10 +129,29 @@ for the dry-run and once for real, so heavy transactions pay roughly twice.
 step up from `slow100`; attestation latency converges to execution latency.*
 
 **2. Throughput: no penalty.** Finalized TPS
-(`transactions_included_in_checkpoint`) is statistically identical A↔B — median
-(B−A)/A = **+0.1 %**, within the ~0.6 % standard error. Attestation does not
-reduce throughput at any computation level or rate. (The wide raw range is confined
-to the slow500 configurations, where absolute throughput is small and noisy.)
+(`transactions_included_in_checkpoint`) is statistically identical A vs B —
+median `(B−A)/A = +0.1 %`, within the ~0.6 % standard error. Attestation does
+not reduce throughput at any computation level or rate. (The wide raw range is
+confined to the `slow500` configurations, where absolute throughput is small
+and noisy.)
+
+attestations / sec (the busiest validator's rate) shows how the two client
+paths spread attestation work. On the pinned path (`v`) one validator attests
+nearly all traffic, so its rate tracks the full transaction rate; on the
+fullnode path (`f`), the fullnode spreads submissions across the four
+validators, so the busiest one attests only its share — about half the pinned
+rate at light load (`slow0-q1000`: 497 vs 992 /s) and roughly a fifth under
+heavy compute (`slow200-q1000`: 331 vs 1545 /s). Finalized TPS is the same on
+both paths, so this is about how attestation work is spread, not throughput.
+
+attestations / sec by path (busiest validator, `qps1000`):
+
+| config          | `f` | `v`  | v/f  |
+| ---             | --- | ---  | ---  |
+| `slow0-q1000`   | 497 | 992  | 2.0× |
+| `slow100-q1000` | 503 | 997  | 2.0× |
+| `slow200-q1000` | 331 | 1545 | 4.7× |
+| `slow500-q1000` | 73  | 475  | 6.5× |
 
 ![Throughput, attestation rate, and validation-drop rate](h1/results/summary_plots/TPS.png)
 
@@ -120,8 +160,8 @@ findings 2 and 6. TPS is A≈B; drops appear only on A.*
 
 **3. CPU: attestation adds ~30 % busy cores.** Per-validator CPU (busiest
 validator, cadvisor) B/A median = **1.29×** (range 1.02–1.95×) — e.g.
-slow100-f-q1000 8.7 → 11.1 cores, slow500-f-q1000 21.0 → 24.8 cores. Consistent
-with the extra dry-run execution.
+`slow100-f-q1000` 8.7 → 11.1 cores, `slow500-f-q1000` 21.0 → 24.8 cores.
+Consistent with the extra dry-run execution.
 
 ![CPU and memory](h1/results/summary_plots/resources.png)
 
@@ -129,10 +169,11 @@ with the extra dry-run execution.
 
 **4. Submit latency (fullnode path): a fixed per-transaction addition.** B's
 submit `p50` exceeds A's by roughly the attestation latency, so the *ratio* is
-largest where the baseline is smallest (low rate / low computation cost): slow0-q200
-4.4 ms → 16.7 ms (3.8×), slow500-q200 26 ms → 693 ms (26×, i.e. +667 ms ≈ the
-attestation cost). At high rate the queueing baseline dominates and the ratio
-shrinks (~1.1–4×). The *added* latency is essentially the dry-run time.
+largest where the baseline is smallest (low rate / low computation cost):
+`slow0-q200` 4.4 ms → 16.7 ms (3.8×), `slow500-q200` 26 ms → 693 ms (26×, i.e.
++667 ms ≈ the attestation cost). At high rate the queueing baseline dominates
+and the ratio shrinks (~1.1–4×). The *added* latency is essentially the dry-run
+time.
 
 ![Submit-transaction latency](h1/results/summary_plots/submit_latency.png)
 
@@ -146,10 +187,10 @@ dry-run.
 
 **6. Post-consensus validation drops appear only WITHOUT attestation.**
 `consensus_handler_validation_dropped_transactions` is non-zero only on A
-(attestation OFF), and only at high per-transaction load: slow200-v-q1000
-≈ 64/s, slow200-v-q2000 ≈ 43/s, slow200-f-q2000 ≈ 2/s, slow200-f-q1000 ≈ 0.8/s,
-slow500-v-q200 ≈ 0.35/s. B (attestation ON) shows near-zero drops in every
-configuration — but note these runs carry the coin-deny fix (see the H4
+(attestation OFF), and only at high per-transaction load: `slow200-v-q1000`
+≈ 64/s, `slow200-v-q2000` ≈ 43/s, `slow200-f-q2000` ≈ 2/s, `slow200-f-q1000`
+≈ 0.8/s, `slow500-v-q200` ≈ 0.35/s. B (attestation ON) shows near-zero drops in
+every configuration — but note these runs carry the coin-deny fix (see the H4
 warning), which converts attested transactions' transient post-consensus
 load-error drops into keeps. Those are the same drops that previously hit the
 attested path and forked it, so B's zero is partly the fix, not an intrinsic
@@ -164,8 +205,8 @@ attestation predicts the computation cost precisely for these transactions.
 
 ### Supporting figures
 
-Metrics not tied to a specific finding above, kept for completeness (same axes and
-A/B colors as the figures above).
+Metrics not tied to a specific finding above, kept for completeness (same axes
+and A/B colors as the figures above).
 
 ![Settlement finality latency](h1/results/summary_plots/settlement_finality_latency.png)
 
@@ -178,12 +219,13 @@ client/fullnode time.*
 
 ![Post-consensus validation latency](h1/results/summary_plots/post_consensus_validation_latency.png)
 
-*Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is the
-attestation-added work on this path.*
+*Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is
+the attestation-added work on this path.*
 
 ![Execution queues and backpressure](h1/results/summary_plots/queues.png)
 
-*Execution dispatch queue, pending transactions, and execution queue delay (p95).*
+*Execution dispatch queue, pending transactions, and execution queue delay
+(p95).*
 
 ### H4 — safety (pass/fail)
 
@@ -194,23 +236,24 @@ restart, or OOM occurred. The A-only validation drops in finding 6 are a
 throughput/liveness observation, not a safety-counter failure.
 
 > [!WARNING]
-> This PASS holds *with a fix in place*. Earlier stress-testing hit a **checkpoint
-> fork on the attested (V2) path** under load. `check_coin_deny_list_for_attested_tx`
-> loads a transaction's owned inputs at their referenced versions *before*
-> execution; post-consensus validation runs ahead of the execution frontier, so
-> an input that is a not-yet-executed predecessor's output reads back `ObjectNotFound`.
-> The code lumped that transient load error together with a real deny-list violation
-> and dropped the transaction. Because the drop depends on each node's execution
-> frontier it is per-node, so validators disagree on checkpoint content and hit
-> `fatal!` "Local checkpoint fork detected" (`crates/iota-core/src/checkpoints/mod.rs`).
+> This PASS holds *with a fix in place*. Earlier stress-testing hit a
+> **checkpoint fork on the attested (V2) path** under load.
+> `check_coin_deny_list_for_attested_tx` loads a transaction's owned inputs at
+> their referenced versions *before* execution; post-consensus validation runs
+> ahead of the execution frontier, so an input that is a not-yet-executed
+> predecessor's output reads back `ObjectNotFound`. The code lumped that
+> transient load error together with a real deny-list violation and dropped the
+> transaction. Because the drop depends on each node's execution frontier it is
+> per-node, so validators disagree on checkpoint content and hit `fatal!`
+> "Local checkpoint fork detected" (`crates/iota-core/src/checkpoints/mod.rs`).
 > Only the attested path forks; V1 is clean. The runs above carry a temporary
 > test-branch fix that drops only on a genuine deny-list verdict
 > (`CoinTypeGlobalPause` / `AddressDeniedForCoin`) and keeps the transaction on
-> any load error (its inputs are present at execution, where the V1 deny-list check
-> still catches global-pause / denied recipients). The fix lives on
+> any load error (its inputs are present at execution, where the V1 deny-list
+> check still catches global-pause / denied recipients). The fix lives on
 > `protocol-research/fix/attestation-coin-deny-post-consensus-drop-fork` and is
-> confirmed: the same workload that forked ~35 % of iterations ran 10/10 clean on
-> EPYC (no restarts, no `exit=139`). Tracking:
+> confirmed: the same workload that forked ~35 % of iterations ran 10/10 clean
+> on EPYC (no restarts, no `exit=139`). Tracking:
 > [iota-private#438](https://github.com/iotaledger/iota-private/issues/438#issuecomment-4866911507).
 
 ### Takeaway
