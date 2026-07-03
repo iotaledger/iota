@@ -59,12 +59,15 @@ use iota_sdk_types::{
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_field_id,
+        },
     },
     base_types::{ObjectRef, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, DynamicFieldInfo, Field},
+    dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -3808,11 +3811,7 @@ pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
-    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
-        signer,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )?;
+    let authenticator_function_ref_id = derive_authenticator_function_ref_field_id(signer.into())?;
 
     let response = client
         .read_api()

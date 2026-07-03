@@ -13,33 +13,28 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Event, ObjectId, Owner,
+    Event, ObjectId,
     transaction::{Input, TransactionKind},
 };
 use iota_types::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_field_object,
+        derive_authenticator_function_ref_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    digests::TransactionDigest,
-    dynamic_field::{self, Field},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     gas::IotaGasStatus,
-    gas_coin::SIMULATION_GAS_COIN_VALUE,
+    gas_coin::mock_simulation_gas_coin,
     layout_resolver::LayoutResolver,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
-    object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, bounded_visitor::BoundedVisitor,
-    },
+    object::bounded_visitor::BoundedVisitor,
     signature::GenericSignature,
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ReceivingObjectReadResult, ReceivingObjects, TransactionData, TransactionDataAPI,
+        merge_authenticator_input_objects,
     },
     transaction_executor::SimulateTransactionResult,
 };
@@ -136,17 +131,8 @@ pub(super) fn prepare_transaction(
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();
-    for auth_object in move_authenticators.iter().flat_map(|a| a.input_objects()) {
-        let existing = deny_check_input_kinds
-            .iter_mut()
-            .find(|o| o.object_id() == auth_object.object_id());
-        match existing {
-            None => deny_check_input_kinds.push(auth_object),
-            Some(existing) => existing
-                .left_union_with_checks(&auth_object)
-                .map_err(|e| ValidationError::new("merge authenticator inputs", e))?,
-        }
-    }
+    merge_authenticator_input_objects(&mut deny_check_input_kinds, move_authenticators)
+        .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         tx_signatures,
@@ -171,15 +157,7 @@ pub(super) fn prepare_transaction(
             )
             .into());
         }
-        let mock_gas_object = Object::new_move(
-            MoveObject::new_gas_coin(
-                OBJECT_START_VERSION,
-                ObjectId::MAX,
-                SIMULATION_GAS_COIN_VALUE,
-            ),
-            Owner::Address(transaction.gas_data().owner),
-            TransactionDigest::GENESIS_MARKER,
-        );
+        let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
         let mock_gas_object_ref = mock_gas_object.object_ref();
         transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
         input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
@@ -496,12 +474,8 @@ fn resolve_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| VmError::new(format!("invalid object_to_authenticate: {e}")))?;
 
-    let field_id = dynamic_field::derive_dynamic_field_id(
-        account_object_id,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )
-    .map_err(|e| VmError::new(format!("derive authenticator field id: {e}")))?;
+    let field_id = derive_authenticator_function_ref_field_id(account_object_id)
+        .map_err(|e| ValidationError::new("derive authenticator field id", e))?;
 
     let field_obj = store
         .as_object_store()
@@ -509,21 +483,8 @@ fn resolve_authenticator_function_ref(
         .map_err(|e| StoreError::new("load authenticator field", e))?
         .ok_or(VmSdkError::missing_object(field_id, None))?;
 
-    let field_move_object = field_obj.data.as_struct_opt().ok_or_else(|| {
-        VmError::new("authenticator dynamic field: field object is not a Move object")
-    })?;
-
-    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
-        .to_rust()
-        .map_err(|e| VmError::new(format!("deserialize AuthenticatorFunctionRefV1: {e}")))?;
-
-    Ok(AuthenticatorFunctionRefForExecution::new_v1(
-        field.value,
-        field_obj.object_ref(),
-        field_obj.owner,
-        field_obj.storage_rebate,
-        field_obj.previous_transaction,
-    ))
+    authenticator_function_ref_from_field_object(account_object_id, &field_obj)
+        .map_err(|e| ValidationError::new("decode authenticator field", e).into())
 }
 
 /// Build `InputObjects` from a store, using the latest fetched versions.

@@ -36,6 +36,21 @@ pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_
 /// dry-run, and offline simulation when no gas coin is provided.
 pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
+/// Mint the one-shot mock gas coin that simulation paths use for a transaction
+/// carrying no gas payment: a fresh coin at [`ObjectId::MAX`] owned by `owner`
+/// and funded with [`SIMULATION_GAS_COIN_VALUE`].
+pub fn mock_simulation_gas_coin(owner: iota_sdk_types::Address) -> Object {
+    Object::new_move(
+        MoveObject::new_gas_coin(
+            crate::object::OBJECT_START_VERSION,
+            ObjectId::MAX,
+            SIMULATION_GAS_COIN_VALUE,
+        ),
+        iota_sdk_types::Owner::Address(owner),
+        crate::digests::TransactionDigest::GENESIS_MARKER,
+    )
+}
+
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]

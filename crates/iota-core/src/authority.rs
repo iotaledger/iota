@@ -62,12 +62,10 @@ use iota_types::committee::CommitteeTrait;
 // `iota_types::gas_coin`.
 pub use iota_types::gas_coin::SIMULATION_GAS_COIN_VALUE;
 use iota_types::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_from_field_object, derive_authenticator_function_ref_field_id,
+        extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::{
@@ -78,7 +76,7 @@ use iota_types::{
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
     digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
-    dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
@@ -89,6 +87,7 @@ use iota_types::{
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
+    gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -2345,15 +2344,7 @@ impl AuthorityState {
 
         // Create a mock gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {
-            let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(
-                    OBJECT_START_VERSION,
-                    ObjectId::MAX,
-                    SIMULATION_GAS_COIN_VALUE,
-                ),
-                Owner::Address(transaction.gas_data().owner),
-                TransactionDigest::GENESIS_MARKER,
-            );
+            let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
             let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
@@ -5693,14 +5684,8 @@ impl AuthorityState {
             );
         }
 
-        let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
-            auth_account_object_id,
-            &AuthenticatorFunctionRefV1Key::tag().into(),
-            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-        )
-        .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
-            account_object_id: auth_account_object_id,
-        })?;
+        let authenticator_function_ref_field_id =
+            derive_authenticator_function_ref_field_id(auth_account_object_id)?;
 
         let authenticator_function_ref_field = self
             .get_object_cache_reader()
@@ -5710,25 +5695,10 @@ impl AuthorityState {
             )?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
-            let field_move_object = authenticator_function_ref_field_obj
-                .data
-                .as_opt_struct()
-                .expect("dynamic field should never be a package object");
-
-            let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().map_err(|_| {
-                    UserInputError::InvalidAuthenticatorFunctionRefField {
-                        account_object_id: auth_account_object_id,
-                    }
-                })?;
-
-            Ok(AuthenticatorFunctionRefForExecution::new_v1(
-                field.value,
-                authenticator_function_ref_field_obj.object_ref(),
-                authenticator_function_ref_field_obj.owner,
-                authenticator_function_ref_field_obj.storage_rebate,
-                authenticator_function_ref_field_obj.previous_transaction,
-            ))
+            Ok(authenticator_function_ref_from_field_object(
+                auth_account_object_id,
+                &authenticator_function_ref_field_obj,
+            )?)
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,
