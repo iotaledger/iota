@@ -229,6 +229,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         &checkpoint_store,
         Some(&grpc_indexes_store),
         None,
+        None,
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,

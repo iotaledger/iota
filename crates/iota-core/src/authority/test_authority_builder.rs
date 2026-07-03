@@ -389,6 +389,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             chain_identifier,
             pruner_db,
             None,
+            None,
             policy_config,
             firewall_config,
         )

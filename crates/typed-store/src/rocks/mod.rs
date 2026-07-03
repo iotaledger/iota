@@ -11,7 +11,7 @@ use std::{
     collections::HashSet,
     ffi::CStr,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
@@ -53,8 +53,9 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,
-    /// Names of all column families opened on this database.
-    pub(crate) cf_names: Vec<String>,
+    /// Names of all column families opened on this database, kept in sync
+    /// with column families created or dropped at runtime.
+    pub(crate) cf_names: RwLock<Vec<String>>,
 }
 
 impl Drop for RocksDB {
@@ -141,7 +142,7 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names,
+                cf_names: RwLock::new(cf_names),
             }),
             metric_conf,
         )))
@@ -209,7 +210,7 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names,
+                cf_names: RwLock::new(cf_names),
             }),
             metric_conf,
         )))

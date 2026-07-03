@@ -287,10 +287,13 @@ impl DBCheckpointHandler {
             "Pruning db checkpoint in {:?} for epoch: {epoch}",
             db_path.display()
         );
+        // Relocation must stay disabled here: this prunes a DB checkpoint
+        // snapshot, which contains no historic store to relocate into.
         AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
             Some(&grpc_indexes_store),
+            None,
             None,
             self.pruning_config.clone(),
             metrics,

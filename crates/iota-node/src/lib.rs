@@ -40,6 +40,7 @@ use iota_core::{
         },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        historic_object_store::{HistoricObjectStore, HistoricObjectStoreMetrics},
     },
     authority_aggregator::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
@@ -422,10 +423,46 @@ impl IotaNode {
             None,
         ));
 
+        let mut historic_object_store_config = config
+            .authority_store_pruning_config
+            .historic_object_store
+            .clone();
+        if historic_object_store_config.is_some() {
+            // The compaction filter can only keep or remove rows at arbitrary
+            // compaction times; it would destroy rows before relocation could
+            // read them. This must be caught before the perpetual DB is
+            // opened, because the filter is installed at DB-open time.
+            anyhow::ensure!(
+                !config
+                    .authority_store_pruning_config
+                    .enable_compaction_filter,
+                "`historic-object-store` and `enable-compaction-filter` are mutually exclusive; \
+                 disable one of them"
+            );
+            if is_validator {
+                warn!(
+                    "The historic object store is fullnode-only; ignoring the configuration on \
+                     this validator."
+                );
+                historic_object_store_config = None;
+            }
+        }
+        let historic_object_store = historic_object_store_config
+            .map(|historic_config| {
+                HistoricObjectStore::open(
+                    &config.db_path().join("store"),
+                    historic_config.disable_wal,
+                    HistoricObjectStoreMetrics::new(&prometheus_registry),
+                )
+                .map(Arc::new)
+            })
+            .transpose()?;
+
         let mut pruner_db = None;
         if config
             .authority_store_pruning_config
             .enable_compaction_filter
+            && historic_object_store.is_none()
         {
             pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
                 &config.db_path().join("store"),
@@ -702,6 +739,7 @@ impl IotaNode {
             validator_tx_finalizer,
             chain_identifier,
             pruner_db,
+            historic_object_store,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),

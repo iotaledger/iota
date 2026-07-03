@@ -1665,6 +1665,7 @@ impl AuthorityStore {
             checkpoint_store,
             grpc_indexes_store,
             None,
+            None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,

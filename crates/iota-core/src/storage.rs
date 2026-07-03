@@ -382,7 +382,19 @@ impl ObjectStore for GrpcReadStore {
         object_id: &iota_sdk_types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.try_get_object_by_key(object_id, version)
+        if let Some(object) = self.rocks.try_get_object_by_key(object_id, version)? {
+            return Ok(Some(object));
+        }
+        // Fall back to relocated (superseded) versions. `GrpcReadStore` is
+        // constructed only for the gRPC server, so this fallback is
+        // unreachable from consensus and execution: a live-table miss there
+        // must stay a miss.
+        let Some(historic_store) = self.state.historic_object_store.as_ref() else {
+            return Ok(None);
+        };
+        historic_store
+            .get_object(&ObjectKey(*object_id, version))
+            .map_err(StorageError::custom)
     }
 }
 
@@ -491,13 +503,33 @@ impl GrpcStateReader for GrpcReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        Ok(self
+        let after_pruned = self
             .state
             .get_object_cache_reader()
             .try_get_highest_pruned_checkpoint()
             .map_err(StorageError::custom)?
             .map(|cp| cp + 1)
-            .unwrap_or(0))
+            .unwrap_or(0);
+        // With the historic store enabled, exact-version availability extends
+        // back to the start of the earliest retained epoch bucket.
+        let Some(earliest_epoch) = self
+            .state
+            .historic_object_store
+            .as_ref()
+            .and_then(|store| store.earliest_epoch())
+        else {
+            return Ok(after_pruned);
+        };
+        let historic_start = if earliest_epoch == 0 {
+            Some(0)
+        } else {
+            self.rocks
+                .checkpoint_store
+                .get_epoch_last_checkpoint_seq_number(earliest_epoch - 1)
+                .map_err(StorageError::custom)?
+                .map(|seq| seq + 1)
+        };
+        Ok(historic_start.unwrap_or(after_pruned).min(after_pruned))
     }
 
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {

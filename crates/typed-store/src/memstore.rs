@@ -95,6 +95,14 @@ impl InMemoryDB {
         }
     }
 
+    pub fn create_cf(&self, name: &str) {
+        self.data
+            .write()
+            .expect("can't write data")
+            .entry(name.to_string())
+            .or_default();
+    }
+
     pub fn has_cf(&self, name: &str) -> bool {
         self.data
             .read()

@@ -1058,6 +1058,54 @@ pub struct AuthorityStorePruningConfig {
     pub enable_compaction_filter: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
+    /// Enables the live/historic object split: instead of deleting superseded
+    /// object versions after `num_epochs_to_retain` epochs, the pruner
+    /// relocates them into per-epoch historic stores where they remain
+    /// readable through exact-version RPC lookups and are dropped wholesale
+    /// once out of retention. Fullnode-only; incompatible with
+    /// `enable_compaction_filter`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub historic_object_store: Option<HistoricObjectStoreConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct HistoricObjectStoreConfig {
+    /// Number of epochs of superseded object versions to retain, bucketed by
+    /// the epoch in which they were superseded. Whole epoch buckets are
+    /// dropped once they fall out of this window.
+    #[serde(default = "default_historic_epochs_to_retain")]
+    pub num_epochs_to_retain: u64,
+    /// Byte budget for a single relocation write batch.
+    #[serde(default = "default_max_relocation_batch_bytes")]
+    pub max_relocation_batch_bytes: usize,
+    /// Skip the write-ahead log for relocation writes. Safe because
+    /// relocation is idempotent and flushed before the source rows are
+    /// deleted; disable only for debugging.
+    #[serde(default = "default_historic_disable_wal")]
+    pub disable_wal: bool,
+}
+
+fn default_historic_epochs_to_retain() -> u64 {
+    100
+}
+
+fn default_max_relocation_batch_bytes() -> usize {
+    256 * 1024 * 1024
+}
+
+fn default_historic_disable_wal() -> bool {
+    true
+}
+
+impl Default for HistoricObjectStoreConfig {
+    fn default() -> Self {
+        Self {
+            num_epochs_to_retain: default_historic_epochs_to_retain(),
+            max_relocation_batch_bytes: default_max_relocation_batch_bytes(),
+            disable_wal: default_historic_disable_wal(),
+        }
+    }
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -1077,6 +1125,7 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
+            historic_object_store: None,
         }
     }
 }
