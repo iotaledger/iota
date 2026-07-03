@@ -698,11 +698,16 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
-pub fn default_concurrency_limit() -> Option<usize> {
-    let cores = std::thread::available_parallelism()
+/// Number of CPU cores available to the process, falling back to 8 when it
+/// cannot be determined.
+pub fn available_cpu_cores() -> usize {
+    std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(8);
-    Some(cores.saturating_mul(GRPC_CONCURRENCY_LIMIT_PER_CORE))
+        .unwrap_or(8)
+}
+
+pub fn default_concurrency_limit() -> Option<usize> {
+    Some(available_cpu_cores().saturating_mul(GRPC_CONCURRENCY_LIMIT_PER_CORE))
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
@@ -1549,6 +1554,11 @@ mod tests {
 
     use super::Genesis;
     use crate::NodeConfig;
+
+    #[test]
+    fn available_cpu_cores_is_never_zero() {
+        assert!(super::available_cpu_cores() >= 1);
+    }
 
     #[test]
     fn serialize_genesis_from_file() {
