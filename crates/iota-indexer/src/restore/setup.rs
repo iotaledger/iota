@@ -48,7 +48,6 @@ pub enum Network {
 ///
 /// Returns an error if:
 ///
-/// - The network is not `mainnet` or `testnet`.
 /// - The snapshot for the resolved epoch is incomplete.
 /// - Downloading the MANIFEST or reference files fails.
 pub(crate) async fn setup_reader(
