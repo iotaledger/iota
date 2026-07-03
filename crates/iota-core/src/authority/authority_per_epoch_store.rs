@@ -3411,8 +3411,6 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .consensus_handler_load_shedding_dropped_transactions
                                 .inc();
-                            // The retry-after hint matches the pre-consensus
-                            // load-shedding window in `overload_monitor.rs`.
                             load_shedding_dropped.push((
                                 digest,
                                 IotaError::ValidatorOverloadedRetryAfter {
