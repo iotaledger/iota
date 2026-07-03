@@ -62,15 +62,6 @@ use crate::{
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
-/// Controls transaction fetching truncation behavior for different sync modes
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TransactionFetchMode {
-    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
-    /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
-    /// and transactions synchronizer
-    TransactionSync,
-}
-
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
@@ -221,13 +212,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// The `fetch_mode` parameter controls whether results should be truncated
-    /// to respect maximum transaction limits.
+    /// Results are truncated to respect the maximum transaction limits.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<GenericTransactionRef>,
-        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 

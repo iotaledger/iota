@@ -43,7 +43,7 @@ use crate::{
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
-        TransactionChunkStream, TransactionFetchMode, tonic_network::MAX_FETCH_RESPONSE_BYTES,
+        TransactionChunkStream, tonic_network::MAX_FETCH_RESPONSE_BYTES,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -1370,7 +1370,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<GenericTransactionRef>,
-        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1378,22 +1377,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        // Apply truncation based on fetch mode
-        match fetch_mode {
-            TransactionFetchMode::TransactionSync => {
-                let max_transactions = max(
-                    self.context
-                        .parameters
-                        .max_transactions_per_commit_sync_fetch,
-                    self.context
-                        .parameters
-                        .max_transactions_per_transaction_sync_fetch,
-                );
-
-                if committed_transactions_refs.len() > max_transactions {
-                    committed_transactions_refs.truncate(max_transactions);
-                }
-            }
+        // Truncate to respect the maximum transaction limits.
+        let max_transactions = max(
+            self.context
+                .parameters
+                .max_transactions_per_commit_sync_fetch,
+            self.context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
+        );
+        if committed_transactions_refs.len() > max_transactions {
+            committed_transactions_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested transactions refs
@@ -1935,7 +1929,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV2, TransactionChunkStream, TransactionFetchMode,
+            SerializedTransactionsV2, TransactionChunkStream,
             tonic_network::MAX_FETCH_RESPONSE_BYTES,
         },
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -4056,11 +4050,7 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(
-                peer,
-                block_refs_to_request_first_batch.clone(),
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
             .await
             .expect("We should expect a correct return of serialized transactions");
 
@@ -4110,11 +4100,7 @@ mod tests {
         );
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(
-                peer,
-                block_refs_to_request_second_batch.clone(),
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())
             .await
             .expect("Should return an empty vector");
 
