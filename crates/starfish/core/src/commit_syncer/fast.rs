@@ -634,7 +634,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .unwrap_or_default();
         let mut transactions_map: BTreeMap<GenericTransactionRef, VerifiedTransactions> =
             BTreeMap::new();
-        let mut accepted_bytes = 0usize;
+        let mut received_bytes = 0usize;
         while let Some(chunk) = transaction_chunks.next().await {
             let chunk = match chunk {
                 Ok(chunk) => chunk,
@@ -650,6 +650,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
                 Err(e) => return Err(e),
             };
+
+            // Every received element counts toward the cap, including
+            // undecodable ones skipped below, so a peer cannot stream unbounded
+            // garbage without tripping it. This also mirrors the server's
+            // served-bytes accounting.
+            received_bytes += chunk.iter().map(|element| element.len()).sum::<usize>();
 
             let mut chunk_transactions = BTreeMap::new();
             for serialized_transaction in chunk {
@@ -672,7 +678,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         received: GenericTransactionRef::TransactionRef(transaction_ref),
                     });
                 }
-                accepted_bytes += serialized_transaction.len();
                 chunk_transactions.insert(
                     GenericTransactionRef::TransactionRef(transaction_ref),
                     tx_v2.serialized_transactions,
@@ -698,7 +703,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 transactions_map.extend(verified);
             }
 
-            if max_fetch_bytes != 0 && accepted_bytes >= max_fetch_bytes {
+            if max_fetch_bytes != 0 && received_bytes >= max_fetch_bytes {
                 let first_commit_covered = first_commit_tx_refs
                     .iter()
                     .all(|tx_ref| transactions_map.contains_key(tx_ref));
@@ -1424,6 +1429,59 @@ mod tests {
 
             // Only the first chunk was accepted before the cap tripped, so only
             // the first commit is covered.
+            assert_eq!(output.commits.len(), 1);
+            assert_eq!(output.commits[0].reference(), commits[0].reference());
+            assert_eq!(cap_stops(&context), 1);
+            assert_eq!(truncated_fetches(&context), 1);
+        }
+
+        /// Undecodable stream elements count toward the byte cap just like
+        /// accepted ones, so a peer cannot stream unbounded garbage without
+        /// tripping the cap. The first-commit progress guarantee still holds:
+        /// the garbage is only allowed to end the fetch once the first commit
+        /// is covered.
+        #[tokio::test]
+        async fn undecodable_elements_count_toward_byte_cap() {
+            let mut context = test_context();
+            let (commits, tx_elements, voting_headers) =
+                chained_commits_with_tx_counts(&Arc::new(context.clone()), &[1, 1]);
+            // Cap just above the first commit's single transaction, so only the
+            // trailing garbage can push accepted bytes over it.
+            let first_tx_len = tx_elements[0][0].len();
+            context.parameters.fast_commit_sync_max_fetch_bytes = first_tx_len + 1;
+            let context = Arc::new(context);
+
+            // A large blob that is not a valid SerializedTransactionsV2.
+            let garbage = Bytes::from(vec![0xffu8; 1024]);
+            assert!(
+                bcs::from_bytes::<SerializedTransactionsV2>(&garbage).is_err(),
+                "fixture garbage must be undecodable"
+            );
+
+            let network_client = Arc::new(FakeFetchClient {
+                commits: commits.iter().map(|c| c.serialized().clone()).collect(),
+                voting_headers,
+                // Commit 1's transaction, then garbage, then commit 2's
+                // transaction (which must never be reached).
+                transaction_chunks: vec![
+                    vec![tx_elements[0][0].clone()],
+                    vec![garbage],
+                    vec![tx_elements[1][0].clone()],
+                ],
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            // The garbage tripped the cap after commit 1 was covered, so commit
+            // 2 is never fetched.
             assert_eq!(output.commits.len(), 1);
             assert_eq!(output.commits[0].reference(), commits[0].reference());
             assert_eq!(cap_stops(&context), 1);
