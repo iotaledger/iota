@@ -24,6 +24,7 @@ pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
+    pub(crate) handle_fetch_commits_and_transactions: Vec<(AuthorityIndex, CommitRange, usize)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
 }
 
@@ -35,6 +36,7 @@ impl TestService {
             handle_subscribed_block_bundle_requests: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
+            handle_fetch_commits_and_transactions: Vec::new(),
         }
     }
 
@@ -102,11 +104,16 @@ impl NetworkService for Mutex<TestService> {
 
     async fn handle_fetch_commits_and_transactions(
         &self,
-        _peer: AuthorityIndex,
-        _commit_range: CommitRange,
-        _max_transaction_bytes: usize,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        max_transaction_bytes: usize,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, TransactionChunkStream)> {
-        unimplemented!("Unimplemented")
+        self.lock().handle_fetch_commits_and_transactions.push((
+            peer,
+            commit_range,
+            max_transaction_bytes,
+        ));
+        Ok((vec![], vec![], Box::pin(stream::empty())))
     }
 
     async fn handle_fetch_latest_block_headers(

@@ -437,6 +437,7 @@ impl NetworkClient for TonicClient {
         let mut request = Request::new(FetchCommitsAndTransactionsRequest {
             start: commit_range.start(),
             end: commit_range.end(),
+            max_transaction_bytes: self.context.parameters.fast_commit_sync_max_fetch_bytes as u64,
         });
         request.set_timeout(timeout);
         let mut stream = client
@@ -951,7 +952,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_commits_and_transactions(
                 peer_index,
                 (request.start..=request.end).into(),
-                0,
+                request.max_transaction_bytes as usize,
             )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
@@ -1608,6 +1609,11 @@ pub(crate) struct FetchCommitsAndTransactionsRequest {
     start: CommitIndex,
     #[prost(uint32, tag = "2")]
     end: CommitIndex,
+    // Client's per-fetch transaction byte budget, forwarded as a hint for the
+    // server's transaction stream cursor. 0 means unlimited; older clients
+    // that don't set this field also decode to 0.
+    #[prost(uint64, tag = "3")]
+    max_transaction_bytes: u64,
 }
 
 #[derive(Clone, prost::Message)]
