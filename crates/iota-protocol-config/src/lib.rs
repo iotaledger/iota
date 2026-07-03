@@ -289,7 +289,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             restored x-coordinate is not below the field modulus.
 //             Enable built-in Move authenticators in devnet.
 //             Introduce Move native functions for validating public keys for
-//             Ed25519, Secp256k1, and Secp256r1 signature schemes.
+//             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
+//             and deriving IOTA addresses from public keys.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1863,6 +1864,17 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key:
     // &vector<u8>): bool`
     ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `multisig::multisig_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    multisig_multisig_validate_pubkey_cost_base: Option<u64>,
+    // Per-member cost params for `multisig::multisig_validate_pubkey`, charged once per committee
+    // member according to its key scheme (Passkey members reuse the secp256r1 cost).
+    multisig_multisig_validate_pubkey_cost_per_ed25519_member: Option<u64>,
+    multisig_multisig_validate_pubkey_cost_per_secp256k1_member: Option<u64>,
+    multisig_multisig_validate_pubkey_cost_per_secp256r1_member: Option<u64>,
+    // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
+    // raw_bytes: &vector<u8>): address`
+    public_key_to_iota_address_impl_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -3207,6 +3219,11 @@ impl ProtocolConfig {
             ed25519_ed25519_validate_pubkey_cost_base: None,
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
+            multisig_multisig_validate_pubkey_cost_base: None,
+            multisig_multisig_validate_pubkey_cost_per_ed25519_member: None,
+            multisig_multisig_validate_pubkey_cost_per_secp256k1_member: None,
+            multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
+            public_key_to_iota_address_impl_cost_base: None,
 
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
@@ -4029,6 +4046,11 @@ impl ProtocolConfig {
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_ed25519_member = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256k1_member = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256r1_member = Some(52);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
                 }
                 41 => {
                     // Commit a block's transactions once its header is
