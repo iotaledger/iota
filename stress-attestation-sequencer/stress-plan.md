@@ -154,7 +154,7 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
   - Configurable slow mode (added): `--slow-n` / `--slow-size` select the fixed
     `slow::slow(n, size)` cost, and `--slow-shared` toggles a shared vs
     owned-object input - giving W5 (shared-object, cost sweep) and W4
-    (owned-object, pure compute, used for H1). Previously `--slow` ran only the
+    (owned-object, pure computation, used for H1). Previously `--slow` ran only the
     clock-driven `slow::bimodal` with a shared input (two hardcoded cost levels,
     not settable). See the `--slow` entry above.
   - W2 (inflated budget): a gas-budget knob, so a shared-object workload can set
@@ -395,10 +395,10 @@ They are needed for the testing only, not to be merged to upstream branches.
   (`TotalComputationUnits`): (i) attestation off (all V1, fallback
   `gas_budget / gas_price`) and attestation on (all V2, attested computation
   cost). The two kinds never coexist in a run.
-- Stress parameters: `--slow` in owned-object mode (`--slow-shared false`), so the
-  transactions are pure per-transaction compute with no shared-object congestion
-  control to confound the A↔B delta; sweep `--slow-n`/`--slow-size` across the
-  compute range; same workload, seed, and rate in both runs.
+- Stress parameters: `--slow` in owned-object mode (`--slow-shared false`), so each
+  transaction only does CPU work with no shared-object congestion control to
+  confound the A↔B delta; sweep `--slow-n`/`--slow-size` across the
+  computation-cost range; same workload, seed, and rate in both runs.
 - Measure: diff scheduling, throughput, and latency between the two runs.
 - Tests: H1. The V1 run is the zero-attestation control, so this isolates
   attestation overhead: diff the e2e latency (`settlement_finality_latency`,
@@ -415,7 +415,7 @@ They are needed for the testing only, not to be merged to upstream branches.
   shared-object mode (`--slow-shared true`, the default), which attaches a mutable
   shared-object input to activate congestion control; set `--slow-n`/`--slow-size`
   to run the fixed `slow::slow(n, size)` for a controllable per-transaction
-  compute cost; sweep `n`/`size` for a real, varying cost spread and raise the
+  computation cost; sweep `n`/`size` for a real, varying cost spread and raise the
   rate to saturation.
 - Note on the workload: W4 (owned) and W5 (shared) are the same `--slow` workload
   with `--slow-shared` toggled. The `--slow-n`/`--slow-size` (fixed, controllable

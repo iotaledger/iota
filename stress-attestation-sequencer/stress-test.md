@@ -9,45 +9,60 @@ All commands are run from the `iota` monorepo root unless noted.
 
 ## H1 — attestation overhead (W4: slow owned-object; V1 vs V2)
 
-**Goal.** Measure what attestation costs. Attestation (the pre-consensus
-dry-run) happens in the `submit_tx` path independent of the congestion mode, so
-H1 deliberately keeps sequencing out of the picture: **owned-object**
-transactions only (no shared-object scheduling at all). Each configuration is
-run twice under identical inputs; the only difference is attestation off (all
-`UserTransactionV1`, the zero-attestation control — "A") vs on (all
-`UserTransactionV2`, attested — "B"). Diff the metrics; no pass/fail threshold.
+**Goal:** measure what validator attestation costs. Attestation (the
+pre-consensus dry-run) happens in the `submit_tx` path independent of the
+congestion mode, so H1 deliberately keeps sequencing out of the picture:
+**owned-object** transactions only (no shared-object scheduling at all). Each
+configuration is run twice under identical load; the only difference is
+attestation off (all `UserTransactionV1`, the zero-attestation control — "A")
+vs on (all `UserTransactionV2`, attested — "B"). We then compare the two runs to
+see how the metrics differ between them; this is purely a measurement, with no
+pass/fail threshold.
 
 ### Experiment as run
 
-Rather than a single rate, H1 sweeps a matrix so the overhead is measured across
-the whole per-transaction compute range, both client submission paths, and three
-load levels. Driven by `stress-attestation-sequencer/h1/matrix.sh` (each
-configuration calls `run.sh`, which runs A then B back-to-back on a fresh
-genesis, scrapes Prometheus into per-run JSON, aggregates, and plots):
+Rather than a single submission rate (target QPS), H1 sweeps a matrix so the
+overhead is measured across a range of per-transaction computation units, both
+client submission paths (via fullnode vs direct to a single validator), and
+three load levels — target QPS of 200, 1000, and 2000 tx/s. Driven by
+`stress-attestation-sequencer/h1/matrix.sh` (each configuration calls `run.sh`,
+which runs A then B back-to-back on a fresh network, scrapes Prometheus into
+per-run JSON, aggregates, and plots):
 
 - **Workload**: `slow::slow(n, size)` with `n == size`, owned-object
-  (`SLOW_SHARED=false`) — pure per-transaction compute, no shared object, so no
-  congestion control or scheduling noise to confound the A↔B delta.
-- **compute** (`slow_size`): {0, 50, 100, 200, 500} — 0 ≈ a no-op floor
-  (~`gas_rounding_step`), rising per-transaction computation cost.
-- **path**: `f` = submit via fullnode (`DIRECT=false`); `v` = pinned
+  (`SLOW_SHARED=false`) — each transaction only does CPU work (no shared objects),
+  so no congestion control or scheduling noise, so nothing but attestation
+  drives the A vs B difference.
+- **Computation** (`slow_size`, with `n == size`): {0, 50, 100, 200, 500} — the
+  argument passed to `slow::slow(n, size)`; larger values mean more CPU work
+  per transaction. But gas is bucketed (rounded up to `gas_rounding_step`), so
+  the two smallest workloads fall in the same bucket and bill identically:
+  `slow0` and `slow50` both sit at the floor (equal attestation cost — see
+  finding 1), and the per-transaction computation cost only steps up from
+  `slow100` onward.
+- **Path**: `f` = submit via fullnode (`DIRECT=false`); `v` = pinned
   direct-to-one-validator (`DIRECT=true NUM_TARGET_VALIDATORS=1`).
-- **rate** (`target_qps`): {200, 1000, 2000}.
-- 5 × 2 × 3 = **30 configurations**, **10 iterations** each; every iteration runs
-  Run A (V1, attestation OFF) and Run B (V2, attestation ON).
+- **Rate** (`target_qps`): {200, 1000, 2000}.
+- 5 × 2 × 3 = **30 configurations**, **10 iterations** each; every iteration
+  runs Run A (V1, attestation OFF) and Run B (V2, attestation ON).
 
-`run.sh` re-bootstraps a fresh genesis (empty DB) between A and B so both share
-the same cold baseline and warmup — only attestation differs — while leaving the
-monitoring stack (Prometheus/Grafana) up so both windows stay queryable.
+`run.sh` re-bootstraps a fresh genesis and network (empty DB) between A and B so
+both share the same cold baseline and warmup — only attestation differs. The
+monitoring stack is cycled down (without wiping its volume) and back up too,
+since leaving Prometheus up across the reset would give Run B a longer warmup.
+In unattended runs the TSDB is additionally wiped between A and B (Run A's JSON
+is saved first); run interactively it is kept, so both windows coexist in one
+Grafana view.
 
-Aggregation and reporting tooling (all under `h1/`):
+Aggregation and reporting tooling (all under `h1/` directory):
 
-- `make_table.py` → `results/summary_table.md` (+ `results/summary_table.csv`):
-  one row per configuration, an A/B cell per metric (`mean ± std` pooled over
-  time × iterations), with the network-level series computed exactly as `plot.py`
-  does (rate / `histogram_quantile`, per-validator collapse).
-- `summary_plot.py` → `results/summary_plots/*.png`: grouped A vs B bar charts
-  per metric, configurations on the x-axis, log-scale y.
+- `make_table.py` generates `results/summary_table.md` (+
+  `results/summary_table.csv`): one row per configuration, an A/B cell per
+  metric (`mean ± std` pooled over time × iterations), with the network-level
+  series computed exactly as `plot.py` does (rate / `histogram_quantile`,
+  per-validator collapse).
+- `summary_plot.py` generates `results/summary_plots/*.png`: grouped A vs B
+  bar charts per metric, configurations on the x-axis, log-scale y.
 
 > [!NOTE]
 > Client-side `settlement_finality_latency` and `submit_transaction_latency` are
@@ -65,8 +80,8 @@ error bars are ±1 std (signal variability) by default; `summary_plot.py --disp
 sem` switches them to the standard error of the mean.
 
 **1. Attestation is a full execution dry-run — its cost tracks execution.**
-`validator_attestation_latency` (B only) scales with per-transaction compute and
-converges to the actual execution latency:
+`validator_attestation_latency` (B only) scales with the transaction's
+computation cost and converges to the actual execution latency:
 
 | slow_size | attest. lat. p50 | attest. lat. p99 | actual internal exec. p95 |
 | --- | --- | --- | --- |
@@ -77,14 +92,14 @@ converges to the actual execution latency:
 | 500 | 944 ms  | 994 ms  | 1.28 s |
 
 At the no-op floor (slow0) attestation costs ~2.5 ms — the fixed cost of the
-dry-run machinery. As compute grows the dry-run dominates and its latency
+dry-run machinery. As the computation cost grows the dry-run dominates and its latency
 approaches the execution cost itself: an attested transaction is executed once
 for the dry-run and once for real, so heavy transactions pay roughly twice.
 
 **2. Throughput: no penalty.** Finalized TPS
 (`transactions_included_in_checkpoint`) is statistically identical A↔B — median
 (B−A)/A = **+0.1 %**, within the ~0.6 % standard error. Attestation does not
-reduce throughput at any compute level or rate. (The wide raw range is confined
+reduce throughput at any computation level or rate. (The wide raw range is confined
 to the slow500 configurations, where absolute throughput is small and noisy.)
 
 **3. CPU: attestation adds ~30 % busy cores.** Per-validator CPU (busiest
@@ -94,7 +109,7 @@ with the extra dry-run execution.
 
 **4. Submit latency (fullnode path): a fixed per-transaction addition.** B's
 submit `p50` exceeds A's by roughly the attestation latency, so the *ratio* is
-largest where the baseline is smallest (low rate / low compute): slow0-q200
+largest where the baseline is smallest (low rate / low computation cost): slow0-q200
 4.4 ms → 16.7 ms (3.8×), slow500-q200 26 ms → 693 ms (26×, i.e. +667 ms ≈ the
 attestation cost). At high rate the queueing baseline dominates and the ratio
 shrinks (~1.1–4×). The *added* latency is essentially the dry-run time.
