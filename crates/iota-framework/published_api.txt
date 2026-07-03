@@ -2485,13 +2485,10 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-multisig_to_hash_input
-	fun
-	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
-validate_multisig_public_key
+to_iota_address_impl
 	fun
 	0x2::public_key
 PublicKeyAttached

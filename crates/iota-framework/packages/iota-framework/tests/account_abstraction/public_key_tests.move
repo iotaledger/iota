@@ -4,7 +4,6 @@
 #[test_only]
 module iota::public_key_tests;
 
-use iota::bcs;
 use iota::public_key;
 use iota::signature_scheme;
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -171,17 +170,18 @@ fun create_passkey_too_long_aborts() {
     public_key::create(signature_scheme::passkey(), raw);
 }
 
-// === Failure: MultiSig BCS structure ===
+// === Failure: MultiSig structural validation ===
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigEmptySigners)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_empty_signers_aborts() {
-    // BCS vec_len=0 — at least one signer is required
-    public_key::create(signature_scheme::multisig(), x"00");
+    // vec_len(0) | threshold_le16(1) — deserializes to a committee with no signers, which is
+    // rejected (at least one signer is required).
+    public_key::create(signature_scheme::multisig(), x"000100");
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigTooManySigners)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_too_many_signers_aborts() {
     // BCS-encoded MultiSigPublicKey with 11 Ed25519 signers (max is 10), each weight=1,
     // threshold=1. vec_len=11 (0x0b), followed by 11 × (tag=0 | 32 zero bytes | weight=1)
@@ -191,7 +191,7 @@ fun create_multisig_too_many_signers_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigZeroThreshold)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_zero_threshold_aborts() {
     // Same as the valid 1-of-1 Ed25519 layout but threshold_le = 0x0000
     let raw = x"01000000000000000000000000000000000000000000000000000000000000000000010000";
@@ -199,7 +199,7 @@ fun create_multisig_zero_threshold_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigWeightBelowThreshold)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_weight_below_threshold_aborts() {
     // 1 signer with weight=1, threshold=2 — total weight (1) < threshold (2)
     let raw = x"01000000000000000000000000000000000000000000000000000000000000000000010200";
@@ -207,20 +207,21 @@ fun create_multisig_weight_below_threshold_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigZeroWeight)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_zero_weight_signer_aborts() {
-    // 1 Ed25519 signer with weight=0, threshold=1. The Move validator must reject this to match
-    // the Rust verifier, which rejects zero-weight members at authentication time.
-    // Layout: vec_len(1) | tag(0=Ed25519) | 32 zero bytes | weight(0) | threshold_le(1)
-    let raw = x"01000000000000000000000000000000000000000000000000000000000000000000000100";
+    // The mixed 1-of-2 committee with the Ed25519 member's weight set to 0. Total weight (1,
+    // from the Secp256k1 member) still meets the threshold, so only the zero-weight rule is
+    // violated. Zero-weight members are rejected.
+    let raw =
+        x"0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88000102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
     public_key::create(signature_scheme::multisig(), raw);
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigDuplicateSigner)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_duplicate_signer_aborts() {
-    // 2 identical Ed25519 signers (same 32 zero bytes), each weight=1, threshold=1. The Move
-    // validator must reject duplicate signer keys to match the Rust verifier.
+    // 2 identical Ed25519 signers (same 32 zero bytes), each weight=1, threshold=1. Duplicate
+    // member keys are rejected.
     // Layout: vec_len(2) | Ed25519-entry | Ed25519-entry (same key) | threshold_le(1)
     let raw =
         x"0200000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000010100";
@@ -228,7 +229,7 @@ fun create_multisig_duplicate_signer_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EMultiSigTrailingBytes)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_trailing_bytes_aborts() {
     // Valid 1-of-1 Ed25519 payload followed by a spurious trailing byte (0xff)
     let raw = x"01000000000000000000000000000000000000000000000000000000000000000000010100ff";
@@ -236,7 +237,7 @@ fun create_multisig_trailing_bytes_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EUnknownPublicKeyScheme)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_unknown_sub_key_scheme_aborts() {
     // 1 signer using BCS enum tag 3 (ZkLoginDeprecated — no key bytes, not allowed), weight=1,
     // threshold=1
@@ -244,41 +245,36 @@ fun create_multisig_unknown_sub_key_scheme_aborts() {
     public_key::create(signature_scheme::multisig(), raw);
 }
 
-// === Failure: MultiSig truncated BCS peel ===
+// === Failure: MultiSig truncated / malformed BCS ===
 
 #[test]
-#[expected_failure(vector_error, minor_status = 2, location = iota::bcs)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_truncated_signer_count_aborts() {
-    // Byte 0x80 has the variable-length integer continuation bit set, so peel_vec_length
-    // expects a second byte to complete the signer count — but none exists. This exhausts
-    // on the very first peel in validate_multisig_public_key.
+    // Byte 0x80 has the variable-length integer continuation bit set, so the signer count is
+    // incomplete and deserialization fails.
     public_key::create(signature_scheme::multisig(), x"80");
 }
 
-// === Failure: MultiSig inner key byte count ===
-
 #[test]
-#[expected_failure(abort_code = bcs::EOutOfRange)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_inner_ed25519_key_too_short_aborts() {
-    // 1 signer with Ed25519 tag but only 31 key bytes (32 required); BCS reader exhausts
-    // on the 32nd peel inside the inner key loop.
+    // 1 signer with Ed25519 tag but only 31 key bytes (32 required).
     // Layout: vec_len(1) | tag(0=Ed25519) | 31 zero bytes
     let raw = x"010000000000000000000000000000000000000000000000000000000000000000";
     public_key::create(signature_scheme::multisig(), raw);
 }
 
 #[test]
-#[expected_failure(abort_code = bcs::EOutOfRange)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_inner_secp256k1_key_too_short_aborts() {
-    // 1 signer with Secp256k1 tag but only 32 key bytes (33 required); BCS reader exhausts
-    // on the 33rd peel inside the inner key loop.
+    // 1 signer with Secp256k1 tag but only 32 key bytes (33 required).
     // Layout: vec_len(1) | tag(1=Secp256k1) | 32 zero bytes
     let raw = x"01010000000000000000000000000000000000000000000000000000000000000000";
     public_key::create(signature_scheme::multisig(), raw);
 }
 
 #[test]
-#[expected_failure(abort_code = bcs::EOutOfRange)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_missing_weight_byte_aborts() {
     // 1 signer with a complete Ed25519 key (32 bytes) but no weight byte following it.
     // Layout: vec_len(1) | tag(0=Ed25519) | 32 zero bytes
@@ -287,10 +283,10 @@ fun create_multisig_missing_weight_byte_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = bcs::EOutOfRange)]
+#[expected_failure(abort_code = iota::public_key::EInvalidPublicKeyBytes)]
 fun create_multisig_incomplete_threshold_aborts() {
     // 1 signer with a complete Ed25519 key and weight byte, but only 1 of the 2 threshold
-    // bytes present; peel_u16 exhausts on the second byte.
+    // bytes present.
     // Layout: vec_len(1) | tag(0=Ed25519) | 32 zero bytes | weight(1) | 1 threshold byte
     let raw = x"010000000000000000000000000000000000000000000000000000000000000000000101";
     public_key::create(signature_scheme::multisig(), raw);
