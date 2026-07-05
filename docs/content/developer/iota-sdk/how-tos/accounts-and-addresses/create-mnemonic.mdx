@@ -8,6 +8,8 @@ tags:
   - kotlin
   - python
   - swift
+  - csharp
+  - wasm
 ---
 
 import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -168,6 +170,29 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/example
 </div>
 
 </TabItem>
+<TabItem value="wasm" label="WASM/TS">
+
+You can use the [`generateMnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/generate_mnemonic.mjs#L8
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength]{/*TODO: Add reference link*/} to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/generate_mnemonic.mjs#L9
+```
+
+</div>
+
+</TabItem>
 </Tabs>
 
 ### Full Example Code
@@ -213,6 +238,13 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ```csharp reference
 https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/GenerateMnemonic/Program.cs
+```
+
+</TabItem>
+<TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/generate_mnemonic.mjs
 ```
 
 </TabItem>

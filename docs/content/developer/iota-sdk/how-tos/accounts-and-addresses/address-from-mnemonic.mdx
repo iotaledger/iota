@@ -288,6 +288,49 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/example
 </div>
 
 </TabItem>
+<TabItem value="wasm" label="WASM/TS">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/address_from_mnemonic.mjs#L14-L15
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/address_from_mnemonic.mjs#L17-L28
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/address_from_mnemonic.mjs#L30
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/address_from_mnemonic.mjs#L32-L35
+```
+
+</div>
+
+</TabItem>
 </Tabs>
 
 :::tip
@@ -338,6 +381,13 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ```csharp reference
 https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/AddressFromMnemonic/Program.cs
+```
+
+</TabItem>
+<TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/address_from_mnemonic.mjs
 ```
 
 </TabItem>
