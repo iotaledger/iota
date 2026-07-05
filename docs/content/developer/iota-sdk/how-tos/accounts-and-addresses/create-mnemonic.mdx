@@ -7,6 +7,7 @@ tags:
   - go
   - kotlin
   - python
+  - swift
 ---
 
 import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -121,6 +122,52 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/example
 </div>
 
 </TabItem>
+<TabItem value="swift" label="Swift">
+
+You can use the [`generateMnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/GenerateMnemonic.swift#L9
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength]{/*TODO: Add reference link*/} to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/GenerateMnemonic.swift#L11
+```
+
+</div>
+
+</TabItem>
+<TabItem value="csharp" label="C#">
+
+You can use the [`Iota.GenerateMnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/GenerateMnemonic/Program.cs#L10
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength]{/*TODO: Add reference link*/} to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/GenerateMnemonic/Program.cs#L13-L14
+```
+
+</div>
+
+</TabItem>
 </Tabs>
 
 ### Full Example Code
@@ -152,6 +199,20 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/example
 
 ```python reference
 https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/generate_mnemonic.py
+```
+
+</TabItem>
+<TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/GenerateMnemonic.swift
+```
+
+</TabItem>
+<TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/GenerateMnemonic/Program.cs
 ```
 
 </TabItem>
