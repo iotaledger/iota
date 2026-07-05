@@ -1,0 +1,62 @@
+---
+description: 'Explains how the IOTA SDK is structured — the modular Rust core crates, the FFI bindings model, and the GraphQL and gRPC clients.'
+tags:
+  - explanation
+  - rust-sdk
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# IOTA SDK Architecture
+
+<IotaSdk />
+
+This page explains how the [IOTA SDK](https://github.com/iotaledger/iota-rust-sdk) is structured, why it is built around a single Rust core, and how that core reaches other languages.
+
+## One Core, Many Languages
+
+The IOTA SDK is implemented once, in Rust, and exposed to other languages through bindings rather than being re-implemented per language. This design has two consequences that shape everything else:
+
+- **Consistent behavior**: serialization, cryptography, and transaction building are the same code in every language, so an application signed in Python produces byte-identical results to one signed in Swift.
+- **Single place to fix and extend**: a bug fix or new feature in the Rust core reaches all languages with the next bindings release.
+
+The trade-off is a Foreign Function Interface (FFI) layer: the bindings call into a compiled native library, so packages ship platform-specific binaries (or WebAssembly for the browser).
+
+## The Rust Core Crates
+
+The SDK is modular so applications only pull in what they use:
+
+| Crate | Purpose |
+|---|---|
+| [`iota-sdk`](https://docs.rs/iota-sdk/latest/iota_sdk/) | Umbrella crate that re-exports the others behind feature flags. |
+| [`iota-sdk-types`](https://docs.rs/iota-sdk-types/latest/iota_sdk_types/) | Core blockchain types (`Address`, `ObjectId`, `Transaction`, `Checkpoint`, …), BCS-compatible and shared with the node. |
+| [`iota-sdk-crypto`](https://docs.rs/iota-sdk-crypto/latest/iota_sdk_crypto/) | Signing and verification traits with ed25519, secp256r1, secp256k1, BLS12-381, and passkey implementations. |
+| [`iota-sdk-transaction-builder`](https://docs.rs/iota-sdk-transaction-builder/latest/iota_sdk_transaction_builder/) | Fluent API for building Programmable Transaction Blocks, online or offline. |
+| [`iota-sdk-graphql-client`](https://docs.rs/iota-sdk-graphql-client/latest/iota_sdk_graphql_client/) | Type-safe GraphQL RPC client. |
+| `iota-sdk-grpc-client` | gRPC client (ledger, execution, state, and Move package services). |
+
+The `iota-sdk-types` crate is also the canonical definition of client-visible types for the whole IOTA stack — the node itself consumes it — which is what keeps SDK and network serialization in lockstep.
+
+## The Bindings Model
+
+The language bindings are generated from a dedicated FFI crate using [UniFFI](https://mozilla.github.io/uniffi-rs/), which produces idiomatic wrappers for each target language:
+
+- **Go, Kotlin, Python, Swift, and C#** link against a compiled native library. The published packages bundle pre-built binaries for common platforms.
+- **WASM/TypeScript** compiles the same FFI crate to WebAssembly via `wasm-bindgen`, so the SDK runs in browsers and Node.js without native binaries.
+
+Because every binding wraps the same FFI surface, the API is deliberately uniform across languages: the [how-to guides](../how-tos/accounts-and-addresses/create-mnemonic.mdx) show the same steps side by side in each language, differing only in syntax.
+
+Rust applications skip the FFI layer entirely and depend on the core crates directly.
+
+## GraphQL Today, gRPC Later
+
+The SDK currently offers two RPC clients in Rust, but only one through the bindings:
+
+- **GraphQL** is the documented client for all languages. It covers queries (objects, balances, events, transactions) and transaction execution, and is what all getting-started pages and how-to guides use.
+- **gRPC** exists as the `iota-sdk-grpc-client` Rust crate but is not yet exposed through the FFI bindings; it will be added to the bindings later. It is also not available for WASM.
+
+If you are choosing a client today: use GraphQL unless you are writing Rust and specifically need a gRPC service.
+
+## Relationship to the TypeScript SDK
+
+The [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx) is an independent, native TypeScript implementation aimed at web dApps (with React tooling in [dApp Kit](../../ts-sdk/dapp-kit/index.mdx)). The WASM bindings of the IOTA SDK instead expose the Rust core to JavaScript. Pick the TypeScript SDK for frontend development; pick the WASM bindings when you want behavior identical to the other IOTA SDK languages.

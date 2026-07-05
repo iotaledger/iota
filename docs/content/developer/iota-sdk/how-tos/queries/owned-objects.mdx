@@ -1,0 +1,213 @@
+---
+title: Query Owned Objects
+description: 'How to list the objects owned by an IOTA address using the GraphQL client.'
+tags:
+  - how-to
+  - rust-sdk
+---
+
+# Query Owned Objects
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+<IotaSdk />
+
+This guide shows you how to list the [objects](/developer/iota-101/objects/object-model) owned by an IOTA address using the IOTA SDK's [GraphQL client](/developer/references/iota-graphql).
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language
+- A valid IOTA address on the testnet
+
+## Steps
+
+### 1. Initialize the GraphQL Client
+
+Create a client connected to the IOTA Testnet.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/owned_objects.rs#L12
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/owned_objects/main.go#L14
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/owned_objects.py#L10
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/OwnedObjects.kt#L11
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/OwnedObjects.swift#L9
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/OwnedObjects/Program.cs#L10
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Set the Address
+
+Set the address whose objects you want to list. The examples use the zero address; replace it with your own.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/owned_objects.rs#L14
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/owned_objects/main.go#L16
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/owned_objects.py#L11
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/OwnedObjects.kt#L12
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/OwnedObjects.swift#L10
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/OwnedObjects/Program.cs#L11
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Query the Owned Objects
+
+Query the objects owned by the address using an object filter, then print the ID of each object in the result page.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/owned_objects.rs#L15-L27
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/owned_objects/main.go#L18-L32
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/owned_objects.py#L12-L15
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/OwnedObjects.kt#L13-L18
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/OwnedObjects.swift#L11-L15
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/OwnedObjects/Program.cs#L12-L19
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Owned objects (<count>):
+0x<object-id>
+0x<object-id>
+...
+```
+
+## Full Example
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/owned_objects.rs
+```
+  </TabItem>
+  <TabItem value="go" label="Go">
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/owned_objects/main.go
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/owned_objects.py
+```
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/OwnedObjects.kt
+```
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/OwnedObjects.swift
+```
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/OwnedObjects/Program.cs
+```
+  </TabItem>
+</Tabs>

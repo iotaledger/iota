@@ -14,6 +14,9 @@ const iotaSDK = [
             'developer/iota-sdk/getting-started/go',
             'developer/iota-sdk/getting-started/kotlin',
             'developer/iota-sdk/getting-started/python',
+            'developer/iota-sdk/getting-started/swift',
+            'developer/iota-sdk/getting-started/csharp',
+            'developer/iota-sdk/getting-started/wasm',
         ],
     },
     {
@@ -24,6 +27,7 @@ const iotaSDK = [
             slug: 'developer/iota-sdk/explanations',
         },
         items: [
+            'developer/iota-sdk/explanations/architecture',
             'developer/iota-sdk/explanations/address-derivation',
         ],
     },
@@ -61,6 +65,18 @@ const iotaSDK = [
                     'developer/iota-sdk/how-tos/transactions/transactions-with-function',
                 ],
             },
+            {
+                type: 'category',
+                label: 'Queries',
+                link: {
+                    type: 'generated-index',
+                    slug: 'developer/iota-sdk/how-tos/queries',
+                },
+                items: [
+                    'developer/iota-sdk/how-tos/queries/owned-objects',
+                    'developer/iota-sdk/how-tos/queries/query-events',
+                ],
+            },
         ],
     },
     {
@@ -71,6 +87,37 @@ const iotaSDK = [
             slug: 'developer/iota-sdk/references',
         },
         items: [
+            {
+                type: 'category',
+                label: 'Rust (docs.rs)',
+                items: [
+                    {
+                        type: 'link',
+                        label: 'iota-sdk',
+                        href: 'https://docs.rs/iota-sdk/latest/iota_sdk/',
+                    },
+                    {
+                        type: 'link',
+                        label: 'iota-sdk-types',
+                        href: 'https://docs.rs/iota-sdk-types/latest/iota_sdk_types/',
+                    },
+                    {
+                        type: 'link',
+                        label: 'iota-sdk-crypto',
+                        href: 'https://docs.rs/iota-sdk-crypto/latest/iota_sdk_crypto/',
+                    },
+                    {
+                        type: 'link',
+                        label: 'iota-sdk-graphql-client',
+                        href: 'https://docs.rs/iota-sdk-graphql-client/latest/iota_sdk_graphql_client/',
+                    },
+                    {
+                        type: 'link',
+                        label: 'iota-sdk-transaction-builder',
+                        href: 'https://docs.rs/iota-sdk-transaction-builder/latest/iota_sdk_transaction_builder/',
+                    },
+                ],
+            },
             {
                 type: 'category',
                 label: 'Python',

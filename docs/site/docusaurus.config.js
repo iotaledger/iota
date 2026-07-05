@@ -150,7 +150,7 @@ const config = {
             description: 'TypeScript and Rust SDK documentation for building applications on IOTA',
             includePatterns: [
               'developer/ts-sdk/**',
-              'developer/references/rust-sdk.md',
+              'developer/iota-sdk/**',
             ],
             fullContent: true,
           },
@@ -346,6 +346,10 @@ const config = {
             {
               from: '/operator/extensions/indexer-functions',
               to: '/operator/extended-data-services/iota-indexer',
+            },
+            {
+              from: '/developer/references/rust-sdk',
+              to: '/developer/iota-sdk/getting-started/rust',
             },
           ];
           let paths = [];

@@ -1,0 +1,84 @@
+---
+description: Get started with the IOTA SDK C# bindings to interact with the IOTA network.
+tags: [ mainnet, testnet, devnet, setup, install, getting-started ]
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with C#
+
+<IotaSdk />
+
+The IOTA SDK C# bindings allow .NET developers to build applications that interact with the IOTA network. These bindings wrap the core Rust SDK via a Foreign Function Interface (FFI).
+
+## Prerequisites
+
+Before using the C# bindings, ensure you have:
+* **.NET SDK**: Version 8.0 or higher.
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+Add the IOTA SDK to your project as a NuGet package:
+
+```bash
+dotnet add package IotaSdk
+```
+
+The package includes pre-built native libraries for macOS (x86_64 and ARM64), Linux (x86_64 and ARM64), and Windows (x86_64 and ARM64).
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+If a pre-built native library is not available for your operating system or CPU architecture, you can build the C# bindings from source. A Rust toolchain is required.
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk
+make csharp
+```
+
+For additional setup instructions and platform-specific details, refer to the [C# bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/csharp) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Testnet and retrieve the Chain ID.
+
+### 1. Create a console project
+
+```bash
+dotnet new console -o iota-quickstart
+cd iota-quickstart
+dotnet add package IotaSdk
+```
+
+### 2. Replace `Program.cs`
+
+Replace the contents of `Program.cs` with the following code:
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/csharp/examples/ChainId/Program.cs#L4-L23
+```
+
+### 3. Run the code
+
+In your terminal, run:
+
+```bash
+dotnet run
+```
+
+## What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* Check Balances: Learn how to [query coin balances](../how-tos/accounts-and-addresses/coin-balance.mdx) for a specific address.
+* Transactions: Build and sign Programmable Transaction Blocks (PTBs).
+* Key Management: Use the SDK to [generate and manage IOTA addresses](../how-tos/accounts-and-addresses/create-mnemonic.mdx).
+
+View more comprehensive examples in the official [C# examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/csharp/examples).
