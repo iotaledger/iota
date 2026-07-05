@@ -94,7 +94,9 @@ const iotaSDK = [
                     {
                         type: 'link',
                         label: 'iota-sdk',
-                        href: 'https://docs.rs/iota-sdk/latest/iota_sdk/',
+                        // Pinned: /latest/ serves the unrelated legacy 1.x
+                        // wallet SDK until a stable 3.x release exists.
+                        href: 'https://docs.rs/iota-sdk/3.0.0-alpha.1/iota_sdk/',
                     },
                     {
                         type: 'link',
