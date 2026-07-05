@@ -150,7 +150,11 @@ const config = {
             description: 'TypeScript and Rust SDK documentation for building applications on IOTA',
             includePatterns: [
               'developer/ts-sdk/**',
-              'developer/iota-sdk/**',
+              // Generated references (developer/iota-sdk/references/**) are
+              // deliberately excluded — they are too large for the LLM file.
+              'developer/iota-sdk/getting-started/**',
+              'developer/iota-sdk/how-tos/**',
+              'developer/iota-sdk/explanations/**',
             ],
             fullContent: true,
           },
