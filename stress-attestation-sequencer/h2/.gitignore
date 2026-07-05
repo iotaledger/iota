@@ -1,0 +1,6 @@
+# Track scripts only; venv + generated data are not committed.
+.venv*/
+__pycache__/
+results/
+logs/
+nohup.out
