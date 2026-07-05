@@ -205,20 +205,17 @@ async fn reconfig_with_revert_end_to_end_test() {
         .await
         .unwrap();
 
-    authorities[reverting_authority_idx]
-        .with_async(|node| async {
-            let object = node
-                .state()
-                .get_objects(&[gas2.object_id])
-                .await
-                .into_iter()
-                .next()
-                .unwrap()
-                .unwrap();
-            // verify that authority 0 advanced object version
-            assert_eq!(2, object.version());
-        })
-        .await;
+    authorities[reverting_authority_idx].with(|node| {
+        let object = node
+            .state()
+            .get_objects(&[gas2.object_id])
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+        // verify that authority 0 advanced object version
+        assert_eq!(2, object.version());
+    });
 
     // Wait for all nodes to reach the next epoch.
     let handles: Vec<_> = authorities
@@ -238,40 +235,36 @@ async fn reconfig_with_revert_end_to_end_test() {
 
     let mut epoch = None;
     for handle in authorities.iter() {
-        handle
-            .with_async(|node| async {
-                let object = node
-                    .state()
-                    .get_objects(&[gas1.object_id])
-                    .await
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(2, object.version());
-                // Due to race conditions, it's possible that tx2 went in
-                // before 2f+1 validators sent EndOfPublish messages and close
-                // the curtain of epoch 0. So, we are asserting that
-                // the object version is either 1 or 2, but needs to be
-                // consistent in all validators.
-                // Note that previously test checked that object version == 2 on authority 0
-                let object = node
-                    .state()
-                    .get_objects(&[gas2.object_id])
-                    .await
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .unwrap();
-                let object_version = object.version();
-                if epoch.is_none() {
-                    assert!(object_version == 1 || object_version == 2);
-                    epoch.replace(object_version);
-                } else {
-                    assert_eq!(epoch, Some(object_version));
-                }
-            })
-            .await;
+        handle.with(|node| {
+            let object = node
+                .state()
+                .get_objects(&[gas1.object_id])
+                .into_iter()
+                .next()
+                .unwrap()
+                .unwrap();
+            assert_eq!(2, object.version());
+            // Due to race conditions, it's possible that tx2 went in
+            // before 2f+1 validators sent EndOfPublish messages and close
+            // the curtain of epoch 0. So, we are asserting that
+            // the object version is either 1 or 2, but needs to be
+            // consistent in all validators.
+            // Note that previously test checked that object version == 2 on authority 0
+            let object = node
+                .state()
+                .get_objects(&[gas2.object_id])
+                .into_iter()
+                .next()
+                .unwrap()
+                .unwrap();
+            let object_version = object.version();
+            if epoch.is_none() {
+                assert!(object_version == 1 || object_version == 2);
+                epoch.replace(object_version);
+            } else {
+                assert_eq!(epoch, Some(object_version));
+            }
+        });
     }
 }
 

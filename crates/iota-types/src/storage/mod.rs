@@ -23,8 +23,8 @@ use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
-    OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
-    PackageVersionKey, ReadStore, TransactionInfo,
+    EpochInfoV1Entry, EpochInfoV2, OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -589,7 +589,7 @@ pub fn get_transaction_input_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing input object key {:?} from tx {}",
                     input_object_keys[idx],
                     effects.transaction_digest()
@@ -616,7 +616,7 @@ pub fn get_transaction_output_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing output object key {:?} from tx {}",
                     output_object_keys[idx],
                     effects.transaction_digest()

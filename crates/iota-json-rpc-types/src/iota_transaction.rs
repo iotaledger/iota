@@ -1721,8 +1721,7 @@ impl IotaTransactionBlockData {
                 gas_data,
             })),
             _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {} not implemented",
-                message_version
+                "Support for TransactionData version {message_version} not implemented"
             )),
         }
     }

@@ -194,7 +194,7 @@ pub fn generate_new_key(
     let seed = Seed::new(&mnemonic, "");
     match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
         Ok((address, kp)) => Ok((address, kp, key_scheme, mnemonic.phrase().to_string())),
-        Err(e) => Err(anyhow!("Failed to generate keypair: {:?}", e)),
+        Err(e) => Err(anyhow!("Failed to generate keypair: {e:?}")),
     }
 }
 

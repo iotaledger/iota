@@ -522,7 +522,7 @@ impl IotaValue {
     ) -> anyhow::Result<Object> {
         let id = match test_adapter.fake_to_real_object_id(fake_id) {
             Some(id) => id,
-            None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
+            None => bail!("INVALID TEST. Unknown object, object({fake_id})"),
         };
         let obj_res = if let Some(v) = version {
             iota_types::storage::ObjectStore::try_get_object_by_key(&*test_adapter.executor, &id, v)
@@ -531,7 +531,7 @@ impl IotaValue {
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,
-            Err(_) | Ok(None) => bail!("INVALID TEST. Could not load object argument {}", id),
+            Err(_) | Ok(None) => bail!("INVALID TEST. Could not load object argument {id}"),
         };
         Ok(obj)
     }

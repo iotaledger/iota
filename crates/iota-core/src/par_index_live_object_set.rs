@@ -8,13 +8,15 @@ use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::error::Error as StorageError};
 use tracing::info;
 
-use crate::authority::{AuthorityStore, authority_store_tables::LiveObject};
+use crate::authority::AuthorityStore;
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
-    type ObjectIndexer: LiveObjectIndexer;
+    type ObjectIndexer<'a>: LiveObjectIndexer
+    where
+        Self: 'a;
 
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer;
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_>;
 }
 
 /// Represents an instance of a indexer that operates on a subset of the live
@@ -90,7 +92,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     for object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .filter_map(LiveObject::to_normal)
+        .map(|o| o.object)
     {
         object_scanned += 1;
         if object_scanned.is_multiple_of(2_000_000) {

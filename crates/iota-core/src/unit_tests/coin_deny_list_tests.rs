@@ -37,7 +37,7 @@ async fn test_regulated_coin_v1_types() {
     let mut regulated_metadata_object = None;
     let mut package_id = None;
     for (oref, _owner) in env.publish_effects.created() {
-        let object = env.authority.get_object(&oref.object_id).await.unwrap();
+        let object = env.authority.get_object(&oref.object_id).unwrap();
         if object.is_package() {
             package_id = Some(object.id());
             continue;
@@ -219,7 +219,7 @@ struct TestEnv {
 
 impl TestEnv {
     async fn get_latest_object_ref(&self, id: &ObjectId) -> ObjectRef {
-        self.authority.get_object(id).await.unwrap().object_ref()
+        self.authority.get_object(id).unwrap().object_ref()
     }
 }
 

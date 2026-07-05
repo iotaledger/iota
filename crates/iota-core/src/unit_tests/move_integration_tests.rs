@@ -45,7 +45,7 @@ async fn test_object_wrapping_unwrapping() {
     )
     .await;
 
-    let gas_version = authority.get_object(&gas).await.unwrap().version();
+    let gas_version = authority.get_object(&gas).unwrap().version();
     let create_child_version = Version::lamport_increment([gas_version]).unwrap();
 
     // Create a Child object.
@@ -350,7 +350,7 @@ async fn test_object_owning_another_object() {
         .unwrap();
     // Check that the child is now owned by the parent.
     let field_id = child_effect.1.as_object();
-    let field_object = authority.get_object(field_id).await.unwrap();
+    let field_object = authority.get_object(field_id).unwrap();
     assert_eq!(field_object.owner, parent_id);
 
     // Mutate the child directly will now fail because we need the parent to
@@ -2930,7 +2930,7 @@ pub async fn build_and_try_publish_test_package(
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-    let gas_object = authority.get_object(gas_object_id).await;
+    let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
 
     let data = TransactionData::new_module(
@@ -3030,7 +3030,7 @@ pub async fn collect_packages_and_upgrade_caps(
         if !matches!(owner, Owner::Address(_)) {
             continue;
         }
-        let cap = authority.get_object(&obj_ref.object_id).await.unwrap();
+        let cap = authority.get_object(&obj_ref.object_id).unwrap();
         let bcs = cap.data.as_opt_struct().unwrap().contents();
         let obj: UpgradeCap = bcs::from_bytes(bcs).unwrap();
         let pkg = packages.get(&obj.package.bytes).unwrap();
@@ -3048,7 +3048,7 @@ pub async fn run_multi_txns(
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // build the transaction data
     let pt = builder.finish();
-    let gas_object = authority.get_object(gas_object_id).await;
+    let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
     let gas_price = authority.reference_gas_price_for_testing().unwrap();
     let gas_budget = pt.non_system_packages_to_be_published().count() as u64

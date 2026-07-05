@@ -3,7 +3,7 @@
 
 use iota_grpc_client::{ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
-use iota_sdk_types::Digest;
+use iota_sdk_types::TransactionDigest;
 
 use super::{
     super::utils::{execute_transaction_and_get_digest, setup_grpc_test},
@@ -87,12 +87,12 @@ async fn get_transactions_scenarios() {
     );
 
     // Test: nonexistent transaction returns not-found error
-    let fake_digest = Digest::new([0u8; 32]);
+    let fake_digest = TransactionDigest::new([0u8; 32]);
     let result = client.get_transactions(&[fake_digest], None).await;
     assert_server_not_found(result);
 
     // Test: mixed valid/invalid returns error
-    let fake_digest = Digest::new([0u8; 32]);
+    let fake_digest = TransactionDigest::new([0u8; 32]);
     let result = client.get_transactions(&[digest1, fake_digest], None).await;
     assert!(
         result.is_err(),

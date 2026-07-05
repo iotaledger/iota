@@ -360,6 +360,13 @@ impl GrpcStateReader for MockGrpcStateReader {
         Ok(None)
     }
 
+    fn get_epoch_info(
+        &self,
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<iota_types::storage::EpochInfoV2>> {
+        Ok(None)
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         Some(self)
     }
@@ -374,13 +381,6 @@ impl GrpcStateReader for MockGrpcStateReader {
 
 // -- GrpcIndexes impl --
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
-    fn get_epoch_info(
-        &self,
-        _epoch: iota_types::committee::EpochId,
-    ) -> StorageResult<Option<iota_types::storage::EpochInfo>> {
-        Ok(None)
-    }
-
     fn get_transaction_info(
         &self,
         _digest: &TransactionDigest,

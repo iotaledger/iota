@@ -629,7 +629,7 @@ mod checked {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(
-                authenticator.digest(),
+                authenticator.digest().into(),
                 auth_context_data.sender_auth_digest,
                 auth_context_data.sponsor_auth_digest,
                 auth_context_data

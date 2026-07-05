@@ -208,7 +208,7 @@ pub async fn start_grpc_server(
 
         server_builder = server_builder
             .tls_config(tls)
-            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {e}"))?;
     }
 
     // Order matters: metrics outermost to observe blocked requests; server-timing

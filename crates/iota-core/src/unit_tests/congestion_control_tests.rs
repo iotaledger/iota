@@ -86,9 +86,7 @@ impl TestSetup {
 
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-        setup_authority_state
-            .insert_genesis_object(gas_object.clone())
-            .await;
+        setup_authority_state.insert_genesis_object(gas_object.clone());
 
         let package = build_and_publish_test_package(
             &setup_authority_state,
@@ -187,19 +185,17 @@ impl TestSetup {
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
             self.setup_authority_state
                 .get_object(&self.package.object_id)
-                .await
                 .unwrap(),
         ));
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
             self.setup_authority_state
                 .get_object(&self.gas_object_id)
-                .await
                 .unwrap(),
         ));
 
         for obj in objects {
             genesis_objects.push(TestSetup::convert_to_genesis_obj(
-                self.setup_authority_state.get_object(obj).await.unwrap(),
+                self.setup_authority_state.get_object(obj).unwrap(),
             ));
         }
         genesis_objects
@@ -316,17 +312,13 @@ async fn test_congestion_control_execution_cancellation() {
         .with_protocol_config(test_setup.protocol_config.clone())
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&genesis_objects)
-        .await;
+    authority_state.insert_genesis_objects(&genesis_objects);
     let authority_state_2 = TestAuthorityBuilder::new()
         .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
         .with_protocol_config(test_setup.protocol_config.clone())
         .build()
         .await;
-    authority_state_2
-        .insert_genesis_objects(&genesis_objects)
-        .await;
+    authority_state_2.insert_genesis_objects(&genesis_objects);
 
     // The congestion limit, taking overshoot into account is
     // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
@@ -389,7 +381,6 @@ async fn test_congestion_control_execution_cancellation() {
         ],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         TEST_ONLY_GAS_UNIT,
@@ -485,9 +476,7 @@ async fn test_congestion_control_debt_tracking() {
         .with_protocol_config(test_setup.protocol_config.clone())
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&genesis_objects)
-        .await;
+    authority_state.insert_genesis_objects(&genesis_objects);
 
     // Commit 1: a transaction with gas budget 3*default_tx_gas_budget that touches
     // shared_object_1 and an owned object.
@@ -502,7 +491,6 @@ async fn test_congestion_control_debt_tracking() {
         &[(shared_object_1.object_id, shared_object_1.version)],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
@@ -554,7 +542,6 @@ async fn test_congestion_control_debt_tracking() {
         ],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         TEST_ONLY_GAS_UNIT / 2,
@@ -608,7 +595,6 @@ async fn test_congestion_control_debt_tracking() {
         &[(shared_object_2.object_id, shared_object_2.version)],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         2 * TEST_ONLY_GAS_UNIT,
@@ -692,7 +678,6 @@ async fn test_congestion_control_debt_tracking() {
         &[(shared_object_1.object_id, shared_object_1.version)],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         5 * TEST_ONLY_GAS_UNIT / 2,
@@ -750,7 +735,6 @@ async fn test_congestion_control_debt_tracking() {
         ],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         3 * TEST_ONLY_GAS_UNIT / 2,
@@ -836,7 +820,6 @@ async fn test_congestion_control_debt_tracking() {
         &[],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
@@ -890,7 +873,6 @@ async fn test_congestion_control_debt_tracking() {
         ],
         &authority_state
             .get_object(&owned_object.object_id)
-            .await
             .unwrap()
             .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
