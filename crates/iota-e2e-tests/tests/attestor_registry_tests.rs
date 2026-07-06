@@ -161,3 +161,111 @@ async fn test_attestor_registry_lifecycle() {
     });
     assert!(removed, "attestor must be removed after the deregistration boundary");
 }
+
+/// With the stats feed live, an attestor whose valid attestations are
+/// recorded every epoch keeps its slot, while an idle one is dropped with
+/// the inactivity penalty once the window passes.
+#[sim_test]
+async fn test_attestor_inactivity_drop_via_stats() {
+    telemetry_subscribers::init_for_testing();
+
+    let _env = ProtocolEnvOverride::new(&[
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            "true",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "true",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_EXTERNAL_ATTESTATION",
+            "true",
+        ),
+    ]);
+
+    // Devnet default from ProtocolConfig: attestor_max_inactivity_epochs.
+    const MAX_INACTIVITY_EPOCHS: u64 = 7;
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let active_addr = test_cluster.get_address_0();
+    let idle_addr = test_cluster.get_address_1();
+
+    // Register both attestors (same flow as the lifecycle test).
+    for (addr, pubkey_hex) in [
+        (
+            active_addr,
+            "00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f",
+        ),
+        (
+            idle_addr,
+            "0102770632ba449f7f0f6d7e8173ee8cdeee0c1676a4f02a9c10b877b2c022126a1d",
+        ),
+    ] {
+        let gas_objects = test_cluster
+            .wallet
+            .get_all_gas_objects_owned_by_address(addr)
+            .await
+            .unwrap();
+        assert!(gas_objects.len() >= 2);
+        let (gas, bond) = (gas_objects[0], gas_objects[1]);
+        let pubkey = Hex::decode(pubkey_hex).unwrap();
+        let tx_data = test_cluster
+            .test_transaction_builder_with_gas_object(addr, gas)
+            .await
+            .move_call(
+                IOTA_SYSTEM_PACKAGE_ID,
+                "iota_system",
+                "register_attestor",
+                vec![
+                    CallArg::IOTA_SYSTEM_MUTABLE,
+                    CallArg::ImmutableOrOwned(bond),
+                    CallArg::pure(&pubkey),
+                ],
+            )
+            .build();
+        let tx = test_cluster.sign_transaction(&tx_data);
+        test_cluster.execute_transaction(tx).await;
+    }
+
+    // Activate both.
+    test_cluster.force_new_epoch().await;
+
+    let (active_index, len) = test_cluster.fullnode_handle.iota_node.with(|node| {
+        let epoch_store = node.state().epoch_store_for_testing();
+        let set = epoch_store.attestor_set();
+        (set.by_address(&active_addr).map(|(i, _)| i), set.len())
+    });
+    assert_eq!(len, 2);
+    let active_index = active_index.expect("active attestor must be in the set");
+
+    // Run past the inactivity window, recording valid attestations for the
+    // active attestor on every validator each epoch. Injection must be
+    // identical on all validators to keep the end-of-epoch args identical.
+    for _ in 0..=MAX_INACTIVITY_EPOCHS {
+        for handle in test_cluster.swarm.validator_node_handles() {
+            handle.with(|node| {
+                node.state()
+                    .epoch_store_for_testing()
+                    .attestor_stats_aggregator()
+                    .record_valid_attestation(active_index, 1);
+            });
+        }
+        test_cluster.force_new_epoch().await;
+    }
+
+    let (still_active, idle_gone, remaining) =
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            let epoch_store = node.state().epoch_store_for_testing();
+            let set = epoch_store.attestor_set();
+            (
+                set.by_address(&active_addr).is_some(),
+                set.by_address(&idle_addr).is_none(),
+                set.len(),
+            )
+        });
+    assert!(still_active, "attested attestor must keep its slot");
+    assert!(idle_gone, "idle attestor must be dropped after the window");
+    assert_eq!(remaining, 1);
+}
