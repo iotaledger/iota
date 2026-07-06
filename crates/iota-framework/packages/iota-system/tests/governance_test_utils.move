@@ -702,8 +702,8 @@ public fun assert_validator_candidate_total_stake_amounts(
         scenario.next_tx(validator_addr);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator_amount = system_state
-            .validators()
-            .get_candidate_validator_ref(validator_addr)
+            .validators_mut()
+            .candidate_validator(validator_addr)
             .total_stake_amount();
         assert_eq(validator_amount, amount);
         test_scenario::return_shared(system_state);
@@ -717,7 +717,7 @@ public fun stake_plus_current_rewards_for_validator(
     system_state: &mut IotaSystemState,
     scenario: &mut Scenario,
 ): u64 {
-    let validator_ref = system_state.validators().get_active_validator_ref_inner(addr);
+    let validator_ref = system_state.validators().active_validator(addr);
     let amount = stake_plus_current_rewards(addr, validator_ref.get_staking_pool_ref(), scenario);
     amount
 }
