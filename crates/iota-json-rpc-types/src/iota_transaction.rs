@@ -832,13 +832,13 @@ pub struct IotaTransactionBlockEffectsV1 {
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub transaction_digest: TransactionDigest,
-    /// ObjectReference and owner of new objects created.
+    /// ObjectRef and owner of new objects created.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub created: Vec<OwnedObjectRef>,
-    /// ObjectReference and owner of mutated objects, including gas object.
+    /// ObjectRef and owner of mutated objects, including gas object.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mutated: Vec<OwnedObjectRef>,
-    /// ObjectReference and owner of objects that are unwrapped in this
+    /// ObjectRef and owner of objects that are unwrapped in this
     /// transaction. Unwrapped objects are objects that were wrapped into
     /// other objects in the past, and just got extracted out.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
