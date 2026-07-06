@@ -8177,7 +8177,7 @@ dependencies = [
 
 [[package]]
 name = "iota-vm-sdk"
-version = "1.27.0-alpha"
+version = "1.28.0-alpha"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -8197,7 +8197,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-trace-format",
- "prometheus",
+ "prometheus-filtered",
  "serde",
  "serde_json",
  "thiserror 1.0.64",

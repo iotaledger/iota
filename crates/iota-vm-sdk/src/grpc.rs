@@ -15,7 +15,10 @@
 
 use iota_grpc_client::Client;
 use iota_sdk_types::{Digest, ObjectId, Version};
-use iota_types::{digests::ChainIdentifier, object::Object};
+use iota_types::{
+    digests::{ChainIdentifier, CheckpointDigest},
+    object::Object,
+};
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},
@@ -102,7 +105,7 @@ impl GrpcStore {
             .chain_id
             .as_ref()
             .and_then(|d| Digest::try_from(d).ok())
-            .map(|digest| ChainIdentifier::from(digest).chain())
+            .map(|digest| ChainIdentifier::from(CheckpointDigest::from(digest)).chain())
             .unwrap_or(iota_protocol_config::Chain::Unknown);
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),

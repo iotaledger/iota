@@ -349,7 +349,7 @@ pub(super) fn execute_with_move_authenticators(
         extract_auth_fun_refs(signer, gas_data.owner, |address| {
             prepared_auths
                 .iter()
-                .find(|(a, _, _)| a.address().ok() == Some(address))
+                .find(|(a, _, _)| a.address() == address)
                 .map(|(_, fn_ref, _)| fn_ref.authenticator_function_ref.clone())
         });
     let auth_context_data = AuthContextData {

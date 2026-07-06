@@ -18,6 +18,7 @@ use std::{fs, path::PathBuf};
 
 use base64::Engine;
 use iota_types::{
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     signature::GenericSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
@@ -205,7 +206,7 @@ fn sponsor_move_authenticator_is_executed_and_can_reject() {
     let sender_auth = move_authenticator_sig(&sender_fx);
     let sponsor_auth = move_authenticator_sig(&sponsor_fx);
     let sponsor = match &sponsor_auth {
-        GenericSignature::MoveAuthenticator(a) => a.address().expect("sponsor auth address"),
+        GenericSignature::MoveAuthenticator(a) => a.address(),
         _ => unreachable!("move_authenticator_sig returns a MoveAuthenticator"),
     };
 
