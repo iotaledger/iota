@@ -39,11 +39,12 @@ they differ only in the mock-gas rule and whether effects are committed.
 
 ## SDK entry points and the phase each mirrors
 
-| Entry point                                 | Signatures                           | Engine call                                                      | Gas budget           | Mirrors node phase                 | `SignatureStatus`                                   |
-| ------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------- | -------------------- | ---------------------------------- | --------------------------------------------------- |
-| `execute`                                   | none checked                         | `dev_inspect_transaction` (`dev_inspect` = mode is `DevInspect`) | per mode (see above) | post-consensus body-only execution | `NotChecked`                                        |
-| `execute_signed`, standard schemes          | verified cryptographically           | `dev_inspect_transaction`                                        | per mode             | post-consensus body-only execution | `Verified`                                          |
-| `execute_signed`, with `MoveAuthenticator`s | crypto + authenticator run in the VM | `authenticate_then_execute_transaction_to_effects`               | **full tx budget**   | post-consensus certified execution | `Verified`, or `Failed` if an authenticator rejects |
+| Entry point                                 | Signatures                           | Engine call                                                      | Gas budget           | Mirrors node phase                 | `SignatureStatus`                                                             |
+| ------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------- | -------------------- | ---------------------------------- | ----------------------------------------------------------------------------- |
+| `execute`                                   | none checked                         | `dev_inspect_transaction` (`dev_inspect` = mode is `DevInspect`) | per mode (see above) | post-consensus body-only execution | `NotChecked`                                                                  |
+| `execute_signed`, standard schemes          | verified cryptographically           | `dev_inspect_transaction`                                        | per mode             | post-consensus body-only execution | `Verified`                                                                    |
+| `execute_signed`, with `MoveAuthenticator`s | crypto + authenticator run in the VM | `authenticate_then_execute_transaction_to_effects`               | **full tx budget**   | post-consensus certified execution | `Verified`, or `Failed` if an authenticator rejects                           |
+| `check_signing_authentication`              | crypto + authenticator run in the VM | `authenticate_transaction` (no body, commits nothing)            | **`max_auth_gas`**   | pre-consensus signing              | `Verified`, or `Failed` if an authenticator rejects or exceeds `max_auth_gas` |
 
 ### Authenticator verdict
 
@@ -61,9 +62,20 @@ A protocol version that predates Move authentication (no `max_auth_gas`) is
 rejected up front with `UnsupportedProtocolVersion` rather than reaching the
 engine.
 
-## What the SDK does not model
+## Modelling both phases
 
-The pre-consensus signing phase — the `max_auth_gas`-capped authenticator check a
-validator runs before certifying. `execute_signed` models post-consensus
-execution only, so an authenticator that would exceed `max_auth_gas` at signing
-but fits within the transaction budget is reported as `Verified`.
+`execute_signed` and `check_signing_authentication` model the two node phases
+separately:
+
+- `execute_signed` runs the authenticators and body to effects under the full
+  transaction budget — the **post-consensus** path. On its own it accepts an
+  authenticator that would exceed `max_auth_gas` at signing.
+- `check_signing_authentication` runs only the pre-consensus authenticator set
+  under `max_auth_gas` — the **pre-consensus** signing check. It produces no
+  effects; use it to tell whether a validator would admit the transaction for
+  signing.
+
+A transaction is accepted on-chain only if it passes both, so a caller that
+needs the full picture runs both. Neither models the deny-list or input policies
+a validator also applies (see the deny-list check the node runs before the
+authenticators).
