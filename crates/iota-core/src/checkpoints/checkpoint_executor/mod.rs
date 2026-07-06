@@ -802,17 +802,28 @@ impl CheckpointExecutor {
             // assembled contents so state-sync peers — e.g. a validator's
             // SSFNs — are served the freshest checkpoints without
             // reconstruction, speeding up checkpoint propagation.
-            let execution_data = verified_transactions
-                .iter()
-                .zip(effects.iter())
-                .map(|(tx, fx)| ExecutionData::new(tx.clone().into_inner(), fx.clone()));
-            let full_contents = FullCheckpointContents::from_contents_and_execution_data(
-                checkpoint_contents.clone(),
-                execution_data,
-            );
-            self.checkpoint_store
-                .cache_full_checkpoint_contents(&checkpoint, full_contents)
-                .expect("failed to serialize full checkpoint contents");
+            //
+            // The assembly clones every transaction and effect, so skip it
+            // when the cache wouldn't retain the entry: cache disabled, or
+            // deep catch-up, where the cache window rides the state-sync
+            // frontier far ahead of the executor and would evict this entry
+            // immediately.
+            if self
+                .checkpoint_store
+                .should_cache_full_checkpoint_contents(seq)
+            {
+                let execution_data = verified_transactions
+                    .iter()
+                    .zip(effects.iter())
+                    .map(|(tx, fx)| ExecutionData::new(tx.clone().into_inner(), fx.clone()));
+                let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                    checkpoint_contents.clone(),
+                    execution_data,
+                );
+                self.checkpoint_store
+                    .cache_full_checkpoint_contents(&checkpoint, full_contents)
+                    .expect("failed to serialize full checkpoint contents");
+            }
 
             let transactions = verified_transactions
                 .into_iter()

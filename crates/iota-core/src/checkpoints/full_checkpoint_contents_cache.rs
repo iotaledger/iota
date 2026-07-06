@@ -111,9 +111,10 @@ struct Inner {
 ///
 /// When the byte budget is exceeded, entries with the lowest sequence numbers
 /// are evicted first, keeping the newest window of checkpoints — the ones
-/// tip-following peers request. A single entry larger than the whole budget is
-/// still cached until the next insert displaces it. A budget of zero disables
-/// the cache entirely.
+/// tip-following peers request. Inserts older than the window of a full cache
+/// are skipped, since eviction would remove them immediately. A single entry
+/// larger than the whole budget is still cached until the next insert
+/// displaces it. A budget of zero disables the cache entirely.
 pub struct FullCheckpointContentsCache {
     max_bytes: usize,
     metrics: Arc<FullContentsCacheMetrics>,
@@ -140,6 +141,27 @@ impl FullCheckpointContentsCache {
         }
     }
 
+    /// Whether contents for `seq` are worth assembling and inserting: false
+    /// when the cache is disabled, and false when the cache is at budget and
+    /// `seq` is older than everything cached — lowest-seq eviction would
+    /// remove the entry immediately.
+    ///
+    /// Lets callers skip the expensive contents assembly that precedes
+    /// [`Self::insert`], e.g. the checkpoint executor during deep catch-up,
+    /// where the cache window rides the state-sync frontier far ahead of the
+    /// executor.
+    pub fn should_cache(&self, seq: CheckpointSequenceNumber) -> bool {
+        if self.max_bytes == 0 {
+            return false;
+        }
+        let inner = self.inner.lock();
+        inner.total_bytes < self.max_bytes
+            || inner
+                .by_seq
+                .first_key_value()
+                .is_none_or(|(lowest, _)| seq >= *lowest)
+    }
+
     /// Inserts the contents for a checkpoint and evicts the lowest sequence
     /// numbers until the cache fits its byte budget again.
     pub fn insert(
@@ -153,6 +175,18 @@ impl FullCheckpointContentsCache {
             return;
         }
         let mut inner = self.inner.lock();
+
+        // An entry that would push the cache over budget while being older
+        // than everything cached gets removed first by lowest-seq eviction —
+        // skip the pointless insert.
+        if inner.total_bytes + bytes > self.max_bytes
+            && inner
+                .by_seq
+                .first_key_value()
+                .is_some_and(|(lowest, _)| seq < *lowest)
+        {
+            return;
+        }
 
         if let Some(old) = inner.by_seq.insert(
             seq,
@@ -330,9 +364,43 @@ mod tests {
     fn zero_budget_disables_the_cache() {
         let cache = FullCheckpointContentsCache::new(0, FullContentsCacheMetrics::new_for_tests());
         let (digest_a, contents_a) = entry(1);
+
+        assert!(!cache.should_cache(0));
         cache.insert(0, digest_a, contents_a, 100);
 
         assert!(cache.get_by_seq(0).is_none());
         assert!(cache.get_by_digest(&digest_a).is_none());
+    }
+
+    #[test]
+    fn skips_inserts_below_the_window_of_a_full_cache() {
+        let cache =
+            FullCheckpointContentsCache::new(200, FullContentsCacheMetrics::new_for_tests());
+        let (digest_a, contents_a) = entry(1);
+        let (digest_b, contents_b) = entry(2);
+        cache.insert(10, digest_a, contents_a, 100);
+        cache.insert(11, digest_b, contents_b, 100);
+
+        // At budget: entries older than the cached window would be evicted
+        // immediately, newer ones displace the window.
+        assert!(!cache.should_cache(5));
+        assert!(cache.should_cache(12));
+
+        let (digest_c, contents_c) = entry(3);
+        cache.insert(5, digest_c, contents_c, 100);
+        assert!(cache.get_by_seq(5).is_none());
+        assert!(cache.get_by_digest(&digest_c).is_none());
+        assert!(cache.get_by_seq(10).is_some());
+        assert!(cache.get_by_seq(11).is_some());
+        assert_eq!(cache.metrics.evictions.get(), 0);
+
+        // With byte headroom, entries below the window are retained.
+        let (digest_d, contents_d) = entry(4);
+        let roomy =
+            FullCheckpointContentsCache::new(1000, FullContentsCacheMetrics::new_for_tests());
+        roomy.insert(10, digest_a, entry(1).1, 100);
+        assert!(roomy.should_cache(5));
+        roomy.insert(5, digest_d, contents_d, 100);
+        assert!(roomy.get_by_seq(5).is_some());
     }
 }

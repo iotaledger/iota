@@ -821,6 +821,14 @@ impl CheckpointStore {
         self.cache_full_checkpoint_contents(checkpoint, full_contents)
     }
 
+    /// Whether [`Self::cache_full_checkpoint_contents`] would retain contents
+    /// for this sequence number, so callers can skip assembling contents that
+    /// the cache would reject (disabled cache, or an entry the lowest-seq
+    /// eviction would remove immediately).
+    pub fn should_cache_full_checkpoint_contents(&self, seq: CheckpointSequenceNumber) -> bool {
+        self.full_checkpoint_contents_cache.should_cache(seq)
+    }
+
     /// Caches full checkpoint contents in memory without writing anything to
     /// disk, so state-sync peers can be served without reconstructing the
     /// contents.
