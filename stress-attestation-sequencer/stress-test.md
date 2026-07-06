@@ -100,21 +100,21 @@ Fullnode path (`f`):
 
 | slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 | CUs  |
 | --- | --- | --- | --- | --- |
-| 0   | 2.5 ms | 4.8 ms | 1.6 ms | 1k    |
-| 50  | 2.5 ms | 4.8 ms | 6.0 ms | 1k    |
-| 100 | 6.6 ms | 17 ms  | 21 ms  | 4k    |
-| 200 | 127 ms | 499 ms | 199 ms | 128k  |
-| 500 | 961 ms | 1.00 s | 1.28 s | 1.37M |
+| 0   | 2.50 ms   | 4.75 ms   | 1.63 ms   | 1k    |
+| 50  | 2.53 ms   | 4.80 ms   | 5.97 ms   | 1k    |
+| 100 | 6.55 ms   | 16.49 ms  | 20.96 ms  | 4k    |
+| 200 | 126.52 ms | 499.01 ms | 199.13 ms | 128k  |
+| 500 | 961.11 ms | 999.92 ms | 1.284 s   | 1.37M |
 
 Direct-to-one-validator path (`v`):
 
 | slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 | CUs  |
 | --- | --- | --- | --- | --- |
-| 0   | 2.5 ms | 4.8 ms | 1.2 ms | 1k    |
-| 50  | 2.5 ms | 4.8 ms | 6.3 ms | 1k    |
-| 100 | 6.9 ms | 18 ms  | 22 ms  | 4k    |
-| 200 | 74 ms  | 526 ms | 204 ms | 128k  |
-| 500 | 482 ms | 988 ms | 973 ms | 1.37M |
+| 0   | 2.50 ms   | 4.75 ms   | 1.24 ms   | 1k    |
+| 50  | 2.54 ms   | 4.82 ms   | 6.30 ms   | 1k    |
+| 100 | 6.89 ms   | 17.49 ms  | 21.73 ms  | 4k    |
+| 200 | 74.26 ms  | 526.26 ms | 204.13 ms | 128k  |
+| 500 | 481.83 ms | 987.60 ms | 972.84 ms | 1.37M |
 
 Attestation and execution are close but not the same number, because
 `validator_attestation_latency` covers more than the execute step. Both load
