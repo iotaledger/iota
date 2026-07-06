@@ -13,7 +13,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    IntCounter, IntGauge, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 
@@ -24,18 +24,24 @@ const LOOKUP_BY_SEQ: &str = "by_seq";
 /// checkpoint-contents requests from state-sync peers.
 const LOOKUP_BY_DIGEST: &str = "by_digest";
 
+/// The hit/miss counters are exported as `IntCounterVec`s with a `lookup`
+/// label; the per-label children are resolved once at construction so the
+/// lookup paths increment plain counters.
 pub struct FullContentsCacheMetrics {
-    /// Lookups served from the cache, partitioned by the `lookup` label
-    /// ([`LOOKUP_BY_SEQ`] / [`LOOKUP_BY_DIGEST`]).
-    pub hits: IntCounterVec,
-    /// Lookups that missed the cache, with the same `lookup` label split as
-    /// `hits`.
+    /// Sequence-number lookups served from the cache (`lookup="by_seq"`).
+    pub hits_by_seq: IntCounter,
+    /// Contents-digest lookups served from the cache (`lookup="by_digest"`).
+    pub hits_by_digest: IntCounter,
+    /// Sequence-number lookups that missed the cache (`lookup="by_seq"`).
     ///
-    /// On validators, `by_seq` misses accrue once per self-produced
-    /// checkpoint by design: the executor checks the cache before inserting
-    /// the entry it then produces. `by_digest` is the health signal for
-    /// whether peers are served from memory or fall back to reconstruction.
-    pub misses: IntCounterVec,
+    /// On validators these accrue once per self-produced checkpoint by
+    /// design: the executor checks the cache before inserting the entry it
+    /// then produces.
+    pub misses_by_seq: IntCounter,
+    /// Contents-digest lookups that missed the cache (`lookup="by_digest"`)
+    /// — the health signal for whether peers are served from memory or fall
+    /// back to reconstruction.
+    pub misses_by_digest: IntCounter,
     pub evictions: IntCounter,
     pub entries: IntGauge,
     pub total_bytes: IntGauge,
@@ -43,23 +49,27 @@ pub struct FullContentsCacheMetrics {
 
 impl FullContentsCacheMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
+        let hits = register_int_counter_vec_with_registry!(
+            "full_checkpoint_contents_cache_hits",
+            "Number of full-checkpoint-contents cache lookups served from the cache, \
+            partitioned by lookup kind",
+            &["lookup"],
+            registry
+        )
+        .unwrap();
+        let misses = register_int_counter_vec_with_registry!(
+            "full_checkpoint_contents_cache_misses",
+            "Number of full-checkpoint-contents cache lookups that missed the cache, \
+            partitioned by lookup kind",
+            &["lookup"],
+            registry
+        )
+        .unwrap();
         Arc::new(Self {
-            hits: register_int_counter_vec_with_registry!(
-                "full_checkpoint_contents_cache_hits",
-                "Number of full-checkpoint-contents cache lookups served from the cache, \
-                partitioned by lookup kind",
-                &["lookup"],
-                registry
-            )
-            .unwrap(),
-            misses: register_int_counter_vec_with_registry!(
-                "full_checkpoint_contents_cache_misses",
-                "Number of full-checkpoint-contents cache lookups that missed the cache, \
-                partitioned by lookup kind",
-                &["lookup"],
-                registry
-            )
-            .unwrap(),
+            hits_by_seq: hits.with_label_values(&[LOOKUP_BY_SEQ]),
+            hits_by_digest: hits.with_label_values(&[LOOKUP_BY_DIGEST]),
+            misses_by_seq: misses.with_label_values(&[LOOKUP_BY_SEQ]),
+            misses_by_digest: misses.with_label_values(&[LOOKUP_BY_DIGEST]),
             evictions: register_int_counter_with_registry!(
                 "full_checkpoint_contents_cache_evictions",
                 "Number of entries evicted from the full-checkpoint-contents cache",
@@ -235,8 +245,8 @@ impl FullCheckpointContentsCache {
     /// Looks up contents by sequence number.
     ///
     /// Recorded under the `by_seq` metrics label; see
-    /// [`FullContentsCacheMetrics::misses`] for how to interpret it per node
-    /// role.
+    /// [`FullContentsCacheMetrics::misses_by_seq`] for how to interpret it
+    /// per node role.
     pub fn get_by_seq(&self, seq: CheckpointSequenceNumber) -> Option<Arc<FullCheckpointContents>> {
         let contents = self
             .inner
@@ -244,15 +254,19 @@ impl FullCheckpointContentsCache {
             .by_seq
             .get(&seq)
             .map(|entry| entry.contents.clone());
-        self.record_lookup(contents.is_some(), LOOKUP_BY_SEQ);
+        if contents.is_some() {
+            self.metrics.hits_by_seq.inc();
+        } else {
+            self.metrics.misses_by_seq.inc();
+        }
         contents
     }
 
     /// Looks up contents by contents digest.
     ///
     /// Recorded under the `by_digest` metrics label; see
-    /// [`FullContentsCacheMetrics::misses`] for how to interpret it per node
-    /// role.
+    /// [`FullContentsCacheMetrics::misses_by_digest`] for how to interpret
+    /// it per node role.
     pub fn get_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
@@ -264,16 +278,12 @@ impl FullCheckpointContentsCache {
             .and_then(|seq| inner.by_seq.get(seq))
             .map(|entry| entry.contents.clone());
         drop(inner);
-        self.record_lookup(contents.is_some(), LOOKUP_BY_DIGEST);
-        contents
-    }
-
-    fn record_lookup(&self, hit: bool, lookup: &str) {
-        if hit {
-            self.metrics.hits.with_label_values(&[lookup]).inc();
+        if contents.is_some() {
+            self.metrics.hits_by_digest.inc();
         } else {
-            self.metrics.misses.with_label_values(&[lookup]).inc();
+            self.metrics.misses_by_digest.inc();
         }
+        contents
     }
 }
 
@@ -308,10 +318,10 @@ mod tests {
                 .is_none()
         );
 
-        for lookup in [LOOKUP_BY_SEQ, LOOKUP_BY_DIGEST] {
-            assert_eq!(cache.metrics.hits.with_label_values(&[lookup]).get(), 1);
-            assert_eq!(cache.metrics.misses.with_label_values(&[lookup]).get(), 1);
-        }
+        assert_eq!(cache.metrics.hits_by_seq.get(), 1);
+        assert_eq!(cache.metrics.misses_by_seq.get(), 1);
+        assert_eq!(cache.metrics.hits_by_digest.get(), 1);
+        assert_eq!(cache.metrics.misses_by_digest.get(), 1);
     }
 
     #[test]

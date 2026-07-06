@@ -2836,6 +2836,37 @@ fn poll_count<Fut>(future: Fut) -> PollCounter<Fut> {
     PollCounter::new(future)
 }
 
+/// A verified checkpoint over the given contents at the given sequence
+/// number, with a placeholder signature; usable wherever verification is
+/// not re-run and no committee is needed.
+#[cfg(test)]
+pub(crate) fn test_checkpoint_with_contents(
+    sequence_number: CheckpointSequenceNumber,
+    full_contents: &FullCheckpointContents,
+) -> VerifiedCheckpoint {
+    let contents = full_contents.checkpoint_contents();
+    let summary = CheckpointSummary {
+        epoch: 0,
+        sequence_number,
+        network_total_transactions: full_contents.size() as u64,
+        content_digest: contents.digest(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data: None,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch: 0,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    VerifiedCheckpoint::new_unchecked(
+        iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -2864,40 +2895,13 @@ mod tests {
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
-    /// A verified checkpoint at sequence 0 with random full contents, for
-    /// store-level tests that don't need a committee.
-    fn test_checkpoint_with_contents() -> (VerifiedCheckpoint, FullCheckpointContents) {
-        let full_contents = FullCheckpointContents::random_for_testing();
-        let contents = full_contents.checkpoint_contents();
-        let summary = CheckpointSummary {
-            epoch: 0,
-            sequence_number: 0,
-            network_total_transactions: full_contents.size() as u64,
-            content_digest: contents.digest(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-            end_of_epoch_data: None,
-            timestamp_ms: 0,
-            version_specific_data: Vec::new(),
-            checkpoint_commitments: Vec::new(),
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch: 0,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        let checkpoint = VerifiedCheckpoint::new_unchecked(
-            iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
-        );
-        (checkpoint, full_contents)
-    }
-
     #[tokio::test]
     async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
         let tempdir = iota_common::tempdir();
         let path = tempdir.path();
 
-        let (checkpoint, full_contents) = test_checkpoint_with_contents();
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
         let content_digest = checkpoint.content_digest;
 
         {
@@ -2958,7 +2962,8 @@ mod tests {
     #[tokio::test]
     async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
         let store = CheckpointStore::new_for_tests();
-        let (checkpoint, full_contents) = test_checkpoint_with_contents();
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
         let content_digest = checkpoint.content_digest;
 
         store.cache_full_checkpoint_contents(&checkpoint, full_contents.clone());

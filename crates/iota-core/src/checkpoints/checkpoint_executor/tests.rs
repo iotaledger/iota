@@ -10,11 +10,9 @@ use iota_sdk_types::{CheckpointCommitment, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
-    crypto::AuthorityStrongQuorumSignInfo,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        CheckpointSummary, ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
@@ -28,7 +26,10 @@ use crate::{
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
-    checkpoints::{CheckpointStore, FullCheckpointContentsCache, FullContentsCacheMetrics},
+    checkpoints::{
+        CheckpointStore, FullCheckpointContentsCache, FullContentsCacheMetrics,
+        test_checkpoint_with_contents,
+    },
     global_state_hasher::GlobalStateHasher,
 };
 
@@ -60,7 +61,7 @@ pub async fn test_fallback_load_populates_contents_cache() {
         .expect("fallback load should populate the contents cache");
     assert_eq!(
         cached.checkpoint_contents().digest(),
-        &checkpoint.content_digest
+        checkpoint.content_digest
     );
     // The peer-serving lookup by contents digest must hit too.
     assert!(
@@ -111,7 +112,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
     let frontier_contents = FullCheckpointContents::random_for_testing();
-    let frontier_checkpoint = fabricated_checkpoint(frontier_seq, &frontier_contents);
+    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
     checkpoint_store.cache_full_checkpoint_contents(&frontier_checkpoint, frontier_contents);
 
     let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
@@ -131,35 +132,6 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
             .get_full_checkpoint_contents_by_sequence_number(frontier_seq)
             .is_some()
     );
-}
-
-/// A verified checkpoint over the given contents, with a placeholder
-/// signature; usable wherever verification is not re-run.
-fn fabricated_checkpoint(
-    sequence_number: CheckpointSequenceNumber,
-    full_contents: &FullCheckpointContents,
-) -> VerifiedCheckpoint {
-    let contents = full_contents.checkpoint_contents();
-    let summary = CheckpointSummary {
-        epoch: 0,
-        sequence_number,
-        network_total_transactions: 0,
-        content_digest: *contents.digest(),
-        previous_digest: None,
-        epoch_rolling_gas_cost_summary: Default::default(),
-        end_of_epoch_data: None,
-        timestamp_ms: 0,
-        version_specific_data: Vec::new(),
-        checkpoint_commitments: Vec::new(),
-    };
-    let sig = AuthorityStrongQuorumSignInfo {
-        epoch: 0,
-        signature: Default::default(),
-        signers_map: Default::default(),
-    };
-    VerifiedCheckpoint::new_unchecked(
-        iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
-    )
 }
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
