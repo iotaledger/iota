@@ -8,6 +8,7 @@ use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
+    digests::TransactionEffectsDigest,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
@@ -41,13 +42,24 @@ fn make_execution_scheduler(
 }
 
 fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutableTransaction {
+    make_transaction_for_epoch(gas_object, input, 0)
+}
+
+fn make_transaction_for_epoch(
+    gas_object: Object,
+    input: Vec<CallArg>,
+    epoch: u64,
+) -> VerifiedExecutableTransaction {
     // Fake module/function/gas price: irrelevant to scheduling.
     let rgp = 100;
     let (sender, keypair) = deterministic_random_account_key();
     let transaction = TestTransactionBuilder::new(sender, gas_object.object_ref(), rgp)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
         .build_and_sign(&keypair);
-    VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
+    VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_unchecked(transaction),
+        epoch,
+    )
 }
 
 /// The new scheduler must hold a transaction whose owned input object is not
@@ -175,5 +187,167 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     // All three are now executing; dropping them returns the gauge to 0.
     assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
     drop(ready);
+    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+}
+
+/// When executing from a checkpoint the scheduler is handed a certified
+/// `expected_effects_digest` that the execution driver uses to detect forks.
+/// The scheduler must copy it verbatim into the `PendingTransaction` it emits
+/// on the fast path (inputs already available). If it were dropped or defaulted
+/// to `None`, fork detection would be silently disabled for every state-synced
+/// checkpoint, with no metric or log to notice.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn scheduler_propagates_expected_effects_digest_fast_path() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // Inputs (gas + framework package) are already available, so the transaction
+    // takes the fast path in `schedule_transaction`.
+    let transaction = make_transaction(gas_object, vec![]);
+    let expected = TransactionEffectsDigest::new([7; 32]);
+    execution_scheduler.enqueue_with_expected_effects_digest(
+        vec![(transaction.clone(), expected)],
+        &state.epoch_store_for_testing(),
+    );
+
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+    assert_eq!(ready.expected_effects_digest, Some(expected));
+}
+
+/// The certified `expected_effects_digest` must also survive the `notify_read`
+/// wait path — the scheduler sets it at a second call site, reached only when
+/// an input is initially missing. A regression dropping it there would disable
+/// fork detection for exactly the synced transactions whose inputs arrive late.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn scheduler_propagates_expected_effects_digest_wait_path() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone(), owned_object.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let awaited_version = 2000.into();
+    let mut owned_ref = owned_object.object_ref();
+    owned_ref.version = awaited_version;
+    let transaction = make_transaction(gas_object, vec![CallArg::ImmutableOrOwned(owned_ref)]);
+
+    let expected = TransactionEffectsDigest::new([9; 32]);
+    execution_scheduler.enqueue_with_expected_effects_digest(
+        vec![(transaction.clone(), expected)],
+        &state.epoch_store_for_testing(),
+    );
+
+    // Parked on the missing input: nothing emitted yet.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    let new_owned_object = Object::with_id_owner_version_for_testing(
+        owned_object.id(),
+        awaited_version,
+        iota_sdk_types::Owner::Address(owner),
+    );
+    state
+        .get_cache_writer()
+        .write_object_entry_for_test(new_owned_object);
+
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+    assert_eq!(ready.expected_effects_digest, Some(expected));
+}
+
+/// A transaction with several missing inputs must wait for ALL of them, not
+/// just the first to arrive. This pins the `missing_input_keys` computation and
+/// the wait-for-all semantics of `notify_read_input_objects`: releasing after
+/// only one input became available would dispatch a transaction before the rest
+/// of its inputs are durably present — a data-availability hazard. The existing
+/// ES wait tests each park on a single input, so multi-input all-of is
+/// uncovered.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_awaits_all_missing_inputs() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let owned_a = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let owned_b = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state =
+        init_state_with_objects(vec![gas_object.clone(), owned_a.clone(), owned_b.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // Reference both owned inputs at a version not present in the cache.
+    let awaited_version = 2000.into();
+    let mut ref_a = owned_a.object_ref();
+    ref_a.version = awaited_version;
+    let mut ref_b = owned_b.object_ref();
+    ref_b.version = awaited_version;
+    let transaction = make_transaction(
+        gas_object,
+        vec![
+            CallArg::ImmutableOrOwned(ref_a),
+            CallArg::ImmutableOrOwned(ref_b),
+        ],
+    );
+    execution_scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+
+    // Writing only the FIRST input must NOT release the transaction.
+    let a_ready = Object::with_id_owner_version_for_testing(
+        owned_a.id(),
+        awaited_version,
+        iota_sdk_types::Owner::Address(owner),
+    );
+    state
+        .get_cache_writer()
+        .write_object_entry_for_test(a_ready);
+    sleep(Duration::from_secs(1)).await;
+    assert!(
+        rx_ready_transactions.try_recv().is_err(),
+        "transaction released before its second input became available"
+    );
+    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+
+    // Writing the SECOND input releases it exactly once.
+    let b_ready = Object::with_id_owner_version_for_testing(
+        owned_b.id(),
+        awaited_version,
+        iota_sdk_types::Owner::Address(owner),
+    );
+    state
+        .get_cache_writer()
+        .write_object_entry_for_test(b_ready);
+
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+}
+
+/// A certificate from a different epoch must be dropped at enqueue and never
+/// sent for execution — even when all of its inputs are available, so that
+/// absent the epoch filter it would be dispatched immediately. Executing a
+/// stale-epoch certificate would be a consensus-safety violation the scheduler
+/// swap must not introduce.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn enqueue_wrong_epoch_transaction_is_dropped() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // The epoch store is at epoch 0; tag the transaction for epoch 1.
+    let epoch_store = state.epoch_store_for_testing();
+    assert_eq!(epoch_store.epoch(), 0);
+    let transaction = make_transaction_for_epoch(gas_object, vec![], 1);
+
+    execution_scheduler.enqueue(vec![transaction], &epoch_store);
+
+    // A same-epoch transaction with these inputs would be ready immediately; this
+    // one must be filtered out and leave no pending or ready work behind.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
     assert_eq!(execution_scheduler.num_pending_certificates(), 0);
 }
