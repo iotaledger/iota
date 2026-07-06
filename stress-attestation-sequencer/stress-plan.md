@@ -84,6 +84,29 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
   start, and `start.sh`'s environment knobs are inherited.
   Example: `sudo stress-attestation-sequencer/restart.sh -b -n 4 faucet`.
 
+### Network size (`-n N` / `N=`)
+
+`N` is the single knob for network size. The scripts take `-n N` (default 4) and
+the `h1` matrix takes it as an environment variable, e.g.
+`N=72 LABEL=... ./h1/run.sh`, which forwards `-n 72` to bootstrap and start. The
+whole topology is generated from `N` in lockstep, so nothing else needs editing:
+`bootstrap.sh` regenerates the `genesis-template-<N>.yaml`, and (via
+`iota-private-network/gen-topology.sh`) the `validator-1 … validator-N` service
+blocks in `docker-compose.yaml` and the matching `Validator_1 … Validator_N`
+scrape jobs in `grafana-local/prometheus.yaml`. Only the text between the
+`BEGIN/END generated …` markers is rewritten; the fixed infra (fullnodes,
+indexers, faucet, postgres) and the other scrape jobs are hand-maintained. Since
+only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N` targets.
+
+> [!NOTE]
+> The maximum `N` is 190, and `gen-topology.sh` rejects anything larger. This is
+> a local-addressing limit, not a protocol one: validators take static IPs
+> `10.0.0.(10+i)` (validator-1 → `.11`) and the fixed infra was relocated to
+> `10.0.0.201–.209`, so the highest address a validator may use is `.200` —
+> leaving `200 − 10 = 190` slots in the single `/24` subnet before validators
+> would collide with the infra block. In practice one host is CPU/RAM-bound at a
+> few dozen nodes, well below this ceiling.
+
 ---
 
 ## Current test framework: what it can and cannot do
