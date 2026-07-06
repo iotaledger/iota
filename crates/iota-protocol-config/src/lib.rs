@@ -547,6 +547,12 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, enables the external (third-party) attestation feature: the
+    // on-chain attestor registry, attestor activity tracking, and explicit
+    // attestation verification.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_external_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1845,6 +1851,15 @@ impl ProtocolConfig {
         assert!(
             !res || self.enable_pcool_flow(),
             "enable_validator_attestation requires enable_pcool_flow to be set"
+        );
+        res
+    }
+
+    pub fn enable_external_attestation(&self) -> bool {
+        let res = self.feature_flags.enable_external_attestation;
+        assert!(
+            !res || self.enable_validator_attestation(),
+            "enable_external_attestation requires enable_validator_attestation to be set"
         );
         res
     }
