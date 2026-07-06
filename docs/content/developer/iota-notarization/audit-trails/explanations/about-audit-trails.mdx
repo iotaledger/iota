@@ -94,6 +94,8 @@ public struct RecordCorrection has store, copy, drop {
 - **`replaces`**: The set of sequence numbers that this record corrects. A correction record can replace one or more earlier records.
 - **`is_replaced_by`**: If this record has been superseded, this field contains the sequence number of the replacement.
 
+Corrections do not mutate historical data. The correction operation appends a new record, sets the new record's `replaces` field, and updates the replaced record's `is_replaced_by` back-pointer. To continue a correction chain, correct the latest record rather than an already replaced record.
+
 This bidirectional linking ensures that:
 - Given a correction record, you can find the originals it replaces.
 - Given an original record, you can find the correction that supersedes it.
@@ -201,7 +203,7 @@ A trail is created by calling `create()` with optional configuration: immutable 
 
 During its active phase, the trail accumulates records:
 - **Add records**: Authorized users append events with data, optional metadata, and optional tags.
-- **Correct records (Not MVP)**: New records can be created that reference (and supersede) earlier entries.
+- **Correct records**: Authorized users append correction records that reference and supersede earlier entries.
 - **Delete records**: Individual records can be removed if permitted by the locking configuration, or in bulk via batch deletion.
 - **Manage access**: The admin can create roles, issue capabilities, revoke access, and update permissions.
 - **Configure locking**: Locking policies can be adjusted as requirements evolve.
