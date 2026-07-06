@@ -20,10 +20,11 @@ use tracing::debug;
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
+        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
     },
     context::Context,
+    error::{ConsensusError, ConsensusResult},
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
@@ -42,6 +43,43 @@ pub(crate) const WAVE_LENGTH: Round = 3;
 /// The consensus protocol operates in 'waves'. Each wave is composed of a
 /// leader round, at least one voting round, and one certifying round.
 pub(crate) type WaveNumber = u32;
+
+/// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
+/// `committee_size` authorities and a GC depth of `gc_depth` rounds.
+///
+/// `CommitV3` is the largest variant. Its two variable-length vectors span the
+/// committed sub-DAG, which garbage collection bounds to `gc_depth *
+/// committee_size` blocks (at most one block per authority per uncollected
+/// round); `committed_transactions` carries at most one [`TransactionRef`] per
+/// such block, and `reputation_scores_desc` at most one entry per authority.
+///
+/// Returns [`usize::MAX`] when `gc_depth` or `committee_size` is zero (GC
+/// disabled implies no finite sub-DAG bound), matching the convention that a
+/// zero limit disables the corresponding check.
+pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize {
+    if gc_depth == 0 || committee_size == 0 {
+        return usize::MAX;
+    }
+    // `TransactionRef` is round (4) + author (1) + transactions_commitment (32).
+    const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
+    // enum tag (1) + index (4) + previous_digest (32) + timestamp_ms (8) +
+    // leader BlockRef (37) + is_optimistic (1).
+    const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
+
+    let max_subdag_blocks = gc_depth.saturating_mul(committee_size);
+    let block_headers = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let committed_transactions = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_TRANSACTION_REF_BYTES));
+    // reputation_scores_desc: Vec<(AuthorityIndex (1), u64 (8))>.
+    let reputation_scores =
+        uleb128_len(committee_size).saturating_add(committee_size.saturating_mul(1 + 8));
+
+    FIXED_COMMIT_BYTES
+        .saturating_add(block_headers)
+        .saturating_add(committed_transactions)
+        .saturating_add(reputation_scores)
+}
 
 /// [`Commit`] summarizes [`CommittedSubDag`] for storage and network
 /// communications.
@@ -66,8 +104,8 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1, V2, or V3) is determined by the
-    /// consensus_fast_commit_sync and consensus_starfish_speed protocol flags.
+    /// Create a new commit. The variant (V2 or V3) is determined by the
+    /// consensus_starfish_speed protocol flag.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -103,15 +141,15 @@ impl Commit {
                 reputation_scores_desc,
                 is_optimistic,
             })
-        } else if context.protocol_config.consensus_fast_commit_sync() {
-            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
+        } else {
+            debug!("Creating CommitV2");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::TransactionRef(tr) => tr,
                     GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
+                        panic!("Expected TransactionRef")
                     }
                 })
                 .collect();
@@ -124,26 +162,6 @@ impl Commit {
                 block_headers: blocks,
                 committed_transactions: transaction_refs,
                 reputation_scores_desc,
-            })
-        } else {
-            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
-            // Extract BlockRefs from GenericTransactionRef
-            let block_refs: Vec<BlockRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::BlockRef(br) => br,
-                    GenericTransactionRef::TransactionRef(_) => {
-                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
-                    }
-                })
-                .collect();
-            Commit::V1(CommitV1 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                blocks,
-                committed_transactions: block_refs,
             })
         }
     }
@@ -853,32 +871,32 @@ pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
 }
 
 // Recovers PendingSubDAG from block store, based on Commit.
-pub fn load_pending_subdag_from_store(
+pub(crate) fn load_pending_subdag_from_store(
     store: &dyn Store,
     commit: TrustedCommit,
     reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-) -> PendingSubDag {
+) -> ConsensusResult<PendingSubDag> {
     let mut leader_block_idx = None;
-    let commit_block_headers = store
-        .read_verified_block_headers(commit.block_headers())
-        .expect("Block headers referenced in commit data should exist");
+    let commit_block_headers = store.read_verified_block_headers(commit.block_headers())?;
     let block_headers = commit_block_headers
         .into_iter()
+        .zip(commit.block_headers())
         .enumerate()
-        .map(|(idx, commit_block_opt)| {
-            let commit_block = commit_block_opt.expect(
-                "Block header referenced in commit data should exist. \
-                 This could be due to unfinished fast syncing.",
-            );
+        .map(|(idx, (commit_block, block_ref))| {
+            let commit_block = commit_block.ok_or(ConsensusError::MissingBlockHeader {
+                block_ref: *block_ref,
+            })?;
             if commit_block.reference() == commit.leader() {
                 leader_block_idx = Some(idx);
             }
-            commit_block
+            Ok(commit_block)
         })
-        .collect::<Vec<_>>();
-    let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
+        .collect::<ConsensusResult<Vec<_>>>()?;
+    let leader_block_idx = leader_block_idx.ok_or(ConsensusError::MissingBlockHeader {
+        block_ref: commit.leader(),
+    })?;
     let leader_block_ref = block_headers[leader_block_idx].reference();
-    PendingSubDag::new(
+    Ok(PendingSubDag::new(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
@@ -886,7 +904,7 @@ pub fn load_pending_subdag_from_store(
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
-    )
+    ))
 }
 
 fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
@@ -898,19 +916,6 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
         result.push_str(&block.digest().to_string());
         result.push('@');
         result.push_str(&block.round().to_string());
-    }
-    result
-}
-
-fn format_block_digests(blocks: &[BlockRef]) -> String {
-    let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
-        if idx > 0 {
-            result.push_str(", ");
-        }
-        result.push_str(&block.digest.to_string());
-        result.push('@');
-        result.push_str(&block.round.to_string());
     }
     result
 }
@@ -1192,15 +1197,46 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
+    use starfish_config::AuthorityIndex;
+
     use crate::{
         BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
-        block_header::{TestBlockHeader, VerifiedBlock},
-        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlock},
+        commit::{
+            Commit, CommitRange, CommitV3, TrustedCommit, WAVE_LENGTH,
+            load_pending_subdag_from_store, max_commit_bytes,
+        },
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
-        transaction_ref::convert_block_refs_to_generic_transaction_refs,
+        transaction_ref::{TransactionRef, convert_block_refs_to_generic_transaction_refs},
     };
+
+    /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
+    /// a commit whose sub-DAG vectors are filled to the GC bound
+    /// (`gc_depth * committee_size`) with one reputation score per authority
+    /// must serialize to exactly the computed bound. Also checks that a zero GC
+    /// depth or committee size disables the bound.
+    #[tokio::test]
+    async fn max_commit_bytes_bounds_maximal_commit() {
+        let n = 4usize;
+        let gc_depth = 5usize;
+        let max_subdag_blocks = gc_depth * n;
+
+        let commit = Commit::V3(CommitV3 {
+            block_headers: vec![BlockRef::MAX; max_subdag_blocks],
+            committed_transactions: vec![TransactionRef::default(); max_subdag_blocks],
+            reputation_scores_desc: vec![(AuthorityIndex::MAX, u64::MAX); n],
+            ..Default::default()
+        });
+        let serialized = bcs::to_bytes(&commit).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_commit_bytes(n, gc_depth));
+
+        // A zero GC depth (GC disabled) or empty committee disables the bound.
+        assert_eq!(max_commit_bytes(n, 0), usize::MAX);
+        assert_eq!(max_commit_bytes(0, gc_depth), usize::MAX);
+    }
 
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
@@ -1244,7 +1280,6 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(first_round_headers)
                     .transactions(first_round_transactions),
-                context.clone(),
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -1267,7 +1302,6 @@ mod tests {
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
                             .transactions(vec![block.verified_transactions.clone()]),
-                        context.clone(),
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -1287,12 +1321,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1304,7 +1335,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(subdag.leader, leader_ref);
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
@@ -1346,10 +1378,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(
-                WriteBatch::default().block_headers(first_round_headers),
-                context.clone(),
-            )
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1367,10 +1396,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block.clone()]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
@@ -1389,12 +1415,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1406,7 +1429,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let pending_subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(pending_subdag.leader, leader_ref);
         assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(

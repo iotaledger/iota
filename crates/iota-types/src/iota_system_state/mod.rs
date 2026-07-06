@@ -87,7 +87,7 @@ impl IotaSystemStateWrapper {
         let mut new_field_object = old_field_object.clone();
         let move_object = new_field_object
             .data
-            .as_struct_mut_opt()
+            .as_opt_mut_struct()
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
@@ -223,25 +223,103 @@ impl IotaSystemState {
     pub fn version(&self) -> u64 {
         self.system_state_version()
     }
+
+    /// Build a minimal `IotaSystemState::V1` whose only meaningful fields are
+    /// `epoch` and `protocol_version`. Everything else is zeroed/defaulted.
+    /// Intended for test fixtures that need a structurally valid system
+    /// state to exercise BCS round-trip paths.
+    pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
+        use iota_sdk_types::ObjectId;
+
+        use crate::{
+            balance::{Balance, Supply},
+            coin::TreasuryCap,
+            collection_types::{Bag, Table, TableVec, VecMap},
+            gas_coin::IotaTreasuryCap,
+            id::UID,
+            iota_system_state::iota_system_state_inner_v1::{
+                IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+            },
+            system_admin_cap::IotaSystemAdminCap,
+        };
+        IotaSystemState::V1(IotaSystemStateV1 {
+            epoch,
+            protocol_version,
+            system_state_version: 1,
+            iota_treasury_cap: IotaTreasuryCap {
+                inner: TreasuryCap {
+                    id: UID::new(ObjectId::ZERO),
+                    total_supply: Supply { value: 0 },
+                },
+            },
+            validators: ValidatorSetV1 {
+                total_stake: 0,
+                active_validators: Vec::new(),
+                pending_active_validators: TableVec::default(),
+                pending_removals: Vec::new(),
+                staking_pool_mappings: Table::default(),
+                inactive_validators: Table::default(),
+                validator_candidates: Table::default(),
+                at_risk_validators: VecMap {
+                    contents: Vec::new(),
+                },
+                extra_fields: Bag::default(),
+            },
+            storage_fund: StorageFundV1 {
+                total_object_storage_rebates: Balance::new(0),
+                non_refundable_balance: Balance::new(0),
+            },
+            parameters: SystemParametersV1 {
+                epoch_duration_ms: 0,
+                min_validator_count: 0,
+                max_validator_count: 0,
+                min_validator_joining_stake: 0,
+                validator_low_stake_threshold: 0,
+                validator_very_low_stake_threshold: 0,
+                validator_low_stake_grace_period: 0,
+                extra_fields: Bag::default(),
+            },
+            iota_system_admin_cap: IotaSystemAdminCap::default(),
+            reference_gas_price: 0,
+            validator_report_records: VecMap {
+                contents: Vec::new(),
+            },
+            safe_mode: false,
+            safe_mode_storage_charges: Balance::new(0),
+            safe_mode_computation_rewards: Balance::new(0),
+            safe_mode_storage_rebates: 0,
+            safe_mode_non_refundable_storage_fee: 0,
+            epoch_start_timestamp_ms: 0,
+            extra_fields: Bag::default(),
+        })
+    }
 }
 
-pub fn get_iota_system_state_wrapper(
+/// The raw system state wrapper object together with the
+/// `IotaSystemStateWrapper` decoded from its contents.
+fn get_iota_system_state_wrapper_with_object(
     object_store: &dyn ObjectStore,
-) -> Result<IotaSystemStateWrapper, IotaError> {
-    let wrapper = object_store
+) -> Result<(Object, IotaSystemStateWrapper), IotaError> {
+    let wrapper_object = object_store
         .try_get_object(&ObjectId::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
         })?;
-    let move_object = wrapper.data.as_struct_opt().ok_or_else(|| {
+    let move_object = wrapper_object.data.as_opt_struct().ok_or_else(|| {
         IotaError::IotaSystemStateRead(
             "IotaSystemStateWrapper object must be a Move object".to_owned(),
         )
     })?;
-    let result = bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents())
+    let wrapper = bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents())
         .map_err(|err| IotaError::IotaSystemStateRead(err.to_string()))?;
-    Ok(result)
+    Ok((wrapper_object, wrapper))
+}
+
+pub fn get_iota_system_state_wrapper(
+    object_store: &dyn ObjectStore,
+) -> Result<IotaSystemStateWrapper, IotaError> {
+    Ok(get_iota_system_state_wrapper_with_object(object_store)?.1)
 }
 
 pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSystemState, IotaError> {
@@ -316,6 +394,22 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             wrapper.version
         ))),
     }
+}
+
+/// The two objects `get_iota_system_state` reads to decode the system state:
+/// the raw system state wrapper object and its inner system-state object. These
+/// two fully determine the state, so none of the per-validator objects the
+/// epoch-change tx also writes are needed. Returned as raw `Object`s so a
+/// caller can persist the exact bytes their `ObjectDigest`s commit to.
+pub fn get_iota_system_state_objects(
+    object_store: &dyn ObjectStore,
+) -> Result<[Object; 2], IotaError> {
+    let (wrapper_object, wrapper) = get_iota_system_state_wrapper_with_object(object_store)?;
+    // Same derivation as `get_iota_system_state`, so this can never select a
+    // different inner object than the one that decodes the state.
+    let inner_object =
+        get_dynamic_field_object_from_store(object_store, wrapper.id.id.bytes, &wrapper.version)?;
+    Ok([wrapper_object, inner_object])
 }
 
 /// Given a system state type version, and the ID of the table, along with a

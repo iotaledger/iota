@@ -26,6 +26,7 @@ pub trait TransactionExecutor: Send + Sync {
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
+        skip_certification: bool,
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError>;
 
@@ -46,6 +47,38 @@ pub trait TransactionExecutor: Send + Sync {
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError>;
+
+    /// Read authoritative effects, events, and input/output objects for a
+    /// locally-executed transaction from the cache. Used by callers that
+    /// have already waited for checkpoint inclusion and want to discard any
+    /// uncertified single-validator copies.
+    ///
+    /// Returns `Ok(None)` if the tx is not in the cache, or if the executor
+    /// does not maintain a local cache (e.g. simulacrum).
+    fn read_transaction_from_cache(
+        &self,
+        digest: &TransactionDigest,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
+    ) -> Result<Option<CachedTransactionData>, IotaError> {
+        // Default: no cache — safe fallback for executors like simulacrum.
+        let _ = (
+            digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        );
+        Ok(None)
+    }
+}
+
+/// Authoritative per-transaction data read from a local cache.
+pub struct CachedTransactionData {
+    pub effects: TransactionEffects,
+    pub events: Option<TransactionEvents>,
+    pub input_objects: Option<Vec<Object>>,
+    pub output_objects: Option<Vec<Object>>,
 }
 
 pub struct SimulateTransactionResult {

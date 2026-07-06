@@ -81,12 +81,15 @@ use crate::{
 ///
 /// # Returns
 ///
-/// `Ok((dropped, locks))` where:
+/// `Ok((dropped, locks, all_user_tx_digests))` where:
 /// - `dropped` — `(digest, error)` for every semantically-invalid or
 ///   lock-conflicting transaction. Silent drops (duplicates) are **not**
 ///   included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
+/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
+///   (both kept and dropped). Used by the caller to release pre-consensus soft
+///   locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -94,6 +97,7 @@ pub async fn validate_and_resolve_conflicts(
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
     HashMap<ObjectRef, LockDetails>,
+    Vec<TransactionDigest>,
 )> {
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
@@ -102,6 +106,9 @@ pub async fn validate_and_resolve_conflicts(
     let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
+    // All UserTransactionV1 digests seen in this commit (both kept and dropped),
+    // used by the caller to release pre-consensus soft locks.
+    let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -124,6 +131,7 @@ pub async fn validate_and_resolve_conflicts(
         };
 
         let digest = *transaction.digest();
+        all_user_tx_digests.push(digest);
 
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
@@ -165,9 +173,7 @@ pub async fn validate_and_resolve_conflicts(
         }
 
         // Check #2: Structural validity.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
+        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
                 error = ?e,
@@ -277,12 +283,15 @@ pub async fn validate_and_resolve_conflicts(
 
         // All checks passed — acquire owned-object locks in local tracking.
         let num_owned_inputs = owned_inputs.len();
-        for obj_ref in owned_inputs {
-            current_commit_locks.insert(obj_ref, digest);
+        for obj_ref in &owned_inputs {
+            current_commit_locks.insert(*obj_ref, digest);
         }
+        // Log the acquired refs, not just their count, so the winner's locks
+        // are attributable per (object_id, version).
         debug!(
             ?digest,
             num_owned_inputs,
+            owned_inputs = ?owned_inputs,
             "Transaction passed post-consensus validation, acquired all object locks"
         );
     }
@@ -304,7 +313,7 @@ pub async fn validate_and_resolve_conflicts(
     let mut iter = keep.into_iter();
     transactions.retain(|_| iter.next().unwrap_or(true));
 
-    Ok((dropped, current_commit_locks))
+    Ok((dropped, current_commit_locks, all_user_tx_digests))
 }
 
 /// Finds an existing owned-object lock on `obj_ref`, walking three tiers in

@@ -41,7 +41,7 @@ use iota_types::{
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
@@ -60,7 +60,7 @@ use move_core_types::{
     language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
 use tracing::{error, info, trace, warn};
@@ -385,7 +385,7 @@ impl LocalExec {
         remote_fetcher: Option<RemoteFetcher>,
     ) -> Result<Self, ReplayEngineError> {
         // Use a throwaway metrics registry for local execution.
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
 
         let fetcher = remote_fetcher.unwrap_or(RemoteFetcher::new(client.clone()));
@@ -414,7 +414,7 @@ impl LocalExec {
         backup_rpc_url: Option<String>,
     ) -> Result<Self, ReplayEngineError> {
         // Use a throwaway metrics registry for local execution.
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
 
         let state = NodeStateDump::read_from_file(&PathBuf::from(path))?;
@@ -871,7 +871,7 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -1187,7 +1187,7 @@ impl LocalExec {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -2192,7 +2192,7 @@ fn load_authenticator_function_ref(
 
     let field_move_object = field_obj
         .data
-        .as_struct_opt()
+        .as_opt_struct()
         .expect("dynamic field should never be a package object");
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object

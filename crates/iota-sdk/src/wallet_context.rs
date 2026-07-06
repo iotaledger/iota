@@ -46,10 +46,7 @@ impl WalletContext {
     /// [`IotaClientConfig`] and optional parameters for the client.
     pub fn new(config_path: &Path) -> Result<Self, anyhow::Error> {
         let config: IotaClientConfig = PersistedConfig::read(config_path).map_err(|err| {
-            anyhow!(
-                "Cannot open wallet config file at {:?}. Err: {err}",
-                config_path
-            )
+            anyhow!("Cannot open wallet config file at {config_path:?}. Err: {err}")
         })?;
 
         if let Some(active_address) = &config.active_address {
@@ -150,10 +147,7 @@ impl WalletContext {
 
         if let Some(env_override) = &self.env_override {
             self.config.get_env(env_override).ok_or_else(|| {
-                anyhow!(
-                    "Environment configuration not found for env [{}]",
-                    env_override
-                )
+                anyhow!("Environment configuration not found for env [{env_override}]")
             })
         } else {
             Ok(if self.config.active_env().is_some() {

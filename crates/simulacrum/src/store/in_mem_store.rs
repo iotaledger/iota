@@ -194,13 +194,10 @@ impl InMemoryStore {
             let current_system_state = self.get_system_state();
             self.store_system_state_for_epoch(current_epoch, current_system_state);
 
-            let next_committee = end_of_epoch_data
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                &end_of_epoch_data.next_epoch_committee,
+            );
             self.insert_committee(committee);
         }
 

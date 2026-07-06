@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -11,12 +11,13 @@ use std::{
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName as _},
+    base_types::{AuthorityName, ConciseableName as _, ObjectRef},
     committee::StakeUnit,
     digests::{TransactionDigest, TransactionEffectsDigest},
-    effects::TransactionEffectsAPI as _,
+    effects::{TransactionEffectsAPI as _, TransactionEffectsExt as _},
     error::{IotaError, IotaResult},
     messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
+    object::Object,
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
 use tokio::{
@@ -53,6 +54,21 @@ const MAX_WAIT_FOR_EFFECTS_RETRY_DELAY: Duration = Duration::from_secs(2);
 /// the effects.
 const GET_FULL_EFFECTS_FALLBACK_DELAY: Duration = Duration::from_millis(200);
 
+fn build_tx_status_request(
+    tx_digest: Option<TransactionDigest>,
+    include_details: bool,
+) -> GetTxStatusRequest {
+    match tx_digest {
+        Some(transaction_digest) => GetTxStatusRequest {
+            queries: vec![TxStatusQuery {
+                transaction_digest,
+                include_details,
+            }],
+        },
+        None => GetTxStatusRequest { queries: vec![] },
+    }
+}
+
 /// Result type for get_full_effects requests.
 /// The tuple contains (effects_digest, executed_data) where
 type FullEffectsResult =
@@ -70,8 +86,8 @@ impl EffectsCertifier {
     #[instrument(level = "error", skip_all, err(level = "debug"))]
     pub(crate) async fn get_certified_finalized_effects<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
@@ -81,33 +97,26 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         // Skip the first attempt to get full effects if it is already provided.
+        // `submit_transaction` is contracted to surface `Rejected`/`Expired`
+        // as `Err`; reaching them here is an upstream invariant break.
         let full_effects = match submit_txn_result {
             TxStatusUpdate::Submitted => None,
             TxStatusUpdate::Executed {
                 effects_digest,
                 details,
             } => details.map(|d| (effects_digest, d)),
-            TxStatusUpdate::Rejected { error } => {
+            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+                debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Unexpected submission error in get_certified_finalized_effects(): {error:?}"
-                    ),
-                });
-            }
-            TxStatusUpdate::Expired { epoch } => {
-                return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Transaction expired in epoch {epoch} during get_certified_finalized_effects()",
-                    ),
+                    error: "internal driver error".to_string(),
                 });
             }
         };
 
-        let mut retrier = RequestRetrier::new(authority_aggregator, client_monitor, vec![], vec![]);
-        let ping_type = tx_digest.is_none();
+        let mut retrier = RequestRetrier::new(authority_aggregator, client_monitor, &[], &[]);
 
         // Channel for wait_for_acknowledgments to notify which validators have acked.
         // These validators are known to have executed the transaction, making them good
@@ -163,6 +172,8 @@ impl EffectsCertifier {
         // or all targets have been attempted.
         loop {
             let display_name = authority_aggregator.get_display_name(&current_target);
+            let feedback_builder =
+                OperationFeedback::builder(current_target, display_name, OperationType::Effects);
             match full_effects_result {
                 Ok((effects_digest, executed_data)) => {
                     if effects_digest != certified_digest {
@@ -174,23 +185,23 @@ impl EffectsCertifier {
                         );
                         // This validator is byzantine, record the error and try to get full effects
                         // from another validator.
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: current_target,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        client_monitor.record_interaction_result(feedback_builder.err_now());
+                    } else if let Err(mismatch) =
+                        verify_executed_data(&executed_data, certified_digest)
+                    {
+                        tracing::warn!(
+                            ?current_target,
+                            "Full effects content inconsistent with certified digest {certified_digest}: {mismatch}"
+                        );
+                        // This validator is byzantine, record the error and try to get full effects
+                        // from another validator.
+                        self.metrics.effects_digest_mismatches.inc();
+                        client_monitor.record_interaction_result(feedback_builder.err_now());
                     } else {
                         if let Some(start_time) = full_effects_start_time {
                             let latency = start_time.elapsed();
-                            client_monitor.record_interaction_result(OperationFeedback {
-                                authority_name: current_target,
-                                display_name,
-                                operation: OperationType::Effects,
-                                ping: ping_type,
-                                result: Ok(latency),
-                            });
+                            client_monitor
+                                .record_interaction_result(feedback_builder.ok_now(latency));
                         }
                         return Ok(
                             self.get_quorum_transaction_response(effects_digest, *executed_data)
@@ -199,13 +210,7 @@ impl EffectsCertifier {
                 }
                 Err(e) => {
                     tracing::debug!(?current_target, "Failed to get full effects: {e}");
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: current_target,
-                        display_name,
-                        operation: OperationType::Effects,
-                        ping: ping_type,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     // This emits an error when retrier gathers enough (f+1) non-retriable effects
                     // errors, but the error should not happen after effects
                     // certification unless there are software bugs
@@ -226,6 +231,115 @@ impl EffectsCertifier {
         }
     }
 
+    /// Gets effects from a single validator without broadcasting to 2f+1 for
+    /// effects digest certification. Intended for callers that rely on local
+    /// checkpoint execution for finality, making the 2f+1 certification
+    /// broadcast redundant.
+    ///
+    /// The returned `executed_data.effects.transaction_digest()` is verified
+    /// to match `expected_tx_digest`; a mismatch indicates a byzantine
+    /// submitter attempting to inject effects for an unrelated transaction
+    /// and is rejected.
+    #[instrument(level = "debug", skip_all, err(level = "debug"))]
+    pub(crate) async fn get_effects_without_certification<A>(
+        &self,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
+        tx_digest: Option<TransactionDigest>,
+        current_target: AuthorityName,
+        submit_txn_result: TxStatusUpdate,
+        options: &SubmitTransactionOptions,
+    ) -> Result<QuorumTransactionResponse, TransactionDriverError>
+    where
+        A: AuthorityAPI + Send + Sync + 'static,
+    {
+        let (effects_digest, executed_data) = match submit_txn_result {
+            TxStatusUpdate::Executed {
+                effects_digest,
+                details: Some(details),
+            } => (effects_digest, details),
+            TxStatusUpdate::Submitted | TxStatusUpdate::Executed { details: None, .. } => {
+                let client = authority_aggregator
+                    .authority_clients
+                    .get(&current_target)
+                    .ok_or_else(|| TransactionDriverError::ClientInternal {
+                        error: format!(
+                            "Submitting validator {current_target:?} not found in authority clients"
+                        ),
+                    })?
+                    .clone();
+                match self.get_full_effects(client, tx_digest, options).await {
+                    Ok(details) => details,
+                    Err(e) => {
+                        return Err(self
+                            .corroborate_single_validator_error(
+                                authority_aggregator,
+                                client_monitor,
+                                tx_digest,
+                                current_target,
+                                e,
+                                options,
+                            )
+                            .await);
+                    }
+                }
+            }
+            // `submit_transaction` is contracted to surface
+            // `Rejected`/`Expired` as `Err`; reaching them here is an
+            // upstream invariant break.
+            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+                debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
+                return Err(TransactionDriverError::ClientInternal {
+                    error: "internal driver error".to_string(),
+                });
+            }
+        };
+
+        // Guard against a byzantine submitter returning effects for a different
+        // transaction. The caller will later key the local-cache reconciliation
+        // off the returned effects digest, so letting this slip through would
+        // let the attacker swap in effects from an unrelated (already-executed)
+        // tx. `tx_digest` is always `Some` on this path (pings never use
+        // WaitForLocalExecution), so we assert rather than silently skip.
+        let expected_tx_digest = tx_digest.expect(
+            "get_effects_without_certification is only invoked for user transactions; \
+             tx_digest must be Some",
+        );
+        let returned_tx_digest = *executed_data.effects.transaction_digest();
+        if returned_tx_digest != expected_tx_digest {
+            return Err(TransactionDriverError::ClientInternal {
+                error: format!(
+                    "Submitting validator {current_target:?} returned effects for tx {returned_tx_digest:?} but we expected {expected_tx_digest:?}"
+                ),
+            });
+        }
+
+        self.metrics.executed_transactions.inc();
+        tracing::debug!("Transaction executed (uncertified) with effects digest: {effects_digest}");
+
+        let epoch = executed_data.effects.epoch();
+        let effects = FinalizedEffects {
+            effects: executed_data.effects,
+            finality_info: EffectsFinalityInfo::UncertifiedSingleValidator(epoch),
+        };
+
+        Ok(QuorumTransactionResponse {
+            effects,
+            events: executed_data.events,
+            input_objects: if !executed_data.input_objects.is_empty() {
+                Some(executed_data.input_objects)
+            } else {
+                None
+            },
+            output_objects: if !executed_data.output_objects.is_empty() {
+                Some(executed_data.output_objects)
+            } else {
+                None
+            },
+            auxiliary_data: None,
+        })
+    }
+
     #[instrument(level = "debug", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest, ret_effects_digest = tracing::field::Empty
     ))]
     async fn get_full_effects<A>(
@@ -235,19 +349,9 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> FullEffectsResult
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
-        let request = if let Some(digest) = tx_digest {
-            GetTxStatusRequest {
-                queries: vec![TxStatusQuery {
-                    transaction_digest: digest,
-                    include_details: true,
-                }],
-            }
-        } else {
-            // Ping: empty queries vec.
-            GetTxStatusRequest { queries: vec![] }
-        };
+        let request = build_tx_status_request(tx_digest, true);
 
         match timeout(
             WAIT_FOR_EFFECTS_TIMEOUT,
@@ -309,7 +413,7 @@ impl EffectsCertifier {
     ))]
     async fn get_full_effects_with_fallback<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
         initial_client: Arc<SafeClient<A>>,
         initial_target: AuthorityName,
         tx_digest: Option<TransactionDigest>,
@@ -317,7 +421,7 @@ impl EffectsCertifier {
         mut acked_validators_rx: Receiver<AuthorityName>,
     ) -> (FullEffectsResult, AuthorityName)
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let mut pending_requests: FuturesUnordered<
             BoxFuture<'_, (AuthorityName, FullEffectsResult)>,
@@ -376,25 +480,185 @@ impl EffectsCertifier {
         }
     }
 
+    /// Corroborate a single-validator effects-fetch error in the
+    /// skip-certification path by querying all other validators for the tx
+    /// status.
+    ///
+    /// Behavior:
+    /// - If f+1 stake (including the initial validator if its error was a
+    ///   non-retriable rejection) report a non-retriable rejection, return
+    ///   [`TransactionDriverError::RejectedByValidators`] so the driver's outer
+    ///   loop surfaces a terminal error to the user.
+    /// - If the f+1 rejection threshold becomes unreachable (or the broadcast
+    ///   ends without reaching it), record bad client-monitor feedback for the
+    ///   initial validator and return
+    ///   [`TransactionDriverError::SubmittedButFetchFailed`]. That error is
+    ///   classified retriable, so the outer `drive_transaction` loop reissues
+    ///   submission; the bad feedback deprioritizes the suspect in the next
+    ///   `RequestRetrier`'s ranking.
+    ///
+    /// TODO: this returns `SubmittedButFetchFailed` (retriable) for every
+    /// inconclusive outcome, which makes the driver reissue submission even
+    /// when the initial validator was honest and just had a transient fetch
+    /// failure — in that case the tx is still in consensus and would land in a
+    /// checkpoint without our help. A future improvement would split the
+    /// inconclusive bucket: an f+1 "unknown to validator" majority signals
+    /// "tx wasn't disseminated, try another validator" (retriable), while a
+    /// mix of seen-and-executed responses signals "in flight, just wait for
+    /// checkpoint" (non-retriable; the gRPC handler then rebuilds from cache
+    /// or returns `DeadlineExceeded`).
+    #[instrument(level = "debug", skip_all, fields(tx_digest = ?tx_digest, initial_validator = ?initial_validator))]
+    async fn corroborate_single_validator_error<A>(
+        &self,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
+        tx_digest: Option<TransactionDigest>,
+        initial_validator: AuthorityName,
+        initial_error: TransactionRequestError,
+        options: &SubmitTransactionOptions,
+    ) -> TransactionDriverError
+    where
+        A: AuthorityAPI + Send + Sync + 'static,
+    {
+        let committee = authority_aggregator.committee.clone();
+        let total_votes = committee.total_votes();
+        let validity_threshold = committee.validity_threshold();
+        let initial_display_name = authority_aggregator.get_display_name(&initial_validator);
+
+        let mut non_retriable_rejected =
+            StatusAggregator::<TransactionRequestError>::new(committee.clone());
+        // Tracks total responded stake (incl. the initial validator) so the
+        // unreachability check has a "validators not yet heard from" tally —
+        // `non_retriable_rejected` only counts rejection votes.
+        let mut responded = StatusAggregator::<()>::new(committee.clone());
+        responded.insert(initial_validator, ());
+
+        // Only count the initial validator's error as a rejection vote if it
+        // actually claimed rejection. Transport/RPC errors do not.
+        let initial_is_rejection = matches!(
+            &initial_error,
+            TransactionRequestError::RejectedAtValidator(_)
+        ) && !initial_error.is_submission_retriable();
+        if initial_is_rejection {
+            non_retriable_rejected.insert(initial_validator, initial_error.clone());
+        }
+
+        // Short-circuit for committees small enough that the seed alone meets
+        // the validity threshold (single-validator tests).
+        if non_retriable_rejected.reached_validity_threshold() {
+            self.metrics.skip_cert_corroborated_rejections.inc();
+            return TransactionDriverError::RejectedByValidators {
+                submission_non_retriable_errors: aggregate_request_errors(
+                    non_retriable_rejected.status_by_authority(),
+                ),
+                submission_retriable_errors: aggregate_request_errors(vec![]),
+            };
+        }
+
+        let request = build_tx_status_request(tx_digest, false);
+
+        let mut futures = FuturesUnordered::new();
+        for (name, client) in authority_aggregator.authority_clients.iter() {
+            let name = *name;
+            if name == initial_validator {
+                continue;
+            }
+            let client = client.clone();
+            let request = request.clone();
+            let display_name = authority_aggregator.get_display_name(&name);
+            let monitor = client_monitor.clone();
+            let fut = async move {
+                let started = Instant::now();
+                let raw = timeout(
+                    WAIT_FOR_EFFECTS_TIMEOUT,
+                    client.get_tx_status(request, options.forwarded_client_addr),
+                )
+                .await;
+
+                let feedback_builder =
+                    OperationFeedback::builder(name, display_name, OperationType::Effects);
+                let mapped = match raw {
+                    Ok(Ok(mut statuses)) => {
+                        let update = statuses.pop().map(|(_, u)| Ok(u)).unwrap_or_else(|| {
+                            Err(TransactionRequestError::ValidatorInternal(
+                                "Empty response from validator".to_string(),
+                            ))
+                        });
+                        monitor
+                            .record_interaction_result(feedback_builder.ok_now(started.elapsed()));
+                        update
+                    }
+                    Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
+                    Err(_) => {
+                        monitor.record_interaction_result(feedback_builder.err_now());
+                        Err(TransactionRequestError::TimedOutGettingFullEffectsAtValidator)
+                    }
+                };
+
+                (name, mapped)
+            };
+            futures.push(fut);
+        }
+
+        while let Some((name, response)) = futures.next().await {
+            responded.insert(name, ());
+
+            if let Ok(TxStatusUpdate::Rejected { error }) = &response {
+                let wrapped = TransactionRequestError::RejectedAtValidator(error.clone());
+                if !wrapped.is_submission_retriable() {
+                    non_retriable_rejected.insert(name, wrapped);
+                }
+            }
+
+            if non_retriable_rejected.reached_validity_threshold() {
+                self.metrics.skip_cert_corroborated_rejections.inc();
+                return TransactionDriverError::RejectedByValidators {
+                    submission_non_retriable_errors: aggregate_request_errors(
+                        non_retriable_rejected.status_by_authority(),
+                    ),
+                    submission_retriable_errors: aggregate_request_errors(vec![]),
+                };
+            }
+            // Even if every still-unheard validator rejected non-retriably,
+            // the f+1 threshold can no longer be reached — stop early and let
+            // the caller fall through to the retriable-error path.
+            let unseen_stake = total_votes - responded.total_votes();
+            if non_retriable_rejected.total_votes() + unseen_stake < validity_threshold {
+                break;
+            }
+        }
+
+        // Record bad feedback for the suspect so the next retry's shuffled
+        // ranking deprioritizes it.
+        client_monitor.record_interaction_result(
+            OperationFeedback::builder(
+                initial_validator,
+                initial_display_name,
+                OperationType::Effects,
+            )
+            .err_now(),
+        );
+        self.metrics.skip_cert_corroboration_unreachable.inc();
+        TransactionDriverError::SubmittedButFetchFailed {
+            validator: initial_validator,
+            error: format!("{initial_error} (corroboration inconclusive)"),
+        }
+    }
+
     #[instrument(level = "debug", skip_all, err(level = "debug"), ret)]
     async fn wait_for_acknowledgments<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         options: &SubmitTransactionOptions,
         _submitted_tx_to_validator: AuthorityName,
         acked_validators_tx: Sender<AuthorityName>,
     ) -> Result<TransactionEffectsDigest, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
-        let ping_type = tx_digest.is_none();
-        let ping_label = ping_type.to_string();
-        self.metrics
-            .certified_effects_ack_attempts
-            .with_label_values(&[ping_label.as_str()])
-            .inc();
+        self.metrics.certified_effects_ack_attempts.inc();
         let timer = tokio::time::Instant::now();
         let clients = authority_aggregator
             .authority_clients
@@ -409,16 +673,7 @@ impl EffectsCertifier {
             let name = *name;
             let display_name = authority_aggregator.get_display_name(&name);
 
-            let request = if let Some(digest) = tx_digest {
-                GetTxStatusRequest {
-                    queries: vec![TxStatusQuery {
-                        transaction_digest: digest,
-                        include_details: false,
-                    }],
-                }
-            } else {
-                GetTxStatusRequest { queries: vec![] }
-            };
+            let request = build_tx_status_request(tx_digest, false);
 
             let future = async move {
                 match timeout(
@@ -436,13 +691,10 @@ impl EffectsCertifier {
                 {
                     Ok(result) => (name, result),
                     Err(_) => {
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: name,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        let feedback =
+                            OperationFeedback::builder(name, display_name, OperationType::Effects)
+                                .err_now();
+                        client_monitor.record_interaction_result(feedback);
                         (name, Err(IotaError::Timeout))
                     }
                 }
@@ -502,13 +754,9 @@ impl EffectsCertifier {
                             }
                         }
                         // Record success and latency
-                        self.metrics
-                            .certified_effects_ack_successes
-                            .with_label_values(&[ping_label.as_str()])
-                            .inc();
+                        self.metrics.certified_effects_ack_successes.inc();
                         self.metrics
                             .certified_effects_ack_latency
-                            .with_label_values(&[ping_label.as_str()])
                             .observe(timer.elapsed().as_secs_f64());
 
                         return Ok(effects_digest);
@@ -522,19 +770,13 @@ impl EffectsCertifier {
                     } else {
                         non_retriable_errors_aggregator.insert(name, error);
                     }
-                    self.metrics
-                        .rejection_acks
-                        .with_label_values(&[ping_label.as_str()])
-                        .inc();
+                    self.metrics.rejection_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Expired { epoch }))) => {
                     let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
-                    self.metrics
-                        .expiration_acks
-                        .with_label_values(&[ping_label.as_str()])
-                        .inc();
+                    self.metrics.expiration_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Submitted))) => {
                     // Still pending — treat as retriable.
@@ -676,42 +918,31 @@ impl EffectsCertifier {
         name: AuthorityName,
         display_name: String,
         client: &Arc<SafeClient<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        client_monitor: &ValidatorClientMonitor,
         request: GetTxStatusRequest,
         options: &SubmitTransactionOptions,
     ) -> IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let effects_start = Instant::now();
         let backoff =
             ExponentialBackoff::new(Duration::from_millis(100), MAX_WAIT_FOR_EFFECTS_RETRY_DELAY);
-        let is_ping = request.queries.is_empty();
         // This loop should only retry errors that are retriable without new submission.
         for (attempt, delay) in backoff.enumerate() {
             let result = client
                 .get_tx_status(request.clone(), options.forwarded_client_addr)
                 .await;
+            let feedback_builder =
+                OperationFeedback::builder(name, display_name.clone(), OperationType::Effects);
             match result {
                 Ok(response) => {
                     let latency = effects_start.elapsed();
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Ok(latency),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.ok_now(latency));
                     return Ok(response);
                 }
                 Err(e) => {
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     if !matches!(e, IotaError::Rpc(_, _)) {
                         return Err(e);
                     }
@@ -758,5 +989,717 @@ impl EffectsCertifier {
             },
             auxiliary_data: None,
         }
+    }
+}
+
+/// Verifies that the full effects content received from a validator is
+/// consistent with the quorum-certified effects digest: the effects must hash
+/// to the certified digest, and the events and input/output objects must
+/// match the digests declared in the (now trusted) effects. Returns a
+/// description of the mismatch on failure.
+fn verify_executed_data(
+    executed_data: &ExecutedData,
+    certified_digest: TransactionEffectsDigest,
+) -> Result<(), String> {
+    let actual_effects_digest = executed_data.effects.digest();
+    if actual_effects_digest != certified_digest {
+        return Err(format!(
+            "effects hash to {actual_effects_digest} instead of the certified digest"
+        ));
+    }
+    match (executed_data.effects.events_digest(), &executed_data.events) {
+        (None, None) => {}
+        (Some(events_digest), Some(events)) => {
+            let actual_events_digest = events.digest();
+            if actual_events_digest != *events_digest {
+                return Err(format!(
+                    "events hash to {actual_events_digest} instead of {events_digest} declared in effects"
+                ));
+            }
+        }
+        (None, Some(_)) => return Err("events returned but effects declare no events".to_string()),
+        (Some(_), None) => {
+            return Err("effects declare events but none were returned".to_string());
+        }
+    }
+    // Validators return input/output objects best-effort (they may already be
+    // pruned), so only verify that every object actually returned matches an
+    // object reference recorded in the trusted effects. The expected sets
+    // mirror how validators derive these fields in `build_executed_data`
+    // (via `get_transaction_input_objects` / `get_transaction_output_objects`):
+    // inputs are the objects modified by the transaction, outputs are the
+    // changed objects. If that derivation ever widens (e.g. to include
+    // read-only inputs), this check must widen with it, or honest responses
+    // will be rejected.
+    let expected_input_refs = executed_data
+        .effects
+        .old_object_metadata()
+        .into_iter()
+        .map(|(object_ref, _owner)| object_ref)
+        .collect();
+    verify_objects_recorded(&executed_data.input_objects, expected_input_refs, "input")?;
+    let expected_output_refs = executed_data
+        .effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _owner, _kind)| object_ref)
+        .collect();
+    verify_objects_recorded(
+        &executed_data.output_objects,
+        expected_output_refs,
+        "output",
+    )?;
+    Ok(())
+}
+
+/// Checks that every returned object hashes to an object reference present in
+/// `expected_refs`. `object_kind` ("input"/"output") only shapes the error
+/// message.
+fn verify_objects_recorded(
+    objects: &[Object],
+    expected_refs: HashSet<ObjectRef>,
+    object_kind: &str,
+) -> Result<(), String> {
+    for object in objects {
+        let object_ref = object.object_ref();
+        if !expected_refs.contains(&object_ref) {
+            return Err(format!(
+                "{object_kind} object {object_ref:?} does not match any object recorded in effects"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        net::SocketAddr,
+    };
+
+    use async_trait::async_trait;
+    use iota_sdk_types::{Address, ExecutionStatus, GasCostSummary, ObjectId, Owner};
+    use iota_types::{
+        base_types::SequenceNumber,
+        committee::Committee,
+        digests::TransactionDigest,
+        effects::{
+            EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+            TransactionEffectsExt as _, TransactionEvents,
+        },
+        error::{IotaError, UserInputError},
+        iota_system_state::IotaSystemState,
+        messages_checkpoint::{CheckpointRequest, CheckpointResponse},
+        messages_grpc::{
+            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
+            HandleCertificateRequestV1, HandleCertificateResponseV1,
+            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
+            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+            TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
+            ValidatorHealthRequest, ValidatorHealthResponse,
+        },
+        object::Object,
+        transaction::Transaction,
+    };
+
+    use super::*;
+    use crate::{
+        authority_aggregator::AuthorityAggregatorBuilder,
+        authority_client::{
+            validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
+        },
+        test_authority_clients::MockAuthorityApi,
+        validator_client_monitor::ValidatorClientMonitor,
+    };
+
+    fn make_aggregator(size: usize) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
+        Arc::new(
+            AuthorityAggregatorBuilder::from_committee_size(size).build_mock_authority_aggregator(),
+        )
+    }
+
+    fn set_validator_status(
+        agg: &AuthorityAggregator<MockAuthorityApi>,
+        name: &AuthorityName,
+        digest: TransactionDigest,
+        update: TxStatusUpdate,
+    ) {
+        let client = agg.authority_clients.get(name).unwrap();
+        client
+            .authority_client()
+            .stub_tx_status(Ok(vec![(digest, update)]));
+    }
+
+    fn options() -> SubmitTransactionOptions {
+        SubmitTransactionOptions::default()
+    }
+
+    fn rejection_iota_error() -> IotaError {
+        IotaError::UserInput {
+            error: UserInputError::EmptyCommandInput,
+        }
+    }
+
+    #[tokio::test]
+    async fn corroborate_returns_rejected_when_threshold_reached() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        // Initial validator (already counted via pre-seed). Other validators
+        // include one that confirms with a non-retriable rejection — that
+        // brings stake to f+1.
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &names[1],
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        // Remaining validators return `Submitted` — non-rejection so they
+        // count toward the "responded but not rejection" tally.
+        for name in &names[2..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(rejection_iota_error());
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_returns_fetch_failed_when_unreachable() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        // All other validators report `Submitted` (have not seen a rejection),
+        // so the rejection threshold becomes unreachable.
+        for name in &names[1..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(rejection_iota_error());
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_ignores_retriable_initial_error() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        // Two of the three other validators reject non-retriably (f+1 of three
+        // non-initial = 2). Since the initial error is retriable it is NOT
+        // pre-seeded into the aggregator — the broadcast itself must reach
+        // f+1 on its own.
+        for name in &names[1..3] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: rejection_iota_error(),
+                },
+            );
+        }
+        set_validator_status(&agg, &names[3], digest, TxStatusUpdate::Submitted);
+
+        let initial_error = TransactionRequestError::TimedOutGettingFullEffectsAtValidator;
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_effects_without_certification_corroborates_rejection() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &initial,
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        for name in &names[1..] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: rejection_iota_error(),
+                },
+            );
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("rejection should propagate");
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    /// Inconclusive corroboration returns the retriable
+    /// `SubmittedButFetchFailed` so the outer driver loop reissues submission
+    /// rather than surfacing a terminal error to the user.
+    #[tokio::test]
+    async fn get_effects_without_certification_returns_fetch_failed_when_inconclusive() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &initial,
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        for name in &names[1..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("fetch should fail");
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+    /// A validator client where every validator acknowledges
+    /// `acked_effects_digest`, and serves `executed_data` when full effects
+    /// are requested. With consistent data it behaves honestly; with
+    /// inconsistent data it models a byzantine validator that helps certify
+    /// a digest and then serves unrelated content under it.
+    #[derive(Clone)]
+    struct MockStatusClient {
+        acked_effects_digest: TransactionEffectsDigest,
+        executed_data: ExecutedData,
+    }
+
+    #[async_trait]
+    impl ValidatorV2API for MockStatusClient {
+        async fn submit_tx(
+            &self,
+            _transactions: Vec<Transaction>,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            unimplemented!()
+        }
+
+        async fn get_tx_status(
+            &self,
+            request: GetTxStatusRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            let query = request
+                .queries
+                .first()
+                .expect("test sends exactly one query");
+            let details = query
+                .include_details
+                .then(|| Box::new(self.executed_data.clone()));
+            Ok(vec![(
+                query.transaction_digest,
+                TxStatusUpdate::Executed {
+                    effects_digest: self.acked_effects_digest,
+                    details,
+                },
+            )])
+        }
+
+        async fn notify_capabilities_v2(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn health_check(
+            &self,
+            _request: ValidatorHealthRequest,
+        ) -> Result<ValidatorHealthResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl ValidatorPeerAPI for MockStatusClient {
+        async fn get_checkpoint_v2(
+            &self,
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl ValidatorAPI for MockStatusClient {
+        async fn handle_transaction(
+            &self,
+            _transaction: Transaction,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleTransactionResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_certificate_v1(
+            &self,
+            _request: HandleCertificateRequestV1,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleCertificateResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_soft_bundle_certificates_v1(
+            &self,
+            _request: HandleSoftBundleCertificatesRequestV1,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_object_info_request(
+            &self,
+            _request: ObjectInfoRequest,
+        ) -> Result<ObjectInfoResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_transaction_info_request(
+            &self,
+            _request: TransactionInfoRequest,
+        ) -> Result<TransactionInfoResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_checkpoint(
+            &self,
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_system_state_object(
+            &self,
+            _request: SystemStateRequest,
+        ) -> Result<IotaSystemState, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_capability_notification_v1(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    /// Runs effects certification against a 4-validator committee where
+    /// every validator behaves like `mock`.
+    async fn run_certifier(
+        mock: MockStatusClient,
+    ) -> (
+        Result<QuorumTransactionResponse, TransactionDriverError>,
+        Arc<TransactionDriverMetrics>,
+    ) {
+        let (committee, _keypairs) = Committee::new_simple_test_committee_of_size(4);
+        let clients: BTreeMap<_, _> = committee
+            .names()
+            .map(|name| (*name, mock.clone()))
+            .collect();
+        let auth_agg =
+            AuthorityAggregatorBuilder::from_committee(committee).build_custom_clients(clients);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let current_target = *auth_agg.committee.names().next().unwrap();
+        let result = certifier
+            .get_certified_finalized_effects(
+                &auth_agg,
+                &client_monitor,
+                Some(TransactionDigest::random()),
+                current_target,
+                TxStatusUpdate::Submitted,
+                &SubmitTransactionOptions::default(),
+            )
+            .await;
+        (result, metrics)
+    }
+
+    #[tokio::test]
+    async fn rejects_full_effects_whose_content_does_not_hash_to_certified_digest() {
+        // Every validator acks one digest but serves full effects whose
+        // content hashes to a different one.
+        let executed_data = ExecutedData::default();
+        let claimed_digest = TransactionEffectsDigest::new([42; 32]);
+        assert_ne!(executed_data.effects.digest(), claimed_digest);
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: claimed_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted full effects whose content does not hash to the certified digest"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_events_inconsistent_with_effects() {
+        let mut executed_data = ExecutedData::default();
+        // The empty test effects declare no events digest, so returning any
+        // events object is inconsistent with the certified effects.
+        assert!(executed_data.effects.events_digest().is_none());
+        executed_data.events = Some(TransactionEvents(vec![]));
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted events inconsistent with the certified effects"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_input_objects_not_recorded_in_effects() {
+        // The empty test effects record no modified objects, so any returned
+        // input object is inconsistent with the certified effects.
+        let executed_data = ExecutedData {
+            input_objects: vec![Object::new_gas_for_testing()],
+            ..Default::default()
+        };
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted input objects not recorded in the certified effects"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_output_objects_not_recorded_in_effects() {
+        // The empty test effects record no changed objects, so any returned
+        // output object is inconsistent with the certified effects.
+        let executed_data = ExecutedData {
+            output_objects: vec![Object::new_gas_for_testing()],
+            ..Default::default()
+        };
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted output objects not recorded in the certified effects"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn accepts_objects_recorded_in_effects() {
+        // The same object before the transaction (input, version 1) and after
+        // it (output, at the lamport version 2).
+        let object_id = ObjectId::random();
+        let owner = Owner::Address(Address::ZERO);
+        let input_object = Object::with_id_owner_version_for_testing(
+            object_id,
+            SequenceNumber::from_u64(1),
+            owner,
+        );
+        let output_object = Object::with_id_owner_version_for_testing(
+            object_id,
+            SequenceNumber::from_u64(2),
+            owner,
+        );
+        let input_ref = input_object.object_ref();
+        let output_ref = output_object.object_ref();
+        let effects = TransactionEffects::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            TransactionDigest::random(),
+            output_ref.version(),
+            BTreeMap::from([(
+                object_id,
+                EffectsObjectChange {
+                    object_id,
+                    input_state: ObjectIn::Data {
+                        version: input_ref.version(),
+                        digest: *input_ref.digest(),
+                        owner,
+                    },
+                    output_state: ObjectOut::ObjectWrite {
+                        digest: *output_ref.digest(),
+                        owner,
+                    },
+                    id_operation: IDOperation::None,
+                },
+            )]),
+            None,
+            None,
+            vec![],
+        );
+        let certified_digest = effects.digest();
+        let executed_data = ExecutedData {
+            effects,
+            events: None,
+            input_objects: vec![input_object],
+            output_objects: vec![output_object],
+        };
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        let response = result.expect("objects matching the certified effects should certify");
+        assert_eq!(response.effects.effects.digest(), certified_digest);
+        assert_eq!(
+            metrics.effects_digest_mismatches.get(),
+            0,
+            "consistent objects must not be flagged as a mismatch"
+        );
+    }
+
+    #[tokio::test]
+    async fn accepts_full_effects_whose_content_hashes_to_certified_digest() {
+        let executed_data = ExecutedData::default();
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        let response = result.expect("consistent full effects should certify");
+        assert_eq!(response.effects.effects.digest(), certified_digest);
+        assert_eq!(
+            metrics.effects_digest_mismatches.get(),
+            0,
+            "consistent full effects must not be flagged as a mismatch"
+        );
     }
 }

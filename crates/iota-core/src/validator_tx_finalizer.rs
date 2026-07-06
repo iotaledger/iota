@@ -12,7 +12,7 @@ use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     transaction::VerifiedSignedTransaction,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
 };
@@ -720,7 +720,7 @@ mod tests {
         keypair: &AccountKeyPair,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
-        let gas_object_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
+        let gas_object_ref = state.get_object(&gas_object_id).unwrap().object_ref();
         let tx_data = TestTransactionBuilder::new(
             sender,
             gas_object_ref,

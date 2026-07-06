@@ -14,7 +14,7 @@ members = [
 [workspace.dependencies]
 # external dependencies
 aes-gcm = "0.8.0"
-anyhow = "1.0.52"
+anyhow = "1.0.103"
 append-only-vec = "0.1.7"
 arbitrary = { version = "1.1.7", features = ["derive", "derive_arbitrary"] }
 async-trait = "0.1.42"
@@ -106,6 +106,7 @@ static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 strum_macros = "0.27.1"
 syn = { version = "1.0.64", features = ["derive"] }
+sysinfo = "0.35.2"
 tempfile = "3.2.0"
 tera = "1.16.0"
 thiserror = "1.0.24"

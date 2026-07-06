@@ -25,7 +25,7 @@ use iota_types::{
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
@@ -86,10 +86,13 @@ impl SafeClientMetricsBase {
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 #[derive(Clone)]
 pub struct SafeClientMetrics {
-    total_requests_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_requests_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
+    total_requests_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_requests_handle_object_info_request: GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_object_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
     handle_transaction_latency: Histogram,
     handle_certificate_latency: Histogram,
     handle_obj_info_latency: Histogram,
@@ -174,17 +177,14 @@ impl SafeClientMetrics {
 /// See `SafeClientMetrics::new` for description of each metrics.
 /// The metrics are per validator client.
 #[derive(Clone)]
-pub struct SafeClient<C>
-where
-    C: Clone,
-{
+pub struct SafeClient<C> {
     authority_client: C,
     committee_store: Arc<CommitteeStore>,
     address: AuthorityPublicKeyBytes,
     metrics: SafeClientMetrics,
 }
 
-impl<C: Clone> SafeClient<C> {
+impl<C> SafeClient<C> {
     pub fn new(
         authority_client: C,
         committee_store: Arc<CommitteeStore>,
@@ -198,9 +198,7 @@ impl<C: Clone> SafeClient<C> {
             metrics,
         }
     }
-}
 
-impl<C: Clone> SafeClient<C> {
     pub fn authority_client(&self) -> &C {
         &self.authority_client
     }
@@ -335,7 +333,7 @@ impl<C: Clone> SafeClient<C> {
 
 impl<C> SafeClient<C>
 where
-    C: AuthorityAPI + Send + Sync + Clone + 'static,
+    C: AuthorityAPI + Send + Sync + 'static,
 {
     /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(

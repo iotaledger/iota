@@ -5,7 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_types::{Address, Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectId, SignedTransaction, Transaction, TransactionDigest,
+};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::effects::TransactionEffectsAPI;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -149,7 +151,7 @@ pub async fn create_transaction_for_simulation(test_cluster: &TestCluster) -> Tr
 /// Execute a transaction and return its digest.
 ///
 /// This is useful for tests that need a finalized transaction to query.
-pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> Digest {
+pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> TransactionDigest {
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let digest = *tx.digest();
     test_cluster
@@ -157,7 +159,7 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> D
         .execute_transaction_may_fail(tx)
         .await
         .unwrap();
-    Digest::new(digest.into_inner())
+    digest
 }
 
 /// Wait until every transaction executed via `cluster.execute_transaction(...)`

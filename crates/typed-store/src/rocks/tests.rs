@@ -18,17 +18,15 @@ where
     db.safe_iter().map(|item| item.unwrap())
 }
 
-fn get_reverse_iter<K, V>(
-    db: &DBMap<K, V>,
-    lower_bound: Option<K>,
-    upper_bound: Option<K>,
-) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + use<'_, K, V>
+fn get_reverse_iter<'a, K, V>(
+    db: &'a DBMap<K, V>,
+    range: impl RangeBounds<K> + 'a,
+) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + 'a
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
-    db.reversed_safe_iter_with_bounds(lower_bound, upper_bound)
-        .unwrap()
+    db.safe_range_iter_reversed(range)
 }
 
 fn get_iter_with_bounds<K, V>(
@@ -195,7 +193,7 @@ async fn test_skip() {
 
     // Skip to last
     assert_eq!(
-        get_reverse_iter(&db, None, None).next(),
+        get_reverse_iter(&db, ..).next(),
         Some(Ok((789, "789".to_string()))),
     );
 
@@ -215,15 +213,15 @@ async fn test_reverse_iter_with_bounds() {
     db.insert(&789, &"789".to_string())
         .expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((789, "789".to_string())));
 
     db.insert(&999, &"999".to_string())
         .expect("Failed to insert");
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 }
 
@@ -265,7 +263,7 @@ async fn test_iter_reverse() {
     db.insert(&2, &"2".to_string()).expect("Failed to insert");
     db.insert(&3, &"3".to_string()).expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(Some(Ok((3, "3".to_string()))), iter.next());
     assert_eq!(Some(Ok((2, "2".to_string()))), iter.next());
     assert_eq!(Some(Ok((1, "1".to_string()))), iter.next());
@@ -557,13 +555,13 @@ async fn test_reversed_safe_iter_inclusive_upper_bound_at_max() {
     db.insert(&100u8, &"100".to_string()).unwrap();
     db.insert(&u8::MAX, &"max".to_string()).unwrap();
 
-    let results: Vec<_> = get_reverse_iter(&db, None, Some(u8::MAX))
+    let results: Vec<_> = get_reverse_iter(&db, ..=u8::MAX)
         .map(|item| item.unwrap())
         .collect();
     assert_eq!(
         vec![(u8::MAX, "max".to_string()), (100u8, "100".to_string())],
         results,
-        "reversed_safe_iter_with_bounds upper=u8::MAX must include the entry at u8::MAX",
+        "safe_range_iter_reversed with ..=u8::MAX must include the entry at u8::MAX",
     );
 }
 
@@ -600,6 +598,285 @@ async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper(
         Vec::<(u8, String)>::new(),
         results,
         "Range (Excluded(u8::MAX), Included(u8::MAX)) must yield no entries -- the lower bound excludes the only candidate",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_reversed_matches_forward() {
+    use std::ops::Bound::{self, Excluded, Included, Unbounded};
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    // [1, 100) so that bounds like 20 / 50 land on existing keys, exercising the
+    // exclusive-upper "skip the boundary key" path of the reverse seek.
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    let check = |range: (Bound<u32>, Bound<u32>)| {
+        let forward: Vec<_> = db.safe_range_iter(range).map(|r| r.unwrap()).collect();
+        let mut reversed: Vec<_> = db
+            .safe_range_iter_reversed(range)
+            .map(|r| r.unwrap())
+            .collect();
+        reversed.reverse();
+        assert_eq!(
+            forward, reversed,
+            "reversed(range) must equal forward(range) reversed; range = {range:?}",
+        );
+    };
+
+    check((Included(10), Excluded(20))); // 10..20, boundary key 20 exists
+    check((Included(10), Included(20))); // 10..=20
+    check((Excluded(10), Excluded(20))); // (10, 20)
+    check((Unbounded, Excluded(20))); // ..20
+    check((Unbounded, Included(20))); // ..=20
+    check((Included(50), Unbounded)); // 50..
+    check((Excluded(50), Unbounded)); // (50, ..)
+    check((Unbounded, Unbounded)); // full table
+    check((Included(40), Excluded(40))); // empty
+    check((Included(50), Included(50))); // single element
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1), (2, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    let forward: Vec<_> = db
+        .safe_iter_with_prefix(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((1, 1), "1-1".to_string()),
+            ((1, 2), "1-2".to_string()),
+            ((1, 3), "1-3".to_string()),
+        ],
+        forward,
+        "prefix scan must yield exactly the entries under the prefix",
+    );
+
+    let reversed: Vec<_> = db
+        .safe_iter_with_prefix_reversed(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    let mut expected = forward;
+    expected.reverse();
+    assert_eq!(
+        expected, reversed,
+        "reversed prefix scan must be forward reversed"
+    );
+
+    // The neighbouring prefix must not leak in.
+    let other: Vec<_> = db
+        .safe_iter_with_prefix(&2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((2, 1), "2-1".to_string()), ((2, 2), "2-2".to_string())],
+        other,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, u8), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(254u8, 9u8), (255, 1), (255, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Prefix 0xFF has no representable upper bound; the scan runs to the end of
+    // the column family and must still exclude the lower neighbour.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix(&u8::MAX)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((255, 1), "255-1".to_string()),
+            ((255, 2), "255-2".to_string()),
+        ],
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_multi_field() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b, c) in [
+        (1u64, 1u64, 9u64), // different second field
+        (1, 2, 0),
+        (1, 2, 7),
+        (1, 2, u64::MAX), // boundary at the third field's max
+        (1, 3, 0),        // next second field
+        (2, 2, 0),        // different first field
+    ] {
+        db.insert(&(a, b, c), &format!("{a}-{b}-{c}")).unwrap();
+    }
+
+    // A two-field prefix must select exactly the keys whose first two fields
+    // match, equivalent to the closed range over the whole third-field space.
+    let by_prefix: Vec<_> = db
+        .safe_iter_with_prefix(&(1u64, 2u64))
+        .map(|r| r.unwrap())
+        .collect();
+    let by_range: Vec<_> = db
+        .safe_range_iter((1u64, 2u64, u64::MIN)..=(1u64, 2u64, u64::MAX))
+        .map(|r| r.unwrap())
+        .collect();
+
+    assert_eq!(by_prefix, by_range);
+    assert_eq!(
+        vec![(1, 2, 0), (1, 2, 7), (1, 2, u64::MAX)],
+        by_prefix.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_surfaces_deserialization_error() {
+    // A bad VALUE: store <u32, u8>, reopen with a wider value type. The stored
+    // 1-byte values cannot deserialize into (u64, u64). Forward and reverse
+    // iteration share `SafeIter::next`, so both must surface the error rather
+    // than silently ending the scan.
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u32, u8>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db.insert(&2, &8).unwrap();
+            db
+        };
+        let db =
+            DBMap::<u32, (u64, u64)>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let forward = db.safe_iter().next();
+        assert!(
+            matches!(forward, Some(Err(TypedStoreError::Serialization(_)))),
+            "forward iteration must yield Some(Err(..)) on a bad value; got {forward:?}",
+        );
+        let reverse = db.safe_range_iter_reversed(..).next();
+        assert!(
+            matches!(reverse, Some(Err(TypedStoreError::Serialization(_)))),
+            "reverse iteration must yield Some(Err(..)) on a bad value; got {reverse:?}",
+        );
+    }
+
+    // A bad KEY: store <u8, u32>, reopen with a wider key type so the key itself
+    // fails to deserialize (exercises the other error arm of `SafeIter::next`).
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u8, u32>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db
+        };
+        let db =
+            DBMap::<(u64, u64), u32>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let first = db.safe_iter().next();
+        assert!(
+            matches!(first, Some(Err(TypedStoreError::Serialization(_)))),
+            "a key that fails to deserialize must yield Some(Err(..)); got {first:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_prefix_from_matches_old_bounded_scan() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 10u64), (1, 20), (1, 30), (2, 5)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Old approach: explicit bounds [(1, cursor), (1, u64::MAX)) -- upper
+    // EXCLUSIVE.
+    let old = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_bounds(Some((1u64, cursor.unwrap_or(0))), Some((1u64, u64::MAX)))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+    // New approach: prefix-from with the same cursor as the key remainder.
+    let new = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_from(&1u64, &cursor.unwrap_or(0))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    // For all realistic data the prefix scan is equivalent to the old bounds.
+    for cursor in [None, Some(10u64), Some(20), Some(30)] {
+        assert_eq!(old(cursor), new(cursor), "cursor {cursor:?}");
+    }
+
+    // The only divergence: the old exclusive `(1, u64::MAX)` upper bound dropped
+    // an entry sitting exactly at that tail; the prefix scan correctly keeps it.
+    db.insert(&(1u64, u64::MAX), &"max".to_string()).unwrap();
+    assert!(!old(None).contains(&(1, u64::MAX)));
+    assert!(new(None).contains(&(1, u64::MAX)));
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Resume the prefix-1 scan from cursor 2 (inclusive); the upper bound is still
+    // the end of prefix 1, so (1, 1) and the whole prefix 2 are excluded.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix_from(&1u64, &2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((1, 2), "1-2".to_string()), ((1, 3), "1-3".to_string())],
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_reversed_inclusive_ranges() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    // Closed range: [10, 20] in descending order.
+    let got: Vec<_> = db
+        .safe_range_iter_reversed(10..=20)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (10..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
+    );
+
+    // Upper-only inclusive range: [.., 20] in descending order.
+    let got: Vec<_> = db
+        .safe_range_iter_reversed(..=20)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (1..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
     );
 }
 

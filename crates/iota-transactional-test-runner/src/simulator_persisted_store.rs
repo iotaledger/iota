@@ -169,8 +169,7 @@ impl SimulatorStore for PersistedStore {
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
-            .reversed_safe_iter_with_bounds(None, None)
-            .expect("failed to fetch highest checkpoint")
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()
             .expect("failed to fetch highest checkpoint")
@@ -476,8 +475,7 @@ impl ReadStore for PersistedStore {
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
-            .reversed_safe_iter_with_bounds(None, None)
-            .expect("failed to fetch highest checkpoint")
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()
             .expect("failed to fetch highest checkpoint")
@@ -651,7 +649,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         self.sync();
         self.inner
             .checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, checkpoint)| checkpoint.into())
@@ -795,6 +793,13 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
         &self,
         _epoch_id: EpochId,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        todo!()
+    }
+
+    fn get_epoch_info(
+        &self,
+        _epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::EpochInfoV2>> {
         todo!()
     }
 

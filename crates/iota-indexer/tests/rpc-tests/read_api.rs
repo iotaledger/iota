@@ -375,7 +375,7 @@ fn get_checkpoint_by_digest_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(Digest(\"11111111111111111111111111111111\")) not found`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(11111111111111111111111111111111) not found`"}"#,
         ));
     });
 }

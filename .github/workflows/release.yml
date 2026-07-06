@@ -231,6 +231,17 @@ jobs:
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
           echo "trl = $trl"
 
+          # Map the tag suffix to the network this release targets, so the notes
+          # can report the earliest epoch at which the new protocol version can
+          # be enabled on that network.
+          case "$iota_tag" in
+            *-alpha*) network=alphanet ;;
+            *-beta*)  network=devnet ;;
+            *-rc*)    network=testnet ;;
+            *)        network=mainnet ;;
+          esac
+          echo "network = $network"
+
           current_minor=$(echo "$iota_tag" | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
           current_major=$(echo "$iota_tag" | sed -E 's/^v([0-9]+)\..*/\1/')
           previous_minor=$((current_minor - 1))
@@ -242,7 +253,7 @@ jobs:
           echo "Previous commit hash: $previous_commit_hash"
 
           pushd "scripts/release_notes" > /dev/null
-          ./run.sh generate $previous_commit_hash $new_commit_hash | tee -a "../../${{ env.RELEASE_NOTES_FILE }}" > /dev/null
+          ./run.sh generate $previous_commit_hash $new_commit_hash --network "$network" | tee -a "../../${{ env.RELEASE_NOTES_FILE }}" > /dev/null
           popd > /dev/null
           echo "---" >> ${{ env.RELEASE_NOTES_FILE }}
           echo "#### Full Log: https://github.com/iotaledger/iota/compare/$previous_tag...${{ needs.generate-tag.outputs.iota_ref }}" >> ${{ env.RELEASE_NOTES_FILE }}

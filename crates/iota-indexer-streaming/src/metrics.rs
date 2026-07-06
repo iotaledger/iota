@@ -3,7 +3,7 @@
 
 //! Contains Prometheus metrics for the streaming components.
 
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntGauge, IntGaugeVec, Registry, register_histogram_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };

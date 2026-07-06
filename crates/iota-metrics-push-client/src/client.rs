@@ -5,7 +5,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use iota_metrics::RegistryService;
-use prometheus::Encoder;
+use prometheus_filtered::Encoder;
 use tracing::{debug, error, info};
 
 const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
@@ -56,7 +56,7 @@ impl MetricsPushClient {
         }
 
         let mut buf: Vec<u8> = vec![];
-        let encoder = prometheus::ProtobufEncoder::new();
+        let encoder = prometheus_filtered::ProtobufEncoder::new();
         encoder.encode(&metric_families, &mut buf)?;
 
         let mut s = snap::raw::Encoder::new();
@@ -69,7 +69,10 @@ impl MetricsPushClient {
             .client()
             .post(url.to_owned())
             .header(reqwest::header::CONTENT_ENCODING, "snappy")
-            .header(reqwest::header::CONTENT_TYPE, prometheus::PROTOBUF_FORMAT)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                prometheus_filtered::PROTOBUF_FORMAT,
+            )
             .body(compressed)
             .timeout(METRICS_PUSH_TIMEOUT)
             .send()
@@ -81,11 +84,7 @@ impl MetricsPushClient {
                 Ok(body) => body,
                 Err(error) => format!("couldn't decode response body; {error}"),
             };
-            return Err(anyhow::anyhow!(
-                "metrics push failed: [{}]:{}",
-                status,
-                body
-            ));
+            return Err(anyhow::anyhow!("metrics push failed: [{status}]:{body}"));
         }
 
         debug!("successfully pushed metrics to {url}");

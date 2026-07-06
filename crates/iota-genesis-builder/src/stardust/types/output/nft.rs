@@ -124,7 +124,7 @@ impl Irc27MetadataExt for Irc27Metadata {
                         // The address is a bech32-encoded string, parse it and convert
                         use iota_stardust_types::block::address::Bech32Address;
                         let bech32_addr: Bech32Address = addr.parse().map_err(|e| {
-                            anyhow::anyhow!("failed to parse bech32 address: {:?}", e)
+                            anyhow::anyhow!("failed to parse bech32 address: {e:?}")
                         })?;
                         Ok(Entry {
                             key: stardust_to_iota_address(bech32_addr.inner())?,

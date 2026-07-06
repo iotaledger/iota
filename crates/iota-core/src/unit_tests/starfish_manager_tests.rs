@@ -12,7 +12,7 @@ use iota_types::{
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_core::{
     CommitDigest as StarfishCommitDigest, CommitRef as StarfishCommitRef,
     CommittedSubDag as StarfishCommittedSubDag, TestBlockHeader, VerifiedBlockHeader,

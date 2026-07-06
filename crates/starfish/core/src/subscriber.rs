@@ -228,7 +228,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone(), &mut encoder)
+                            .handle_subscribed_block_bundle(peer, block, &mut encoder)
                             .await;
                         if let Err(e) = result {
                             match e {

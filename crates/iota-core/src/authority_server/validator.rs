@@ -60,7 +60,9 @@ impl ValidatorService {
         self.transaction(request).await
     }
 
-    /// Handles a `Transaction` request.
+    /// Certificate-only flow: handles and certifies a transaction. Validates,
+    /// checks overload, and returns a signed vote for certificate assembly.
+    /// Called by `transaction_impl`.
     async fn handle_transaction(
         &self,
         request: tonic::Request<Transaction>,
@@ -71,21 +73,24 @@ impl ValidatorService {
             metrics,
             traffic_controller: _,
             client_id_source: _,
+            soft_locks: _,
         } = self.clone();
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
         // Reject if P-COOL flow is enabled - transactions should use
-        // submit_transaction instead
+        // `submit_tx` (ValidatorV2 service) instead
         fp_ensure!(
             !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_transaction is disabled when P-COOL flow is enabled. Use submit_transaction instead.".to_string()
+                error: "handle_transaction is disabled when P-COOL flow is enabled. \
+                    Use submit_tx (ValidatorV2 service) instead."
+                    .to_string()
             }
             .into()
         );
 
-        transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+        transaction.validity_check(&epoch_store.tx_validity_check_context())?;
 
         // When authority is overloaded and decide to reject this tx, we still lock the
         // object and ask the client to retry in the future. This is because
@@ -100,6 +105,8 @@ impl ValidatorService {
             &consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
+            // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` above
+            false,
         );
         if let Err(error) = overload_check_res {
             metrics
@@ -217,12 +224,40 @@ impl ValidatorService {
                     None
                 };
 
+                let effects = signed_effects.data();
+
+                let input_objects = include_input_objects
+                    .then(|| self.state.get_transaction_input_objects(effects))
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction input objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
+
+                let output_objects = include_output_objects
+                    .then(|| self.state.get_transaction_output_objects(effects))
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction output objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
+
                 return Ok((
                     Some(vec![HandleCertificateResponseV1 {
                         signed_effects: signed_effects.into_inner(),
                         events,
-                        input_objects: None,
-                        output_objects: None,
+                        input_objects,
+                        output_objects,
                         auxiliary_data: None,
                     }]),
                     Weight::one(),
@@ -237,6 +272,8 @@ impl ValidatorService {
                 &self.consensus_adapter,
                 certificate.data(),
                 self.state.check_system_overload_at_execution(),
+                // `false` means P-COOL flow is disabled - ensured by `fp_ensure!` in callers
+                false,
             );
             if let Err(error) = overload_check_res {
                 self.metrics
@@ -380,7 +417,12 @@ impl ValidatorService {
 
         Ok((Some(responses), Weight::zero()))
     }
+}
 
+impl ValidatorService {
+    /// Certificate-only flow: thin wrapper that delegates to
+    /// `handle_transaction`. Called by the `transaction()`
+    /// gRPC trait method.
     async fn transaction_impl(
         &self,
         request: tonic::Request<Transaction>,
@@ -401,13 +443,15 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. \
+                    Transactions go directly to consensus."
+                    .to_string()
             }
             .into()
         );
 
         let certificate = request.into_inner();
-        certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+        certificate.validity_check(&epoch_store.tx_validity_check_context())?;
 
         let span = error_span!("submit_certificate", tx_digest = ?certificate.digest());
         self.handle_certificates(
@@ -442,7 +486,9 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. \
+                    Transactions go directly to consensus."
+                    .to_string()
             }
             .into()
         );
@@ -450,7 +496,7 @@ impl ValidatorService {
         let request = request.into_inner();
         request
             .certificate
-            .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+            .validity_check(&epoch_store.tx_validity_check_context())?;
 
         let span = error_span!("handle_certificate_v1", tx_digest = ?request.certificate.digest());
         self.handle_certificates(
@@ -580,7 +626,9 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_soft_bundle_certificates_v1 is disabled when P-COOL flow is enabled. Use batch submission via submit_transaction instead.".to_string()
+                error: "handle_soft_bundle_certificates_v1 is disabled when P-COOL flow is \
+                    enabled. Use submit_tx (ValidatorV2 service) for batch submission instead."
+                    .to_string()
             }
             .into()
         );
@@ -598,9 +646,8 @@ impl ValidatorService {
         let mut total_size_bytes = 0;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
-            total_size_bytes += certificate
-                .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?
-                as u64;
+            total_size_bytes +=
+                certificate.validity_check(&epoch_store.tx_validity_check_context())? as u64;
         }
 
         self.metrics
@@ -616,7 +663,8 @@ impl ValidatorService {
             .await?;
 
         info!(
-            "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size [{}]bytes",
+            "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size \
+                [{total_size_bytes}]bytes",
             certificates.len(),
             client_addr
                 .map(|x| x.to_string())
@@ -626,7 +674,6 @@ impl ValidatorService {
                 .map(|x| x.digest().to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            total_size_bytes
         );
 
         let span = error_span!("handle_soft_bundle_certificates_v1");

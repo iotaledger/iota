@@ -400,9 +400,7 @@ pub fn rewind_checkpoint_execution(
         .unwrap_or_default();
     if checkpoint_sequence_number > highest_executed_sequence_number {
         bail!(
-            "Must rewind checkpoint execution to be not later than highest executed ({} > {})!",
-            checkpoint_sequence_number,
-            highest_executed_sequence_number
+            "Must rewind checkpoint execution to be not later than highest executed ({checkpoint_sequence_number} > {highest_executed_sequence_number})!"
         );
     }
     checkpoint_db.set_highest_executed_checkpoint_subtle(&checkpoint)?;

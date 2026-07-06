@@ -28,7 +28,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner,
-    ProgrammableTransaction, TypeTag, crypto::Intent,
+    ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -38,7 +38,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::MoveAuthenticatorV1,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
@@ -1942,13 +1942,14 @@ impl TestEnvironment {
             aa_ref.version,
             false,
         ));
-        let sponsor_call_arg = CallArg::Shared(SharedObjectRef::new(
-            aa_sponsor_ref.object_id,
-            aa_sponsor_ref.version,
-            false,
-        ));
+
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![self_call_arg], vec![], sponsor_call_arg),
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![self_call_arg],
+                vec![],
+                SharedObjectRef::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
+            )
+            .into(),
         ))
     }
 
@@ -2241,13 +2242,13 @@ impl TestEnvironment {
         &self,
         aa_obj_ref: ObjectRef,
     ) -> anyhow::Result<GenericSignature> {
-        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
-            aa_obj_ref.object_id,
-            aa_obj_ref.version,
-            false,
-        ));
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![], vec![], self_call_arg),
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![],
+                vec![],
+                SharedObjectRef::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
+            )
+            .into(),
         ))
     }
 
@@ -2303,11 +2304,6 @@ impl TestEnvironment {
         aa_obj_ref: ObjectRef,
         signature: iota_types::crypto::Signature,
     ) -> anyhow::Result<GenericSignature> {
-        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
-            aa_obj_ref.object_id,
-            aa_obj_ref.version,
-            false,
-        ));
         let hex_encoded_signature: String = Hex::encode(signature)
             .chars()
             .skip(2) // flag prefix length
@@ -2315,7 +2311,12 @@ impl TestEnvironment {
             .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![signature_call_arg],
+                vec![],
+                SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
+            )
+            .into(),
         ))
     }
 

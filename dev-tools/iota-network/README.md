@@ -2,16 +2,13 @@
 
 This was tested using MacOS 14.3.1, Docker Compose: v2.13.0.
 
-This compose brings up 3 validators, 1 fullnode, and 1 stress (load gen) client
+This compose brings up 3 validators, 1 fullnode, and 1 stress (load gen) client.
 
 Steps for running:
 
-1. build local stress image
+1. build the `stress:testing` image
 
-```
-cd dev-tools/stress
-docker build -t stress:testing --build-arg IOTA_TOOLS_IMAGE_TAG=mainnet-v1.19.1 .
-```
+   The `stress` tool now lives in the [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark) repo. Build its image from a checkout of that repo and tag it `stress:testing` so the `stress` service in this compose can pick it up.
 
 2. run compose
 

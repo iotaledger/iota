@@ -9,7 +9,7 @@ use std::{
 
 use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::RegistryService;
-use prometheus::{Registry, TextEncoder};
+use prometheus_filtered::{Registry, TextEncoder};
 use tower::ServiceBuilder;
 use tower_http::{
     LatencyUnit,
@@ -81,7 +81,7 @@ async fn metrics(
     Extension(pod_health): Extension<HealthCheckMetrics>,
 ) -> (StatusCode, String) {
     let mut metric_families = registry_service.gather_all();
-    metric_families.extend(prometheus::gather());
+    metric_families.extend(prometheus_filtered::gather());
 
     if let Some(consumer_operations_submitted) = metric_families
         .iter()

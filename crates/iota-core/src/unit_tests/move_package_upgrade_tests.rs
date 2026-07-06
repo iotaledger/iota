@@ -179,7 +179,7 @@ impl UpgradeStateRunner {
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         let authority_state = TestAuthorityBuilder::new().build().await;
-        authority_state.insert_genesis_object(gas_object).await;
+        authority_state.insert_genesis_object(gas_object);
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
         let (package, upgrade_cap) = build_and_publish_test_package_with_upgrade_cap(
@@ -427,7 +427,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .unwrap();
 
     assert_eq!(
-        b.data.struct_tag().unwrap(),
+        b.data.opt_struct_tag().unwrap(),
         StructTag::new(
             package_v2,
             Identifier::from_static("base"),

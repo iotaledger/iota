@@ -144,7 +144,7 @@ pub async fn start_test_indexer_impl(
         db_init_hook(&store);
     }
 
-    let registry = prometheus::Registry::default();
+    let registry = prometheus_filtered::Registry::default();
     init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 
@@ -269,7 +269,7 @@ impl TestDatabase {
 }
 
 pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
-    let registry = prometheus::Registry::default();
+    let registry = prometheus_filtered::Registry::default();
     init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 

@@ -68,7 +68,7 @@ pub async fn test_certificates(
     ));
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
-        let gas_object = authority.get_object(&gas_object.id()).await.unwrap();
+        let gas_object = authority.get_object(&gas_object.id()).unwrap();
         // Make a sample transaction.
         let module = "object_basics";
         let function = "create";
@@ -223,6 +223,7 @@ pub fn make_consensus_adapter_for_test(
         None,
         None,
         metrics,
+        50,
     ))
 }
 
@@ -533,6 +534,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
 
         adapter.submit_recovered(&epoch_store);
@@ -614,6 +616,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
 
         adapter.submit_recovered(&epoch_store);

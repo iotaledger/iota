@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     ops::Bound::Included,
-    sync::Arc,
 };
 
 use bytes::Bytes;
@@ -22,7 +21,6 @@ use crate::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
     },
-    context::Context,
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorCounts,
     storage::rocksdb_store::check_ref_consistency,
@@ -35,7 +33,6 @@ pub(crate) struct MemStore {
 }
 
 struct Inner {
-    transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
     transactions_by_tx_refs:
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
@@ -56,7 +53,6 @@ impl MemStore {
     pub(crate) fn new() -> Self {
         MemStore {
             inner: RwLock::new(Inner {
-                transactions: BTreeMap::new(),
                 transactions_by_tx_refs: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
@@ -73,7 +69,7 @@ impl MemStore {
 }
 
 impl Store for MemStore {
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()> {
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         let mut inner = self.inner.write();
 
         // Store block headers
@@ -98,30 +94,20 @@ impl Store for MemStore {
         // Store transactions data separately
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_fast_commit_sync() {
-                inner.transactions_by_tx_refs.insert(
-                    (
-                        transaction_ref.round,
-                        transaction_ref.author,
-                        transaction_ref.transactions_commitment,
-                    ),
-                    transaction,
-                );
-
-                inner.transaction_commitments_by_authorities.insert((
-                    transaction_ref.author,
+            inner.transactions_by_tx_refs.insert(
+                (
                     transaction_ref.round,
+                    transaction_ref.author,
                     transaction_ref.transactions_commitment,
-                ));
-            } else {
-                let block_ref = transaction
-                    .block_ref()
-                    .expect("block_ref must be present in non-transaction-ref path");
-                inner.transactions.insert(
-                    (block_ref.round, block_ref.author, block_ref.digest),
-                    transaction,
-                );
-            }
+                ),
+                transaction,
+            );
+
+            inner.transaction_commitments_by_authorities.insert((
+                transaction_ref.author,
+                transaction_ref.round,
+                transaction_ref.transactions_commitment,
+            ));
         }
 
         for commit in write_batch.commits {
@@ -171,10 +157,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .cloned(),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -195,10 +179,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .map(|tx| tx.serialized().clone()),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -210,34 +192,22 @@ impl Store for MemStore {
 
     // TODO: Do we need this method or will DAGState always try to read both headers
     // and transactions separately?
-    fn read_blocks(
-        &self,
-        refs: &[BlockRef],
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Ensure we have a read lock on the inner state across reading both headers and
         // transactions reads
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if context.protocol_config.consensus_fast_commit_sync() {
-            headers
-                .iter()
-                .map(|vh| {
-                    if vh.is_none() {
-                        GenericTransactionRef::TransactionRef(TransactionRef::default())
-                    } else {
-                        GenericTransactionRef::TransactionRef(
-                            vh.as_ref().unwrap().transaction_ref(),
-                        )
-                    }
-                })
-                .collect::<Vec<GenericTransactionRef>>()
-        } else {
-            refs.iter()
-                .map(|r| GenericTransactionRef::BlockRef(*r))
-                .collect()
-        };
+        let tx_refs = headers
+            .iter()
+            .map(|vh| {
+                if vh.is_none() {
+                    GenericTransactionRef::TransactionRef(TransactionRef::default())
+                } else {
+                    GenericTransactionRef::TransactionRef(vh.as_ref().unwrap().transaction_ref())
+                }
+            })
+            .collect::<Vec<GenericTransactionRef>>();
         let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
         drop(inner); // Explicitly drop the read lock before combining results
 
@@ -262,9 +232,8 @@ impl Store for MemStore {
         let exist = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .contains_key(&(b.round, b.author, b.digest)),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => false,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .contains_key(&(t.round, t.author, t.transactions_commitment)),
@@ -277,7 +246,6 @@ impl Store for MemStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let inner = self.inner.read();
         let mut refs = vec![];
@@ -287,7 +255,7 @@ impl Store for MemStore {
         )) {
             refs.push(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slice(), context)?;
+        let results = self.read_blocks(refs.as_slice())?;
         let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -302,7 +270,6 @@ impl Store for MemStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = VecDeque::new();
@@ -327,7 +294,7 @@ impl Store for MemStore {
         // when the VecDeque ring buffer wraps; otherwise trailing entries would be
         // silently dropped.
         let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice, context)?;
+        let results = self.read_blocks(refs_slice)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -542,7 +509,7 @@ impl Store for MemStore {
         Ok(headers)
     }
 
-    fn read_fast_sync_ongoing(&self) -> bool {
-        self.inner.read().fast_sync_ongoing
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
+        Ok(self.inner.read().fast_sync_ongoing)
     }
 }

@@ -22,7 +22,7 @@ fn verified_cert_cache_bench(c: &mut Criterion) {
         .collect();
     assert_eq!(chunks.len(), cpus);
 
-    let registry = prometheus::Registry::new();
+    let registry = prometheus_filtered::Registry::new();
     let metrics = SignatureVerifierMetrics::new(&registry);
     let cache = VerifiedDigestCache::<CertificateDigest>::new(
         metrics.certificate_signatures_cache_hits.clone(),

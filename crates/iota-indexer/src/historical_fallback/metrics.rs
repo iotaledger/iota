@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_storage::http_key_value_store::ItemType;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry,
 };
@@ -49,13 +49,13 @@ impl HistoricalFallbackClientMetrics {
 
     pub(crate) fn record_cache_hit(&self, item_type: ItemType) {
         self.cache_hits
-            .with_label_values(&[item_type.to_string()])
+            .with_label_values(&[&item_type.to_string()])
             .inc();
     }
 
     pub(crate) fn record_cache_miss(&self, item_type: ItemType) {
         self.cache_misses
-            .with_label_values(&[item_type.to_string()])
+            .with_label_values(&[&item_type.to_string()])
             .inc();
     }
 

@@ -13,12 +13,12 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use tracing::info;
 
 use crate::{
@@ -49,6 +49,7 @@ pub struct StarfishManager {
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
+    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
 }
 
 impl StarfishManager {
@@ -63,6 +64,7 @@ impl StarfishManager {
         metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyStarfishClient>,
     ) -> Self {
+        let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
             protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
             network_keypair: NetworkKeyPair::new(network_keypair),
@@ -75,6 +77,7 @@ impl StarfishManager {
             consensus_handler: Mutex::new(None),
             boot_counter: Mutex::new(0),
             consumer_monitor: ArcSwapOption::empty(),
+            consumer_monitor_sender,
         }
     }
 
@@ -126,6 +129,21 @@ impl ConsensusManagerTrait for StarfishManager {
             .authorities()
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
+
+        // Opt into the protective consensus gRPC resource limits via an
+        // environment variable, for gradual rollout on a subset of validators
+        // without changing the default (inert) behaviour.
+        let parameters = {
+            let mut p = parameters;
+            if matches!(
+                std::env::var("CONSENSUS_GRPC_PROTECTIVE_LIMITS").as_deref(),
+                Ok("1") | Ok("true")
+            ) {
+                info!("Applying protective consensus gRPC limits for validator {own_index}");
+                p.tonic.apply_protective();
+            }
+            p
+        };
 
         // Allow DAG visualizer port to be set via environment variable.
         // The port is used as-is (no offset) — in Docker each validator has its
@@ -188,6 +206,22 @@ impl ConsensusManagerTrait for StarfishManager {
             );
         }
 
+        // Spin up the starfish consensus handler to listen for committed sub dags
+        // before starting the consensus authority: commit observer recovery paces
+        // itself on consumer progress, so the consumer must already be draining
+        // the channel while the authority starts.
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor.clone(),
+        );
+
+        {
+            let mut consensus_handler = self.consensus_handler.lock().await;
+            *consensus_handler = Some(handler);
+        }
+
         let authority = ConsensusAuthority::start(
             epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
@@ -208,21 +242,13 @@ impl ConsensusManagerTrait for StarfishManager {
         let registry_id = self.registry_service.add(registry.clone());
 
         let registered_authority = Arc::new((authority, registry_id));
-        self.authority.swap(Some(registered_authority.clone()));
+        self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
 
-        // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(
-            last_processed_commit,
-            consensus_handler,
-            commit_receiver,
-            monitor,
-        );
-
-        let mut consensus_handler = self.consensus_handler.lock().await;
-        *consensus_handler = Some(handler);
+        // Send the consumer monitor to the replay waiter.
+        let _ = self.consumer_monitor_sender.send(monitor);
     }
 
     async fn shutdown(&self) {
@@ -258,8 +284,8 @@ impl ConsensusManagerTrait for StarfishManager {
         Running::False != *self.running.lock().await
     }
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter> {
-        let authority = self.authority.load_full()?;
-        Some(ReplayWaiter::new(authority))
+    fn replay_waiter(&self) -> ReplayWaiter {
+        let consumer_monitor_receiver = self.consumer_monitor_sender.subscribe();
+        ReplayWaiter::new(consumer_monitor_receiver)
     }
 }

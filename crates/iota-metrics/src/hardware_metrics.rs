@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use prometheus::{
+use prometheus_filtered::{
     IntGauge, Opts, Registry,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
@@ -19,9 +19,9 @@ use crate::RegistryService;
 #[derive(thiserror::Error, Debug)]
 pub enum HardwareMetricsErr {
     #[error("Failed creating metric: {0}")]
-    ErrCreateMetric(prometheus::Error),
+    ErrCreateMetric(prometheus_filtered::Error),
     #[error("Failed registering hardware metrics onto RegistryService: {0}")]
-    ErrRegisterHardwareMetrics(prometheus::Error),
+    ErrRegisterHardwareMetrics(prometheus_filtered::Error),
 }
 
 /// Register all hardware metrics: CPU specs, Memory specs/usage, Disk
@@ -114,7 +114,7 @@ impl HardwareMetrics {
         value: u64,
         labels: &[Option<LabelPair>],
     ) -> MetricFamily {
-        let mut g = prometheus::proto::Gauge::default();
+        let mut g = prometheus_filtered::proto::Gauge::default();
         let mut m = Metric::default();
         let mut mf = MetricFamily::new();
 
@@ -173,7 +173,7 @@ impl HardwareMetrics {
         Self::uint_gauge(
             "cpu_core_count",
             "CPU core count (and labels: model,vendor_id,arch)",
-            system.physical_core_count().unwrap_or_default() as u64,
+            System::physical_core_count().unwrap_or_default() as u64,
             &[
                 Some(Self::label("model", Self::cpu_model(system))),
                 Some(Self::label("vendor_id", Self::cpu_vendor_id(system))),

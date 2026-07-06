@@ -47,7 +47,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -603,7 +603,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(|arg| arg.as_receiving_opt().copied())
+            .filter_map(|arg| arg.as_opt_receiving().copied())
             .collect()
     }
 
@@ -1805,6 +1805,11 @@ impl TransactionDataAPI for TransactionData {
     }
 }
 
+pub struct TxValidityCheckContext<'a> {
+    pub config: &'a ProtocolConfig,
+    pub epoch: EpochId,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct SenderSignedData(SizeOneVec<SenderSignedTransaction>);
 
@@ -2003,14 +2008,10 @@ impl SenderSignedData {
     /// Validate untrusted user transaction, including its size, input count,
     /// command count, etc.
     /// Returns the certificate serialised bytes size.
-    pub fn validity_check(
-        &self,
-        config: &ProtocolConfig,
-        epoch: EpochId,
-    ) -> Result<usize, IotaError> {
+    pub fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError> {
         // Check that the features used by the user signatures are enabled on the
         // network.
-        self.check_user_signature_protocol_compatibility(config)?;
+        self.check_user_signature_protocol_compatibility(context.config)?;
 
         // CRITICAL!!
         // Users cannot send system transactions.
@@ -2027,7 +2028,7 @@ impl SenderSignedData {
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
-            TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
+            TransactionExpiration::Epoch(exp_poch) => *exp_poch < context.epoch,
             _ => unimplemented!(
                 "a new TransactionExpiration enum variant was added and needs to be handled"
             ),
@@ -2037,7 +2038,7 @@ impl SenderSignedData {
 
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
-        let max_tx_size_bytes = config.max_tx_size_bytes();
+        let max_tx_size_bytes = context.config.max_tx_size_bytes();
         fp_ensure!(
             tx_size as u64 <= max_tx_size_bytes,
             IotaError::UserInput {
@@ -2051,10 +2052,10 @@ impl SenderSignedData {
         );
 
         tx_data
-            .validity_check(config)
+            .validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
-        self.move_authenticators_validity_check(config)?;
+        self.move_authenticators_validity_check(context.config)?;
 
         Ok(tx_size)
     }
@@ -2078,10 +2079,7 @@ impl SenderSignedData {
 
         self.move_authenticators()
             .into_iter()
-            .find(|a| match a.address() {
-                Ok(addr) => addr == sender,
-                Err(_) => false,
-            })
+            .find(|a| a.address() == sender)
     }
 
     /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
@@ -2094,10 +2092,7 @@ impl SenderSignedData {
 
             self.move_authenticators()
                 .into_iter()
-                .find(|a| match a.address() {
-                    Ok(addr) => addr == gas_owner,
-                    Err(_) => false,
-                })
+                .find(|a| a.address() == gas_owner)
         } else {
             None
         }
@@ -3203,7 +3198,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_struct_opt().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveObject::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,

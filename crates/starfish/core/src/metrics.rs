@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
@@ -209,6 +209,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) missing_block_headers_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
+    pub(crate) block_receive_delay: IntCounterVec,
     pub(crate) transactions_per_commit_count: HistogramVec,
     pub(crate) non_empty_blocks_per_commit_count: HistogramVec,
     pub(crate) committed_non_empty_blocks_per_authority: IntCounterVec,
@@ -862,6 +863,12 @@ impl NodeMetrics {
                 "quorum_receive_latency",
                 "The time it took to receive a new round quorum of blocks",
                 registry
+            ).unwrap(),
+            block_receive_delay: register_int_counter_vec_with_registry!(
+                "block_receive_delay",
+                "Total delay from the start of the round to receiving the block, in milliseconds per authority",
+                &["authority"],
+                registry,
             ).unwrap(),
             invalid_transactions: register_int_counter_vec_with_registry!(
                 "invalid_transactions",

@@ -209,7 +209,7 @@ fn genesis_build_configuration() -> BuildConfig {
         force_recompilation: false,
         lock_file: None,
         fetch_deps_only: false,
-        skip_fetch_latest_git_deps: false,
+        skip_fetch_latest_git_deps: true,
         default_edition: None,
         deps_as_root: false,
         silence_warnings: false,

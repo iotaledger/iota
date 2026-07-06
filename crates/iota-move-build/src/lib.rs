@@ -200,7 +200,7 @@ impl BuildConfig {
                     let diags_buf =
                         report_diagnostics_to_buffer(&files, error_diags, /* color */ true);
                     if let Err(err) = std::io::stderr().write_all(&diags_buf) {
-                        anyhow::bail!("Cannot output compiler diagnostics: {}", err);
+                        anyhow::bail!("Cannot output compiler diagnostics: {err}");
                     }
                     anyhow::bail!("Compilation error");
                 }

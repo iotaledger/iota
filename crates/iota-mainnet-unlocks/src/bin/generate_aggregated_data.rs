@@ -42,7 +42,7 @@ fn clone_repo(tmp_dir: &TempDir) -> Result<PathBuf> {
         .context("failed to execute `git clone`")?;
 
     if !status.success() {
-        bail!("`git clone` failed with exit status: {}", status);
+        bail!("`git clone` failed with exit status: {status}");
     }
 
     Ok(repo_path)

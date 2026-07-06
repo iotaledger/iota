@@ -8,7 +8,7 @@ use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
