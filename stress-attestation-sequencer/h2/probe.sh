@@ -132,12 +132,16 @@ ensure_network() {
     echo "${GREEN}Reusing the running network (fullnode RPC responded).${RESET}"
     return 0
   fi
-  echo "${YELLOW}No network detected — bringing one up (attestation ON, TotalComputationUnits).${RESET}"
+  echo "${YELLOW}No network detected — bringing up a fresh one (attestation ON, TotalComputationUnits).${RESET}"
   sudo -v
-  if [[ ! -f "$GENESIS_DIR/genesis.blob" ]]; then
-    banner "== bootstrap (-b, $N validators) =="
-    sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N"
-  fi
+  # Cold start mirrors ../h1/run.sh: always cleanup + bootstrap -b so genesis.blob
+  # and benchmark.keystore are regenerated together. Trusting a surviving blob
+  # whose keystore was cleaned up makes stress fail with "Cannot find key for
+  # address". Only runs when nothing is up, so a sweep still reuses one network.
+  banner "== cleanup (in case something is half-up) =="
+  sudo "$TOOLS_DIR/cleanup.sh" || true
+  banner "== bootstrap (-b, $N validators) =="
+  sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N"
   banner "== start network (attestation ON) =="
   ATTEST=true MODE=TotalComputationUnits "$TOOLS_DIR/start.sh" -n "$N" faucet
   wait_for_fullnode
