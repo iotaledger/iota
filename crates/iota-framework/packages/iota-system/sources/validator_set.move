@@ -229,7 +229,7 @@ public(package) fun new_v2(
 
     // Only assign new committee, no need to call `process_new_committee` which also emits events.
     // All validators are eligible during initialization
-    let all_eligible_indices = vector::tabulate!(validators.active_validators.length(), |i| i);
+    let all_eligible_indices = all_validator_indices(&validators.active_validators);
     validators.committee_members =
         validators.select_committee_members_from_eligible(committee_size, all_eligible_indices);
 
@@ -1240,6 +1240,11 @@ fun calculate_total_committee_stakes(
     voting_power::total_committee_stake(validators, committee_members)
 }
 
+/// Returns the indices of all given validators.
+fun all_validator_indices(validators: &vector<ValidatorV1>): vector<u64> {
+    vector::tabulate!(validators.length(), |i| i)
+}
+
 /// Validates that eligible validators have sufficient voting power (at least quorum threshold).
 /// If they don't, returns indices of all validators as fallback.
 /// This ensures the committee selection process has enough voting power to meet consensus requirements.
@@ -1250,7 +1255,7 @@ fun validate_eligible_validators_voting_power(
     // If eligible_active_validators is empty, use all validators as fallback.
     // This can happen only if the protocol does not support selecting committee only from eligible validators or there is a bug in the caller.
     if (eligible_active_validators.is_empty()) {
-        return vector::tabulate!(active_validators.length(), |i| i)
+        return all_validator_indices(active_validators)
     };
 
     // Calculate total voting power of eligible validators
@@ -1266,7 +1271,7 @@ fun validate_eligible_validators_voting_power(
     // This should never happen under normal circumstances, but we include this
     // safeguard to ensure the committee selection can always proceed in a safe manner.
     if (eligible_total_voting_power < voting_power::quorum_threshold()) {
-        vector::tabulate!(active_validators.length(), |i| i)
+        all_validator_indices(active_validators)
     } else {
         eligible_active_validators
     }
@@ -1600,9 +1605,10 @@ public(package) fun process_new_committee(
 
     // If all pre-validated eligible validators were removed during pending
     // removals or low-stake departures, the remapped set is empty. Fall back
-    // to all current active validators to guarantee a non-empty committee.
+    // to all current active validators (non-empty, as asserted by the caller)
+    // so committee selection produces a non-empty committee.
     if (current_eligible_indices.is_empty()) {
-        current_eligible_indices = vector::tabulate!(self.active_validators.length(), |i| i);
+        current_eligible_indices = all_validator_indices(&self.active_validators);
     };
 
     self.committee_members =
