@@ -2277,6 +2277,84 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
     effects.status().unwrap();
 }
 
+/// When executing from a checkpoint the certified effects digest is passed to
+/// `try_execute_immediately`; if the locally produced effects differ, that is a
+/// fork and execution must panic rather than commit divergent effects. This
+/// exercises the fork check directly (not via the execution driver, whose
+/// spawned task would abort instead of unwinding and hang `#[should_panic]`).
+#[tokio::test]
+#[should_panic(expected = "is expected to have effects digest")]
+async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
+    let (address, key) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certified_transfer_transaction = init_certified_transfer_transaction(
+        address,
+        &key,
+        address,
+        object.object_ref(),
+        gas_object.object_ref(),
+        &authority_state,
+    );
+
+    // A certified effects digest that cannot match what this transfer produces.
+    let bogus_effects_digest = iota_types::digests::TransactionEffectsDigest::new([255; 32]);
+    let executable =
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+    let _ = authority_state.try_execute_immediately(
+        &executable,
+        Some(bogus_effects_digest),
+        &authority_state.epoch_store_for_testing(),
+    );
+}
+
+/// The same fork guard also fires on the already-executed fast path: a second
+/// `try_execute_immediately` with a wrong expected digest against a transaction
+/// whose effects are already committed must panic instead of returning stale
+/// effects as if they matched.
+#[tokio::test]
+#[should_panic(expected = "Unexpected effects digest")]
+async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
+    let (address, key) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certified_transfer_transaction = init_certified_transfer_transaction(
+        address,
+        &key,
+        address,
+        object.object_ref(),
+        gas_object.object_ref(),
+        &authority_state,
+    );
+    let executable =
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+
+    // Execute once for real, then re-run with a mismatching expected digest.
+    authority_state
+        .try_execute_immediately(
+            &executable,
+            None,
+            &authority_state.epoch_store_for_testing(),
+        )
+        .unwrap();
+    let bogus_effects_digest = iota_types::digests::TransactionEffectsDigest::new([255; 32]);
+    let _ = authority_state.try_execute_immediately(
+        &executable,
+        Some(bogus_effects_digest),
+        &authority_state.epoch_store_for_testing(),
+    );
+}
+
 #[tokio::test]
 async fn test_handle_confirmation_transaction_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
