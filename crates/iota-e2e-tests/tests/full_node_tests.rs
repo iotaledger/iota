@@ -501,6 +501,54 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+// Same cold-sync scenario, but every node runs the ExecutionScheduler. The
+// scheduler has otherwise never been exercised through the checkpoint-executor /
+// state-sync path, where transactions are enqueued with a certified expected
+// effects digest and their inputs arrive by applying synced checkpoints rather
+// than from local submission. A regression where a synced transaction never
+// becomes ready under the ExecutionScheduler would stall sync silently.
+#[sim_test]
+async fn test_full_node_cold_sync_execution_scheduler() -> Result<(), anyhow::Error> {
+    // Selected at node construction; set before the cluster and fullnode are
+    // built. Process-per-test isolation keeps it from leaking to other tests.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+
+    let context = &mut test_cluster.wallet;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let (_transferred_object, _, _, digest, ..) = transfer_coin(context).await?;
+
+    // Make sure the validators are quiescent before bringing up the node.
+    sleep(Duration::from_millis(1000)).await;
+
+    // Start a new fullnode that is not on the write path.
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
+    assert!(
+        fullnode.state().uses_execution_scheduler(),
+        "the synced fullnode must run the ExecutionScheduler for this test to exercise the \
+         state-sync scheduling path"
+    );
+
+    fullnode
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
+        .await;
+
+    let info = fullnode
+        .state()
+        .handle_transaction_info_request(TransactionInfoRequest {
+            transaction_digest: digest,
+        })
+        .await?;
+    // Check that it has been executed.
+    info.status.into_effects_for_testing();
+
+    Ok(())
+}
+
 #[sim_test]
 async fn test_full_node_sync_flood() {
     do_test_full_node_sync_flood().await
