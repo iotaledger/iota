@@ -820,8 +820,7 @@ impl CheckpointExecutor {
                     execution_data,
                 );
                 self.checkpoint_store
-                    .cache_full_checkpoint_contents(&checkpoint, full_contents)
-                    .expect("failed to serialize full checkpoint contents");
+                    .cache_full_checkpoint_contents(&checkpoint, full_contents);
             }
 
             let transactions = verified_transactions

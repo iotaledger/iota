@@ -451,7 +451,9 @@ impl IotaNode {
         let checkpoint_store = CheckpointStore::new_with_contents_cache(
             &config.db_path().join("checkpoints"),
             FullCheckpointContentsCache::new(
-                config.full_checkpoint_contents_cache_size_mb * 1024 * 1024,
+                config
+                    .full_checkpoint_contents_cache_size_mb
+                    .saturating_mul(1024 * 1024),
                 FullContentsCacheMetrics::new(&prometheus_registry),
             ),
         );

@@ -818,7 +818,8 @@ impl CheckpointStore {
             .checkpoint_content
             .insert(&contents.digest(), &contents)?;
 
-        self.cache_full_checkpoint_contents(checkpoint, full_contents)
+        self.cache_full_checkpoint_contents(checkpoint, full_contents);
+        Ok(())
     }
 
     /// Whether [`Self::cache_full_checkpoint_contents`] would retain contents
@@ -836,20 +837,31 @@ impl CheckpointStore {
     /// Used by the checkpoint executor on nodes that execute transactions
     /// without syncing contents via state sync (validators), where the
     /// digest-form contents and the transactions are already durable.
+    ///
+    /// Best-effort: a serialization failure is logged and the insert skipped;
+    /// readers fall back to reconstructing the contents from the durable
+    /// stores.
     pub fn cache_full_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         full_contents: FullCheckpointContents,
-    ) -> Result<(), TypedStoreError> {
-        let size = bcs::serialized_size(&full_contents)
-            .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
+    ) {
+        let size = match bcs::serialized_size(&full_contents) {
+            Ok(size) => size,
+            Err(e) => {
+                warn!(
+                    sequence_number = checkpoint.sequence_number(),
+                    "failed to serialize full checkpoint contents for caching: {e}"
+                );
+                return;
+            }
+        };
         self.full_checkpoint_contents_cache.insert(
             checkpoint.sequence_number(),
             checkpoint.content_digest,
             Arc::new(full_contents),
             size,
         );
-        Ok(())
     }
 
     pub fn get_epoch_last_checkpoint(
@@ -2949,9 +2961,7 @@ mod tests {
         let (checkpoint, full_contents) = test_checkpoint_with_contents();
         let content_digest = checkpoint.content_digest;
 
-        store
-            .cache_full_checkpoint_contents(&checkpoint, full_contents.clone())
-            .unwrap();
+        store.cache_full_checkpoint_contents(&checkpoint, full_contents.clone());
 
         assert_eq!(
             store
