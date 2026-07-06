@@ -9,7 +9,7 @@ name: Upload IOTA SDK References to S3
 on:
   workflow_dispatch:
   push:
-    branches: [develop, "claude/iota-rust-sdk-docs-zksew0"]
+    branches: [develop]
     paths:
       - ".github/workflows/upload-iota-sdk-references.yml"
       - "docs/site/iota-sdk-references.rev"
