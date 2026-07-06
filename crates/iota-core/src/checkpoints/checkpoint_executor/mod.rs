@@ -724,7 +724,6 @@ impl CheckpointExecutor {
             .get_full_checkpoint_contents_by_sequence_number(seq)
             .tap_some(|_| debug!("loaded full checkpoint contents in bulk for sequence {seq}"))
         {
-            let full_contents = full_contents.as_ref().clone();
             let num_txns = full_contents.size();
             let mut tx_digests = Vec::with_capacity(num_txns);
             let mut transactions = Vec::with_capacity(num_txns);
@@ -732,7 +731,7 @@ impl CheckpointExecutor {
             let mut fx_digests = Vec::with_capacity(num_txns);
 
             full_contents
-                .into_iter()
+                .iter()
                 .zip(checkpoint_contents.iter())
                 .for_each(|(execution_data, digests)| {
                     let tx_digest = digests.transaction;
@@ -742,11 +741,11 @@ impl CheckpointExecutor {
 
                     tx_digests.push(tx_digest);
                     transactions.push(VerifiedExecutableTransaction::new_from_checkpoint(
-                        VerifiedTransaction::new_unchecked(execution_data.transaction),
+                        VerifiedTransaction::new_unchecked(execution_data.transaction.clone()),
                         epoch,
                         seq,
                     ));
-                    effects.push(execution_data.effects);
+                    effects.push(execution_data.effects.clone());
                     fx_digests.push(fx_digest);
                 });
 

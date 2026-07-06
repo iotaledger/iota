@@ -230,12 +230,16 @@ pub struct NodeConfig {
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
 
-    /// Approximate memory budget in MiB for the in-memory cache of full
-    /// checkpoint contents, which serves the checkpoint executor's bulk
-    /// transaction loads and checkpoint-contents requests from state-sync
-    /// peers. When the budget is exceeded, the oldest checkpoints are evicted
-    /// first. Set to 0 to disable the cache; consumers then fall back to
+    /// Memory budget in MiB for the in-memory cache of full checkpoint
+    /// contents, which serves the checkpoint executor's bulk transaction
+    /// loads and checkpoint-contents requests from state-sync peers. When
+    /// the budget is exceeded, the oldest checkpoints are evicted first.
+    /// Set to 0 to disable the cache; consumers then fall back to
     /// reconstructing contents from the transaction and effects stores.
+    ///
+    /// The budget is accounted in serialized (BCS) bytes; the resident
+    /// memory of a full cache is somewhat higher than the configured value
+    /// due to in-memory representation overhead.
     #[serde(default = "default_full_checkpoint_contents_cache_size_mb")]
     pub full_checkpoint_contents_cache_size_mb: usize,
 

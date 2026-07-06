@@ -115,6 +115,9 @@ struct Inner {
 /// are skipped, since eviction would remove them immediately. A single entry
 /// larger than the whole budget is still cached until the next insert
 /// displaces it. A budget of zero disables the cache entirely.
+///
+/// The budget is accounted in serialized (BCS) bytes — the resident heap
+/// footprint of a full cache is somewhat higher than the budget.
 pub struct FullCheckpointContentsCache {
     max_bytes: usize,
     metrics: Arc<FullContentsCacheMetrics>,
