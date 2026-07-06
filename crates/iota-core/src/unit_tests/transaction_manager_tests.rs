@@ -65,6 +65,47 @@ fn get_input_keys(objects: &[Object]) -> Vec<InputKey> {
         .collect()
 }
 
+/// Reconfiguration must drop every pending and executing entry. This is the
+/// legacy baseline the `ExecutionScheduler` reproduces via `within_alive_epoch`
+/// cancellation; pinning it here documents the exact post-reconfigure invariant
+/// (all internal maps empty, inflight count 0) that the scheduler tests target.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+    transaction_manager.check_empty_for_testing();
+
+    // One transaction becomes ready immediately (existing gas, empty input) and,
+    // once received, sits in `executing_transactions`.
+    let executing_tx = make_transaction(gas_object, vec![]);
+    transaction_manager.enqueue(vec![executing_tx.clone()], &state.epoch_store_for_testing());
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), executing_tx.digest());
+
+    // A second transaction waits on a gas object that is not available, so it
+    // stays in `pending_transactions`.
+    let missing_gas = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        0.into(),
+        Owner::Address(owner),
+    );
+    let pending_tx = make_transaction(missing_gas, vec![]);
+    transaction_manager.enqueue(vec![pending_tx.clone()], &state.epoch_store_for_testing());
+    sleep(Duration::from_secs(1)).await;
+
+    // Both are inflight: one executing, one pending.
+    assert_eq!(transaction_manager.inflight_queue_len(), 2);
+
+    // Reconfiguration replaces the inner state wholesale, dropping both.
+    transaction_manager.reconfigure(1);
+
+    transaction_manager.check_empty_for_testing();
+    assert_eq!(transaction_manager.inflight_queue_len(), 0);
+    assert_eq!(transaction_manager.num_pending_certificates(), 0);
+}
+
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_basics() {
     // Initialize an authority state.
