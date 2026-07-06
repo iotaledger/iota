@@ -73,6 +73,7 @@ ignore = [
   # released `object_store` pulls it yet (latest 0.14.0 requires ^0.40.1), so
   # there is no upgrade path. Remove once `object_store` updates quick-xml.
   "RUSTSEC-2026-0194",
+  # Same as above
   "RUSTSEC-2026-0195",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
