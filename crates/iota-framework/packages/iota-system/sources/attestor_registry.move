@@ -139,9 +139,10 @@ public struct AttestorKeyRotatedEvent has copy, drop {
     new_pubkey: vector<u8>,
 }
 
-/// Whether the validator-attestation protocol feature is enabled on this chain.
+/// Whether the external-attestation protocol feature is enabled on this
+/// chain.
 public(package) fun is_feature_enabled(): bool {
-    protocol_config::is_feature_enabled(b"enable_validator_attestation")
+    protocol_config::is_feature_enabled(b"enable_external_attestation")
 }
 
 /// Aborts unless the feature is enabled. Gates all user-facing registry entry

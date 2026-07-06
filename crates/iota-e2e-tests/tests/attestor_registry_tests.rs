@@ -3,7 +3,8 @@
 
 //! End-to-end test for the attestor registry lifecycle.
 //!
-//! Enables `enable_validator_attestation` (+ its required `enable_pcool_flow`).
+//! Enables `enable_external_attestation` (+ its required
+//! `enable_validator_attestation` and `enable_pcool_flow`).
 //! Own binary so the process-wide env override does not race others.
 
 use fastcrypto::encoding::{Encoding, Hex};
@@ -54,6 +55,10 @@ async fn test_attestor_registry_lifecycle() {
         ),
         (
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "true",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_EXTERNAL_ATTESTATION",
             "true",
         ),
     ]);
