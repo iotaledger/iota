@@ -63,7 +63,6 @@ pub(super) fn prepare_transaction(
     deny_config: &TransactionDenyConfig,
     tx_signatures: &[GenericSignature],
     move_authenticators: &[MoveAuthenticator],
-    authenticator_gas_budget: u64,
 ) -> Result<PreparedTransaction, VmSdkError> {
     if transaction.kind().is_system() {
         return Err(ValidationError::new(
@@ -197,6 +196,15 @@ pub(super) fn prepare_transaction(
         // live validator enforces, so this check will not match a real chain.
         let verifier_signing_config =
             iota_config::verifier_signing_config::VerifierSigningConfig::default();
+        // Pass `0` for the authenticator gas budget: this crate runs the
+        // authenticator and body together to effects, which is the node's
+        // post-consensus path, where they share the full transaction budget
+        // (`max_auth_gas` caps only the separate pre-consensus signing check,
+        // which this crate does not model). A `0` budget makes
+        // `check_transaction_input` meter at the full transaction budget, as
+        // `check_certificate_input` does. (Move-authentication support is
+        // verified before preparation, so the precondition a non-zero budget
+        // would enforce is already covered.)
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &env.protocol_config,
             env.reference_gas_price,
@@ -205,24 +213,9 @@ pub(super) fn prepare_transaction(
             &receiving_objects,
             &env.bytecode_verifier_metrics,
             &verifier_signing_config,
-            authenticator_gas_budget,
+            0,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
-        // `check_transaction_input` meters the signing phase and caps the budget
-        // at `max_auth_gas` when an authenticator budget is set. The combined
-        // authenticator + body run executes to effects, so meter it at the full
-        // transaction budget; the standalone verdict re-run keeps `max_auth_gas`.
-        let gas_status = if authenticator_gas_budget > 0 {
-            IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                env.reference_gas_price,
-                &env.protocol_config,
-            )
-            .map_err(|e| ValidationError::new("gas status", e))?
-        } else {
-            gas_status
-        };
         (gas_status, checked_input_objects)
     };
 
@@ -299,7 +292,6 @@ pub(super) fn execute_with_move_authenticators(
         iota_types::digests::Digest,
         Option<iota_types::digests::Digest>,
     ),
-    authenticator_gas_budget: u64,
     trace_builder_opt: &mut Option<MoveTraceBuilder>,
 ) -> Result<
     (
@@ -398,14 +390,23 @@ pub(super) fn execute_with_move_authenticators(
 
     let verdict = if effects.status().is_success() {
         Ok(())
+    } else if effects.status().error_command().is_some_and(|cmd| cmd > 0) {
+        // The authenticators run as a fake command 0, so a failure in any later
+        // command is a transaction-body abort, never an authentication
+        // rejection: the authenticators passed. Skip the re-run.
+        // TODO(https://github.com/iotaledger/iota/issues/11986): once the fake
+        // command-0 mapping is resolved an authentication rejection becomes
+        // unambiguous and this whole re-run branch can be removed.
+        Ok(())
     } else {
-        // The combined run failed; re-run the authenticators alone to learn
-        // whether an authenticator rejected the transaction or the body failed.
-        // Meter with the authenticator budget the signing phase uses
-        // (`max_auth_gas`), not the transaction budget — a smaller tx budget
-        // would starve the re-run and look like a rejection.
+        // The failure is in command 0 or unattributed, so it may be an
+        // authentication rejection or a body abort. Re-run the authenticators
+        // alone to tell them apart. Meter at the full transaction budget: this
+        // models the node's post-consensus execution, where the authenticators
+        // and body share that budget, so the re-run must not report a rejection
+        // for a run the actual execution had enough gas for.
         let verdict_gas_status = IotaGasStatus::new(
-            authenticator_gas_budget,
+            transaction.gas_budget(),
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,

@@ -130,16 +130,7 @@ impl LocalVm {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(
-                &env,
-                &backend,
-                tx,
-                opts.mode,
-                &opts.deny_config,
-                &[],
-                &[],
-                0,
-            )?
+            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, &[], &[])?
         };
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -210,8 +201,13 @@ impl LocalVm {
             .map_err(VmSdkError::SignatureVerification)?;
         let transaction = signed.into_inner().intent_message.value;
 
-        let authenticator_gas_budget =
-            authenticator_gas_budget(&self.protocol_config, !move_authenticators.is_empty())?;
+        // A `MoveAuthenticator` on a protocol version that predates Move
+        // authentication cannot be run; reject it with a typed error rather
+        // than reaching the engine.
+        ensure_move_authentication_supported(
+            &self.protocol_config,
+            !move_authenticators.is_empty(),
+        )?;
 
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -223,7 +219,6 @@ impl LocalVm {
                 &opts.deny_config,
                 &tx_signatures,
                 &move_authenticators,
-                authenticator_gas_budget,
             )?
         };
         let (sim, signature_status, trace_builder) = {
@@ -247,7 +242,6 @@ impl LocalVm {
                     prepared,
                     move_authenticators,
                     auth_digests,
-                    authenticator_gas_budget,
                     &mut trace_builder,
                 )?;
                 let status = match verdict {
@@ -386,50 +380,51 @@ impl LocalVm {
     }
 }
 
-/// Gas budget for verifying the transaction's `MoveAuthenticator`s.
+/// Check that the protocol version supports Move authentication when the
+/// transaction carries `MoveAuthenticator`s.
 ///
-/// Returns `0` when none are present. Otherwise reads `max_auth_gas` from the
-/// protocol config; that value is unset on versions predating Move
-/// authentication, where its panicking getter would crash, so a typed
-/// [`VmSdkError::UnsupportedProtocolVersion`] is returned instead.
-fn authenticator_gas_budget(
+/// Support is signalled by `max_auth_gas` being set; it is unset on versions
+/// predating Move authentication, where the panicking getter would crash, so a
+/// typed [`VmSdkError::UnsupportedProtocolVersion`] is returned instead. When
+/// no authenticators are present nothing is read, so any version is accepted.
+fn ensure_move_authentication_supported(
     protocol_config: &ProtocolConfig,
     has_authenticators: bool,
-) -> Result<u64, VmSdkError> {
+) -> Result<(), VmSdkError> {
     if !has_authenticators {
-        return Ok(0);
+        return Ok(());
     }
-    protocol_config
-        .max_auth_gas_as_option()
-        .ok_or(VmSdkError::UnsupportedProtocolVersion {
+    protocol_config.max_auth_gas_as_option().map(|_| ()).ok_or(
+        VmSdkError::UnsupportedProtocolVersion {
             version: protocol_config.version,
             feature: Some("MoveAuthenticator signatures"),
-        })
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::{Chain, MAX_PROTOCOL_VERSION, ProtocolConfig, ProtocolVersion};
 
-    use super::authenticator_gas_budget;
+    use super::ensure_move_authentication_supported;
     use crate::error::VmSdkError;
 
     #[test]
-    fn authenticator_gas_budget_is_zero_without_authenticators() {
-        // No authenticators: no budget is needed and `max_auth_gas` is never
-        // read, so even a version that predates it is fine.
+    fn move_authentication_support_ignored_without_authenticators() {
+        // No authenticators: `max_auth_gas` is never read, so even a version
+        // that predates Move authentication is accepted.
         let old = ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
-        assert_eq!(authenticator_gas_budget(&old, false).unwrap(), 0);
+        assert!(ensure_move_authentication_supported(&old, false).is_ok());
     }
 
     #[test]
-    fn authenticator_gas_budget_errors_before_move_authentication() {
+    fn move_authentication_support_errors_before_move_authentication() {
         // Protocol v1 predates Move authentication, so `max_auth_gas` is unset:
-        // requesting a budget must surface a typed error, not panic.
+        // an authenticator transaction must surface a typed error, not panic.
         let old = ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown);
         assert!(old.max_auth_gas_as_option().is_none());
         assert!(matches!(
-            authenticator_gas_budget(&old, true),
+            ensure_move_authentication_supported(&old, true),
             Err(VmSdkError::UnsupportedProtocolVersion {
                 feature: Some(_),
                 ..
@@ -438,16 +433,14 @@ mod tests {
     }
 
     #[test]
-    fn authenticator_gas_budget_returns_configured_value() {
-        // The latest protocol version has Move authentication configured, so
-        // the budget is the value from `max_auth_gas`.
+    fn move_authentication_support_ok_when_configured() {
+        // The latest protocol version has Move authentication configured, so an
+        // authenticator transaction is accepted.
         let new = ProtocolConfig::get_for_version(
             ProtocolVersion::new(MAX_PROTOCOL_VERSION),
             Chain::Unknown,
         );
-        let expected = new
-            .max_auth_gas_as_option()
-            .expect("max_auth_gas is set at the latest protocol version");
-        assert_eq!(authenticator_gas_budget(&new, true).unwrap(), expected);
+        assert!(new.max_auth_gas_as_option().is_some());
+        assert!(ensure_move_authentication_supported(&new, true).is_ok());
     }
 }
