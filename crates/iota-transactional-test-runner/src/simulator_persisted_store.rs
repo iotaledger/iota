@@ -18,7 +18,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        CheckpointSummaryExt, VerifiedCheckpoint,
+        VerifiedCheckpoint,
     },
     object::Object,
     storage::{
@@ -235,11 +235,11 @@ impl SimulatorStore for PersistedStore {
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
         self.read_write
             .checkpoint_digest_to_sequence_number
-            .insert(checkpoint.digest(), checkpoint.sequence_number())
+            .insert(checkpoint.digest(), &checkpoint.sequence_number())
             .expect("Fatal: DB write failed");
         self.read_write
             .checkpoints
-            .insert(checkpoint.sequence_number(), checkpoint.serializable_ref())
+            .insert(&checkpoint.sequence_number(), checkpoint.serializable_ref())
             .expect("Fatal: DB write failed");
     }
 

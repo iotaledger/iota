@@ -130,7 +130,7 @@ async fn test_checkpoint_timestamps_non_decreasing() {
         "Test did not run long enough to cross epochs"
     );
 
-    let mut current_seq = *highest_executed_checkpoint.sequence_number();
+    let mut current_seq = highest_executed_checkpoint.sequence_number();
     let mut prev_timestamp = highest_executed_checkpoint.timestamp();
     let mut checkpoints_checked = 0;
 

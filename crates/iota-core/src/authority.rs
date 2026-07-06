@@ -101,9 +101,8 @@ use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt,
-        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -3611,7 +3610,7 @@ impl AuthorityState {
         let highest_locally_built_checkpoint_seq = self
             .checkpoint_store
             .get_latest_locally_computed_checkpoint()?
-            .map(|c| *c.sequence_number())
+            .map(|c| c.sequence_number())
             .unwrap_or(0);
 
         assert!(
@@ -3718,7 +3717,7 @@ impl AuthorityState {
             self.checkpoint_store
                 .get_epoch_last_checkpoint(epoch_store.epoch())
                 .unwrap()
-                .map(|c| *c.sequence_number())
+                .map(|c| c.sequence_number())
                 .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();

@@ -716,7 +716,7 @@ mod tests {
             .finish_transaction()
             .build_checkpoint();
 
-        assert_eq!(*checkpoint.checkpoint_summary.sequence_number(), 1);
+        assert_eq!(checkpoint.checkpoint_summary.sequence_number(), 1);
         assert_eq!(checkpoint.checkpoint_summary.epoch, 5);
         assert_eq!(checkpoint.transactions.len(), 1);
         let tx = &checkpoint.transactions[0];

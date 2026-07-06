@@ -12,9 +12,7 @@ use iota_light_client::{
     config::Config,
     object_store::CheckpointStore,
 };
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSummaryExt,
-};
+use iota_types::full_checkpoint_content::CheckpointData;
 use tokio::fs::create_dir_all;
 use tracing::info;
 
@@ -84,7 +82,7 @@ pub async fn download_checkpoints_from_checkpoint_store(
 }
 
 pub fn write_full_checkpoint(config: &Config, checkpoint: &CheckpointData) -> Result<()> {
-    let path = full_checkpoint_file_path(config, *checkpoint.checkpoint_summary.sequence_number());
+    let path = full_checkpoint_file_path(config, checkpoint.checkpoint_summary.sequence_number());
     bcs::serialize_into(
         &mut std::fs::File::create(&path).context(format!(
             "error writing checkpoint file '{}'",

@@ -25,7 +25,7 @@ use iota_types::{
         CheckpointData as IotaTypesCheckpointData,
         CheckpointTransaction as IotaTypesCheckpointTransaction,
     },
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummaryExt},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::error::Kind,
 };
@@ -253,7 +253,7 @@ enum FilterCheckResult {
 /// have been executed yet) by returning `Ok(None)`.
 fn latest_checkpoint_seq(reader: &dyn GrpcStateReader) -> anyhow::Result<Option<u64>> {
     match reader.try_get_latest_checkpoint() {
-        Ok(checkpoint) => Ok(Some(*checkpoint.sequence_number())),
+        Ok(checkpoint) => Ok(Some(checkpoint.sequence_number())),
         Err(e) => match e.kind() {
             Kind::Missing => Ok(None),
             _ => Err(anyhow::anyhow!(
@@ -332,7 +332,7 @@ impl GrpcReader {
     ) -> anyhow::Result<Option<u64>> {
         self.state_reader
             .try_get_checkpoint_by_digest(digest)
-            .map(|opt| opt.map(|c| *c.sequence_number()))
+            .map(|opt| opt.map(|c| c.sequence_number()))
             .map_err(Into::into)
     }
 
@@ -990,7 +990,7 @@ impl GrpcReader {
                         Status::internal(format!("Failed to get checkpoint {seq}: {e}"))
                     })
             },
-            |item| *item.checkpoint_summary.sequence_number(),
+            |item| item.checkpoint_summary.sequence_number(),
             // Historical data processor - uses transaction stream from DB
             {
                 let state_reader_historical = state_reader_clone.clone();
@@ -1064,7 +1064,7 @@ impl GrpcReader {
                     let ev_filter = event_filter.clone();
                     let last_msg_time = last_message_time_live.clone();
                     Box::pin(async_stream::stream! {
-                        let seq = *item.checkpoint_summary.sequence_number();
+                        let seq = item.checkpoint_summary.sequence_number();
 
                         // Pass 1: lightweight filter check when filter_checkpoints is enabled
                         if filter_checkpoints {

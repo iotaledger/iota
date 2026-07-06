@@ -25,7 +25,6 @@ use iota_types::{
     iota_system_state::{
         IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
-    messages_checkpoint::CheckpointSummaryExt,
     object::Object,
     parse_iota_struct_tag,
 };
@@ -328,7 +327,7 @@ impl CoinReadApiServer for CoinReadApi {
         Ok(IotaCirculatingSupply {
             value: circulating_supply,
             circulating_supply_percentage,
-            at_checkpoint: *latest_cp.sequence_number(),
+            at_checkpoint: latest_cp.sequence_number(),
         })
     }
 }

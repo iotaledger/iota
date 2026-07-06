@@ -12,8 +12,7 @@ use iota_types::{
     committee::ProtocolVersion,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        CheckpointSummaryExt, ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
@@ -185,7 +184,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .epoch_last_checkpoint_map
         .insert(
             &end_of_epoch_0_checkpoint.epoch,
-            end_of_epoch_0_checkpoint.sequence_number(),
+            &end_of_epoch_0_checkpoint.sequence_number(),
         )
         .unwrap();
     authority_state
@@ -193,7 +192,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .tables
         .certified_checkpoints
         .insert(
-            end_of_epoch_0_checkpoint.sequence_number(),
+            &end_of_epoch_0_checkpoint.sequence_number(),
             end_of_epoch_0_checkpoint.serializable_ref(),
         )
         .unwrap();
@@ -362,7 +361,7 @@ pub async fn test_reconfig_crash_recovery() {
             .get_highest_executed_checkpoint_seq_number()
             .unwrap()
             .unwrap(),
-        *end_of_epoch_checkpoint.sequence_number(),
+        end_of_epoch_checkpoint.sequence_number(),
     );
 
     // Drop and re-instantiate checkpoint executor without performing reconfig. This
@@ -389,7 +388,7 @@ pub async fn test_reconfig_crash_recovery() {
             .get_highest_executed_checkpoint_seq_number()
             .unwrap()
             .unwrap(),
-        *end_of_epoch_checkpoint.sequence_number(),
+        end_of_epoch_checkpoint.sequence_number(),
     );
 }
 
@@ -470,7 +469,7 @@ async fn sync_end_of_epoch_checkpoint(
         .create_and_execute_advance_epoch_tx(
             &authority_state.epoch_store_for_testing().clone(),
             &GasCostSummary::new(0, 0, 0, 0, 0),
-            *checkpoint.sequence_number(),
+            checkpoint.sequence_number(),
             0,      // epoch_start_timestamp_ms
             vec![], // scores
         )

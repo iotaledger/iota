@@ -18,7 +18,7 @@ use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::{Committee, CommitteeChainVerifier},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummaryExt, VerifiedCheckpoint},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
 use prometheus_filtered::Registry;
@@ -76,7 +76,7 @@ pub fn write_checkpoint_summary(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
 ) -> Result<()> {
-    let path = config.checkpoint_summary_file_path(*summary.sequence_number());
+    let path = config.checkpoint_summary_file_path(summary.sequence_number());
     bcs::serialize_into(
         &mut fs::File::create(&path)
             .context(format!("error writing summary file '{}'", path.display()))?,
@@ -352,7 +352,7 @@ impl WriteStore for CheckpointSummaryFileStore {
     ) -> iota_types::storage::error::Result<()> {
         let path = self
             .config
-            .checkpoint_summary_file_path(*checkpoint.sequence_number());
+            .checkpoint_summary_file_path(checkpoint.sequence_number());
         info!("Downloading checkpoint summary to '{}'", path.display());
         bcs::serialize_into(
             &mut fs::File::create(&path).expect("error writing file"),

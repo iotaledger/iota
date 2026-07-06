@@ -9,7 +9,7 @@ use diesel::{
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummaryExt},
+    messages_checkpoint::CertifiedCheckpointSummary,
 };
 
 use crate::{
@@ -175,7 +175,7 @@ impl EndOfEpochUpdate {
         Self {
             epoch: last_checkpoint_summary.epoch as i64,
             network_total_transactions: last_checkpoint_summary.network_total_transactions as i64,
-            last_checkpoint_id: *last_checkpoint_summary.sequence_number() as i64,
+            last_checkpoint_id: last_checkpoint_summary.sequence_number() as i64,
             epoch_end_timestamp: last_checkpoint_summary.timestamp_ms as i64,
             storage_charge: event.storage_charge as i64,
             storage_rebate: event.storage_rebate as i64,

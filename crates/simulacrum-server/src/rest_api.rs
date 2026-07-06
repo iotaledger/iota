@@ -17,7 +17,7 @@ use axum::{
     routing::{get, post},
 };
 use http::Method;
-use iota_types::{messages_checkpoint::CheckpointSummaryExt, storage::ReadStore};
+use iota_types::storage::ReadStore;
 use serde::{Deserialize, Serialize};
 use simulacrum::Simulacrum;
 use tower::ServiceBuilder;
@@ -99,7 +99,7 @@ pub fn checkpoint_to_response(
 ) -> CheckpointResponse {
     let checkpoint_data = checkpoint.data();
     CheckpointResponse {
-        sequence_number: *checkpoint.sequence_number(),
+        sequence_number: checkpoint.sequence_number(),
         epoch: checkpoint.epoch(),
         timestamp_ms: checkpoint_data.timestamp_ms,
         network_total_transactions: checkpoint_data.network_total_transactions,
@@ -115,7 +115,7 @@ pub async fn get_status(
 
     let highest_verified_checkpoint = simulacrum.get_highest_verified_checkpoint();
     let highest_verified_checkpoint_data = highest_verified_checkpoint.data();
-    let highest_checkpoint = Some(*highest_verified_checkpoint_data.sequence_number());
+    let highest_checkpoint = Some(highest_verified_checkpoint_data.sequence_number());
     let current_epoch = highest_verified_checkpoint_data.epoch;
 
     let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms());

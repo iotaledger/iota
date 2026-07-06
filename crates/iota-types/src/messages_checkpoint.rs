@@ -14,7 +14,6 @@ use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
-    validator::ValidatorCommitteeMember,
 };
 use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
@@ -143,18 +142,12 @@ pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
 
     fn verify_epoch(&self, epoch: EpochId) -> IotaResult;
 
-    fn sequence_number(&self) -> &CheckpointSequenceNumber;
-
     fn timestamp(&self) -> SystemTime;
-
-    fn next_epoch_committee(&self) -> Option<&[ValidatorCommitteeMember]>;
 
     #[cfg(not(target_arch = "wasm32"))]
     fn report_checkpoint_age(&self, metrics: &Histogram);
 
-    fn is_last_checkpoint_of_epoch(&self) -> bool;
-
-    fn version_specific_data(
+    fn parse_version_specific_data(
         &self,
         config: &ProtocolConfig,
     ) -> Result<Option<CheckpointVersionSpecificData>>;
@@ -175,16 +168,18 @@ impl CheckpointSummaryExt for CheckpointSummary {
     ) -> Self {
         let content_digest = *transactions.digest();
 
-        let version_specific_data = match protocol_config
-            .checkpoint_summary_version_specific_data_as_option()
-        {
-            None | Some(0) => Vec::new(),
-            Some(1) => bcs::to_bytes(&CheckpointVersionSpecificData::V1(
-                CheckpointVersionSpecificDataV1 { randomness_rounds },
-            ))
-            .expect("version specific data should serialize"),
-            _ => unimplemented!("unrecognized version_specific_data version for CheckpointSummary"),
-        };
+        let version_specific_data =
+            match protocol_config.checkpoint_summary_version_specific_data_as_option() {
+                None | Some(0) => Vec::new(),
+                Some(1) => bcs::to_bytes(&CheckpointVersionSpecificData::V1(
+                    CheckpointVersionSpecificDataV1 { randomness_rounds },
+                ))
+                .expect("version specific data should serialize"),
+                _ => unimplemented!(
+                    "unrecognized version_specific_data version for
+    CheckpointSummary"
+                ),
+            };
 
         Self {
             epoch,
@@ -211,18 +206,8 @@ impl CheckpointSummaryExt for CheckpointSummary {
         Ok(())
     }
 
-    fn sequence_number(&self) -> &CheckpointSequenceNumber {
-        &self.sequence_number
-    }
-
     fn timestamp(&self) -> SystemTime {
         UNIX_EPOCH + Duration::from_millis(self.timestamp_ms)
-    }
-
-    fn next_epoch_committee(&self) -> Option<&[ValidatorCommitteeMember]> {
-        self.end_of_epoch_data
-            .as_ref()
-            .map(|e| e.next_epoch_committee.as_slice())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -241,18 +226,17 @@ impl CheckpointSummaryExt for CheckpointSummary {
             .ok();
     }
 
-    fn is_last_checkpoint_of_epoch(&self) -> bool {
-        self.end_of_epoch_data.is_some()
-    }
-
-    fn version_specific_data(
+    fn parse_version_specific_data(
         &self,
         config: &ProtocolConfig,
     ) -> Result<Option<CheckpointVersionSpecificData>> {
         match config.checkpoint_summary_version_specific_data_as_option() {
             None | Some(0) => Ok(None),
             Some(1) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
-            _ => unimplemented!("unrecognized version_specific_data version in CheckpointSummary"),
+            _ => unimplemented!(
+                "unrecognized version_specific_data version in
+    CheckpointSummary"
+            ),
         }
     }
 }

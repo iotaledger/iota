@@ -49,9 +49,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    messages_checkpoint::{
-        CheckpointSequenceNumber, CheckpointSummaryExt, ECMHLiveObjectSetDigest,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     object::Object,
     storage::{EpochInfoV1Entry, EpochInfoV2},
 };
@@ -384,7 +382,7 @@ impl VerifiedEpochInfo {
             .map(|(entry, start_system_state)| {
                 let start_checkpoint = previous_end_checkpoint.map_or(0, |seq| seq + 1);
                 previous_end_checkpoint =
-                    Some(*entry.last_checkpoint_summary.data().sequence_number());
+                    Some(entry.last_checkpoint_summary.data().sequence_number());
                 epoch_info_v2_row(entry, start_system_state, start_checkpoint)
             })
             .collect()

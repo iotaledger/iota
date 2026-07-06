@@ -18,9 +18,7 @@ use iota_swarm_config::test_utils::{
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    messages_checkpoint::{
-        CheckpointDigest, CheckpointSummaryExt, VerifiedCheckpoint, VerifiedCheckpointContents,
-    },
+    messages_checkpoint::{CheckpointDigest, VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus_filtered::Registry;
@@ -200,7 +198,7 @@ async fn server_get_checkpoint() {
         assert_eq!(response.data(), checkpoint.data());
 
         let request = Request::new(GetCheckpointSummaryRequest::BySequenceNumber(
-            *checkpoint.sequence_number(),
+            checkpoint.sequence_number(),
         ));
         let response = server
             .get_checkpoint_summary(request)
@@ -252,7 +250,7 @@ async fn isolated_sync_job() {
         PeerStateSyncInfo {
             genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
             on_same_chain_as_us: true,
-            height: *ordered_checkpoints.last().unwrap().sequence_number(),
+            height: ordered_checkpoints.last().unwrap().sequence_number(),
             lowest: 0,
         },
     );
@@ -426,7 +424,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
         PeerStateSyncInfo {
             genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
             on_same_chain_as_us: true,
-            height: *ordered_checkpoints.last().unwrap().sequence_number(),
+            height: ordered_checkpoints.last().unwrap().sequence_number(),
             lowest: oldest_checkpoint_to_keep,
         },
     );
@@ -610,7 +608,7 @@ async fn sync_with_checkpoints_watermark() {
     // Build mock data
     let (committee, (ordered_checkpoints, contents, _, _)) =
         make_committee_and_checkpoints(0, 4, 4, None, random_contents);
-    let last_checkpoint_seq = *ordered_checkpoints
+    let last_checkpoint_seq = ordered_checkpoints
         .last()
         .cloned()
         .unwrap()
@@ -704,14 +702,14 @@ async fn sync_with_checkpoints_watermark() {
             .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
-        &1
+        1
     );
     assert_eq!(
         store_2
             .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
-        &1
+        1
     );
 
     // So far so good.
@@ -774,7 +772,7 @@ async fn sync_with_checkpoints_watermark() {
             .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
 
     // Add Peer 3 — genesis is initialized in the store before it is passed to
@@ -859,28 +857,28 @@ async fn sync_with_checkpoints_watermark() {
             .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
     assert_eq!(
         store_3
             .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
     assert_eq!(
         store_2
             .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
     assert_eq!(
         store_3
             .try_get_highest_verified_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
 
     // Now set Peer 1 and 2's low watermark to a very high number
@@ -936,7 +934,7 @@ async fn sync_with_checkpoints_watermark() {
             .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
-        &last_checkpoint_seq
+        last_checkpoint_seq
     );
 }
 
@@ -1007,13 +1005,13 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     tokio::spawn(event_loop_2.start());
     network_2.connect(network_1.local_addr()).await.unwrap();
 
-    let genesis_seq = *genesis_checkpoint.sequence_number();
-    let last_seq = *ordered_checkpoints.last().unwrap().sequence_number();
+    let genesis_seq = genesis_checkpoint.sequence_number();
+    let last_seq = ordered_checkpoints.last().unwrap().sequence_number();
 
     // Wait for node 2 to verify all summaries (sequences 0–5).
     timeout(Duration::from_secs(10), async {
         loop {
-            if *store_2
+            if store_2
                 .try_get_highest_verified_checkpoint()
                 .unwrap()
                 .sequence_number()
@@ -1043,7 +1041,7 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     // REGRESSION CHECK: the synced watermark must not have advanced past
     // genesis (sequence 0) while checkpoint 1's contents are unavailable.
     assert_eq!(
-        *store_2
+        store_2
             .try_get_highest_synced_checkpoint()
             .unwrap()
             .sequence_number(),
@@ -1060,7 +1058,7 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     // Allow up to 12 s for the tick, the watermark refresh, and the full sync.
     timeout(Duration::from_secs(12), async {
         loop {
-            if *store_2
+            if store_2
                 .try_get_highest_synced_checkpoint()
                 .unwrap()
                 .sequence_number()
@@ -1078,7 +1076,7 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     for (i, checkpoint) in ordered_checkpoints.iter().enumerate() {
         assert!(
             store_2
-                .get_full_checkpoint_contents_by_sequence_number(*checkpoint.sequence_number())
+                .get_full_checkpoint_contents_by_sequence_number(checkpoint.sequence_number())
                 .is_some(),
             "checkpoint {i} contents missing from synced store"
         );

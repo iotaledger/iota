@@ -19,7 +19,7 @@ use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_types::{
     committee::Committee,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummaryExt, VerifiedCheckpoint},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::WriteStore,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -165,7 +165,7 @@ pub fn verify_checkpoint_with_committee(
     checkpoint: CertifiedCheckpointSummary,
 ) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
     assert_eq!(
-        *checkpoint.sequence_number(),
+        checkpoint.sequence_number(),
         current.sequence_number().checked_add(1).unwrap()
     );
 

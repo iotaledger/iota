@@ -11,9 +11,7 @@ use futures::{Stream, future::Either};
 use iota_common::fatal;
 use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
-    messages_checkpoint::{
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint},
 };
 use strum::VariantNames;
 use tokio::sync::watch;

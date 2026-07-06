@@ -64,9 +64,7 @@ use iota_types::{
     crypto::AuthorityPublicKeyBytes,
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointSummaryExt, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest, VerifiedCheckpoint},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,

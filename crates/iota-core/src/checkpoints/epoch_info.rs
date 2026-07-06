@@ -16,8 +16,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt,
-        VerifiedCheckpoint,
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
     },
     storage::{
         EpochInfoV1Entry, EpochInfoV2,

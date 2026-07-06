@@ -14,8 +14,8 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, FullCheckpointContents,
-        VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,
@@ -336,10 +336,10 @@ impl InMemoryStore {
                 .insert(*tx.transaction.digest(), tx.effects.to_owned());
         }
         self.contents_digest_to_sequence_number
-            .insert(checkpoint.content_digest, *checkpoint.sequence_number());
+            .insert(checkpoint.content_digest, checkpoint.sequence_number());
         let contents = contents.into_inner();
         self.full_checkpoint_contents
-            .insert(*checkpoint.sequence_number(), contents.clone());
+            .insert(checkpoint.sequence_number(), contents.clone());
         let contents = contents.into_checkpoint_contents();
         self.checkpoint_contents
             .insert(*contents.digest(), contents);
@@ -348,7 +348,7 @@ impl InMemoryStore {
     pub fn insert_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         self.insert_certified_checkpoint(checkpoint);
         let digest = *checkpoint.digest();
-        let sequence_number = *checkpoint.sequence_number();
+        let sequence_number = checkpoint.sequence_number();
 
         if Some(sequence_number) > self.highest_verified_checkpoint.map(|x| x.0) {
             self.highest_verified_checkpoint = Some((sequence_number, digest));
@@ -360,7 +360,7 @@ impl InMemoryStore {
     // watermark.
     pub fn insert_certified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         let digest = *checkpoint.digest();
-        let sequence_number = *checkpoint.sequence_number();
+        let sequence_number = checkpoint.sequence_number();
 
         if let Some(end_of_epoch_data) = &checkpoint.data().end_of_epoch_data {
             let committee = Committee::from_committee_members(
@@ -407,8 +407,7 @@ impl InMemoryStore {
                 return;
             }
         }
-        self.highest_synced_checkpoint =
-            Some((*checkpoint.sequence_number(), *checkpoint.digest()));
+        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn update_highest_verified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
@@ -421,7 +420,7 @@ impl InMemoryStore {
             }
         }
         self.highest_verified_checkpoint =
-            Some((*checkpoint.sequence_number(), *checkpoint.digest()));
+            Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn checkpoints(&self) -> &HashMap<CheckpointDigest, VerifiedCheckpoint> {

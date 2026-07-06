@@ -19,9 +19,7 @@ use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    messages_checkpoint::{
-        CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummaryExt,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
@@ -348,7 +346,7 @@ impl AuthorityStorePruner {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
         let (mut max_eligible_checkpoint_number, epoch_id) = checkpoint_store
             .get_highest_executed_checkpoint()?
-            .map(|c| (*c.sequence_number(), c.epoch))
+            .map(|c| (c.sequence_number(), c.epoch))
             .unwrap_or_default();
         let pruned_checkpoint_number = perpetual_db
             .get_highest_pruned_checkpoint()?
@@ -404,7 +402,7 @@ impl AuthorityStorePruner {
             .unwrap_or(0);
         let (last_executed_checkpoint, epoch_id) = checkpoint_store
             .get_highest_executed_checkpoint()?
-            .map(|c| (*c.sequence_number(), c.epoch))
+            .map(|c| (c.sequence_number(), c.epoch))
             .unwrap_or_default();
         let latest_archived_checkpoint = archive_readers
             .get_archive_watermark()
@@ -491,11 +489,11 @@ impl AuthorityStorePruner {
             // still require access to old object versions (i.e. state
             // accumulator).
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
-                || (*checkpoint.sequence_number() >= max_eligible_checkpoint)
+                || (checkpoint.sequence_number() >= max_eligible_checkpoint)
             {
                 break;
             }
-            checkpoint_number = *checkpoint.sequence_number();
+            checkpoint_number = checkpoint.sequence_number();
 
             let content = checkpoint_store
                 .get_checkpoint_contents(&checkpoint.content_digest)?

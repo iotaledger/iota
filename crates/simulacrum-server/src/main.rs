@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 use iota_node_storage::GrpcStateReader;
 use iota_swarm_config::genesis_config::AccountConfig;
-use iota_types::{messages_checkpoint::CheckpointSummaryExt, sdk_types::Address};
+use iota_types::sdk_types::Address;
 use simulacrum::Simulacrum;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;

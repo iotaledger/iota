@@ -15,7 +15,6 @@ use iota_test_transaction_builder::PublishData;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
-    messages_checkpoint::CheckpointSummaryExt,
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
     transaction::{CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction},
@@ -405,7 +404,7 @@ impl BenchmarkContext {
             .build_checkpoints(transactions, effects, checkpoint_size)
             .await;
         info!("Built {} checkpoints", checkpoints.len());
-        let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
+        let last_checkpoint_seq = checkpoints.last().unwrap().0.sequence_number();
         let checkpoint_executor = validator.create_checkpoint_executor();
         for (checkpoint, contents) in checkpoints {
             let state = validator.get_validator();
