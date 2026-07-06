@@ -30,6 +30,7 @@ wasm-bindgen = [
 
 [dependencies]
 # external dependencies
+base64 = { workspace = true, optional = true }
 bcs.workspace = true
 chrono = { workspace = true, optional = true }
 serde_json.workspace = true

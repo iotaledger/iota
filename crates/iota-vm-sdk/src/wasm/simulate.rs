@@ -114,27 +114,29 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     // Decode each event against the loaded objects; keep going on a per-event
     // failure so one undecodable event doesn't drop the rest.
     let events: Vec<EventOut> = match &result.events {
-        Some(evs) => vm
-            .decode_events(evs)
-            .into_iter()
-            .map(|dec| match dec {
-                Ok(d) => EventOut {
-                    package_id: d.event.package_id.to_string(),
-                    module: d.event.module.to_string(),
-                    name: d.event.type_.name().to_string(),
-                    type_tag: d.event.type_.to_string(),
-                    value: serde_json::to_value(&d.value).ok(),
-                    decode_error: None,
+        Some(evs) => evs
+            .0
+            .iter()
+            .map(
+                |ev| match vm.decode_value(&ev.contents, &ev.type_.clone().into()) {
+                    Ok(value) => EventOut {
+                        package_id: ev.package_id.to_string(),
+                        module: ev.module.to_string(),
+                        name: ev.type_.name().to_string(),
+                        type_tag: ev.type_.to_string(),
+                        value: serde_json::to_value(&value).ok(),
+                        decode_error: None,
+                    },
+                    Err(e) => EventOut {
+                        package_id: String::new(),
+                        module: String::new(),
+                        name: String::new(),
+                        type_tag: String::new(),
+                        value: None,
+                        decode_error: Some(e.to_string()),
+                    },
                 },
-                Err(e) => EventOut {
-                    package_id: String::new(),
-                    module: String::new(),
-                    name: String::new(),
-                    type_tag: String::new(),
-                    value: None,
-                    decode_error: Some(e.to_string()),
-                },
-            })
+            )
             .collect(),
         None => Vec::new(),
     };
