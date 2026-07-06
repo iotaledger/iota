@@ -233,10 +233,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
         match config.checkpoint_summary_version_specific_data_as_option() {
             None | Some(0) => Ok(None),
             Some(1) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
-            _ => unimplemented!(
-                "unrecognized version_specific_data version in
-    CheckpointSummary"
-            ),
+            _ => unimplemented!("unrecognized version_specific_data version in CheckpointSummary"),
         }
     }
 }
