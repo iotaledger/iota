@@ -235,3 +235,52 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
          under P-COOL (ok1={ok1}, ok2={ok2}); r1={r1:?}, r2={r2:?}"
     );
 }
+
+#[sim_test]
+async fn test_pcool_reconfiguration_reaches_new_epoch_transaction_manager() {
+    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    assert_scheduler(&test_cluster, false);
+    run_reconfiguration_reaches_new_epoch(&test_cluster).await;
+}
+
+#[sim_test]
+async fn test_pcool_reconfiguration_reaches_new_epoch_execution_scheduler() {
+    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    assert_scheduler(&test_cluster, true);
+    run_reconfiguration_reaches_new_epoch(&test_cluster).await;
+}
+
+/// I3: A real multi-node epoch change is driven while the scheduler is in effect.
+/// The end-of-epoch change-epoch transaction must itself be scheduled and
+/// executed, and transfers must finalize both before and after the boundary.
+/// This is the only place the `ExecutionScheduler` is exercised through an actual
+/// reconfiguration — where a cross-epoch gauge leak, a stale-overload hang, or a
+/// change-epoch transaction that never becomes ready would surface.
+async fn run_reconfiguration_reaches_new_epoch(test_cluster: &TestCluster) {
+    assert_pcool_active(test_cluster);
+
+    // A transfer finalizes in the starting epoch.
+    run_owned_object_transfer_reaches_finality(test_cluster).await;
+
+    let epoch_before = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+
+    // Drive a full multi-node epoch change (force_new_epoch panics if the network
+    // fails to advance).
+    test_cluster.force_new_epoch().await;
+
+    let epoch_after = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
+    assert!(
+        epoch_after > epoch_before,
+        "reconfiguration must advance the epoch (before={epoch_before}, after={epoch_after})"
+    );
+
+    // The scheduler keeps working across the boundary: a transfer finalizes in
+    // the new epoch too.
+    run_owned_object_transfer_reaches_finality(test_cluster).await;
+}
