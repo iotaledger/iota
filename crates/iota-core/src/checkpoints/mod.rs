@@ -811,9 +811,6 @@ impl CheckpointStore {
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
         let full_contents = full_contents.into_inner();
-        let size = bcs::serialized_size(&full_contents)
-            .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
-
         let contents = full_contents.checkpoint_contents();
         assert_eq!(checkpoint.content_digest, contents.digest());
 
@@ -821,6 +818,23 @@ impl CheckpointStore {
             .checkpoint_content
             .insert(&contents.digest(), &contents)?;
 
+        self.cache_full_checkpoint_contents(checkpoint, full_contents)
+    }
+
+    /// Caches full checkpoint contents in memory without writing anything to
+    /// disk, so state-sync peers can be served without reconstructing the
+    /// contents.
+    ///
+    /// Used by the checkpoint executor on nodes that execute transactions
+    /// without syncing contents via state sync (validators), where the
+    /// digest-form contents and the transactions are already durable.
+    pub fn cache_full_checkpoint_contents(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        full_contents: FullCheckpointContents,
+    ) -> Result<(), TypedStoreError> {
+        let size = bcs::serialized_size(&full_contents)
+            .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
         self.full_checkpoint_contents_cache.insert(
             checkpoint.sequence_number(),
             checkpoint.content_digest,
@@ -2830,19 +2844,16 @@ mod tests {
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
-    #[tokio::test]
-    async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
-        let tempdir = iota_common::tempdir();
-        let path = tempdir.path();
-
+    /// A verified checkpoint at sequence 0 with random full contents, for
+    /// store-level tests that don't need a committee.
+    fn test_checkpoint_with_contents() -> (VerifiedCheckpoint, FullCheckpointContents) {
         let full_contents = FullCheckpointContents::random_for_testing();
         let contents = full_contents.checkpoint_contents();
-        let content_digest = contents.digest();
         let summary = CheckpointSummary {
             epoch: 0,
             sequence_number: 0,
             network_total_transactions: full_contents.size() as u64,
-            content_digest,
+            content_digest: contents.digest(),
             previous_digest: None,
             epoch_rolling_gas_cost_summary: GasCostSummary::default(),
             end_of_epoch_data: None,
@@ -2858,6 +2869,16 @@ mod tests {
         let checkpoint = VerifiedCheckpoint::new_unchecked(
             iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
         );
+        (checkpoint, full_contents)
+    }
+
+    #[tokio::test]
+    async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
+        let tempdir = iota_common::tempdir();
+        let path = tempdir.path();
+
+        let (checkpoint, full_contents) = test_checkpoint_with_contents();
+        let content_digest = checkpoint.content_digest;
 
         {
             let store = CheckpointStore::new(path);
@@ -2911,6 +2932,39 @@ mod tests {
                 .get_checkpoint_contents(&content_digest)
                 .unwrap()
                 .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
+        let store = CheckpointStore::new_for_tests();
+        let (checkpoint, full_contents) = test_checkpoint_with_contents();
+        let content_digest = checkpoint.content_digest;
+
+        store
+            .cache_full_checkpoint_contents(&checkpoint, full_contents.clone())
+            .unwrap();
+
+        assert_eq!(
+            store
+                .get_full_checkpoint_contents_by_sequence_number(0)
+                .unwrap()
+                .as_ref(),
+            &full_contents
+        );
+        assert_eq!(
+            store
+                .get_full_checkpoint_contents_by_digest(&content_digest)
+                .unwrap()
+                .as_ref(),
+            &full_contents
+        );
+        // Cache-only: the digest-form contents row is untouched.
+        assert!(
+            store
+                .get_checkpoint_contents(&content_digest)
+                .unwrap()
+                .is_none()
         );
     }
 

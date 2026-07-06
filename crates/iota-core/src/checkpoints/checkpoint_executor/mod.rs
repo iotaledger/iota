@@ -29,14 +29,14 @@ use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{RandomnessRound, TransactionKind};
 use iota_types::{
-    base_types::{TransactionDigest, TransactionEffectsDigest},
+    base_types::{ExecutionData, TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
-        VerifiedCheckpoint,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{TransactionDataAPI, TransactionKey, VerifiedTransaction},
 };
@@ -774,7 +774,7 @@ impl CheckpointExecutor {
 
             let (tx_digests, fx_digests): (Vec<_>, Vec<_>) =
                 digests.iter().map(|d| (d.transaction, d.effects)).unzip();
-            let transactions = self
+            let verified_transactions: Vec<VerifiedTransaction> = self
                 .transaction_cache_reader
                 .multi_get_transaction_blocks(&tx_digests)
                 .into_iter()
@@ -782,11 +782,10 @@ impl CheckpointExecutor {
                 .map(|(i, tx)| {
                     let tx = tx
                         .unwrap_or_else(|| fatal!("transaction not found for {:?}", tx_digests[i]));
-                    let tx = Arc::try_unwrap(tx).unwrap_or_else(|tx| (*tx).clone());
-                    VerifiedExecutableTransaction::new_from_checkpoint(tx, epoch, seq)
+                    Arc::try_unwrap(tx).unwrap_or_else(|tx| (*tx).clone())
                 })
                 .collect();
-            let effects = self
+            let effects: Vec<TransactionEffects> = self
                 .transaction_cache_reader
                 .multi_get_effects(&fx_digests)
                 .into_iter()
@@ -796,6 +795,28 @@ impl CheckpointExecutor {
                         fatal!("checkpoint effect not found for {:?}", digests[i])
                     })
                 })
+                .collect();
+
+            // Landing here means the contents were not synced via state sync
+            // but produced locally (or the cache entry was evicted). Cache the
+            // assembled contents so state-sync peers — e.g. a validator's
+            // SSFNs — are served the freshest checkpoints without
+            // reconstruction, speeding up checkpoint propagation.
+            let execution_data = verified_transactions
+                .iter()
+                .zip(effects.iter())
+                .map(|(tx, fx)| ExecutionData::new(tx.clone().into_inner(), fx.clone()));
+            let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                checkpoint_contents.clone(),
+                execution_data,
+            );
+            self.checkpoint_store
+                .cache_full_checkpoint_contents(&checkpoint, full_contents)
+                .expect("failed to serialize full checkpoint contents");
+
+            let transactions = verified_transactions
+                .into_iter()
+                .map(|tx| VerifiedExecutableTransaction::new_from_checkpoint(tx, epoch, seq))
                 .collect();
 
             let executed_fx_digests = self
