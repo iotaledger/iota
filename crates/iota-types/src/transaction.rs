@@ -151,7 +151,8 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
             Self::ChangeEpoch(_)
             | Self::ChangeEpochV2(_)
             | Self::ChangeEpochV3(_)
-            | Self::ChangeEpochV4(_) => {
+            | Self::ChangeEpochV4(_)
+            | Self::ChangeEpochV5(_) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: ObjectId::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
@@ -246,6 +247,33 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
+                    ));
+                }
+                if config.pass_attestor_stats_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of attestor stats not supported".to_string(),
+                    ));
+                }
+            }
+            Self::ChangeEpochV5(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+                if !config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version required".to_string(),
+                    ));
+                }
+                if !config.pass_validator_scores_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of validator scores required".to_string(),
+                    ));
+                }
+                if !config.pass_attestor_stats_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of attestor stats required".to_string(),
                     ));
                 }
             }
