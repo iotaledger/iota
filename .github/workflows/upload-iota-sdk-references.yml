@@ -1,0 +1,102 @@
+name: Upload IOTA SDK References to S3
+
+# Builds the per-language API reference markdown for the IOTA SDK bindings
+# from the iota-rust-sdk revision pinned in docs/site/iota-sdk-references.rev
+# and uploads the tarballs to the versioned S3 path the docs build downloads
+# from (docs/site/scripts/get-iota-sdk-references.sh). Bumping the pinned
+# revision on develop regenerates and uploads automatically.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, "claude/iota-rust-sdk-docs-zksew0"]
+    paths:
+      - ".github/workflows/upload-iota-sdk-references.yml"
+      - "docs/site/iota-sdk-references.rev"
+
+concurrency:
+  group: upload-iota-sdk-references-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  S3_BUCKET: files.iota.org/iota-wiki/iota-sdk
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, go, kotlin, csharp, swift]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Read the pinned iota-rust-sdk revision
+        id: pin
+        run: echo "rev=$(cat docs/site/iota-sdk-references.rev)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout iota-rust-sdk
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: iotaledger/iota-rust-sdk
+          ref: ${{ steps.pin.outputs.rev }}
+          path: iota-rust-sdk
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          key: iota-sdk-references-${{ matrix.language }}
+          workspaces: iota-rust-sdk
+
+      - name: Install pydoc-markdown
+        if: matrix.language == 'python'
+        run: pip install pydoc-markdown
+
+      - name: Install gomarkdoc and uniffi-bindgen-go
+        if: matrix.language == 'go'
+        run: |
+          go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          make -C iota-rust-sdk install-uniffi-bindgen-go
+
+      - name: Setup Java
+        if: matrix.language == 'kotlin'
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: "oracle"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Install Swift
+        if: matrix.language == 'swift'
+        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
+        with:
+          swift-version: "6.0"
+
+      - name: Setup .NET
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install uniffi-bindgen-cs and xmldoc2md
+        if: matrix.language == 'csharp'
+        run: |
+          make -C iota-rust-sdk install-uniffi-bindgen-cs
+          dotnet tool install --global XMLDoc2Markdown
+
+      - name: Generate the ${{ matrix.language }} reference
+        run: cd iota-rust-sdk && ./scripts/reference-docs/generate.sh ${{ matrix.language }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IOTA_WIKI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IOTA_WIKI }}
+          aws-region: eu-central-1
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp "iota-rust-sdk/dist/reference-docs/${{ matrix.language }}.tar.gz" \
+            "s3://$S3_BUCKET/${{ steps.pin.outputs.rev }}/${{ matrix.language }}.tar.gz" \
+            --acl public-read
