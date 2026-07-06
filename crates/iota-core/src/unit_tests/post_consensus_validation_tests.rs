@@ -1409,8 +1409,8 @@ struct LockTierSetup {
     sender: Address,
     sender_key: AccountKeyPair,
     recipient: Address,
-    object_ref: iota_sdk_types::ObjectReference,
-    gas_ref: iota_sdk_types::ObjectReference,
+    object_ref: ObjectReference,
+    gas_ref: ObjectReference,
     rgp: u64,
     _config_guard: OverrideGuard,
 }
@@ -1504,7 +1504,7 @@ impl LockTierSetup {
 /// Seeds a single lock into the consensus quarantine.
 fn seed_quarantined_lock(
     epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    obj_ref: iota_sdk_types::ObjectReference,
+    obj_ref: ObjectReference,
     locker: LockDetails,
 ) {
     let mut output = ConsensusCommitOutput::default();
@@ -1519,7 +1519,7 @@ fn seed_persistent_lock(
     authority: &crate::authority::AuthorityState,
     epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
     verified_tx: VerifiedTransaction,
-    owned_inputs: &[iota_sdk_types::ObjectReference],
+    owned_inputs: &[ObjectReference],
 ) {
     use iota_types::transaction::VerifiedSignedTransaction;
     let signed = VerifiedSignedTransaction::new(

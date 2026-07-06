@@ -4,7 +4,6 @@
 //! Example demonstrating the shared object swap vulnerability in an abstract
 //! account authenticator implementation.
 
-use iota_sdk_types::ObjectReference;
 use std::str::FromStr;
 
 use anyhow::{Result, bail};
@@ -26,7 +25,7 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Address, Argument, Identifier, ObjectId, ObjectReference, Owner, TypeTag};
 use iota_types::{
     crypto::PublicKey,
     move_authenticator::MoveAuthenticatorExt,

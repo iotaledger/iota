@@ -4,7 +4,6 @@
 //! Example demonstrating the vulnerability if transaction data cryptographic
 //! protection is missed in an abstract account authenticator implementation.
 
-use iota_sdk_types::ObjectReference;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -17,7 +16,8 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    TransactionKind, TypeTag,
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,

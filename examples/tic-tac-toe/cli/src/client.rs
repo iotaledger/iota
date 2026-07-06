@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectReference;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
@@ -19,7 +18,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, ProgrammableTransaction, StructTag, TransactionKind,
+    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction, StructTag,
+    TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
@@ -212,8 +212,8 @@ impl Client {
     }
 
     /// Look for a `TurnCap` for the given `game` owned by the wallet's active
-    /// address, and return its `ObjectReference`. Fails if no such `TurnCap` can
-    /// be found.
+    /// address, and return its `ObjectReference`. Fails if no such `TurnCap`
+    /// can be found.
     pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectReference> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;

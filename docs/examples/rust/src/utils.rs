@@ -3,7 +3,6 @@
 
 //! A set of utility functions for the examples.
 
-use iota_sdk_types::ObjectReference;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -27,7 +26,7 @@ use iota_sdk::{
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Address, ObjectId, ProgrammableTransaction, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, ProgrammableTransaction, crypto::Intent};
 use iota_types::{move_package, transaction::TransactionDataAPI};
 use reqwest::Client;
 use serde::Deserialize;
