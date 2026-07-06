@@ -620,6 +620,10 @@ fun advance_epoch(
     eligible_active_validators: vector<u64>,
     scores: vector<u64>,
     adjust_rewards_by_score: bool,
+    attestor_valid_counts: vector<u64>,
+    attestor_invalid_counts: vector<u64>,
+    attestor_valid_computation_units: vector<u64>,
+    attestor_invalid_computation_units: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     // ValidatorV1 will make a special system call with sender set as 0x0.
@@ -630,13 +634,14 @@ fun advance_epoch(
     // Gating on the feature flag also creates the empty registry on the first
     // boundary once the feature is enabled.
     let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
-        let registry = load_attestor_registry_mut(wrapper);
-        // The per-attestor activity feed is not threaded into this
-        // transaction yet; report every attestor as active so none are
-        // dropped for inactivity.
-        let mut all_valid = vector[];
-        registry.active_count().do!(|_| all_valid.push_back(1));
-        registry.advance_epoch(new_epoch, all_valid, vector[], vector[], vector[], ctx)
+        load_attestor_registry_mut(wrapper).advance_epoch(
+            new_epoch,
+            attestor_valid_counts,
+            attestor_invalid_counts,
+            attestor_valid_computation_units,
+            attestor_invalid_computation_units,
+            ctx,
+        )
     } else {
         balance::zero()
     };
@@ -875,6 +880,10 @@ public(package) fun advance_epoch_for_testing(
     eligible_active_validators: vector<u64>,
     scores: vector<u64>,
     adjust_rewards_by_score: bool,
+    attestor_valid_counts: vector<u64>,
+    attestor_invalid_counts: vector<u64>,
+    attestor_valid_computation_units: vector<u64>,
+    attestor_invalid_computation_units: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     let storage_charge = balance::create_for_testing(storage_charge);
@@ -895,6 +904,10 @@ public(package) fun advance_epoch_for_testing(
         eligible_active_validators,
         scores,
         adjust_rewards_by_score,
+        attestor_valid_counts,
+        attestor_invalid_counts,
+        attestor_valid_computation_units,
+        attestor_invalid_computation_units,
         ctx,
     );
     storage_rebate

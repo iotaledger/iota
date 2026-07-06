@@ -3049,6 +3049,11 @@ impl ProtocolConfig {
                         cfg.attestor_max_inactivity_epochs = Some(7);
                         cfg.attestor_inactivity_penalty = Some(500_000_000_000);
                     }
+
+                    // The v30 framework's advance_epoch signature carries
+                    // per-attestor attestation stats, so every v30 epoch
+                    // change must construct ChangeEpochV5.
+                    cfg.feature_flags.pass_attestor_stats_to_advance_epoch = true;
                 }
                 // Use this template when making changes:
                 //

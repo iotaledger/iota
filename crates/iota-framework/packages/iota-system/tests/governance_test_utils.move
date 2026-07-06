@@ -218,6 +218,10 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
         eligible_active_validators,
         scores,
         true,
+        vector[],
+        vector[],
+        vector[],
+        vector[],
         ctx,
     );
     test_scenario::return_shared(system_state);
@@ -323,6 +327,10 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
         eligible_active_validators,
         scores,
         true,
+        vector[],
+        vector[],
+        vector[],
+        vector[],
         ctx,
     );
     test_utils::destroy(storage_rebate);
@@ -365,6 +373,10 @@ public fun advance_epoch_with_subsidy_and_scores(
         eligible_active_validators,
         scores,
         adjust_rewards_by_score,
+        vector[],
+        vector[],
+        vector[],
+        vector[],
         ctx,
     );
     test_utils::destroy(storage_rebate);

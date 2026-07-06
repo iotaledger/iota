@@ -67,6 +67,7 @@ async fn advance_epoch_tx_test() {
                     0,      // checkpoint
                     0,      // epoch_start_timestamp_ms
                     vec![], // scores
+                    vec![], // attestor_stats
                 )
                 .await
                 .unwrap();

@@ -157,7 +157,9 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
-        authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, TxGuard, attestor_stats::AttestorStats,
+        },
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
@@ -5497,6 +5499,7 @@ impl AuthorityState {
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
         scores: Vec<u64>,
+        attestor_stats: Vec<AttestorStats>,
     ) -> anyhow::Result<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,
@@ -5590,9 +5593,38 @@ impl AuthorityState {
                 }
             }
 
-            // Use ChangeEpochV4 when the pass_validator_scores_to_advance_epoch feature
-            // flag is enabled.
-            if config.pass_validator_scores_to_advance_epoch() {
+            // Use ChangeEpochV5 when the pass_attestor_stats_to_advance_epoch
+            // feature flag is enabled.
+            if config.pass_attestor_stats_to_advance_epoch() {
+                let mut attestor_valid_counts = Vec::with_capacity(attestor_stats.len());
+                let mut attestor_invalid_counts = Vec::with_capacity(attestor_stats.len());
+                let mut attestor_valid_computation_units = Vec::with_capacity(attestor_stats.len());
+                let mut attestor_invalid_computation_units =
+                    Vec::with_capacity(attestor_stats.len());
+                for s in &attestor_stats {
+                    attestor_valid_counts.push(s.valid_count);
+                    attestor_invalid_counts.push(s.invalid_count);
+                    attestor_valid_computation_units.push(s.valid_computation_units);
+                    attestor_invalid_computation_units.push(s.invalid_computation_units);
+                }
+                txns.push(EndOfEpochTransactionKind::new_change_epoch_v5(
+                    next_epoch,
+                    next_epoch_protocol_version.as_u64(),
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms,
+                    next_epoch_system_package_bytes,
+                    eligible_active_validators,
+                    scores,
+                    attestor_valid_counts,
+                    attestor_invalid_counts,
+                    attestor_valid_computation_units,
+                    attestor_invalid_computation_units,
+                ));
+            } else if config.pass_validator_scores_to_advance_epoch() {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
                     next_epoch,
                     next_epoch_protocol_version.as_u64(),

@@ -794,6 +794,9 @@ impl TransactionKindExt for TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    EndOfEpochTransactionKind::ChangeEpochV5(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),

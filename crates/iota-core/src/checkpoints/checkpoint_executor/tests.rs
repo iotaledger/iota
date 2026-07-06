@@ -472,6 +472,7 @@ async fn sync_end_of_epoch_checkpoint(
             *checkpoint.sequence_number(),
             0,      // epoch_start_timestamp_ms
             vec![], // scores
+            vec![], // attestor_stats
         )
         .await
         .expect("Failed to create and execute advance epoch tx");

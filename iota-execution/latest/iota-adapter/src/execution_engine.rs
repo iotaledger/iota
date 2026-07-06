@@ -1580,8 +1580,7 @@ mod checked {
         // validator_subsidy, storage_charges and computation_charges, are
         // common to all versions and are added in
         // `construct_advance_epoch_pt_impl`. The remaining arguments are added
-        // here. Unlike v4, `adjust_rewards_by_score` is not passed: the Move
-        // side reads that feature flag directly from the protocol config.
+        // here.
         let call_arg_vec = vec![
             CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
             CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
@@ -1595,6 +1594,7 @@ mod checked {
             CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
                                                                * Vec<u64> */
             CallArg::pure(&params.scores), // scores: Vec<u64>
+            CallArg::pure(&params.adjust_rewards_by_score), // adjust_rewards_by_score: bool
             CallArg::pure(&params.attestor_valid_counts), // attestor_valid_counts: Vec<u64>
             CallArg::pure(&params.attestor_invalid_counts), // attestor_invalid_counts: Vec<u64>
             CallArg::pure(&params.attestor_valid_computation_units), /* attestor_valid_computation_units:

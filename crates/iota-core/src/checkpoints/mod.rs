@@ -75,7 +75,9 @@ pub use crate::checkpoints::{
 use crate::{
     authority::{
         AuthorityState,
-        authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, attestor_stats::AttestorStats, scorer::MAX_SCORE,
+        },
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -1634,6 +1636,16 @@ impl CheckpointBuilder {
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
                 };
 
+                let attestor_stats: Vec<AttestorStats> = if self
+                    .epoch_store
+                    .protocol_config()
+                    .pass_attestor_stats_to_advance_epoch()
+                {
+                    self.epoch_store.current_attestor_stats()
+                } else {
+                    vec![]
+                };
+
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
                         &epoch_rolling_gas_cost_summary,
@@ -1642,6 +1654,7 @@ impl CheckpointBuilder {
                         &mut signatures,
                         sequence_number,
                         scores,
+                        attestor_stats,
                     )
                     .await?;
 
@@ -1792,6 +1805,7 @@ impl CheckpointBuilder {
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
+        attestor_stats: Vec<AttestorStats>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -1801,6 +1815,7 @@ impl CheckpointBuilder {
                 checkpoint,
                 epoch_start_timestamp_ms,
                 scores,
+                attestor_stats,
             )
             .await?;
         checkpoint_effects.push(effects);
