@@ -102,7 +102,9 @@ use crate::{
     authority::{
         AuthorityMetrics, AuthorityState, ResolverWrapper,
         authority_per_epoch_store::{
-            misbehavior::MisbehaviorReportVersion, misbehavior_monitor::MisbehaviorMonitor,
+            attestor_stats::{AttestorStats, AttestorStatsAggregator},
+            misbehavior::MisbehaviorReportVersion,
+            misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
@@ -152,6 +154,8 @@ pub const EPOCH_DB_PREFIX: &str = "epoch_";
 pub(crate) type PkG = bls12381::G2Element;
 pub(crate) type EncG = bls12381::G2Element;
 
+#[path = "attestor_stats.rs"]
+pub(crate) mod attestor_stats;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
@@ -777,6 +781,8 @@ pub struct AuthorityPerEpochStore {
     pub(crate) report_aggregator: ReportAggregator,
     /// Published per-authority score state for this epoch.
     pub(crate) scoreboard: Scoreboard,
+    /// Aggregates per-attestor attestation statistics for this epoch.
+    pub(crate) attestor_stats_aggregator: AttestorStatsAggregator,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -958,6 +964,14 @@ pub struct AuthorityEpochTables {
     /// construction.
     pub(crate) received_reports_state:
         DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
+
+    /// Per-attestor attestation statistics for this epoch, keyed by the
+    /// per-epoch dense attestor index. Snapshotted from the live aggregator
+    /// inside a consensus commit and written atomically with the rest of
+    /// `ConsensusCommitOutput::write_to_batch`. Survives restart;
+    /// `AttestorStatsAggregator::restore_from_tables` loads it during
+    /// epoch-store construction.
+    pub(crate) attestor_stats: DBMap<u32, attestor_stats::AttestorStats>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1252,6 +1266,10 @@ impl AuthorityPerEpochStore {
                 .epoch_start_state()
                 .get_attestor_set(),
         );
+        let attestor_stats_aggregator = AttestorStatsAggregator::new(attestor_set.len());
+        attestor_stats_aggregator
+            .restore_from_tables(&tables)
+            .expect("AuthorityEpochTables should contain valid AttestorStatsAggregator state");
 
         let s = Arc::new(Self {
             name,
@@ -1295,6 +1313,7 @@ impl AuthorityPerEpochStore {
             misbehavior_monitor,
             report_aggregator,
             scoreboard,
+            attestor_stats_aggregator,
         });
 
         s.update_buffer_stake_metric();
@@ -1446,6 +1465,18 @@ impl AuthorityPerEpochStore {
     /// in this set.
     pub fn attestor_set(&self) -> &Arc<AttestorSet> {
         &self.attestor_set
+    }
+
+    /// Aggregated per-attestor attestation statistics for this epoch. The
+    /// recording methods must only be called from consensus-commit-ordered
+    /// processing (or tests injecting on every validator identically).
+    pub fn attestor_stats_aggregator(&self) -> &AttestorStatsAggregator {
+        &self.attestor_stats_aggregator
+    }
+
+    /// Snapshot of this epoch's per-attestor stats, ordered by dense index.
+    pub fn current_attestor_stats(&self) -> Vec<AttestorStats> {
+        self.attestor_stats_aggregator.current_stats()
     }
 
     pub fn protocol_config(&self) -> &ProtocolConfig {

@@ -24,7 +24,8 @@ use super::*;
 use crate::{
     authority::{
         authority_per_epoch_store::{
-            LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
+            LockDetails, LockDetailsWrapper,
+            report_aggregator::DBReceivedReportsStatePerAuthority,
         },
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
