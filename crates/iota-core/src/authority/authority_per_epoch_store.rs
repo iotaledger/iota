@@ -966,11 +966,10 @@ pub struct AuthorityEpochTables {
         DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
 
     /// Per-attestor attestation statistics for this epoch, keyed by the
-    /// per-epoch dense attestor index. Snapshotted from the live aggregator
-    /// inside a consensus commit and written atomically with the rest of
-    /// `ConsensusCommitOutput::write_to_batch`. Survives restart;
-    /// `AttestorStatsAggregator::restore_from_tables` loads it during
-    /// epoch-store construction.
+    /// per-epoch dense attestor index. Written by the future verification
+    /// project's consensus-commit processing; restored by
+    /// `AttestorStatsAggregator::restore_from_tables` during epoch-store
+    /// construction.
     pub(crate) attestor_stats: DBMap<u32, attestor_stats::AttestorStats>,
 }
 

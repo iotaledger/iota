@@ -108,6 +108,31 @@ ChangeEpochV4:
     - scores:
         SEQ: U64
     - adjust_rewards_by_score: BOOL
+ChangeEpochV5:
+  STRUCT:
+    - epoch: U64
+    - protocol_version: U64
+    - storage_charge: U64
+    - computation_charge: U64
+    - computation_charge_burned: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
+    - epoch_start_timestamp_ms: U64
+    - system_packages:
+        SEQ:
+          TYPENAME: SystemPackage
+    - eligible_active_validators:
+        SEQ: U64
+    - scores:
+        SEQ: U64
+    - attestor_valid_counts:
+        SEQ: U64
+    - attestor_invalid_counts:
+        SEQ: U64
+    - attestor_valid_computation_units:
+        SEQ: U64
+    - attestor_invalid_computation_units:
+        SEQ: U64
 ChangedObject:
   STRUCT:
     - object_id:
@@ -309,6 +334,10 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      ChangeEpochV5:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV5
 Event:
   STRUCT:
     - package_id:

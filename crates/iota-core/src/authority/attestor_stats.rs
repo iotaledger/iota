@@ -6,9 +6,10 @@
 //! One [`AttestorStats`] entry per epoch-start attestor, indexed by the
 //! per-epoch dense attestor index (position in the epoch's `AttestorSet`).
 //! Recording must only happen from consensus-commit-ordered processing so
-//! every validator accumulates identical state; snapshots are buffered in
-//! `ConsensusCommitOutput` and flushed atomically with the commit, and the
-//! aggregator restores from the epoch table on epoch-store construction.
+//! every validator accumulates identical state. Per-commit snapshot
+//! buffering and an atomic flush to the epoch table will land with the
+//! verification project; until then the aggregator restores whatever the
+//! table holds on epoch-store construction.
 
 use std::sync::Mutex;
 
