@@ -275,14 +275,35 @@ async fn commit_and_execute_transaction(
     (transaction, execution_effects)
 }
 
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_transaction_manager() {
+    congestion_control_execution_cancellation(false).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_execution_scheduler() {
+    congestion_control_execution_cancellation(true).await;
+}
+
 // Tests execution aspect of cancelled transaction due to shared object
 // congestion. Mainly tests that
 //   1. Cancelled transaction should return correct error status.
 //   2. Executing cancelled transaction with effects should result in the same
 //      transaction cancellation.
-#[sim_test]
-async fn test_congestion_control_execution_cancellation() {
+//
+// Run against both schedulers: a congestion-cancelled transaction is only
+// "ready" because the availability check treats its cancelled sentinel input
+// version as available; a regression there would strand cancelled transactions
+// in the scheduler instead of executing them to cancelled effects.
+async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot
@@ -319,6 +340,10 @@ async fn test_congestion_control_execution_cancellation() {
         .build()
         .await;
     authority_state_2.insert_genesis_objects(&genesis_objects);
+    assert_eq!(
+        authority_state.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
 
     // The congestion limit, taking overshoot into account is
     // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
