@@ -446,6 +446,10 @@ pub struct AdvanceEpochParams {
     pub eligible_active_validators: Vec<u64>,
     pub scores: Vec<u64>,
     pub adjust_rewards_by_score: bool,
+    pub attestor_valid_counts: Vec<u64>,
+    pub attestor_invalid_counts: Vec<u64>,
+    pub attestor_valid_computation_units: Vec<u64>,
+    pub attestor_invalid_computation_units: Vec<u64>,
 }
 
 #[cfg(msim)]

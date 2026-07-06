@@ -17,9 +17,10 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, ChangeEpochV5,
+        Command, EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier,
+        ObjectId, ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -1329,6 +1330,21 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::ChangeEpochV5(change_epoch_v5) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch_v5(
+                                builder,
+                                change_epoch_v5,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                                trace_builder_opt,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                         ),
@@ -1556,6 +1572,39 @@ mod checked {
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
 
+    pub fn construct_advance_epoch_pt_v5(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to all versions and are added in
+        // `construct_advance_epoch_pt_impl`. The remaining arguments are added
+        // here. Unlike v4, `adjust_rewards_by_score` is not passed: the Move
+        // side reads that feature flag directly from the protocol config.
+        let call_arg_vec = vec![
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
+            CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
+                                                               * Vec<u64> */
+            CallArg::pure(&params.scores), // scores: Vec<u64>
+            CallArg::pure(&params.attestor_valid_counts), // attestor_valid_counts: Vec<u64>
+            CallArg::pure(&params.attestor_invalid_counts), // attestor_invalid_counts: Vec<u64>
+            CallArg::pure(&params.attestor_valid_computation_units), /* attestor_valid_computation_units:
+                                                                      * Vec<u64> */
+            CallArg::pure(&params.attestor_invalid_computation_units), /* attestor_invalid_computation_units:
+                                                                        * Vec<u64> */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
     /// Advances the epoch by executing a `ProgrammableTransaction`. If the
     /// transaction fails, it switches to safe mode and retries the epoch
     /// advancement in a more controlled environment. The function also
@@ -1655,6 +1704,10 @@ mod checked {
             eligible_active_validators: vec![],
             scores: vec![],
             adjust_rewards_by_score: false,
+            attestor_valid_counts: vec![],
+            attestor_invalid_counts: vec![],
+            attestor_valid_computation_units: vec![],
+            attestor_invalid_computation_units: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1702,6 +1755,10 @@ mod checked {
             eligible_active_validators: vec![],
             scores: vec![],
             adjust_rewards_by_score: false,
+            attestor_valid_counts: vec![],
+            attestor_invalid_counts: vec![],
+            attestor_valid_computation_units: vec![],
+            attestor_invalid_computation_units: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(
@@ -1749,6 +1806,10 @@ mod checked {
             // separate AdvanceEpochParams struct.
             scores: vec![],
             adjust_rewards_by_score: false,
+            attestor_valid_counts: vec![],
+            attestor_invalid_counts: vec![],
+            attestor_valid_computation_units: vec![],
+            attestor_invalid_computation_units: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
         advance_epoch_impl(
@@ -1794,12 +1855,65 @@ mod checked {
             eligible_active_validators: change_epoch_v4.eligible_active_validators,
             scores: change_epoch_v4.scores,
             adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
+            attestor_valid_counts: vec![],
+            attestor_invalid_counts: vec![],
+            attestor_valid_computation_units: vec![],
+            attestor_invalid_computation_units: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v4(builder, &params)?;
         advance_epoch_impl(
             advance_epoch_pt,
             params,
             change_epoch_v4.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    /// Advances the epoch for the given `ChangeEpochV5` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v5(
+        builder: ProgrammableTransactionBuilder,
+        change_epoch_v5: ChangeEpochV5,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch_v5.epoch,
+            next_protocol_version: change_epoch_v5.protocol_version.into(),
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch_v5.storage_charge,
+            computation_charge: change_epoch_v5.computation_charge,
+            computation_charge_burned: change_epoch_v5.computation_charge_burned,
+            storage_rebate: change_epoch_v5.storage_rebate,
+            non_refundable_storage_fee: change_epoch_v5.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch_v5.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
+            eligible_active_validators: change_epoch_v5.eligible_active_validators,
+            scores: change_epoch_v5.scores,
+            adjust_rewards_by_score: protocol_config.adjust_rewards_by_score(),
+            attestor_valid_counts: change_epoch_v5.attestor_valid_counts,
+            attestor_invalid_counts: change_epoch_v5.attestor_invalid_counts,
+            attestor_valid_computation_units: change_epoch_v5.attestor_valid_computation_units,
+            attestor_invalid_computation_units: change_epoch_v5.attestor_invalid_computation_units,
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v5(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch_v5.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
