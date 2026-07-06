@@ -113,6 +113,11 @@ def load_groups(root, label=None):
 #     (NB: validation dropped txs / sec is NOT here — it's a real non-zero V1 signal.)
 DROP_COLUMNS = {
     "actual/attested CUs — mean": 1.0,
+    # The raw p50 CU twins: superseded by the exact mean "CUs" column (see
+    # build_columns). Dropped unconditionally (None) — for this deterministic
+    # workload a p50 only bucket-interpolates and lands on impossible values.
+    "attested vs actual computation units (CUs, p50) [actual p50]": None,
+    "attested vs actual computation units (CUs, p50) [attested p50]": None,
     "soft-lock rejections / sec": 0.0,
     "cancelled txs / sec": 0.0,
     "backpressure toggles / sec": 0.0,
@@ -124,16 +129,10 @@ DROP_TOL = 1e-4
 # construction). Keep one under a friendlier name; the twin ("drop") is hidden but
 # still COMPUTED and checked — a relative divergence beyond MERGE_RTOL warns (the
 # equality no longer holds for that run). Pass --keep-dropped to show the twin.
-#   - attested vs actual CUs: for owned objects attestation predicts CUs exactly, so
-#     attested == actual (tiny histogram-bucket-interpolation diffs aside). Keep
-#     actual (the ground truth), rename to "CUs".
-MERGE_EQUAL = [
-    {
-        "keep": "attested vs actual computation units (CUs, p50) [actual p50]",
-        "drop": "attested vs actual computation units (CUs, p50) [attested p50]",
-        "name": "CUs",
-    },
-]
+# (CUs used to merge the actual/attested p50 twins here; it is now an exact mean
+# column — see build_columns — with attested == actual guarded by the
+# "actual/attested CUs — mean" ratio column.)
+MERGE_EQUAL = []
 MERGE_RTOL = 1e-2
 
 # Columns whose per-container series must be restricted to validators before the
@@ -253,6 +252,18 @@ def build_columns(panels, keep_all):
             "unit": "ratio",
             "kind": "mean_ratio",
             "base": base,
+        }
+    )
+    # CUs are the exact per-transaction mean (rate(_sum)/rate(_count)), not a p50:
+    # the workload is deterministic (every tx identical), so the mean is the exact
+    # cost. A histogram p50 interpolates between bucket edges and lands on
+    # impossible values (e.g. 850, below the 1000-unit gas_rounding_step floor).
+    cols.append(
+        {
+            "key": "CUs",
+            "unit": "",
+            "kind": "mean_ratio",
+            "base": "actual_computation_units",
         }
     )
     # Rename the kept twin of each MERGE_EQUAL pair; the dropped twin keeps its

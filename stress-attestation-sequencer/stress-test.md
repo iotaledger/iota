@@ -100,21 +100,21 @@ Fullnode path (`f`):
 
 | slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 | CUs  |
 | --- | --- | --- | --- | --- |
-| 0   | 2.5 ms | 4.8 ms | 1.6 ms | 850  |
-| 50  | 2.5 ms | 4.8 ms | 6.0 ms | 850  |
-| 100 | 6.6 ms | 17 ms  | 21 ms  | 3.5k |
-| 200 | 127 ms | 499 ms | 199 ms | 150k |
-| 500 | 961 ms | 1.00 s | 1.28 s | 1.5M |
+| 0   | 2.5 ms | 4.8 ms | 1.6 ms | 1k    |
+| 50  | 2.5 ms | 4.8 ms | 6.0 ms | 1k    |
+| 100 | 6.6 ms | 17 ms  | 21 ms  | 4k    |
+| 200 | 127 ms | 499 ms | 199 ms | 128k  |
+| 500 | 961 ms | 1.00 s | 1.28 s | 1.37M |
 
 Direct-to-one-validator path (`v`):
 
 | slow_size | attest. lat. p50 | attest. lat. p95 | exec. lat. p95 | CUs  |
 | --- | --- | --- | --- | --- |
-| 0   | 2.5 ms | 4.8 ms | 1.2 ms | 850  |
-| 50  | 2.5 ms | 4.8 ms | 6.3 ms | 850  |
-| 100 | 6.9 ms | 18 ms  | 22 ms  | 3.5k |
-| 200 | 74 ms  | 526 ms | 204 ms | 150k |
-| 500 | 482 ms | 988 ms | 973 ms | 1.5M |
+| 0   | 2.5 ms | 4.8 ms | 1.2 ms | 1k    |
+| 50  | 2.5 ms | 4.8 ms | 6.3 ms | 1k    |
+| 100 | 6.9 ms | 18 ms  | 22 ms  | 4k    |
+| 200 | 74 ms  | 526 ms | 204 ms | 128k  |
+| 500 | 482 ms | 988 ms | 973 ms | 1.37M |
 
 Attestation and execution are close but not the same number, because
 `validator_attestation_latency` covers more than the execute step. Both load
@@ -141,7 +141,12 @@ dry-run.
 
 **3. Compute-unit accounting is exact.** Attested computation units equal actual
 computation units for every owned-object configuration (ratio = 1.0), confirming
-attestation predicts the computation cost precisely for these transactions.
+attestation predicts the computation cost precisely for these transactions. CUs
+are reported as the exact per-transaction mean (`_sum`/`_count`), not a p50: the
+workload is deterministic, so every transaction is identical and the mean is
+the exact cost. A p50 would instead interpolate between histogram bucket edges
+and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
+`gas_rounding_step` floor).
 
 ![Attestation computation units and latency](h1/results/summary_plots/attestation_latency.png)
 
