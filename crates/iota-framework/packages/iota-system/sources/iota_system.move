@@ -55,6 +55,7 @@ use iota_system::iota_system_state_inner::{
     IotaSystemStateV1,
     IotaSystemStateV2
 };
+use iota_system::protocol_config;
 use iota_system::staking_pool::{StakedIota, PoolTokenExchangeRate};
 use iota_system::validator::ValidatorV1;
 use iota_system::validator_cap::UnverifiedValidatorOperationCap;
@@ -619,7 +620,6 @@ fun advance_epoch(
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
     scores: vector<u64>,
-    adjust_rewards_by_score: bool,
     attestor_valid_counts: vector<u64>,
     attestor_invalid_counts: vector<u64>,
     attestor_valid_computation_units: vector<u64>,
@@ -661,7 +661,7 @@ fun advance_epoch(
         max_committee_members_count,
         eligible_active_validators,
         scores,
-        adjust_rewards_by_score,
+        protocol_config::is_feature_enabled(b"adjust_rewards_by_score"),
         attestor_evicted_bonds,
         ctx,
     );
@@ -886,16 +886,37 @@ public(package) fun advance_epoch_for_testing(
     attestor_invalid_computation_units: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
+    // ValidatorV1 will make a special system call with sender set as 0x0.
+    assert!(ctx.sender() == @0x0, ENotSystemAddress);
+
     let storage_charge = balance::create_for_testing(storage_charge);
     let computation_charge = balance::create_for_testing(computation_charge);
-    let storage_rebate = advance_epoch(
+
+    // Registry lives on the wrapper UID, so process it before borrowing the
+    // inner state; evicted bonds are burned inside the inner advance_epoch.
+    // Gating on the feature flag also creates the empty registry on the first
+    // boundary once the feature is enabled.
+    let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
+        load_attestor_registry_mut(wrapper).advance_epoch(
+            new_epoch,
+            attestor_valid_counts,
+            attestor_invalid_counts,
+            attestor_valid_computation_units,
+            attestor_invalid_computation_units,
+            ctx,
+        )
+    } else {
+        balance::zero()
+    };
+
+    let self = load_system_state_mut(wrapper);
+    let storage_rebate = self.advance_epoch(
+        new_epoch,
+        next_protocol_version,
         validator_subsidy,
         storage_charge,
         computation_charge,
         computation_charge_burned,
-        wrapper,
-        new_epoch,
-        next_protocol_version,
         storage_rebate,
         non_refundable_storage_fee,
         reward_slashing_rate,
@@ -904,11 +925,9 @@ public(package) fun advance_epoch_for_testing(
         eligible_active_validators,
         scores,
         adjust_rewards_by_score,
-        attestor_valid_counts,
-        attestor_invalid_counts,
-        attestor_valid_computation_units,
-        attestor_invalid_computation_units,
+        attestor_evicted_bonds,
         ctx,
     );
+
     storage_rebate
 }

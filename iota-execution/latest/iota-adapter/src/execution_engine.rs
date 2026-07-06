@@ -1594,7 +1594,6 @@ mod checked {
             CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
                                                                * Vec<u64> */
             CallArg::pure(&params.scores), // scores: Vec<u64>
-            CallArg::pure(&params.adjust_rewards_by_score), // adjust_rewards_by_score: bool
             CallArg::pure(&params.attestor_valid_counts), // attestor_valid_counts: Vec<u64>
             CallArg::pure(&params.attestor_invalid_counts), // attestor_invalid_counts: Vec<u64>
             CallArg::pure(&params.attestor_valid_computation_units), /* attestor_valid_computation_units:
