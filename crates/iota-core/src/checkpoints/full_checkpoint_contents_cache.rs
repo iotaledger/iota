@@ -99,6 +99,22 @@ struct Inner {
     total_bytes: usize,
 }
 
+impl Inner {
+    /// Removes the digest mapping of an entry leaving `by_seq`, unless the
+    /// mapping points to a different sequence number: distinct checkpoints
+    /// can share a contents digest (e.g. consecutive empty checkpoints), and
+    /// the mapping must keep serving the entry that is still cached.
+    fn remove_digest_mapping(
+        &mut self,
+        digest: &CheckpointContentsDigest,
+        seq: CheckpointSequenceNumber,
+    ) {
+        if self.seq_by_digest.get(digest) == Some(&seq) {
+            self.seq_by_digest.remove(digest);
+        }
+    }
+}
+
 /// A size-bounded in-memory cache of [`FullCheckpointContents`], keyed by
 /// checkpoint sequence number with a secondary contents-digest index.
 ///
@@ -200,15 +216,15 @@ impl FullCheckpointContentsCache {
             },
         ) {
             inner.total_bytes -= old.bytes;
-            inner.seq_by_digest.remove(&old.digest);
+            inner.remove_digest_mapping(&old.digest, seq);
         }
         inner.total_bytes += bytes;
         inner.seq_by_digest.insert(digest, seq);
 
         while inner.total_bytes > self.max_bytes && inner.by_seq.len() > 1 {
-            let (_, evicted) = inner.by_seq.pop_first().expect("cache is not empty");
+            let (evicted_seq, evicted) = inner.by_seq.pop_first().expect("cache is not empty");
             inner.total_bytes -= evicted.bytes;
-            inner.seq_by_digest.remove(&evicted.digest);
+            inner.remove_digest_mapping(&evicted.digest, evicted_seq);
             self.metrics.evictions.inc();
         }
 
@@ -361,6 +377,26 @@ mod tests {
         ));
         assert_eq!(cache.metrics.total_bytes.get(), 60);
         assert_eq!(cache.metrics.entries.get(), 1);
+    }
+
+    #[test]
+    fn eviction_keeps_digest_mapping_of_newer_entry_with_same_digest() {
+        let cache =
+            FullCheckpointContentsCache::new(250, FullContentsCacheMetrics::new_for_tests());
+        // Distinct checkpoints can share a contents digest, e.g. consecutive
+        // empty checkpoints.
+        let (digest, contents) = entry(1);
+        cache.insert(0, digest, contents.clone(), 100);
+        cache.insert(1, digest, contents, 100);
+
+        // Push seq 0 out of the window.
+        let (digest_b, contents_b) = entry(2);
+        cache.insert(2, digest_b, contents_b, 100);
+
+        assert!(cache.get_by_seq(0).is_none());
+        assert!(cache.get_by_seq(1).is_some());
+        // The digest lookup must keep serving the still-cached seq 1.
+        assert!(cache.get_by_digest(&digest).is_some());
     }
 
     #[test]
