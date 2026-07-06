@@ -218,7 +218,10 @@ debug = 0
 inherits = "simulator"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(msim)',
+  'cfg(fail_points)',
+] }
 
 [workspace.lints.clippy]
 redundant_clone = "warn"
@@ -237,13 +240,39 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = { version = "1.8.16", default-features = false, features = ["credentials-process", "rt-tokio", "sso"] }
-aws-sdk-dynamodb = { version = "1.103", default-features = false, features = ["rt-tokio"] }
-aws-smithy-http-client = { version = "1.1", default-features = false, features = ["rustls-ring"] }
-axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
+aws-config = { version = "1.8.16", default-features = false, features = [
+  "credentials-process",
+  "rt-tokio",
+  "sso",
+] }
+aws-sdk-dynamodb = { version = "1.103", default-features = false, features = [
+  "rt-tokio",
+] }
+aws-smithy-http-client = { version = "1.1", default-features = false, features = [
+  "rustls-ring",
+] }
+axum = { version = "0.8", default-features = false, features = [
+  "tokio",
+  "http2",
+  "json",
+  "matched-path",
+  "original-uri",
+  "form",
+  "query",
+  "ws",
+  "macros",
+] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
-axum-server = { version = "0.8", default-features = false, features = ["tls-rustls-no-provider"] }
-backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
+axum-server = { version = "0.8", default-features = false, features = [
+  "tls-rustls-no-provider",
+] }
+backoff = { version = "0.4.0", features = [
+  "futures",
+  "futures-core",
+  "pin-project-lite",
+  "tokio",
+  "tokio_1",
+] }
 base64 = "0.21.2"
 base64-url = "2"
 bcs = "0.1.4"
@@ -260,7 +289,11 @@ codespan-reporting = "0.11.1"
 colored = "2.0.0"
 const-str = "0.5.3"
 coset = "0.3"
-criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_reports"] }
+criterion = { version = "0.5.0", features = [
+  "async",
+  "async_tokio",
+  "html_reports",
+] }
 csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
@@ -275,7 +308,9 @@ expect-test = "1.4.0"
 eyre = "0.6.8"
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
 fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", features = ["experimental"] }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", features = [
+  "experimental",
+] }
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", package = "fastcrypto-zkp" }
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
@@ -288,7 +323,11 @@ http-body = "1.0"
 http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
-hyper-util = { version = "0.1.20", features = ["tokio", "server-auto", "service"] }
+hyper-util = { version = "0.1.20", features = [
+  "tokio",
+  "server-auto",
+  "service",
+] }
 im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
@@ -296,7 +335,13 @@ insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
-jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
+jsonrpsee = { version = "0.24", features = [
+  "server",
+  "macros",
+  "client",
+  "ws-client",
+  "http-client",
+] }
 lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
@@ -326,11 +371,19 @@ prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.8.5"
 regex = "1.7.1"
-reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "http2",
+  "json",
+  "rustls-tls",
+] }
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
-rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
+rustls = { version = "0.23.18", default-features = false, features = [
+  "std",
+  "tls12",
+  "ring",
+] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
@@ -357,7 +410,10 @@ thiserror = "1.0.40"
 # tokio is defined at a specific version to support patching with iota-sim
 # Do not upgrade without updating https://github.com/iotaledger/iota-sim first
 tokio = { version = "1.52.2", features = ["parking_lot"] }
-tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12", "ring"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = [
+  "tls12",
+  "ring",
+] }
 tokio-stream = { version = "0.1.18", features = ["sync", "net"] }
 tokio-util = "0.7.18"
 toml = { version = "0.7.4", features = ["preserve_order"] }
@@ -365,10 +421,30 @@ tonic = { version = "0.14", features = ["zstd", "transport"] }
 tonic-build = "0.14"
 tonic-health = "0.14"
 tonic-prost = "0.14"
-tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
+tower = { version = "0.4.12", features = [
+  "util",
+  "timeout",
+  "load-shed",
+  "limit",
+] }
+tower-http = { version = "0.5", features = [
+  "cors",
+  "timeout",
+  "trace",
+  "set-header",
+  "propagate-header",
+] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std", "smallvec", "fmt", "ansi", "time", "json", "registry", "env-filter"] }
+tracing-subscriber = { version = "0.3.22", default-features = false, features = [
+  "std",
+  "smallvec",
+  "fmt",
+  "ansi",
+  "time",
+  "json",
+  "registry",
+  "env-filter",
+] }
 url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
@@ -401,9 +477,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "3aa7b764b7dc977b6aef01b4c98ad414eb131869" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "9826f3bbcc96ff72d69f2532af7e9829abe61d9b" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "3aa7b764b7dc977b6aef01b4c98ad414eb131869" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "9826f3bbcc96ff72d69f2532af7e9829abe61d9b" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -442,9 +518,9 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "3aa7b764b7dc977b6aef01b4c98ad414eb131869", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "3aa7b764b7dc977b6aef01b4c98ad414eb131869", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "3aa7b764b7dc977b6aef01b4c98ad414eb131869", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9826f3bbcc96ff72d69f2532af7e9829abe61d9b", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9826f3bbcc96ff72d69f2532af7e9829abe61d9b", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9826f3bbcc96ff72d69f2532af7e9829abe61d9b", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -486,7 +562,9 @@ move-transactional-test-runner = { path = "external-crates/move/crates/move-tran
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
-move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
+move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = [
+  "tiered-gas",
+] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 prometheus-filtered = { path = "crates/prometheus-filtered" }
 simulacrum = { path = "crates/simulacrum" }
