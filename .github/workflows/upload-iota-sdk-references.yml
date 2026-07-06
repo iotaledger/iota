@@ -4,12 +4,19 @@ name: Upload IOTA SDK References to S3
 # from the iota-rust-sdk revision pinned in docs/site/iota-sdk-references.rev
 # and uploads the tarballs to the versioned S3 path the docs build downloads
 # from (docs/site/scripts/get-iota-sdk-references.sh). Bumping the pinned
-# revision on develop regenerates and uploads automatically.
+# revision regenerates and uploads automatically — already on the pull
+# request (same-repo only; forks have no S3 credentials), so the docs
+# build of the bump PR validates against the new tarballs.
 
 on:
   workflow_dispatch:
   push:
     branches: [develop]
+    paths:
+      - ".github/workflows/upload-iota-sdk-references.yml"
+      - "docs/site/iota-sdk-references.rev"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/upload-iota-sdk-references.yml"
       - "docs/site/iota-sdk-references.rev"
@@ -23,6 +30,7 @@ env:
 
 jobs:
   generate-and-upload:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
