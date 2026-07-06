@@ -9,9 +9,9 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{ExecutionStatus, ObjectId, ObjectReference, Owner, TypeTag};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -216,7 +216,7 @@ impl<P> ObjectProviderCache<P> {
 
     pub fn new_with_cache(
         provider: P,
-        written_objects: BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        written_objects: BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
     ) -> Self {
         let mut object_cache = BTreeMap::new();
         let mut last_version_cache = BTreeMap::new();

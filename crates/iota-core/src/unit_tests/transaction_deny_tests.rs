@@ -9,14 +9,16 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, Identifier, ObjectId};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, address_from_iota_pub_key},
+    base_types::address_from_iota_pub_key,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
@@ -76,7 +78,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (Address, Ed25519KeyPair, Vec<ObjectRef>);
+type Account = (Address, Ed25519KeyPair, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,

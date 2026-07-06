@@ -11,11 +11,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{Address, Argument, Command, ObjectId, Owner, ProgrammableTransaction};
+use iota_sdk_types::{
+    Address, Argument, Command, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectRef,
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
         IotaSystemStateTrait,
@@ -255,7 +256,11 @@ impl StressTestRunner {
         builder.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
     }
 
-    async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
+    async fn get_from_effects(
+        &self,
+        effects: &[(ObjectReference, Owner)],
+        name: &str,
+    ) -> Option<Object> {
         let db = self.state().get_object_store().clone();
         let found: Vec<_> = effects
             .iter()

@@ -20,14 +20,13 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        base_types::ObjectRef,
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Address, ObjectId, ProgrammableTransaction, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, ProgrammableTransaction, crypto::Intent};
 use iota_types::{move_package, transaction::TransactionDataAPI};
 use reqwest::Client;
 use serde::Deserialize;
@@ -143,7 +142,7 @@ pub async fn publish_aa_package<Keystore: AccountKeystore>(
     keystore: &mut Keystore,
     publisher: Address,
     package: &str,
-) -> Result<(ObjectId, ObjectRef)> {
+) -> Result<(ObjectId, ObjectReference)> {
     let transaction_response = publish_package(iota_client, keystore, publisher, package).await?;
 
     let package_ref = transaction_response

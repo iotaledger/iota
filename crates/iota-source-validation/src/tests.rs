@@ -16,12 +16,10 @@ use iota_json_rpc_types::{
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
-use iota_sdk_types::{Address, MovePackageData, ObjectId};
+use iota_sdk_types::{Address, MovePackageData, ObjectId, ObjectReference};
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{ObjectRef, TransactionDigest},
-    move_package::UpgradePolicy,
+    IOTA_FRAMEWORK_PACKAGE_ID, base_types::TransactionDigest, move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
 };
 use test_cluster::TestClusterBuilder;
@@ -767,7 +765,10 @@ fn sanitize_id(mut message: String, m: &HashMap<Address, &str>) -> String {
 }
 
 /// Compile and publish package at absolute path `package` to chain.
-async fn publish_package(context: &WalletContext, package: PathBuf) -> (ObjectRef, ObjectRef) {
+async fn publish_package(
+    context: &WalletContext,
+    package: PathBuf,
+) -> (ObjectReference, ObjectReference) {
     let txn = make_publish_transaction(context, package).await;
     let response = context.execute_transaction_must_succeed(txn).await;
     let package = get_new_package_obj_from_response(&response).unwrap();
@@ -781,7 +782,7 @@ async fn upgrade_package(
     package_id: ObjectId,
     upgrade_cap: ObjectId,
     package: impl AsRef<Path>,
-) -> ObjectRef {
+) -> ObjectReference {
     let package = compile_package(package);
     let with_unpublished_deps = false;
     let package_bytes = package.get_package_bytes(with_unpublished_deps);
@@ -801,7 +802,7 @@ async fn upgrade_package(
 
 /// Compile and publish package at absolute path `package` to chain, along with
 /// its unpublished dependencies.
-async fn publish_package_and_deps(context: &WalletContext, package: PathBuf) -> ObjectRef {
+async fn publish_package_and_deps(context: &WalletContext, package: PathBuf) -> ObjectReference {
     let txn = make_publish_transaction_with_deps(context, package).await;
     let response = context.execute_transaction_must_succeed(txn).await;
     get_new_package_obj_from_response(&response).unwrap()
@@ -882,7 +883,7 @@ pub async fn upgrade_package_with_wallet(
     upgrade_cap: ObjectId,
     all_module_bytes: Vec<Vec<u8>>,
     dep_ids: Vec<ObjectId>,
-) -> (ObjectRef, TransactionDigest) {
+) -> (ObjectReference, TransactionDigest) {
     let sender = context.get_addresses()[0];
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();

@@ -10,10 +10,10 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, ObjectReference};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -76,7 +76,7 @@ impl BenchmarkContext {
         self.validator.clone()
     }
 
-    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectRef {
+    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectReference {
         let mut gas_objects = self.admin_account.gas_objects.deref().clone();
         let (package, updated_gas) = self
             .validator
@@ -99,7 +99,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_dynamic_fields: u64,
-    ) -> HashMap<Address, ObjectRef> {
+    ) -> HashMap<Address, ObjectReference> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {
@@ -485,7 +485,7 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectReference>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account

@@ -27,13 +27,12 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner,
+    Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::ObjectRef,
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
@@ -1552,8 +1551,8 @@ struct TestEnvironment {
     owner: Option<Address>,
     authenticate_fn_name: Option<String>,
     aa_package_id: Option<ObjectId>,
-    aa_package_metadata_ref: Option<ObjectRef>,
-    aa_ref: Option<ObjectRef>,
+    aa_package_metadata_ref: Option<ObjectReference>,
+    aa_ref: Option<ObjectReference>,
     aa_create_transaction: Option<Transaction>,
 }
 
@@ -1639,7 +1638,7 @@ impl TestEnvironment {
                 .all_changed_objects()
                 .iter()
                 .map(|e| (e.0.reference, e.0.owner, e.1))
-                .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
+                .collect::<Vec<(ObjectReference, Owner, WriteKind)>>(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -1694,7 +1693,7 @@ impl TestEnvironment {
 
     /// Publish the Account Abstraction Move package and return its ID and
     /// metadata object reference.
-    async fn publish_account_abstraction_package(&mut self) -> (ObjectId, ObjectRef) {
+    async fn publish_account_abstraction_package(&mut self) -> (ObjectId, ObjectReference) {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
@@ -1932,7 +1931,7 @@ impl TestEnvironment {
 
     fn create_move_authenticator_with_sponsor_and_sender(
         &self,
-        aa_sponsor_ref: ObjectRef,
+        aa_sponsor_ref: ObjectReference,
     ) -> anyhow::Result<GenericSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
@@ -1985,7 +1984,7 @@ impl TestEnvironment {
 
     fn craft_object_transfer(
         &self,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         recipient: Address,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -2059,7 +2058,7 @@ impl TestEnvironment {
     async fn craft_tx_from_pt(
         &self,
         pt: ProgrammableTransaction,
-        gas_coin: ObjectRef,
+        gas_coin: ObjectReference,
         sender: Address,
         sponsor: Option<Address>,
     ) -> anyhow::Result<TransactionData> {
@@ -2081,7 +2080,7 @@ impl TestEnvironment {
         owner: Address,
         authenticate_fn_name: &str,
         aa_package_id: ObjectId,
-        aa_package_metadata_ref: ObjectRef,
+        aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<Transaction> {
         let aa_owner_pk = self
             .test_cluster
@@ -2140,7 +2139,7 @@ impl TestEnvironment {
     /// Receiving<Gas>, ctx)
     fn craft_aa_receive_gas_ptb(
         &self,
-        gas_ref: ObjectRef,
+        gas_ref: ObjectReference,
         module_name: &str,
         receive_fn_name: &str,
     ) -> anyhow::Result<ProgrammableTransaction> {
@@ -2175,7 +2174,7 @@ impl TestEnvironment {
 
     /// Creates an extra AA (not stored in `aa_ref`) and returns its object ref.
     /// This requires if it is necessary to create more AAs in a test.
-    async fn create_extra_abstract_account(&self) -> anyhow::Result<ObjectRef> {
+    async fn create_extra_abstract_account(&self) -> anyhow::Result<ObjectReference> {
         let effects = self.create_abstract_account().await?;
         Ok(abstract_account_from_all_changed_objects(
             &effects.all_changed_objects(),
@@ -2188,7 +2187,7 @@ impl TestEnvironment {
     async fn create_extra_abstract_account_with(
         &self,
         authenticate_fn_name: &str,
-    ) -> anyhow::Result<ObjectRef> {
+    ) -> anyhow::Result<ObjectReference> {
         let (Some(owner), Some(aa_package_id), Some(aa_package_metadata_ref)) =
             (self.owner, self.aa_package_id, self.aa_package_metadata_ref)
         else {
@@ -2214,7 +2213,7 @@ impl TestEnvironment {
         owner: Address,
         authenticate_fn_name: &str,
         aa_package_id: ObjectId,
-        aa_package_metadata_ref: ObjectRef,
+        aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<TransactionEffects> {
         let transaction = if let Some(transaction) = &self.aa_create_transaction {
             transaction.clone()
@@ -2240,7 +2239,7 @@ impl TestEnvironment {
     /// (not necessarily the stored `aa_ref`).
     fn create_move_authenticator_for_free_access_for_ref(
         &self,
-        aa_obj_ref: ObjectRef,
+        aa_obj_ref: ObjectReference,
     ) -> anyhow::Result<GenericSignature> {
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticatorV1::new_with_shared_account_object(
@@ -2261,7 +2260,7 @@ impl TestEnvironment {
     //    ctx: &TxContext,
     fn create_move_authenticator_for_ed25519_for_ref(
         &self,
-        aa_obj_ref: ObjectRef,
+        aa_obj_ref: ObjectReference,
         tx_digest: &[u8; 32],
     ) -> anyhow::Result<GenericSignature> {
         let Some(owner) = self.owner else {
@@ -2301,7 +2300,7 @@ impl TestEnvironment {
     /// Build a `GenericSignature::MoveAuthenticator` from a raw ed25519
     /// `Signature` and the abstract-account object reference.
     fn move_authenticator_from_ed25519_sig(
-        aa_obj_ref: ObjectRef,
+        aa_obj_ref: ObjectReference,
         signature: iota_types::crypto::Signature,
     ) -> anyhow::Result<GenericSignature> {
         let hex_encoded_signature: String = Hex::encode(signature)
@@ -2366,8 +2365,8 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 }
 
 fn abstract_account_from_all_changed_objects(
-    all_changed_objects: &[(ObjectRef, Owner, WriteKind)],
-) -> ObjectRef {
+    all_changed_objects: &[(ObjectReference, Owner, WriteKind)],
+) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
     all_changed_objects
         .iter()

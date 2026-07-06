@@ -20,7 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -251,7 +251,7 @@ pub enum AggregatorProcessTransactionError {
     FatalConflictingTransaction {
         errors: GroupedErrors,
         conflicting_tx_digests:
-            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
 
     #[error(
@@ -389,7 +389,7 @@ struct ProcessTransactionState {
     retryable_overload_info: RetryableOverloadInfo,
     // If there are conflicting transactions, we note them down to report to user.
     conflicting_tx_digests:
-        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors

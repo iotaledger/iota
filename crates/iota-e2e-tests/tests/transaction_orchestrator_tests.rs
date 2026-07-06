@@ -15,7 +15,7 @@ use iota_core::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::TransactionExpiration;
+use iota_sdk_types::{ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -24,7 +24,6 @@ use iota_test_transaction_builder::{
     make_transfer_iota_transaction,
 };
 use iota_types::{
-    base_types::ObjectRef,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     quorum_driver_types::{
@@ -363,7 +362,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
     actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
@@ -660,7 +659,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
     actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);

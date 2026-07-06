@@ -25,13 +25,13 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
-    base_types::ObjectRef, digests::ChainIdentifier, global_state_hash::GlobalStateHash,
+    digests::ChainIdentifier, global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -253,7 +253,7 @@ impl LiveObjectSetWriterV1 {
     }
 
     /// Writes an object reference to the reference file.
-    fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
+    fn write_object_ref(&mut self, object_ref: &ObjectReference) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         buf[0..ObjectId::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(

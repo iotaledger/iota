@@ -51,7 +51,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TransactionKind,
+    TypeTag,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -61,7 +62,7 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
@@ -3189,7 +3190,7 @@ pub async fn execute_dry_run(
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3264,7 +3265,7 @@ pub async fn estimate_gas_budget(
     signer: Address,
     kind: TransactionKind,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3317,7 +3318,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
@@ -3516,7 +3517,7 @@ async fn execute_dev_inspect(
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_objects: Vec<ObjectRef>,
+    gas_objects: Vec<ObjectReference>,
     gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
