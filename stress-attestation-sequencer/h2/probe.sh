@@ -5,7 +5,7 @@
 # Fires a short, low-rate `slow` spam and reports the per-transaction computation
 # units (attested + actual, the values TotalComputationUnits schedules on) and
 # the internal execution time (mean ± sem, plus std). Repeated invocations sweep
-# the (n, size) space and accumulate results/calibration.csv, which then selects
+# the (n, size) space and accumulate results/calibration-<machine>.csv, which then selects
 # the W5 cost points and sets the per-object limits for the H2 mode comparison.
 #
 # Unlike ../h1/run.sh this does NOT do an A/B two-run flow and does NOT wipe or
@@ -87,7 +87,21 @@ PRODUCT=$((SLOW_N * SLOW_SIZE))
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
 STRESS_BIN="${STRESS_BIN_PATH:-$BENCH_REPO/target/release/stress}"
-CSV_OUT="$SCRIPT_DIR/results/calibration.csv"
+
+# Machine-specific CSV so a WS and an EPYC sweep don't collide and the analysis
+# scripts can tell them apart: calibration-<cpu-slug>.csv, slug from the CPU model
+# (e.g. ryzen-9-9950x3d, epyc-9454p). Override with MACHINE=<slug> if needed.
+cpu_slug() {
+  local m
+  m=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)
+  m=${m#AMD }
+  m=${m#Intel(R) }
+  m=$(printf '%s' "$m" | sed -E 's/ [0-9]+-Core Processor$//; s/ Processor$//; s/\(R\)//g; s/\(TM\)//g')
+  printf '%s' "$m" | tr '[:upper:] ' '[:lower:]-' | sed -E 's/[^a-z0-9-]//g; s/-+/-/g; s/^-|-$//g'
+}
+MACHINE="${MACHINE:-$(cpu_slug)}"
+MACHINE="${MACHINE:-unknown}"
+CSV_OUT="$SCRIPT_DIR/results/calibration-$MACHINE.csv"
 
 # slow::slow(n, size) workload weights (same mapping as ../h1/run.sh).
 WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared "$SLOW_SHARED")

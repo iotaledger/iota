@@ -1,6 +1,10 @@
 # Track scripts only; venv + generated data are not committed.
+# Exception: the calibration figures are committed so probe-test.md renders on GitHub.
 .venv*/
 __pycache__/
-results/
+results/*
+!results/summary_plots/
+results/summary_plots/*
+!results/summary_plots/*.png
 logs/
 nohup.out
