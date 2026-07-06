@@ -1323,7 +1323,7 @@ impl AuthorityStore {
         object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
-            Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
+            Some(objref) if objref.digest.is_alive() => Ok(Some(objref)),
             _ => Ok(None),
         }
     }

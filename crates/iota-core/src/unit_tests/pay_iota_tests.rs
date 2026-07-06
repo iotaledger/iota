@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use futures::future::join_all;
 use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     base_types::{ObjectRef, dbg_addr},
@@ -174,21 +173,9 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     let created_obj_id1 = effects.created()[0].0.object_id;
     let created_obj_id2 = effects.created()[1].0.object_id;
     let created_obj_id3 = effects.created()[2].0.object_id;
-    let created_obj1 = res
-        .authority_state
-        .get_object(&created_obj_id1)
-        .await
-        .unwrap();
-    let created_obj2 = res
-        .authority_state
-        .get_object(&created_obj_id2)
-        .await
-        .unwrap();
-    let created_obj3 = res
-        .authority_state
-        .get_object(&created_obj_id3)
-        .await
-        .unwrap();
+    let created_obj1 = res.authority_state.get_object(&created_obj_id1).unwrap();
+    let created_obj2 = res.authority_state.get_object(&created_obj_id2).unwrap();
+    let created_obj3 = res.authority_state.get_object(&created_obj_id3).unwrap();
 
     let addr1 = *effects.created()[0]
         .1
@@ -221,7 +208,7 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].0.object_id, object_id);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
-    let gas_object = res.authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id).unwrap();
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
         coin_amount - 100 - 200 - 300 - gas_used,
@@ -260,16 +247,8 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(effects.created().len(), 2);
     let created_obj_id1 = effects.created()[0].0.object_id;
     let created_obj_id2 = effects.created()[1].0.object_id;
-    let created_obj1 = res
-        .authority_state
-        .get_object(&created_obj_id1)
-        .await
-        .unwrap();
-    let created_obj2 = res
-        .authority_state
-        .get_object(&created_obj_id2)
-        .await
-        .unwrap();
+    let created_obj1 = res.authority_state.get_object(&created_obj_id1).unwrap();
+    let created_obj2 = res.authority_state.get_object(&created_obj_id2).unwrap();
     let addr1 = *effects.created()[0]
         .1
         .address_or_object()
@@ -292,7 +271,7 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].0.object_id, object_id1);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
-    let gas_object = res.authority_state.get_object(&object_id1).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id1).unwrap();
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
         5002000 - 500 - 1500 - gas_used,
@@ -358,7 +337,7 @@ async fn test_pay_all_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].1, recipient);
 
     let gas_used = effects.gas_cost_summary().gas_used();
-    let gas_object = res.authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id).unwrap();
     assert_eq!(GasCoin::try_from(&gas_object)?.value(), 3000000 - gas_used,);
     Ok(())
 }
@@ -390,7 +369,7 @@ async fn test_pay_all_iota_success_multiple_input_coins() -> anyhow::Result<()> 
     assert_eq!(effects.mutated()[0].1, recipient);
 
     let gas_used = effects.gas_cost_summary().gas_used();
-    let gas_object = res.authority_state.get_object(&object_id1).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id1).unwrap();
     assert_eq!(GasCoin::try_from(&gas_object)?.value(), 3002000 - gas_used,);
     Ok(())
 }
@@ -414,11 +393,9 @@ async fn execute_pay_iota(
         .iter()
         .map(|coin_obj| coin_obj.object_ref())
         .collect();
-    let handles: Vec<_> = input_coin_objects
-        .into_iter()
-        .map(|obj| authority_state.insert_genesis_object(obj))
-        .collect();
-    join_all(handles).await;
+    for obj in input_coin_objects {
+        authority_state.insert_genesis_object(obj);
+    }
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let mut builder = ProgrammableTransactionBuilder::new();

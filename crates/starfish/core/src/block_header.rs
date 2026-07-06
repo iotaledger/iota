@@ -13,6 +13,7 @@ use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
@@ -664,6 +665,12 @@ impl fmt::Debug for BlockRef {
     }
 }
 
+/// Formats a slice of block references as a comma-separated list of their
+/// short `Display` form, for debug/log output.
+pub(crate) fn format_block_digests(blocks: &[BlockRef]) -> String {
+    blocks.iter().map(|b| b.to_string()).join(", ")
+}
+
 impl Hash for BlockRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.digest.0[..8]);
@@ -1278,11 +1285,11 @@ impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}({}ms;{:?}r;{:?}a;{}c)",
+            "{:?}({}ms;[{}]r;[{}]a;{}c)",
             self.reference(),
             self.timestamp_ms(),
-            self.ancestors(),
-            self.acknowledgments(),
+            format_block_digests(self.ancestors()),
+            format_block_digests(self.acknowledgments()),
             self.commit_votes().len(),
         )
     }

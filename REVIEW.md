@@ -212,6 +212,8 @@ For each finding: state the file and line, describe the problem precisely, expla
 
 ### Additional guidelines
 
+Write the comment in plain language: bullet points over prose, and no coined terms or metaphors — use only vocabulary already used in the project or the established domain (see [Plain language, no coined terms](AGENTS.md#plain-language-no-coined-terms)).
+
 Do not flag formatting or style issues enforced by CI (`rustfmt`, Prettier, ESLint auto-fixable rules). These are not review concerns.
 
 Acknowledge when you lack sufficient context to assess correctness deeply (e.g., consensus algorithm changes requiring knowledge of the protocol state machine). Say so clearly rather than producing a shallow review that appears thorough.

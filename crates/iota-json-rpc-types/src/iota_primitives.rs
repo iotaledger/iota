@@ -23,8 +23,11 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_sdk_types::{
-    Address as NativeAddress, Digest, Identifier as NativeIdentifier, ObjectId as NativeObjectId,
-    StructTag as NativeStructTag, TypeTag as NativeTypeTag,
+    Address as NativeAddress, CertificateDigest, CheckpointContentsDigest, CheckpointDigest,
+    ConsensusCommitDigest, Digest, EffectsAuxDataDigest, Identifier as NativeIdentifier,
+    MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest, ObjectId as NativeObjectId,
+    SenderSignedDataDigest, StructTag as NativeStructTag, TransactionDigest,
+    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag,
 };
 use iota_types::{
     base_types::SequenceNumber,
@@ -295,23 +298,47 @@ impl JsonSchema for Base58 {
     }
 }
 
-impl SerializeAs<Digest> for Base58 {
-    fn serialize_as<S>(value: &Digest, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        DisplayFromStr::serialize_as(value, serializer)
-    }
+/// Implements the `Base58` serde adapter for a digest type by delegating to its
+/// `Display`/`FromStr` (Base58) representation.
+macro_rules! impl_base58_for_digest {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl SerializeAs<$t> for Base58 {
+                fn serialize_as<S>(value: &$t, serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: Serializer,
+                {
+                    DisplayFromStr::serialize_as(value, serializer)
+                }
+            }
+
+            impl<'de> DeserializeAs<'de, $t> for Base58 {
+                fn deserialize_as<D>(deserializer: D) -> Result<$t, D::Error>
+                where
+                    D: Deserializer<'de>,
+                {
+                    DisplayFromStr::deserialize_as(deserializer)
+                }
+            }
+        )*
+    };
 }
 
-impl<'de> DeserializeAs<'de, Digest> for Base58 {
-    fn deserialize_as<D>(deserializer: D) -> Result<Digest, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        DisplayFromStr::deserialize_as(deserializer)
-    }
-}
+impl_base58_for_digest!(
+    Digest,
+    CheckpointDigest,
+    CheckpointContentsDigest,
+    CertificateDigest,
+    SenderSignedDataDigest,
+    TransactionDigest,
+    TransactionEffectsDigest,
+    TransactionEventsDigest,
+    EffectsAuxDataDigest,
+    ObjectDigest,
+    ConsensusCommitDigest,
+    MoveAuthenticatorDigest,
+    MisbehaviorReportDigest,
+);
 
 impl SerializeAs<Vec<u8>> for Base58 {
     fn serialize_as<S>(value: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>

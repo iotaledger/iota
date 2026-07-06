@@ -6,7 +6,11 @@ use std::{env, fmt};
 
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
-pub use iota_sdk_types::Digest;
+pub use iota_sdk_types::{
+    CertificateDigest, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest, Digest,
+    EffectsAuxDataDigest, MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest,
+    SenderSignedDataDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
+};
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -161,19 +165,6 @@ impl From<CheckpointDigest> for ChainIdentifier {
         Self(digest)
     }
 }
-
-pub type CheckpointDigest = Digest;
-pub type CheckpointContentsDigest = Digest;
-pub type CertificateDigest = Digest;
-pub type SenderSignedDataDigest = Digest;
-pub type TransactionDigest = Digest;
-pub type TransactionEffectsDigest = Digest;
-pub type TransactionEventsDigest = Digest;
-pub type EffectsAuxDataDigest = Digest;
-pub type ObjectDigest = Digest;
-pub type ConsensusCommitDigest = Digest;
-pub type MoveAuthenticatorDigest = Digest;
-pub type MisbehaviorReportDigest = Digest;
 
 mod test {
     #[allow(unused_imports)]

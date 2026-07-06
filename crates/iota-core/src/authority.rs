@@ -3144,8 +3144,7 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                self.try_get_object_or_tombstone(request.object_id)
-                    .await?
+                self.try_get_object_or_tombstone(request.object_id)?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
                             object_id: request.object_id,
@@ -3184,8 +3183,7 @@ impl AuthorityState {
             // Only address owned objects have locks.
             None
         } else {
-            self.get_transaction_lock(&object.object_ref(), &epoch_store)
-                .await?
+            self.get_transaction_lock(&object.object_ref(), &epoch_store)?
                 .map(|s| s.into_inner())
         };
 
@@ -3886,23 +3884,21 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
+    pub fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
         self.get_object_store()
             .try_get_object(object_id)
             .map_err(Into::into)
     }
 
     /// Non-fallible version of `try_get_object`.
-    pub async fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
+    pub fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
         self.try_get_object(object_id)
-            .await
             .expect("storage access failed")
     }
 
-    pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
+    pub fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&ObjectId::SYSTEM)
-            .await?
+            .try_get_object(&ObjectId::SYSTEM)?
             .expect("system package should always exist")
             .object_ref())
     }
@@ -4056,7 +4052,7 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.digest.is_object_alive() {
+        if !obj_ref.digest.is_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
@@ -4175,7 +4171,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_move_objects<T>(&self, owner: Address, tag: StructTag) -> IotaResult<Vec<T>>
+    pub fn get_move_objects<T>(&self, owner: Address, tag: StructTag) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
     {
@@ -4661,19 +4657,16 @@ impl AuthorityState {
         Ok(events)
     }
 
-    pub async fn insert_genesis_object(&self, object: Object) {
+    pub fn insert_genesis_object(&self, object: Object) {
         self.get_reconfig_api()
             .try_insert_genesis_object(object)
             .expect("Cannot insert genesis object")
     }
 
-    pub async fn insert_genesis_objects(&self, objects: &[Object]) {
-        futures::future::join_all(
-            objects
-                .iter()
-                .map(|o| self.insert_genesis_object(o.clone())),
-        )
-        .await;
+    pub fn insert_genesis_objects(&self, objects: &[Object]) {
+        for o in objects {
+            self.insert_genesis_object(o.clone());
+        }
     }
 
     /// Make a status response for a transaction
@@ -4875,7 +4868,7 @@ impl AuthorityState {
     /// transaction,     or cannot find the transaction in transaction
     /// table, because of data race etc.
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_transaction_lock(
+    pub fn get_transaction_lock(
         &self,
         object_ref: &ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
@@ -4900,18 +4893,17 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
+    pub fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
     /// Non-fallible version of `try_get_objects`.
-    pub async fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
+    pub fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
         self.try_get_objects(objects)
-            .await
             .expect("storage access failed")
     }
 
-    pub async fn try_get_object_or_tombstone(
+    pub fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectId,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -4920,9 +4912,8 @@ impl AuthorityState {
     }
 
     /// Non-fallible version of `try_get_object_or_tombstone`.
-    pub async fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
+    pub fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
         self.try_get_object_or_tombstone(object_id)
-            .await
             .expect("storage access failed")
     }
 
@@ -5038,7 +5029,7 @@ impl AuthorityState {
             .iter()
             .map(|object_ref| object_ref.object_id)
             .collect();
-        let objects = self.get_objects(&ids).await;
+        let objects = self.get_objects(&ids);
 
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {

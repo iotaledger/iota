@@ -115,6 +115,27 @@ impl DataSource {
         }
     }
 
+    /// Whether the `quorum_receive_latency` metric should be recorded for
+    /// headers from this source. That metric is `now - proposal_timestamp`, so
+    /// only live network ingress reflects real propagation timing; recovery and
+    /// commit/fast sync replay stored headers whose old timestamps would skew
+    /// it.
+    pub(crate) fn records_receive_latency(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizer => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
     /// Returns the string label used for metrics reporting.
     /// This ensures consistency with existing metrics that may be monitored.
     pub(crate) fn as_str(&self) -> &'static str {
@@ -847,7 +868,29 @@ impl DagState {
         );
         #[cfg(feature = "dag-visualizer")]
         let clock_before = self.threshold_clock.get_round();
-        self.threshold_clock.add_block_header(block_ref);
+        if self.threshold_clock.add_block_header(block_ref) {
+            // Quorum latency is `now - proposal_timestamp`, so it only makes sense
+            // for live network ingress. Recovery and commit/fast sync replay stored
+            // headers whose old timestamps would record `now - old_proposal_ts`.
+            //
+            // Also only measure when the local node proposed in the round that just
+            // reached quorum, to avoid skewing the metric during idle rounds.
+            if source.records_receive_latency() {
+                let last_proposed = self.get_last_proposed_block_header();
+                if last_proposed.round() == block_ref.round {
+                    let quorum_delay_ms = self
+                        .context
+                        .clock
+                        .timestamp_utc_ms()
+                        .saturating_sub(last_proposed.timestamp_ms());
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .quorum_receive_latency
+                        .observe((quorum_delay_ms as f64) / 1000.0);
+                }
+            }
+        }
         #[cfg(feature = "dag-visualizer")]
         {
             let clock_after = self.threshold_clock.get_round();
