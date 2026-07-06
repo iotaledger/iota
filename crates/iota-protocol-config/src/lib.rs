@@ -540,6 +540,10 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true perform consistent verification of metadata
+    #[serde(skip_serializing_if = "is_false")]
+    validator_metadata_verify_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1794,6 +1798,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
+    pub fn validator_metadata_verify_v2(&self) -> bool {
+        self.feature_flags.validator_metadata_verify_v2
+    }
+
     pub fn commits_per_schedule(&self) -> u32 {
         if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
@@ -2963,6 +2971,8 @@ impl ProtocolConfig {
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
                     // iota_system via a new iota_system::protocol_config
                     // module.
+
+                    cfg.feature_flags.validator_metadata_verify_v2 = true;
                 }
                 // Use this template when making changes:
                 //
