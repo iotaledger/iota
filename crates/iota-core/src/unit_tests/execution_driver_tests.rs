@@ -296,7 +296,28 @@ async fn execute_shared_on_first_three_authorities(
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_execution_with_dependencies() {
+    execution_with_dependencies(false).await;
+}
+
+/// The same long, out-of-dependency-order backlog must drain to completion
+/// under the `ExecutionScheduler`, whose per-transaction tasks wake each other
+/// through `notify_read` rather than the `TransactionManager`'s dependency
+/// graph. A regression that failed to wake a waiter when its dependency's
+/// output is written would deadlock the backlog invisibly.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_execution_with_dependencies_execution_scheduler() {
+    execution_with_dependencies(true).await;
+}
+
+async fn execution_with_dependencies(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
 
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 
@@ -316,6 +337,10 @@ async fn test_execution_with_dependencies() {
 
     let (aggregator, authorities, _genesis, package) =
         init_local_authorities(4, all_gas_objects.clone()).await;
+    assert_eq!(
+        authorities[3].uses_execution_scheduler(),
+        use_execution_scheduler
+    );
     let authority_clients: Vec<_> = authorities
         .iter()
         .map(|a| aggregator.authority_clients[&a.name].clone())
