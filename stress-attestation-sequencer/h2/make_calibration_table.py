@@ -67,8 +67,12 @@ if len(present) == 2:
     for k in keys:
         a, b = A[k], B[k]
         ea, eb = float(a["exec_mean_ms"]), float(b["exec_mean_ms"])
+        # CU is machine-independent; at the ceiling the pooled mean is pulled DOWN
+        # by aborted-tx windows catching tiny setup txs, so take the max across
+        # machines as the true (cap) value.
+        true_cu = max(float(a["actual_cu"]), float(b["actual_cu"]))
         lines.append(
-            f"| {int(a['product']):,} | {k[0]}×{k[1]} | {cu(a['actual_cu'])} | "
+            f"| {int(a['product']):,} | {k[0]}×{k[1]} | {cu(true_cu)} | "
             f"{ea:.3f} | {eb:.3f} | {eb / ea:.2f} |"
         )
 
