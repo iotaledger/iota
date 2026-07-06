@@ -61,3 +61,35 @@ fun test_get_attr_unknown_param() {
 fun test_get_attr_type_mismatch() {
     let _: u64 = protocol_config::get_attr(b"max_arguments");
 }
+
+// --- set_feature_enabled_for_testing tests ---
+
+#[test]
+// A flag that is disabled by default can be overridden to enabled for the test.
+fun test_override_flag_disabled_to_enabled() {
+    assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), false);
+    protocol_config::set_feature_enabled_for_testing(b"consensus_smart_ancestor_selection", true);
+    assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), true);
+}
+
+#[test]
+// A flag that is enabled by default can be overridden to disabled for the test.
+fun test_override_flag_enabled_to_disabled() {
+    assert_eq(protocol_config::is_feature_enabled(b"enable_move_authentication"), true);
+    protocol_config::set_feature_enabled_for_testing(b"enable_move_authentication", false);
+    assert_eq(protocol_config::is_feature_enabled(b"enable_move_authentication"), false);
+}
+
+#[test]
+#[expected_failure(abort_code = 0, location = iota_system::protocol_config)]
+// A non-UTF-8 flag name is a programming error and must abort.
+fun test_override_invalid_utf8() {
+    protocol_config::set_feature_enabled_for_testing(x"ff", true);
+}
+
+#[test]
+#[expected_failure(abort_code = 1, location = iota_system::protocol_config)]
+// An unknown flag name is a programming error and must abort, so typos fail loudly.
+fun test_override_unknown_flag() {
+    protocol_config::set_feature_enabled_for_testing(b"nonexistent_feature_flag", true);
+}
