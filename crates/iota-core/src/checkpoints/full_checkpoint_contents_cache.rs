@@ -217,6 +217,10 @@ impl FullCheckpointContentsCache {
             return;
         }
 
+        // Hold displaced entries so their (potentially multi-MB) contents are
+        // freed after the lock is released, not under it.
+        let mut displaced = Vec::new();
+
         if let Some(old) = inner.by_seq.insert(
             seq,
             CacheEntry {
@@ -227,6 +231,7 @@ impl FullCheckpointContentsCache {
         ) {
             inner.total_bytes -= old.bytes;
             inner.remove_digest_mapping(&old.digest, seq);
+            displaced.push(old.contents);
         }
         inner.total_bytes += bytes;
         inner.seq_by_digest.insert(digest, seq);
@@ -235,11 +240,14 @@ impl FullCheckpointContentsCache {
             let (evicted_seq, evicted) = inner.by_seq.pop_first().expect("cache is not empty");
             inner.total_bytes -= evicted.bytes;
             inner.remove_digest_mapping(&evicted.digest, evicted_seq);
+            displaced.push(evicted.contents);
             self.metrics.evictions.inc();
         }
 
         self.metrics.entries.set(inner.by_seq.len() as i64);
         self.metrics.total_bytes.set(inner.total_bytes as i64);
+        drop(inner);
+        drop(displaced);
     }
 
     /// Looks up contents by sequence number.
