@@ -127,6 +127,13 @@ pub struct ExecuteOptions {
     /// empty deny-list; set it to the target network's configuration to match
     /// a live validator's deny checks.
     pub deny_config: TransactionDenyConfig,
+    /// Whether to run the regulated-coin deny-list check (a validator's
+    /// `check_coin_deny_list_v1`) during preparation. Off by default: it does a
+    /// store lookup per coin type in the transaction, so it is opt-in and only
+    /// meaningful when the store holds the on-chain `DenyList`. Distinct from
+    /// [`deny_config`](Self::deny_config), which is the operator's local
+    /// policy.
+    pub check_coin_deny_list: bool,
 }
 
 impl ExecuteOptions {
@@ -173,6 +180,15 @@ impl ExecuteOptions {
     #[must_use]
     pub fn with_deny_config(mut self, deny_config: TransactionDenyConfig) -> Self {
         self.deny_config = deny_config;
+        self
+    }
+
+    /// Enable the regulated-coin deny-list check during preparation. Requires
+    /// the on-chain `DenyList` object in the store to have any effect; see
+    /// [`check_coin_deny_list`](Self::check_coin_deny_list).
+    #[must_use]
+    pub fn with_coin_deny_list_check(mut self) -> Self {
+        self.check_coin_deny_list = true;
         self
     }
 }

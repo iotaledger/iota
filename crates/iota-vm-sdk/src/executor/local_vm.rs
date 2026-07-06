@@ -133,7 +133,16 @@ impl LocalVm {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         let prepared = {
             let backend = StoreBackend::new(self.store.as_ref());
-            prepare_transaction(&env, &backend, tx, opts.mode, &opts.deny_config, &[], &[])?
+            prepare_transaction(
+                &env,
+                &backend,
+                tx,
+                opts.mode,
+                &opts.deny_config,
+                &[],
+                &[],
+                opts.check_coin_deny_list,
+            )?
         };
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
@@ -222,6 +231,7 @@ impl LocalVm {
                 &opts.deny_config,
                 &tx_signatures,
                 &move_authenticators,
+                opts.check_coin_deny_list,
             )?
         };
         let (sim, signature_status, trace_builder) = {
@@ -245,6 +255,7 @@ impl LocalVm {
                     prepared,
                     move_authenticators,
                     auth_digests,
+                    opts.check_coin_deny_list,
                     &mut trace_builder,
                 )?;
                 let status = match verdict {

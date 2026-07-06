@@ -401,3 +401,25 @@ fn check_signing_authentication_rejects_bogus_ed25519() {
         "a rejecting authenticator must fail the signing check, got {status:?}"
     );
 }
+
+/// With the coin deny-list check enabled but no on-chain `DenyList` in the
+/// store, an ordinary `MoveAuthenticator` transaction (no regulated coins) is
+/// unaffected — the check is a no-op over both the transaction and the
+/// authenticator inputs.
+#[test]
+fn coin_deny_list_check_is_a_noop_without_a_deny_list() {
+    let result = run(
+        "move_auth_free_access_valid.json",
+        ExecuteOptions::dry_run().with_coin_deny_list_check(),
+    );
+    assert!(
+        result.status.is_success(),
+        "no regulated coins, so the deny-list check must not block the run, got {:?}",
+        result.status
+    );
+    assert!(
+        matches!(result.signature_status, SignatureStatus::Verified),
+        "expected Verified, got {:?}",
+        result.signature_status
+    );
+}

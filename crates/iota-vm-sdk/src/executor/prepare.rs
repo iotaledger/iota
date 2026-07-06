@@ -13,7 +13,7 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Event, ObjectId,
+    Address, Event, ObjectId,
     transaction::{Input, TransactionKind},
 };
 use iota_types::{
@@ -63,6 +63,7 @@ pub(super) fn prepare_transaction(
     deny_config: &TransactionDenyConfig,
     tx_signatures: &[GenericSignature],
     move_authenticators: &[MoveAuthenticator],
+    check_coin_deny_list: bool,
 ) -> Result<PreparedTransaction, VmSdkError> {
     if transaction.kind().is_system() {
         return Err(ValidationError::new(
@@ -165,6 +166,16 @@ pub(super) fn prepare_transaction(
         None
     };
 
+    // Snapshot the received objects for the coin deny-list check below: the
+    // dev-inspect branch consumes `receiving_objects`, which is not `Clone`.
+    let coin_deny_receiving = check_coin_deny_list.then(|| {
+        receiving_objects
+            .objects
+            .iter()
+            .map(|r| ReceivingObjectReadResult::new(r.object_ref, r.object.clone()))
+            .collect::<Vec<_>>()
+    });
+
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
         let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
             &env.protocol_config,
@@ -218,6 +229,20 @@ pub(super) fn prepare_transaction(
         .map_err(|e| ValidationError::new("transaction input check", e))?;
         (gas_status, checked_input_objects)
     };
+
+    if let Some(receiving) = coin_deny_receiving {
+        // Regulated-coin deny-list check over the transaction's own inputs and
+        // received objects. Authenticator inputs are checked separately in
+        // `execute_with_move_authenticators`, where they are resolved.
+        let receiving: ReceivingObjects = receiving.into();
+        run_coin_deny_list_check(
+            store,
+            transaction.sender(),
+            &checked_input_objects,
+            &receiving,
+            &[],
+        )?;
+    }
 
     Ok(PreparedTransaction {
         transaction,
@@ -292,6 +317,7 @@ pub(super) fn execute_with_move_authenticators(
         iota_types::digests::Digest,
         Option<iota_types::digests::Digest>,
     ),
+    check_coin_deny_list: bool,
     trace_builder_opt: &mut Option<MoveTraceBuilder>,
 ) -> Result<
     (
@@ -318,6 +344,26 @@ pub(super) fn execute_with_move_authenticators(
         union_checked =
             iota_transaction_checks::checked_input_objects_union(union_checked, &auth_checked)
                 .map_err(|e| ValidationError::new("union authenticator inputs", e))?;
+    }
+
+    if check_coin_deny_list {
+        // Regulated-coin deny-list check over the authenticator inputs; the
+        // transaction's own inputs and received objects were checked in
+        // `prepare_transaction`.
+        let auth_checked = prepared_auths
+            .iter()
+            .map(|(_, _, inputs)| {
+                CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone())
+            })
+            .collect::<Vec<_>>();
+        let auth_refs: Vec<&CheckedInputObjects> = auth_checked.iter().collect();
+        run_coin_deny_list_check(
+            store,
+            transaction.sender(),
+            &CheckedInputObjects::new_with_checked_transaction_inputs(Vec::new().into()),
+            &Vec::new().into(),
+            &auth_refs,
+        )?;
     }
 
     let auth_context_data = build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
@@ -521,6 +567,25 @@ pub(super) fn authenticate_only(
         auth_context_data,
         &mut None,
     ))
+}
+
+/// Run the regulated-coin deny-list check over the given inputs, mapping a
+/// denial to a validation error.
+fn run_coin_deny_list_check(
+    store: &dyn BackingStore,
+    sender: Address,
+    tx_input_objects: &CheckedInputObjects,
+    receiving_objects: &ReceivingObjects,
+    per_authenticator_input_objects: &[&CheckedInputObjects],
+) -> Result<(), VmSdkError> {
+    iota_types::deny_list_v1::check_coin_deny_list_v1(
+        sender,
+        tx_input_objects,
+        receiving_objects,
+        &per_authenticator_input_objects.to_vec(),
+        store.as_object_store(),
+    )
+    .map_err(|e| ValidationError::new("coin deny-list check", e).into())
 }
 
 /// Load the [`AuthenticatorFunctionRefForExecution`] from the account object's
