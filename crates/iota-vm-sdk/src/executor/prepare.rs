@@ -24,7 +24,7 @@ use iota_types::{
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    gas::IotaGasStatus,
+    gas::{IotaGasStatus, IotaGasStatusAPI},
     gas_coin::mock_simulation_gas_coin,
     layout_resolver::LayoutResolver,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
@@ -332,6 +332,11 @@ pub(super) fn execute_with_move_authenticators(
         checked_input_objects,
         mock_gas_id,
     } = prepared;
+    // The budget the combined run below is metered at — per mode: the
+    // transaction's declared budget in `DryRun`/`Execute`, the dev-inspect
+    // budget in `DevInspect`. Captured before `gas_status` is consumed so the
+    // verdict re-run can meter at the same budget.
+    let run_gas_budget = gas_status.gas_budget();
 
     // Resolve every authenticator, then union each one's inputs into the
     // transaction's checked inputs, enforcing consistency (matching object read
@@ -417,12 +422,13 @@ pub(super) fn execute_with_move_authenticators(
     } else {
         // The failure is in command 0 or unattributed, so it may be an
         // authentication rejection or a body abort. Re-run the authenticators
-        // alone to tell them apart. Meter at the full transaction budget: this
-        // models the node's post-consensus execution, where the authenticators
-        // and body share that budget, so the re-run must not report a rejection
-        // for a run the actual execution had enough gas for.
+        // alone to tell them apart. Meter at the same budget the combined run
+        // shared between the authenticators and body (the full transaction
+        // budget outside `DevInspect`, matching the node's post-consensus
+        // execution), so the re-run never reports a rejection for a run the
+        // combined execution had enough gas for.
         let verdict_gas_status = IotaGasStatus::new(
-            transaction.gas_budget(),
+            run_gas_budget,
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,

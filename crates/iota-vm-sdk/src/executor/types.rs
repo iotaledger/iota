@@ -207,8 +207,9 @@ pub struct ExecutionResult {
     pub events: Option<TransactionEvents>,
     /// Per-PTB-command `(mutable_reference_outputs, return_values)`.
     ///
-    /// Empty for `MoveAuthenticator`-signed runs: the authenticator engine
-    /// entry point does not return per-command results.
+    /// Empty for `MoveAuthenticator`-signed runs (the authenticator engine
+    /// entry point does not return per-command results) and for failed runs
+    /// (the engine reports them only for a successful execution).
     pub command_results: Vec<CommandResult>,
     /// Objects read as inputs to the run.
     pub input_objects: Vec<Object>,

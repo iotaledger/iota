@@ -26,6 +26,9 @@ version or digest that a node would reject at signing time is not detected.
 Networked stores fetch dynamic-field children at "latest" too, so historical
 replay against a pinned older version may report such a child as missing.
 
+How each entry point maps to the node's execution phases and gas budgets is
+documented in [docs/execution-model.md](docs/execution-model.md).
+
 ## Features
 
 All features are off by default:

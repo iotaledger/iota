@@ -30,10 +30,9 @@ use crate::{
 /// version; see [`Store::get_child_object`] for the dynamic-field version-bound
 /// caveat.
 ///
-/// # Panics
-///
-/// On-demand object resolution (via the synchronous [`Store`] impl) panics
-/// unless called from within a multi-threaded Tokio runtime.
+/// On-demand object resolution (via the synchronous [`Store`] impl) requires a
+/// multi-threaded Tokio runtime; outside one, a cache miss fails with a
+/// [`StoreError`] instead of fetching.
 #[derive(Clone)]
 pub struct GraphqlStore {
     cache: CachingStore<GraphqlFetcher>,

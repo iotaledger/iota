@@ -157,7 +157,7 @@ fn move_authenticator_accepts() {
 /// An accepting `MoveAuthenticator` paired with a transaction body that aborts
 /// must still report `SignatureStatus::Verified` — a body failure is not an
 /// authentication failure. This exercises the verdict re-run in
-/// `execute_with_move_authenticator`: run the free-access fixture once (the
+/// `execute_with_move_authenticators`: run the free-access fixture once (the
 /// `add_field` body succeeds), seed the created dynamic field back into the
 /// store, then replay the identical transaction so `add_field` aborts on the
 /// now-existing field while the free-access authenticator still accepts.
@@ -212,6 +212,73 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     assert!(
         matches!(second.signature_status, SignatureStatus::Verified),
         "an accepting authenticator with an aborting body must stay Verified, got {:?}",
+        second.signature_status
+    );
+}
+
+/// The verdict re-run must meter at the same budget the combined run used.
+/// In dev-inspect the declared budget is often still `0` (not yet settled) and
+/// the combined run meters at the dev-inspect budget instead; a re-run metered
+/// at the declared `0` would run the authenticator out of gas and misreport a
+/// body abort as `SignatureStatus::Failed`. Same flow as
+/// [`move_authenticator_accepts_but_aborting_body_stays_verified`], with the
+/// declared budget zeroed (the free-access authenticator ignores the message,
+/// so the mutated transaction still authenticates).
+#[test]
+fn move_authenticator_dev_inspect_verdict_rerun_ignores_zero_declared_budget() {
+    let f = load("move_auth_free_access_valid.json");
+    let mut tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+    tx.gas_data_mut().budget = 0;
+    let sigs: Vec<GenericSignature> = f
+        .signatures
+        .iter()
+        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+        .collect();
+
+    let mut store = InMemoryStore::with_framework();
+    for obj in &f.objects {
+        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
+        store.insert(object);
+    }
+    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
+
+    // First run: the free-access authenticator accepts and `add_field`
+    // succeeds — dev-inspect meters at the dev-inspect budget, not the
+    // declared `0`.
+    let first = vm
+        .execute_signed(
+            SenderSignedData::new(tx.clone(), sigs.clone()),
+            ExecuteOptions::dev_inspect(),
+        )
+        .expect("first run returns Ok");
+    assert!(
+        first.status.is_success(),
+        "the first add_field must succeed, got {:?}",
+        first.status
+    );
+
+    // Seed the objects the run produced (the new dynamic field) so the same
+    // `add_field` aborts the second time around.
+    for obj in first.output_objects {
+        vm.store_mut().insert(obj);
+    }
+
+    // Second run: the body aborts, triggering the verdict re-run. Metered at
+    // the combined run's budget the free-access authenticator still accepts;
+    // metered at the declared `0` it would run out of gas and misreport.
+    let second = vm
+        .execute_signed(
+            SenderSignedData::new(tx, sigs),
+            ExecuteOptions::dev_inspect(),
+        )
+        .expect("second run returns Ok (the abort is carried in the status)");
+    assert!(
+        !second.status.is_success(),
+        "re-adding the field must abort the transaction body"
+    );
+    assert!(
+        matches!(second.signature_status, SignatureStatus::Verified),
+        "a body abort must not be reported as a signature failure, got {:?}",
         second.signature_status
     );
 }
