@@ -313,6 +313,8 @@ public(package) fun deposit(
 /// `advance_epoch` mutates the active set. Never aborts: out-of-range
 /// indices are skipped, duplicates are idempotent (aborting would poison
 /// the epoch-change transaction).
+/// `ending_epoch` must not exceed the current epoch; recording a future
+/// epoch would let the inactivity gap underflow.
 public(package) fun refresh_activity(
     self: &mut AttestorRegistryV1,
     active_indices: vector<u64>,
@@ -356,6 +358,7 @@ public(package) fun rotate_key(
 
 /// Process the epoch boundary for the registry. Order:
 /// 0. (Reserved) slashing executes before exits — see the design doc.
+/// 0b. Activity refresh from the reported stats.
 /// 1. Combined exits, one pass so the stored indices stay valid; per-entry
 ///    reason precedence: low-bond eviction (bond burned) > inactivity drop
 ///    (penalty burned, rest refunded) > requested removal (bond refunded).
@@ -368,8 +371,20 @@ public(package) fun rotate_key(
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
+    attestor_valid_counts: vector<u64>,
+    _attestor_invalid_counts: vector<u64>,
+    _attestor_valid_computation_units: vector<u64>,
+    _attestor_invalid_computation_units: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
+    // --- 0b. Activity refresh (positions still equal the epoch's dense
+    // indices; the vector is only mutated below) ---
+    let mut active_indices = vector[];
+    attestor_valid_counts.length().do!(|i| {
+        if (attestor_valid_counts[i] > 0) active_indices.push_back(i);
+    });
+    self.refresh_activity(active_indices, new_epoch - 1);
+
     let mut evicted_bonds = balance::zero<IOTA>();
 
     // --- 1. Combined exits ---
@@ -385,7 +400,10 @@ public(package) fun advance_epoch(
         if (entry.bond.value() < low_bond_threshold) {
             exit_indices.push_back(i);
             exit_reasons.push_back(EXIT_EVICTION);
-        } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
+        } else if (
+            entry.last_active_epoch < new_epoch
+            && new_epoch - entry.last_active_epoch > max_inactivity_epochs
+        ) {
             exit_indices.push_back(i);
             exit_reasons.push_back(EXIT_INACTIVITY);
         }

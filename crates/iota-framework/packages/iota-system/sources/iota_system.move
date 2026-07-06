@@ -632,12 +632,11 @@ fun advance_epoch(
     let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
         let registry = load_attestor_registry_mut(wrapper);
         // The per-attestor activity feed is not threaded into this
-        // transaction yet; until it is, report every attestor as active so
-        // none are dropped for inactivity.
-        let mut all_indices = vector[];
-        registry.active_count().do!(|i| all_indices.push_back(i));
-        registry.refresh_activity(all_indices, new_epoch - 1);
-        registry.advance_epoch(new_epoch, ctx)
+        // transaction yet; report every attestor as active so none are
+        // dropped for inactivity.
+        let mut all_valid = vector[];
+        registry.active_count().do!(|_| all_valid.push_back(1));
+        registry.advance_epoch(new_epoch, all_valid, vector[], vector[], vector[], ctx)
     } else {
         balance::zero()
     };
