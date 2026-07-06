@@ -177,6 +177,9 @@ RENAME_COLUMNS = {
         "unit": "",
     },
     "internal execution latency p95": {"name": "exec. lat. p95 (s)", "unit": ""},
+    "checkpoint creation lag — p50": {"name": "ckpt lag p50 (s)", "unit": ""},
+    "checkpoint creation lag — p95": {"name": "ckpt lag p95 (s)", "unit": ""},
+    "checkpoint creation lag — p99": {"name": "ckpt lag p99 (s)", "unit": ""},
     "validation dropped txs / sec": {"name": "valid. drop. / sec", "unit": ""},
     "settlement finality latency (client, via fullnode) [transaction p50]": {
         "name": "final. lat. p50 (s)",

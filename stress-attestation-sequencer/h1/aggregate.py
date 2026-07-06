@@ -33,6 +33,10 @@ LATENCY_METRICS = [
         "authority_state_internal_execution_latency",
         "internal_execution_latency — real VM (s)",
     ),
+    (
+        "checkpoint_creation_latency",
+        "checkpoint_creation_latency — commit→built (s)",
+    ),
 ]
 
 # Safety counters that MUST stay 0 — the H4 (safety) pass/fail signals. Any

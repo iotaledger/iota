@@ -269,6 +269,15 @@ FIGURES = [
         "metrics": ["pc valid. lat. p95 (s)", "pc valid. lat. p50 (s)"],
     },
     {
+        "file": "checkpoint_creation_latency",
+        "title": "Checkpoint creation lag (consensus commit → checkpoint built)",
+        "metrics": [
+            "ckpt lag p99 (s)",
+            "ckpt lag p95 (s)",
+            "ckpt lag p50 (s)",
+        ],
+    },
+    {
         "file": "settlement_finality_latency",
         "title": "Settlement finality latency (client-side)",
         "metrics": [
@@ -305,7 +314,15 @@ FIGURES = [
 
 
 def make_figure(
-    csv_path, configs, metrics, out, versions_mode, disp, logy, title=None, subtitles=None
+    csv_path,
+    configs,
+    metrics,
+    out,
+    versions_mode,
+    disp,
+    logy,
+    title=None,
+    subtitles=None,
 ):
     """Render one figure (one metric = single axes; several = stacked shared-x
     subplots) to `out`. Returns the output path, or None if no data. `title` is a

@@ -42,6 +42,7 @@ for base in (
     "transaction_driver_settlement_finality_latency",  # client-side (fullnode)
     "transaction_driver_submit_transaction_latency",  # client-side (fullnode)
     "post_consensus_validation_latency",  # post-consensus validation pass
+    "checkpoint_creation_latency",  # commit-created -> checkpoint-built lag (SECONDS)
     "execution_queueing_delay_s",  # execution-driver queueing delay
     "attested_computation_units",  # V2 attestation estimate
     "actual_computation_units",  # measured at execution

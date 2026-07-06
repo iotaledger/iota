@@ -183,6 +183,19 @@ pipeline, with no client/fullnode time.*
 
 ---
 
+> [!NOTE]
+> **Checkpoint lag (placeholder — pending data).** `checkpoint_creation_latency`
+> (p50/p95/p99) times consensus commit created → checkpoint built. It should
+> track the same trend as receipt → execution above: the builder can only seal
+> a checkpoint once that commit's transactions have executed, and shared-object
+> transactions execute in consensus-assigned order (serialized per object), so
+> under contention the sequential-execution backlog surfaces as checkpoint lag.
+> Fill this in once a run has scraped the metric — figure at
+> `h1/results/summary_plots/checkpoint_creation_latency.png`. (Values are in
+> seconds despite the metric's "ms" help text.)
+
+---
+
 **5. Post-consensus validation latency: unaffected by attestation.**
 `validate_and_resolve_conflicts` (the post-consensus pass) is where attestation
 adds Check #3 — attestor verification plus cost bounds. But that's a few integer

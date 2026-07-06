@@ -439,6 +439,45 @@
       ]
     },
 
+    {
+      "type": "timeseries", "title": "checkpoint creation lag — p50",
+      "description": "Per-host p50 of checkpoint_creation_latency: time from the consensus commit timestamp to when this validator builds (creates) the checkpoint. Grows with execution backlog — shared-object transactions execute in consensus-assigned order (serialized per object), so under contention the builder waits on that sequential execution before it can seal the checkpoint. One curve per validator. NOTE: values are in SECONDS (the metric help text says ms, but it records as_secs_f64). Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 }, "id": 70,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(checkpoint_creation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "checkpoint creation lag — p95",
+      "description": "Per-host p95 of checkpoint_creation_latency: time from the consensus commit timestamp to when this validator builds (creates) the checkpoint. Grows with execution backlog — shared-object transactions execute in consensus-assigned order (serialized per object), so under contention the builder waits on that sequential execution before it can seal the checkpoint. One curve per validator. NOTE: values are in SECONDS (the metric help text says ms, but it records as_secs_f64). Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 }, "id": 71,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(checkpoint_creation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "checkpoint creation lag — p99",
+      "description": "Per-host p99 of checkpoint_creation_latency: time from the consensus commit timestamp to when this validator builds (creates) the checkpoint. Grows with execution backlog — shared-object transactions execute in consensus-assigned order (serialized per object), so under contention the builder waits on that sequential execution before it can seal the checkpoint. One curve per validator. NOTE: values are in SECONDS (the metric help text says ms, but it records as_secs_f64). Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 }, "id": 72,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(checkpoint_creation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
     { "type": "row", "title": "queues", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 }, "id": 50, "collapsed": false },
     {
       "type": "timeseries", "title": "execution dispatch queue",

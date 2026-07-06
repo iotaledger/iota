@@ -6,8 +6,8 @@
 > [`protocol-research/feat/transaction-attestation-feature-test`](https://github.com/iotaledger/iota/tree/protocol-research/feat/transaction-attestation-feature-test)
 > in the `iota` monorepo, which is sourced from the feature branch
 > `protocol-research/feat/transaction-attestation-feature`. Testing needs extra
-> features - the metrics and attestor changes in "Validator node changes" - that
-> live on the test branch, not the feature branch.
+> features - the metrics and attestor changes in "Validator node changes" -
+> that live on the test branch, not the feature branch.
 
 ---
 
@@ -95,8 +95,9 @@ whole topology is generated from `N` in lockstep, so nothing else needs editing:
 blocks in `docker-compose.yaml` and the matching `Validator_1 … Validator_N`
 scrape jobs in `grafana-local/prometheus.yaml`. Only the text between the
 `BEGIN/END generated …` markers is rewritten; the fixed infra (fullnodes,
-indexers, faucet, postgres) and the other scrape jobs are hand-maintained. Since
-only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N` targets.
+indexers, faucet, postgres) and the other scrape jobs are hand-maintained.
+Since only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N`
+targets.
 
 > [!NOTE]
 > The maximum `N` is 190, and `gen-topology.sh` rejects anything larger. This is
@@ -104,8 +105,8 @@ only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N` targets
 > `10.0.0.(10+i)` (validator-1 → `.11`) and the fixed infra was relocated to
 > `10.0.0.201–.209`, so the highest address a validator may use is `.200` —
 > leaving `200 − 10 = 190` slots in the single `/24` subnet before validators
-> would collide with the infra block. In practice one host is CPU/RAM-bound at a
-> few dozen nodes, well below this ceiling.
+> would collide with the infra block. In practice one host is CPU/RAM-bound at
+> a few dozen nodes, well below this ceiling.
 
 ---
 
@@ -145,13 +146,13 @@ only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N` targets
     `--shared-counter-max-tip-amount`. This is the W1 baseline and the main
     workload for comparing the congestion modes against each other.
   - `--slow`: runs the clock-driven Move call `slow::bimodal` (two hardcoded cost
-    levels toggled every 10s) and adds a mutable shared-object input specifically
-    to activate congestion control, so it is a shared-object transaction with
-    variable / heavy computation. The workload for W4 (owned-object, used for H1)
-    and W5 (shared-object, for the mode comparisons and the scheduling-accuracy
-    check), since the attested cost actually varies. (Extended for this plan with
-    configurable knobs — see the "Configurable slow mode" entry under workloads
-    added below.)
+    levels toggled every 10s) and adds a mutable shared-object input
+    specifically to activate congestion control, so it is a shared-object
+    transaction with variable / heavy computation. The workload for W4
+    (owned-object, used for H1) and W5 (shared-object, for the mode comparisons
+    and the scheduling-accuracy check), since the attested cost actually
+    varies. (Extended for this plan with configurable knobs — see the
+    "Configurable slow mode" entry under workloads added below.)
   - `--adversarial`: generates max-resource / edge-case transactions
     (selectable payload types: large objects / events / runtime vectors / pure
     arguments, dynamic-field reads, max shared-object reads, max package
@@ -177,9 +178,9 @@ only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N` targets
   - Configurable slow mode (added): `--slow-n` / `--slow-size` select the fixed
     `slow::slow(n, size)` cost, and `--slow-shared` toggles a shared vs
     owned-object input - giving W5 (shared-object, cost sweep) and W4
-    (owned-object, pure computation, used for H1). Previously `--slow` ran only the
-    clock-driven `slow::bimodal` with a shared input (two hardcoded cost levels,
-    not settable). See the `--slow` entry above.
+    (owned-object, pure computation, used for H1). Previously `--slow` ran only
+    the clock-driven `slow::bimodal` with a shared input (two hardcoded cost
+    levels, not settable). See the `--slow` entry above.
   - W2 (inflated budget): a gas-budget knob, so a shared-object workload can set
     its gas budget well above its real computation cost (one run per 1x / 10x /
     100x ratio). No such knob exists today (`options.rs` has none) and
@@ -345,8 +346,8 @@ They are needed for the testing only, not to be merged to upstream branches.
   pass/fail: any occurrence is a failure, not a number to report.
   - Note: H4 caught a real fork on the attested path -
     `check_coin_deny_list_for_attested_tx` dropped transactions on a transient
-    post-consensus input-load race, diverging checkpoints. Root-caused and fixed
-    (see stress-test.md H4 warning); tracked in iota-private#438.
+    post-consensus input-load race, diverging checkpoints. Root-caused and
+    fixed (see stress-test.md H4 warning); tracked in iota-private#438.
 
 ---
 
@@ -529,6 +530,14 @@ health. Open it at [localhost](http://localhost:3000/d/attestation-sequencer-str
   recorded only on the validator that received the transaction directly (route
   the workload to a known validator), and its tail includes deferral time, so
   it reads together with `consensus_handler_transaction_deferral_rounds`.
+- Checkpoint lag: time from a consensus commit being created to the checkpoint
+  being built, via `checkpoint_creation_latency` (p50, p95, p99, per validator).
+  It measures how far checkpoint construction trails consensus: the builder can
+  only seal a checkpoint once the transactions in that commit have executed,
+  and shared-object transactions execute in consensus-assigned order
+  (serialized per object), so under contention the sequential-execution backlog
+  surfaces directly as checkpoint lag. The metric records seconds (via
+  `as_secs_f64`) despite help text that says milliseconds.
 - Congestion: per-object deferrals, cancellations, accumulated cost per object,
   commit sizes, deferral-round depth.
 - Execution overshoot: how far actual per-object execution exceeds the limit
