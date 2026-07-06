@@ -646,7 +646,7 @@ impl TryInto<Object> for IotaObjectData {
 
 #[serde_as]
 #[derive(Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", rename = "ObjectReference")]
+#[serde(rename_all = "camelCase", rename = "ObjectRef")]
 pub struct ObjectRefSchema {
     /// Hex code as string representing the object id
     #[serde_as(as = "ObjectIdSchema")]
