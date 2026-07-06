@@ -21,17 +21,17 @@ authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 1
 
-# Switch Prometheus metric groups on/off. Everything defaults to enabled.
+# Set the verbosity level for each Prometheus metric group.
 # metrics:
 #   groups:
-#     consensus: true
-#     execution: true
-#     checkpoints: true
-#     transactions: true
-#     authority: true
-#     traffic-control: true
-#     network: true
-#     storage: true
-#     rpc: true
-#     epoch: true
-#     hardware: true
+#     consensus: warn
+#     execution: warn
+#     checkpoints: warn
+#     transactions: warn
+#     authority: warn
+#     traffic-control: warn
+#     network: warn
+#     storage: warn
+#     rpc: warn
+#     epoch: warn
+#     hardware: true # supports on/off only

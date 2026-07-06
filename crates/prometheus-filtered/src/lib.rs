@@ -12,14 +12,15 @@
 //! 2. the node config;
 //! 3. the default (every metric enabled).
 //!
-//! Filter syntax: comma-separated `pattern=on|off` directives, last-match
-//! wins. A bare `off` or `on` sets the global default. A pattern matches if
-//! it is a prefix of the metric name OR is a component/prefix of the calling
-//! module path (e.g. `traffic_controller` matches
+//! Filter syntax: comma-separated `pattern=LEVEL` directives, last-match
+//! wins, where `LEVEL` is one of `off`, `warn`, `info`, `debug`, `trace`.
+//! A bare `LEVEL` token (no `pattern=`) sets the global default. A pattern
+//! matches if it is a prefix of the metric name OR is a component/prefix of the
+//! calling module path (e.g. `traffic_controller` matches
 //! `iota_core::traffic_controller::metrics`).
 //!
 //! Examples:
-//! - `METRICS_FILTER=off,authority=on`
+//! - `METRICS_FILTER=off,authority=warn`
 //! - `METRICS_FILTER=authority=off`
 
 use std::sync::{Arc, OnceLock};
@@ -459,18 +460,50 @@ pub use core::{Histogram, HistogramTimer, HistogramVec};
 // Filter
 // ---------------------------------------------------------------------------
 
+/// Verbosity level for a metric.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MetricLevel {
+    /// As a filter threshold: register none of the matched metrics. Not
+    /// meaningful as a per-metric level — tag metrics `Warn`..`Trace`.
+    Off,
+    Warn,
+    Info,
+    // The default for an untagged metric.
+    #[default]
+    Debug,
+    Trace,
+}
+
+impl MetricLevel {
+    pub(crate) const fn verbosity(self) -> u8 {
+        match self {
+            Self::Off => 0,
+            Self::Warn => 1,
+            Self::Info => 2,
+            Self::Debug => 3,
+            Self::Trace => 4,
+        }
+    }
+}
+
+/// Default threshold when no directive matches a metric: above every metric
+/// level, so unmatched metrics always register regardless of level.
+const THRESHOLD_ALL: u8 = 5;
+
 struct FilterDirective {
     /// Empty string means global catch-all.
     pattern: String,
-    enabled: bool,
+    /// Metrics matched by this directive register iff their verbosity is
+    /// `<= threshold`. `off=0`, `warn=1`, `info=2`, `debug=3`, `trace=4`.
+    threshold: u8,
 }
 
 /// Parses and evaluates `METRICS_FILTER`-style directives.
 ///
-/// Filter string: comma-separated `pattern=on|off`. Bare `on`/`off` is a
-/// global default. A pattern matches if it is a prefix of the metric name OR
-/// is a component/prefix of the module path (e.g. `traffic_controller` matches
-/// `iota_core::traffic_controller::metrics`).
+/// Filter string: comma-separated `pattern=LEVEL` directives, last-match
+/// wins, a metric registers when its own level is at or below
+/// the threshold.
 #[derive(Default)]
 pub struct Filter {
     directives: Vec<FilterDirective>,
@@ -483,30 +516,33 @@ impl Filter {
             .filter_map(|part| {
                 let part = part.trim();
                 if part.is_empty() {
-                    None
-                } else {
-                    let (pattern, enabled) = if let Some(eq) = part.rfind('=') {
-                        (part[..eq].trim().to_owned(), part[eq + 1..].trim())
-                    } else {
-                        (String::new(), part)
-                    };
-                    match enabled {
-                        "on" | "true" | "1" => Some(true),
-                        "off" | "false" | "0" => Some(false),
-                        other => {
-                            warn!("invalid prometheus filter value {other:?} in {part:?}");
-                            None
-                        }
-                    }
-                    .map(|enabled| FilterDirective { pattern, enabled })
+                    return None;
                 }
+                let (pattern, value) = if let Some(eq) = part.rfind('=') {
+                    (part[..eq].trim().to_owned(), part[eq + 1..].trim())
+                } else {
+                    (String::new(), part)
+                };
+                let threshold = match value {
+                    "off" => Some(0),
+                    "warn" => Some(1),
+                    "info" => Some(2),
+                    "debug" => Some(3),
+                    "trace" => Some(4),
+                    other => {
+                        warn!("invalid prometheus filter value {other:?} in {part:?}");
+                        None
+                    }
+                };
+                threshold.map(|threshold| FilterDirective { pattern, threshold })
             })
             .collect();
         Self { directives }
     }
 
-    /// Returns `true` if the metric should be registered (default when no
-    /// directives match: `true`).
+    /// Returns `true` if a metric named `name` in `module` at verbosity
+    /// `level` should be registered. Default when no directive matches:
+    /// registered regardless of level.
     ///
     /// Matching order (last wins):
     /// 1. Empty pattern — global default.
@@ -514,18 +550,18 @@ impl Filter {
     /// 3. `module.starts_with(pattern)` — module path prefix.
     /// 4. `module` contains `"::{pattern}"` — exact module component.
     #[inline]
-    pub fn is_enabled(&self, name: &str, module: &str) -> bool {
-        let mut result = true;
+    pub fn is_enabled(&self, name: &str, module: &str, level: MetricLevel) -> bool {
+        let mut threshold = THRESHOLD_ALL;
         for dir in &self.directives {
             if dir.pattern.is_empty()
                 || name.starts_with(dir.pattern.as_str())
                 || module.starts_with(dir.pattern.as_str())
                 || module.contains(&format!("::{}", dir.pattern))
             {
-                result = dir.enabled;
+                threshold = dir.threshold;
             }
         }
-        result
+        threshold >= level.verbosity()
     }
 
     /// Resolves the final filter following the precedence.
@@ -581,8 +617,8 @@ impl Registry {
 
     /// Used by wrapper macros to decide whether to register a metric.
     #[inline]
-    pub fn is_enabled(&self, name: &str, module: &str) -> bool {
-        self.filter.is_enabled(name, module)
+    pub fn is_enabled(&self, name: &str, module: &str, level: MetricLevel) -> bool {
+        self.filter.is_enabled(name, module, level)
     }
 
     /// Returns the underlying `prometheus::Registry` for use inside wrapper
@@ -660,11 +696,16 @@ pub fn default_registry() -> &'static Registry {
 /// register_int_counter_with_registry!(name, help, registry)
 #[macro_export]
 macro_rules! register_int_counter_with_registry {
-    ($name:expr, $help:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $registry:expr $(,)?) => {
+        $crate::register_int_counter_with_registry!(
+            $name, $help, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_int_counter_with_registry!(
                 name,
                 $help,
@@ -680,11 +721,16 @@ macro_rules! register_int_counter_with_registry {
 /// register_int_counter_vec_with_registry!(name, help, labels, registry)
 #[macro_export]
 macro_rules! register_int_counter_vec_with_registry {
-    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {
+        $crate::register_int_counter_vec_with_registry!(
+            $name, $help, $labels, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_int_counter_vec_with_registry!(
                 name,
                 $help,
@@ -701,11 +747,16 @@ macro_rules! register_int_counter_vec_with_registry {
 /// register_int_gauge_with_registry!(name, help, registry)
 #[macro_export]
 macro_rules! register_int_gauge_with_registry {
-    ($name:expr, $help:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $registry:expr $(,)?) => {
+        $crate::register_int_gauge_with_registry!(
+            $name, $help, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_int_gauge_with_registry!(name, $help, ($registry).inner())
                 .map($crate::core::GenericGauge::new_some)
         } else {
@@ -717,11 +768,16 @@ macro_rules! register_int_gauge_with_registry {
 /// register_int_gauge_vec_with_registry!(name, help, labels, registry)
 #[macro_export]
 macro_rules! register_int_gauge_vec_with_registry {
-    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {
+        $crate::register_int_gauge_vec_with_registry!(
+            $name, $help, $labels, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_int_gauge_vec_with_registry!(
                 name,
                 $help,
@@ -739,22 +795,30 @@ macro_rules! register_int_gauge_vec_with_registry {
 /// register_histogram_with_registry!(name, help, buckets, registry)
 #[macro_export]
 macro_rules! register_histogram_with_registry {
-    ($name:expr, $help:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $registry:expr $(,)?) => {
+        $crate::register_histogram_with_registry!($name, $help, $registry; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr, $buckets:expr, $registry:expr $(,)?) => {
+        $crate::register_histogram_with_registry!(
+            $name, $help, $buckets, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_with_registry!(name, $help, ($registry).inner())
                 .map($crate::Histogram::new_some)
         } else {
             ::std::result::Result::Ok($crate::Histogram::new_none())
         }
     }};
-    ($name:expr, $help:expr, $buckets:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_with_registry!(
                 name,
                 $help,
@@ -772,11 +836,21 @@ macro_rules! register_histogram_with_registry {
 /// register_histogram_vec_with_registry!(name, help, labels, buckets, registry)
 #[macro_export]
 macro_rules! register_histogram_vec_with_registry {
-    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {
+        $crate::register_histogram_vec_with_registry!(
+            $name, $help, $labels, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr $(,)?) => {
+        $crate::register_histogram_vec_with_registry!(
+            $name, $help, $labels, $buckets, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_vec_with_registry!(
                 name,
                 $help,
@@ -788,11 +862,11 @@ macro_rules! register_histogram_vec_with_registry {
             ::std::result::Result::Ok($crate::HistogramVec::new_none())
         }
     }};
-    ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_vec_with_registry!(
                 name,
                 $help,
@@ -810,11 +884,16 @@ macro_rules! register_histogram_vec_with_registry {
 /// register_gauge_vec_with_registry!(name, help, labels, registry)
 #[macro_export]
 macro_rules! register_gauge_vec_with_registry {
-    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {
+        $crate::register_gauge_vec_with_registry!(
+            $name, $help, $labels, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_gauge_vec_with_registry!(
                 name,
                 $help,
@@ -831,11 +910,14 @@ macro_rules! register_gauge_vec_with_registry {
 /// register_gauge_with_registry!(name, help, registry)
 #[macro_export]
 macro_rules! register_gauge_with_registry {
-    ($name:expr, $help:expr, $registry:expr $(,)?) => {{
+    ($name:expr, $help:expr, $registry:expr $(,)?) => {
+        $crate::register_gauge_with_registry!($name, $help, $registry; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if ($registry).is_enabled(name, module) {
+        if ($registry).is_enabled(name, module, $level) {
             $crate::prometheus::register_gauge_with_registry!(name, $help, ($registry).inner())
                 .map($crate::core::GenericGauge::new_some)
         } else {
@@ -847,11 +929,14 @@ macro_rules! register_gauge_with_registry {
 /// register_counter!(name, help) - global prometheus registry, filtered.
 #[macro_export]
 macro_rules! register_counter {
-    ($name:expr, $help:expr $(,)?) => {{
+    ($name:expr, $help:expr $(,)?) => {
+        $crate::register_counter!($name, $help; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if $crate::default_filter().is_enabled(name, module) {
+        if $crate::default_filter().is_enabled(name, module, $level) {
             $crate::prometheus::register_counter!(name, $help)
                 .map($crate::core::GenericCounter::new_some)
         } else {
@@ -884,11 +969,14 @@ macro_rules! register_counter_vec_with_registry {
 /// register_counter_vec!(name, help, labels) - global registry, filtered.
 #[macro_export]
 macro_rules! register_counter_vec {
-    ($name:expr, $help:expr, $labels:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr $(,)?) => {
+        $crate::register_counter_vec!($name, $help, $labels; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr, $labels:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if $crate::default_filter().is_enabled(name, module) {
+        if $crate::default_filter().is_enabled(name, module, $level) {
             $crate::prometheus::register_counter_vec!(name, $help, $labels)
                 .map($crate::core::GenericCounterVec::new_some)
         } else {
@@ -901,33 +989,44 @@ macro_rules! register_counter_vec {
 /// help, labels, buckets) — global prometheus registry, filtered.
 #[macro_export]
 macro_rules! register_histogram_vec {
-    ($opts:expr, $labels:expr $(,)?) => {{
+    ($opts:expr, $labels:expr $(,)?) => {
+        $crate::register_histogram_vec!($opts, $labels; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr, $labels:expr $(,)?) => {
+        $crate::register_histogram_vec!($name, $help, $labels; $crate::MetricLevel::Debug)
+    };
+    ($name:expr, $help:expr, $labels:expr, $buckets:expr $(,)?) => {
+        $crate::register_histogram_vec!(
+            $name, $help, $labels, $buckets; $crate::MetricLevel::Debug
+        )
+    };
+    ($opts:expr, $labels:expr ; $level:expr $(,)?) => {{
         let opts = $opts;
         let name: &str = &opts.common_opts.name;
         let module: &str = module_path!();
-        if $crate::default_filter().is_enabled(name, module) {
+        if $crate::default_filter().is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_vec!(opts, $labels)
                 .map($crate::HistogramVec::new_some)
         } else {
             ::std::result::Result::Ok($crate::HistogramVec::new_none())
         }
     }};
-    ($name:expr, $help:expr, $labels:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if $crate::default_filter().is_enabled(name, module) {
+        if $crate::default_filter().is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_vec!(name, $help, $labels)
                 .map($crate::HistogramVec::new_some)
         } else {
             ::std::result::Result::Ok($crate::HistogramVec::new_none())
         }
     }};
-    ($name:expr, $help:expr, $labels:expr, $buckets:expr $(,)?) => {{
+    ($name:expr, $help:expr, $labels:expr, $buckets:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        if $crate::default_filter().is_enabled(name, module) {
+        if $crate::default_filter().is_enabled(name, module, $level) {
             $crate::prometheus::register_histogram_vec!(name, $help, $labels, $buckets)
                 .map($crate::HistogramVec::new_some)
         } else {
@@ -940,105 +1039,117 @@ macro_rules! register_histogram_vec {
 mod tests {
     #[test]
     fn filter_matches_metric_or_module_name_prefix() {
+        use super::MetricLevel::Debug;
         // filter matches all the metric names and module names having given prefix
         let filter = super::Filter::parse("authority=off");
-        assert!(filter.is_enabled("some_authority", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
-        assert!(filter.is_enabled("certs_total", "iota_core::some_authority"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+        assert!(filter.is_enabled("some_authority", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints", Debug));
+        assert!(filter.is_enabled("certs_total", "iota_core::some_authority", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator", Debug));
 
         // the last matching prefix shadows the previous ones
-        let filter = super::Filter::parse("authority=off,authority_aggregator=on");
-        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
-        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
-        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+        let filter = super::Filter::parse("authority=off,authority_aggregator=trace");
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints", Debug));
+        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority", Debug));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator", Debug));
 
         // filter can be set off by default
-        let filter = super::Filter::parse("off,authority_aggregator=on");
-        assert!(!filter.is_enabled("some_authority", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("authority", "iota_core::checkpoints"));
-        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::some_authority"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
-        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+        let filter = super::Filter::parse("off,authority_aggregator=trace");
+        assert!(!filter.is_enabled("some_authority", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("authority", "iota_core::checkpoints", Debug));
+        assert!(filter.is_enabled("authority_aggregator", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::some_authority", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority", Debug));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority_aggregator", Debug));
 
         // the full prefix must be matched
         let filter = super::Filter::parse("authority_aggregator=off");
-        assert!(filter.is_enabled("authority", "iota_core::checkpoints"));
-        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints"));
-        assert!(filter.is_enabled("certs_total", "iota_core::authority"));
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator"));
+        assert!(filter.is_enabled("authority", "iota_core::checkpoints", Debug));
+        assert!(!filter.is_enabled("authority_aggregator", "iota_core::checkpoints", Debug));
+        assert!(filter.is_enabled("certs_total", "iota_core::authority", Debug));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority_aggregator", Debug));
     }
 
     #[test]
     fn no_filter_enables_everything() {
+        use super::MetricLevel::Debug;
         // an unset/empty filter must leave every metric registered (backward
         // compatibility: filtering is purely opt-in).
-        assert!(super::Filter::parse("").is_enabled("anything", "any::module"));
-        assert!(super::Filter::default().is_enabled("anything", "any::module"));
+        assert!(super::Filter::parse("").is_enabled("anything", "any::module", Debug));
+        assert!(super::Filter::default().is_enabled("anything", "any::module", Debug));
         // empty segments are ignored rather than treated as directives.
-        assert!(super::Filter::parse(",,").is_enabled("anything", "any::module"));
+        assert!(super::Filter::parse(",,").is_enabled("anything", "any::module", Debug));
     }
 
     #[test]
-    fn accepts_on_off_value_aliases() {
-        for off in ["off", "false", "0"] {
-            let filter = super::Filter::parse(&format!("authority={off}"));
-            assert!(!filter.is_enabled("authority", "m"), "{off} should disable");
+    fn rejects_boolean_and_numeric_aliases() {
+        use super::MetricLevel::Debug;
+        // Only the RUST_LOG-style level names are accepted; the former
+        // `on`/`true`/`1` and `false`/`0` aliases are now invalid, so they are
+        // dropped and the directive falls back to the default (enabled).
+        for alias in ["on", "true", "1", "false", "0"] {
+            let filter = super::Filter::parse(&format!("authority={alias}"));
+            assert!(
+                filter.is_enabled("authority", "m", Debug),
+                "{alias} should be dropped as invalid, leaving the default"
+            );
         }
-        // start from a global `off` so the `on` alias has an observable effect.
-        for on in ["on", "true", "1"] {
-            let filter = super::Filter::parse(&format!("off,authority={on}"));
-            assert!(filter.is_enabled("authority", "m"), "{on} should enable");
-            assert!(!filter.is_enabled("other", "m"));
-        }
+        // `off` still disables.
+        assert!(
+            !super::Filter::parse("authority=off").is_enabled("authority", "m", Debug),
+            "off should disable"
+        );
     }
 
     #[test]
     fn invalid_directives_are_dropped() {
+        use super::MetricLevel::Debug;
         // an unrecognised value leaves the directive out, falling back to the
         // default (enabled).
-        assert!(super::Filter::parse("authority=maybe").is_enabled("authority", "m"));
-        // a bare token without `=on|off` is parsed as a global value and, being
+        assert!(super::Filter::parse("authority=maybe").is_enabled("authority", "m", Debug));
+        // a bare token without `=LEVEL` is parsed as a global value and, being
         // invalid, dropped — it does NOT enable/disable the `authority` subsystem.
-        assert!(super::Filter::parse("authority").is_enabled("authority", "m"));
+        assert!(super::Filter::parse("authority").is_enabled("authority", "m", Debug));
         // a valid directive alongside an invalid one still takes effect.
         let filter = super::Filter::parse("authority=off,bogus=nope");
-        assert!(!filter.is_enabled("authority", "m"));
+        assert!(!filter.is_enabled("authority", "m", Debug));
     }
 
     #[test]
     fn matches_module_path_prefix() {
+        use super::MetricLevel::Debug;
         // a pattern that is a prefix of the full module path (not only a `::`
         // component) matches.
         let filter = super::Filter::parse("iota_core=off");
-        assert!(!filter.is_enabled("certs_total", "iota_core::authority"));
-        assert!(filter.is_enabled("certs_total", "starfish::core"));
+        assert!(!filter.is_enabled("certs_total", "iota_core::authority", Debug));
+        assert!(filter.is_enabled("certs_total", "starfish::core", Debug));
     }
 
     #[test]
-    fn global_on_default() {
+    fn global_trace_default() {
+        use super::MetricLevel::Debug;
         // last-match-wins applies to bare global directives too.
-        assert!(super::Filter::parse("off,on").is_enabled("authority", "m"));
-        // an explicit `on` default with a targeted `off` override.
-        let filter = super::Filter::parse("on,authority=off");
-        assert!(filter.is_enabled("certs_total", "m"));
-        assert!(!filter.is_enabled("authority", "m"));
+        assert!(super::Filter::parse("off,trace").is_enabled("authority", "m", Debug));
+        // an explicit permissive default with a targeted `off` override.
+        let filter = super::Filter::parse("trace,authority=off");
+        assert!(filter.is_enabled("certs_total", "m", Debug));
+        assert!(!filter.is_enabled("authority", "m", Debug));
     }
 
     #[test]
     fn whitespace_is_trimmed() {
-        let filter = super::Filter::parse("  authority = off ,  authority_aggregator = on  ");
-        assert!(!filter.is_enabled("authority", "m"));
-        assert!(filter.is_enabled("authority_aggregator", "m"));
+        use super::MetricLevel::Debug;
+        let filter = super::Filter::parse("  authority = off ,  authority_aggregator = trace  ");
+        assert!(!filter.is_enabled("authority", "m", Debug));
+        assert!(filter.is_enabled("authority_aggregator", "m", Debug));
     }
 
     #[test]
     fn resolve_prefers_env_over_fallback() {
-        use super::{Arc, Filter, Registry};
+        use super::{Arc, Filter, MetricLevel, Registry};
 
         // The env var takes precedence over the fallback, so the fallback
         // assertions only hold when it is unset.
@@ -1047,17 +1158,79 @@ mod tests {
         }
 
         // No env, no fallback -> permissive.
-        assert!(Filter::resolve(None).is_enabled("anything", "m"));
+        assert!(Filter::resolve(None).is_enabled("anything", "m", MetricLevel::Debug));
 
         // No env -> the fallback directives apply.
-        let filter = Arc::new(Filter::resolve(Some("off,authority=on")));
+        let filter = Arc::new(Filter::resolve(Some("off,authority=trace")));
         let registry = Registry::new_custom(None, None, Some(filter.clone())).unwrap();
-        assert!(registry.is_enabled("authority", "m"));
-        assert!(!registry.is_enabled("consensus", "m"));
+        assert!(registry.is_enabled("authority", "m", MetricLevel::Debug));
+        assert!(!registry.is_enabled("consensus", "m", MetricLevel::Debug));
 
         // A registry built to share the filter sees the same decisions.
         let shared = Registry::new_custom(None, None, Some(filter)).unwrap();
-        assert!(shared.is_enabled("authority", "m"));
-        assert!(!shared.is_enabled("consensus", "m"));
+        assert!(shared.is_enabled("authority", "m", MetricLevel::Debug));
+        assert!(!shared.is_enabled("consensus", "m", MetricLevel::Debug));
+    }
+
+    #[test]
+    fn level_thresholds() {
+        use super::MetricLevel::{Debug, Info, Trace, Warn};
+        // `warn` threshold registers only warn metrics.
+        let f = super::Filter::parse("authority=warn");
+        assert!(f.is_enabled("x", "iota_core::authority", Warn));
+        assert!(!f.is_enabled("x", "iota_core::authority", Info));
+        assert!(!f.is_enabled("x", "iota_core::authority", Debug));
+        // `info` threshold registers warn+info, drops debug.
+        let f = super::Filter::parse("authority=info");
+        assert!(f.is_enabled("x", "iota_core::authority", Warn));
+        assert!(f.is_enabled("x", "iota_core::authority", Info));
+        assert!(!f.is_enabled("x", "iota_core::authority", Debug));
+        // `debug` registers everything untagged and below, but not trace.
+        let f = super::Filter::parse("authority=debug");
+        assert!(f.is_enabled("x", "iota_core::authority", Debug));
+        assert!(!f.is_enabled("x", "iota_core::authority", Trace));
+        // `trace` registers everything.
+        let f = super::Filter::parse("authority=trace");
+        assert!(f.is_enabled("x", "iota_core::authority", Trace));
+        // `off` registers nothing.
+        assert!(!super::Filter::parse("authority=off").is_enabled(
+            "x",
+            "iota_core::authority",
+            Warn
+        ));
+        // No directive -> permissive (register regardless of level).
+        assert!(super::Filter::parse("").is_enabled("x", "m", Trace));
+    }
+}
+
+#[cfg(test)]
+mod level_macro_tests {
+    use super::{IntGauge, MetricLevel, Registry};
+
+    fn registry(filter: &str) -> Registry {
+        Registry::new_custom(
+            None,
+            None,
+            Some(std::sync::Arc::new(super::Filter::parse(filter))),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn warn_metric_survives_info_threshold_but_default_metric_dropped_by_warn() {
+        // At an `info` threshold, a `warn`-tagged metric registers.
+        let reg = registry("g_warn=info");
+        let g: IntGauge = crate::register_int_gauge_with_registry!(
+            "g_warn", "h", &reg; MetricLevel::Warn
+        )
+        .unwrap();
+        // `IntGauge` is a type alias for `core::GenericGauge<AtomicI64>`; its
+        // `Debug` impl prints the underlying `GenericGauge` name, not the alias.
+        assert_eq!(format!("{g:?}"), "GenericGauge");
+
+        // At a `warn` threshold, a default (`debug`) metric is dropped.
+        let reg = registry("g_default=warn");
+        let g: IntGauge = crate::register_int_gauge_with_registry!("g_default", "h", &reg).unwrap();
+        assert_eq!(format!("{g:?}"), "GenericGauge(disabled)");
     }
 }

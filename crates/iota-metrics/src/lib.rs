@@ -44,7 +44,7 @@ pub mod metrics_network;
 pub mod monitored_mpsc;
 pub mod thread_stall_monitor;
 pub use guards::*;
-pub use metric_groups::MetricGroups;
+pub use metric_groups::{MetricGroups, MetricLevel};
 
 pub const TX_TYPE_SINGLE_WRITER_TX: &str = "single_writer";
 pub const TX_TYPE_SHARED_OBJ_TX: &str = "shared_object";
