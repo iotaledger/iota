@@ -13,12 +13,15 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::Address;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
+    gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{SenderSignedData, TransactionData},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -26,13 +29,13 @@ use move_core_types::language_storage::ModuleId;
 use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
-    debug::DebugArtifacts,
-    error::{ExecutionError, VmSdkError},
+    debug::{DebugArtifacts, DebugConfig},
+    error::{ExecutionError, ValidationError, VmSdkError},
     executor::{
         env::{ExecutionEnv, build_executor},
         prepare::{
-            decode_one_event, execute_prepared, execute_with_move_authenticators,
-            prepare_transaction,
+            authenticate_only, build_auth_context_data, decode_one_event, execute_prepared,
+            execute_with_move_authenticators, prepare_authenticators, prepare_transaction,
         },
         types::{
             ChainContext, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
@@ -259,6 +262,101 @@ impl LocalVm {
         self.finish(sim, opts.mode, signature_status, artifacts)
     }
 
+    /// Check whether the transaction's `MoveAuthenticator`(s) would be admitted
+    /// at signing, by running the pre-consensus authenticator set under the
+    /// signing gas cap (`max_auth_gas`).
+    ///
+    /// This models the node's pre-consensus signing phase, which
+    /// [`execute_signed`](Self::execute_signed) does not:
+    /// `execute_signed` runs the authenticators and body to effects under the
+    /// full transaction budget (the post-consensus path), so it accepts an
+    /// authenticator that would exceed `max_auth_gas` at signing. This method
+    /// instead runs only the authenticators the node checks before consensus —
+    /// all of them, or only the sponsor's for a sponsored transaction when the
+    /// protocol's `pre_consensus_sponsor_only_move_authentication` is enabled —
+    /// metered at `max_auth_gas`, via
+    /// [`authenticate_transaction`](iota_execution::Executor::authenticate_transaction).
+    /// It commits nothing and produces no effects.
+    ///
+    /// Standard-scheme signatures are verified cryptographically first, as at
+    /// signing; a transaction with no `MoveAuthenticator` is admitted once they
+    /// verify. This checks authentication only, not the deny-list or input
+    /// policies a validator also applies.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::SignatureVerification`] for an invalid
+    /// standard-scheme signature, [`VmSdkError::UnsupportedProtocolVersion`]
+    /// when the protocol version predates Move authentication, or another
+    /// [`VmSdkError`] on a VM fault. An authenticator that rejects or exceeds
+    /// `max_auth_gas` is reported via the returned
+    /// [`SignatureStatus::Failed`], not as an error.
+    pub fn check_signing_authentication(
+        &self,
+        signed: SenderSignedData,
+    ) -> Result<SignatureStatus, VmSdkError> {
+        let verify_params = VerifyParams::new(
+            self.protocol_config.accept_passkey_in_multisig(),
+            self.protocol_config.additional_multisig_checks(),
+        );
+        verify_sender_signed_data_message_signatures(&signed, &verify_params)
+            .map_err(VmSdkError::SignatureVerification)?;
+
+        let move_authenticators: Vec<_> =
+            signed.move_authenticators().into_iter().cloned().collect();
+        // Without a `MoveAuthenticator` nothing is gas-capped at signing; the
+        // standard-scheme signatures verified above are all a validator checks.
+        if move_authenticators.is_empty() {
+            return Ok(SignatureStatus::Verified);
+        }
+        ensure_move_authentication_supported(&self.protocol_config, true)?;
+
+        // The subset the node runs before consensus. Each authenticator
+        // authorizes a distinct address, so the subset is identified by address.
+        let pre_consensus_addresses =
+            pre_consensus_authenticator_addresses(&signed, &self.protocol_config);
+        let auth_digests = signed
+            .compute_auth_digests()
+            .map_err(VmSdkError::SignatureVerification)?;
+        let transaction = signed.into_inner().intent_message.value;
+
+        let env = ExecutionEnv::new(self, &DebugConfig::default())?;
+        let backend = StoreBackend::new(self.store.as_ref());
+
+        // Resolve all authenticators so the auth context carries both the
+        // sender's and the sponsor's function refs, matching the node, then run
+        // only the pre-consensus subset.
+        let prepared_auths = prepare_authenticators(&backend, move_authenticators)?;
+        let auth_context_data =
+            build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
+        let to_run: Vec<_> = prepared_auths
+            .iter()
+            .filter(|(a, _, _)| pre_consensus_addresses.contains(&a.address()))
+            .cloned()
+            .collect();
+
+        let gas_status = IotaGasStatus::new(
+            self.protocol_config.max_auth_gas(),
+            transaction.gas_price(),
+            self.reference_gas_price,
+            &self.protocol_config,
+        )
+        .map_err(|e| ValidationError::new("signing gas status", e))?;
+
+        let verdict = authenticate_only(
+            &env,
+            &backend,
+            &transaction,
+            &to_run,
+            gas_status,
+            auth_context_data,
+        )?;
+        Ok(match verdict {
+            Ok(()) => SignatureStatus::Verified,
+            Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
+        })
+    }
+
     /// The profiler-free executor shared by `decode_events` and non-profiled
     /// runs, built on first use and cached for the lifetime of this `LocalVm`.
     pub(super) fn cached_executor(&self) -> Result<&Arc<dyn Executor + Send + Sync>, VmSdkError> {
@@ -378,6 +476,27 @@ impl LocalVm {
             self.store.remove(&id);
         }
     }
+}
+
+/// Addresses whose `MoveAuthenticator` the node runs before consensus: all
+/// authenticators, or only the sponsor's for a sponsored transaction when the
+/// protocol enables `pre_consensus_sponsor_only_move_authentication`. Mirrors
+/// the node's `pre_consensus_move_authenticators`.
+fn pre_consensus_authenticator_addresses(
+    signed: &SenderSignedData,
+    protocol_config: &ProtocolConfig,
+) -> Vec<Address> {
+    let selected: Vec<&MoveAuthenticator> =
+        if protocol_config.pre_consensus_sponsor_only_move_authentication() {
+            if signed.transaction_data().is_sponsored_tx() {
+                signed.sponsor_move_authenticator().into_iter().collect()
+            } else {
+                signed.move_authenticators()
+            }
+        } else {
+            signed.move_authenticators()
+        };
+    selected.iter().map(|a| a.address()).collect()
 }
 
 /// Check that the protocol version supports Move authentication when the

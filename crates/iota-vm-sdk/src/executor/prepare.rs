@@ -307,65 +307,35 @@ pub(super) fn execute_with_move_authenticators(
         mock_gas_id,
     } = prepared;
 
-    // Resolve each authenticator's input objects and function ref, unioning
-    // every authenticator's inputs into the transaction's checked inputs. The
-    // per-authenticator object restrictions a node enforces at signing time
-    // (no packages, no address-owned objects, no mutable shared objects, …)
-    // are applied to each authenticator's inputs.
+    // Resolve every authenticator, then union each one's inputs into the
+    // transaction's checked inputs, enforcing consistency (matching object read
+    // results, compatible shared-object kinds) for ids that appear in more than
+    // one set.
+    let prepared_auths = prepare_authenticators(store, authenticators)?;
     let mut union_checked = checked_input_objects;
-    let mut prepared_auths = Vec::with_capacity(authenticators.len());
-    for authenticator in authenticators {
-        let auth_input_object_kinds = authenticator.input_objects();
-        let auth_input_objects = load_input_objects(store, &auth_input_object_kinds)?;
-        let auth_checked = iota_transaction_checks::check_move_authenticator_input_for_validation(
-            auth_input_objects,
-        )
-        .map_err(|e| ValidationError::new("authenticator input check", e))?;
-        // Union each authenticator's inputs into the running set, enforcing
-        // consistency (matching object read results, compatible shared-object
-        // kinds) for ids that appear in more than one set.
+    for (_, _, inputs) in &prepared_auths {
+        let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone());
         union_checked =
             iota_transaction_checks::checked_input_objects_union(union_checked, &auth_checked)
                 .map_err(|e| ValidationError::new("union authenticator inputs", e))?;
-        let fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
-        prepared_auths.push((authenticator, fn_ref, auth_checked.into_inner()));
     }
 
-    let tx_data_bytes = bcs::to_bytes(&transaction)
-        .map_err(|e| VmError::new(format!("serialize transaction data: {e}")))?;
+    let auth_context_data = build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
+
     let (kind, signer, gas_data) = transaction.execution_parts();
-
-    // Map each signer (sender / sponsor) to its authenticator function ref.
-    let (sender_auth_digest, sponsor_auth_digest) = auth_digests;
-    let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
-        extract_auth_fun_refs(signer, gas_data.owner, |address| {
-            prepared_auths
-                .iter()
-                .find(|(a, _, _)| a.address() == address)
-                .map(|(_, fn_ref, _)| fn_ref.authenticator_function_ref.clone())
-        });
-    let auth_context_data = AuthContextData {
-        transaction_data_bytes: tx_data_bytes,
-        sender_auth_digest,
-        sponsor_auth_digest,
-        sender_authenticator_function_ref,
-        sponsor_authenticator_function_ref,
-    };
-
     // `CheckedInputObjects` is not `Clone`; rebuild the per-authenticator inputs
-    // (as `CheckedInputObjects`) for each engine call.
-    let exec_authenticators = || {
-        prepared_auths
-            .iter()
-            .map(|(a, fn_ref, inputs)| {
-                (
-                    a.clone(),
-                    fn_ref.clone(),
-                    CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
+    // for the combined run, which takes the full
+    // `AuthenticatorFunctionRefForExecution`.
+    let exec_authenticators = prepared_auths
+        .iter()
+        .map(|(a, fn_ref, inputs)| {
+            (
+                a.clone(),
+                fn_ref.clone(),
+                CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
+            )
+        })
+        .collect::<Vec<_>>();
 
     let (inner_temp_store, _, effects, execution_result) = env
         .executor
@@ -377,11 +347,11 @@ pub(super) fn execute_with_move_authenticators(
             &HashSet::new(),
             &env.epoch_id,
             env.epoch_timestamp_ms,
-            gas_data.clone(),
+            gas_data,
             gas_status,
-            exec_authenticators(),
+            exec_authenticators,
             union_checked,
-            kind.clone(),
+            kind,
             signer,
             transaction.digest(),
             auth_context_data.clone(),
@@ -412,41 +382,14 @@ pub(super) fn execute_with_move_authenticators(
             &env.protocol_config,
         )
         .map_err(|e| ValidationError::new("authenticator verdict gas status", e))?;
-        // `authenticate_transaction` takes the inner `AuthenticatorFunctionRef`
-        // and the union of all authenticator input objects.
-        let verdict_authenticators = prepared_auths
-            .iter()
-            .map(|(a, fn_ref, inputs)| {
-                (
-                    a.clone(),
-                    fn_ref.authenticator_function_ref.clone(),
-                    CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
-                )
-            })
-            .collect::<Vec<_>>();
-        let per_auth_checked_refs: Vec<&CheckedInputObjects> = verdict_authenticators
-            .iter()
-            .map(|(_, _, checked)| checked)
-            .collect();
-        let aggregated_auth_inputs =
-            iota_transaction_checks::aggregate_authenticator_input_objects(&per_auth_checked_refs)
-                .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
-        env.executor.authenticate_transaction(
+        authenticate_only(
+            env,
             store,
-            &env.protocol_config,
-            env.limits_metrics.clone(),
-            &env.epoch_id,
-            env.epoch_timestamp_ms,
-            gas_data,
+            &transaction,
+            &prepared_auths,
             verdict_gas_status,
-            verdict_authenticators,
-            aggregated_auth_inputs,
-            kind,
-            signer,
-            transaction.digest(),
             auth_context_data,
-            &mut None,
-        )
+        )?
     };
 
     Ok((
@@ -462,6 +405,121 @@ pub(super) fn execute_with_move_authenticators(
             suggested_gas_price: None,
         },
         verdict,
+    ))
+}
+
+/// A `MoveAuthenticator` resolved for execution: paired with its account's
+/// authenticator function ref and its checked input objects.
+type PreparedAuthenticator = (
+    MoveAuthenticator,
+    AuthenticatorFunctionRefForExecution,
+    InputObjects,
+);
+
+/// Resolve each authenticator's checked input objects and function ref from the
+/// store. The per-authenticator object restrictions a node enforces at signing
+/// time (no packages, no address-owned objects, no mutable shared objects, …)
+/// are applied to each authenticator's inputs.
+pub(super) fn prepare_authenticators(
+    store: &dyn BackingStore,
+    authenticators: Vec<MoveAuthenticator>,
+) -> Result<Vec<PreparedAuthenticator>, VmSdkError> {
+    let mut prepared = Vec::with_capacity(authenticators.len());
+    for authenticator in authenticators {
+        let auth_input_object_kinds = authenticator.input_objects();
+        let auth_input_objects = load_input_objects(store, &auth_input_object_kinds)?;
+        let auth_checked = iota_transaction_checks::check_move_authenticator_input_for_validation(
+            auth_input_objects,
+        )
+        .map_err(|e| ValidationError::new("authenticator input check", e))?;
+        let fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
+        prepared.push((authenticator, fn_ref, auth_checked.into_inner()));
+    }
+    Ok(prepared)
+}
+
+/// Build the [`AuthContextData`] an authenticator run needs: the transaction
+/// bytes, the sender/sponsor auth digests, and the sender/sponsor authenticator
+/// function refs. The function refs are resolved from the full set of
+/// authenticators, matching the node, even when only a subset is executed.
+pub(super) fn build_auth_context_data(
+    transaction: &TransactionData,
+    prepared_auths: &[PreparedAuthenticator],
+    auth_digests: (
+        iota_types::digests::Digest,
+        Option<iota_types::digests::Digest>,
+    ),
+) -> Result<AuthContextData, VmSdkError> {
+    let tx_data_bytes = bcs::to_bytes(transaction)
+        .map_err(|e| VmError::new(format!("serialize transaction data: {e}")))?;
+    let (sender_auth_digest, sponsor_auth_digest) = auth_digests;
+    let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+        extract_auth_fun_refs(
+            transaction.sender(),
+            transaction.gas_data().owner,
+            |address| {
+                prepared_auths
+                    .iter()
+                    .find(|(a, _, _)| a.address() == address)
+                    .map(|(_, fn_ref, _)| fn_ref.authenticator_function_ref.clone())
+            },
+        );
+    Ok(AuthContextData {
+        transaction_data_bytes: tx_data_bytes,
+        sender_auth_digest,
+        sponsor_auth_digest,
+        sender_authenticator_function_ref,
+        sponsor_authenticator_function_ref,
+    })
+}
+
+/// Run `authenticate_transaction` over `auths_to_run` under `gas_status`,
+/// returning the aggregate verdict (`Err` if any authenticator rejected). Used
+/// to disambiguate a failed combined run and, on its own, to model the node's
+/// pre-consensus signing check.
+pub(super) fn authenticate_only(
+    env: &ExecutionEnv,
+    store: &dyn BackingStore,
+    transaction: &TransactionData,
+    auths_to_run: &[PreparedAuthenticator],
+    gas_status: IotaGasStatus,
+    auth_context_data: AuthContextData,
+) -> Result<Result<(), iota_types::error::ExecutionError>, VmSdkError> {
+    // `authenticate_transaction` takes the inner `AuthenticatorFunctionRef`;
+    // `CheckedInputObjects` is not `Clone`, so rebuild it for the call.
+    let authenticators = auths_to_run
+        .iter()
+        .map(|(a, fn_ref, inputs)| {
+            (
+                a.clone(),
+                fn_ref.authenticator_function_ref.clone(),
+                CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
+            )
+        })
+        .collect::<Vec<_>>();
+    let checked_refs: Vec<&CheckedInputObjects> = authenticators
+        .iter()
+        .map(|(_, _, checked)| checked)
+        .collect();
+    let aggregated_auth_inputs =
+        iota_transaction_checks::aggregate_authenticator_input_objects(&checked_refs)
+            .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
+    let (kind, signer, gas_data) = transaction.execution_parts();
+    Ok(env.executor.authenticate_transaction(
+        store,
+        &env.protocol_config,
+        env.limits_metrics.clone(),
+        &env.epoch_id,
+        env.epoch_timestamp_ms,
+        gas_data,
+        gas_status,
+        authenticators,
+        aggregated_auth_inputs,
+        kind,
+        signer,
+        transaction.digest(),
+        auth_context_data,
+        &mut None,
     ))
 }
 

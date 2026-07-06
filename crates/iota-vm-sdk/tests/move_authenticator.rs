@@ -115,6 +115,30 @@ fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
     (result.status, result.signature_status)
 }
 
+/// Run a fixture's signed transaction through the pre-consensus signing check
+/// and return the reported signature status.
+fn signing_check(name: &str) -> SignatureStatus {
+    let f = load(name);
+    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+
+    let mut store = InMemoryStore::with_framework();
+    for obj in &f.objects {
+        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
+        store.insert(object);
+    }
+
+    let sigs: Vec<GenericSignature> = f
+        .signatures
+        .iter()
+        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+        .collect();
+    let signed = SenderSignedData::new(tx, sigs);
+
+    let vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
+    vm.check_signing_authentication(signed)
+        .expect("check_signing_authentication returns Ok (verdict carried in status)")
+}
+
 /// `authenticate_free_access`: the authenticator function unconditionally
 /// accepts, so the run succeeds and the signature is reported `Verified`.
 #[test]
@@ -353,4 +377,27 @@ fn deny_config_disabled_move_authenticator_is_rejected() {
     )
     .expect_err("a denied MoveAuthenticator signature must be rejected");
     assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
+/// The pre-consensus signing check admits the free-access authenticator: it
+/// does trivial work, so it accepts within the signing gas cap
+/// (`max_auth_gas`).
+#[test]
+fn check_signing_authentication_admits_free_access() {
+    let status = signing_check("move_auth_free_access_valid.json");
+    assert!(
+        matches!(status, SignatureStatus::Verified),
+        "free-access authenticator must be admitted at signing, got {status:?}"
+    );
+}
+
+/// The pre-consensus signing check rejects the bogus-ed25519 authenticator: it
+/// aborts inside the VM, so the transaction would not be admitted for signing.
+#[test]
+fn check_signing_authentication_rejects_bogus_ed25519() {
+    let status = signing_check("move_auth_ed25519_invalid.json");
+    assert!(
+        matches!(status, SignatureStatus::Failed(_)),
+        "a rejecting authenticator must fail the signing check, got {status:?}"
+    );
 }
