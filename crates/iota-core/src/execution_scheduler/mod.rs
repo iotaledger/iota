@@ -149,6 +149,13 @@ pub enum ExecutionSchedulerWrapper {
     TransactionManager(TransactionManager),
 }
 
+/// Scheduler selected when neither `ENABLE_EXECUTION_SCHEDULER` nor
+/// `ENABLE_TRANSACTION_MANAGER` is set — the single source of truth for the
+/// default. Flip to `true` (and update the CI matrix) when promoting
+/// `ExecutionScheduler` to the default; the selector below and any test that
+/// asserts the default both follow it automatically.
+pub(crate) const DEFAULT_USE_EXECUTION_SCHEDULER: bool = false;
+
 impl ExecutionSchedulerWrapper {
     pub fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
@@ -157,11 +164,18 @@ impl ExecutionSchedulerWrapper {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         metrics: Arc<AuthorityMetrics>,
     ) -> Self {
-        // Default to TransactionManager (behavior unchanged). ExecutionScheduler
-        // is opt-in via the `ENABLE_EXECUTION_SCHEDULER` env var (honored in all
-        // builds, so the suite can be run deterministically against either
-        // implementation); a proper node-config selector is future work.
-        let enable_execution_scheduler = std::env::var("ENABLE_EXECUTION_SCHEDULER").is_ok();
+        // Explicit env overrides win over the default, so the suite can be run
+        // deterministically against either implementation (and pinned per test).
+        // `ENABLE_TRANSACTION_MANAGER` (opt-out) takes precedence so it keeps
+        // forcing TM even after the default is flipped. A proper node-config
+        // selector is future work.
+        let enable_execution_scheduler = if std::env::var("ENABLE_TRANSACTION_MANAGER").is_ok() {
+            false
+        } else if std::env::var("ENABLE_EXECUTION_SCHEDULER").is_ok() {
+            true
+        } else {
+            DEFAULT_USE_EXECUTION_SCHEDULER
+        };
         if enable_execution_scheduler {
             Self::ExecutionScheduler(ExecutionScheduler::new(
                 object_cache_read,

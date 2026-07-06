@@ -6809,12 +6809,16 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Select the scheduler before the authority is built (read by
-    // ExecutionSchedulerWrapper::new). Process-per-test isolation keeps the two
-    // variants below from leaking into each other.
+    // ExecutionSchedulerWrapper::new). Both env vars are set explicitly so the
+    // choice is pinned regardless of DEFAULT_USE_EXECUTION_SCHEDULER; the
+    // uses_execution_scheduler() assertion below double-checks it. Process-per-test
+    // isolation keeps the two variants from leaking into each other.
+    // SAFETY (edition 2021): plain env mutation, no other threads race here.
     if use_execution_scheduler {
-        // SAFETY (edition 2021): plain env mutation, no other threads race here.
         std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
     } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
         std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
     }
 
