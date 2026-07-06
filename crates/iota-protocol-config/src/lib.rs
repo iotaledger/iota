@@ -553,6 +553,11 @@ struct FeatureFlags {
     // attestation verification.
     #[serde(skip_serializing_if = "is_false")]
     enable_external_attestation: bool,
+
+    // If true, the change epoch transaction carries per-attestor attestation
+    // stats (ChangeEpochV5) for the attestor registry.
+    #[serde(skip_serializing_if = "is_false")]
+    pass_attestor_stats_to_advance_epoch: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1786,6 +1791,11 @@ impl ProtocolConfig {
         );
         pass
     }
+
+    pub fn pass_attestor_stats_to_advance_epoch(&self) -> bool {
+        self.feature_flags.pass_attestor_stats_to_advance_epoch
+    }
+
     pub fn consensus_fast_commit_sync(&self) -> bool {
         let res = self.feature_flags.consensus_fast_commit_sync;
         assert!(
