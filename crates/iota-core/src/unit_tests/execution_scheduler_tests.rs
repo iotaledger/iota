@@ -4,6 +4,7 @@
 
 use std::{time::Duration, vec};
 
+use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -350,4 +351,75 @@ async fn enqueue_wrong_epoch_transaction_is_dropped() {
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
     assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+}
+
+/// The `ExecutionScheduler` keeps no per-epoch state to reset explicitly: it
+/// relies on `within_alive_epoch` cancelling its per-transaction tasks at an
+/// epoch boundary, which drops each `PendingGuard` and so clears both the
+/// pending gauge (feeding overload admission) and the per-object overload
+/// tracker. A regression that leaked either would carry false congestion into
+/// the next epoch and permanently reject transactions.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_objects: Vec<Object> = (0..2)
+        .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), owner))
+        .collect();
+    let shared_object = Object::shared_for_testing();
+    let initial_shared_version = shared_object.version();
+
+    let mut objects = gas_objects.clone();
+    objects.push(shared_object.clone());
+    let state = init_state_with_objects(objects).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // Two transactions waiting on the same MUTABLE shared object at a
+    // consensus-assigned version that is not yet available — the overload tracker
+    // only counts mutable shared inputs.
+    let shared_version = 1000.into();
+    let shared_arg = CallArg::Shared(SharedObjectRef::new(
+        shared_object.id(),
+        initial_shared_version,
+        true,
+    ));
+    let mut txns = Vec::new();
+    for gas in &gas_objects {
+        let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
+        state
+            .epoch_store_for_testing()
+            .set_shared_object_versions_for_testing(
+                txn.digest(),
+                &[VersionAssignment::new(shared_object.id(), shared_version)],
+            )
+            .unwrap();
+        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        txns.push(txn);
+    }
+
+    // Both sit pending, and the overload tracker reports the object as congested.
+    sleep(Duration::from_secs(1)).await;
+    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+    let overload_config = AuthorityOverloadConfig {
+        max_transaction_manager_per_object_queue_length: txns.len(),
+        ..Default::default()
+    };
+    assert!(
+        execution_scheduler
+            .check_execution_overload(&overload_config, txns[0].data())
+            .is_err(),
+        "the hot shared object must read as overloaded while its transactions are pending"
+    );
+
+    // Terminating the epoch cancels the per-transaction tasks; their PendingGuards
+    // drop, clearing both the pending gauge and the overload tracker.
+    state.epoch_store_for_testing().epoch_terminated().await;
+
+    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert!(
+        execution_scheduler
+            .check_execution_overload(&overload_config, txns[0].data())
+            .is_ok(),
+        "after reconfiguration the overload tracker must be clear"
+    );
 }
