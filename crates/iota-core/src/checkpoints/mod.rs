@@ -2811,7 +2811,7 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, Version, move_package::MovePackage,
     };
     use iota_types::{
         base_types::TransactionEffectsDigest,
@@ -2846,7 +2846,7 @@ mod tests {
                 ObjectData::Package(
                     MovePackage::new(
                         ObjectId::random(),
-                        iota_sdk_types::Version::default(),
+                        Version::default(),
                         BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this
