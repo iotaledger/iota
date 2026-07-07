@@ -36,7 +36,10 @@ config = {k[4:]: v for k, v in os.environ.items() if k.startswith("CFG_")}
 # (validators + fullnodes) to bound cardinality.
 metrics = {}
 for base in (
-    "validator_attestation_latency",  # pre-consensus dry-run (V2)
+    "validator_attestation_latency",  # pre-consensus dry-run (V2): total
+    "validator_attestation_queue_wait",  # V2 split: wait on spawn_blocking pool
+    "validator_attestation_execution_latency",  # V2 split: dry-run Move-VM exec
+    "validator_attestation_async_resume_latency",  # V2 split: async reschedule after join
     "validator_transaction_execution_latency",  # validator-internal pipeline
     "authority_state_internal_execution_latency",  # pure VM execution
     "transaction_driver_settlement_finality_latency",  # client-side (fullnode)
@@ -99,7 +102,6 @@ metrics["authority_load_shedding_percentage"] = (
 metrics["consensus_queue_load_shedding_percentage"] = (
     "consensus_queue_load_shedding_percentage"  # separate consensus-queue signal
 )
-metrics["authority_overload_status"] = "authority_overload_status"  # 0/1
 # --- pre-consensus admission-control shedding -------------------------------
 # Transactions rejected BEFORE consensus by check_system_overload (validator_v2),
 # so the post-consensus percentages above can read 0 while these fire — e.g. when
@@ -114,8 +116,12 @@ metrics["validator_service_num_rejected_tx_during_overload"] = (
 )
 metrics["transaction_overload_sources"] = "sum by (host) (transaction_overload_sources)"
 metrics["transaction_overload_sources_by_source"] = "transaction_overload_sources"
-metrics["quorum_driver_total_retryable_overload_errors"] = (
-    "quorum_driver_total_retryable_overload_errors"
+# consensus in-flight transactions (num_inflight): the value graduated / max_pending
+# shedding compares against max_pending_transactions. sequencing_certificate_inflight
+# is an IntGaugeVec by tx_type; sum by host = num_inflight per validator. It's a GAUGE
+# (rises and falls with the queue), so it's excluded from reset-trimming (see GAUGES).
+metrics["sequencing_certificate_inflight"] = (
+    "sum by (host) (sequencing_certificate_inflight)"
 )
 metrics["container_cpu_usage_seconds_total"] = (
     'container_cpu_usage_seconds_total{name=~"validator-.*|fullnode-.*"}'
@@ -163,11 +169,12 @@ GAUGES = {
     "transaction_manager_num_pending_certificates",
     "container_memory_rss",
     "global_state_hash_inconsistent_state",
-    # load-shedding percentages + overload flag rise and fall (not monotonic).
+    # load-shedding percentages rise and fall (not monotonic).
     "consensus_handler_load_shedding_percentage",
     "authority_load_shedding_percentage",
     "consensus_queue_load_shedding_percentage",
-    "authority_overload_status",
+    # num_inflight consensus queue depth rises and falls (not monotonic).
+    "sequencing_certificate_inflight",
 }
 
 
