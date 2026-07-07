@@ -161,11 +161,31 @@ ensure_network() {
   wait_for_fullnode
 }
 
-# Build/locate the stress binary (same as ../h1/run.sh).
-banner "== build/locate stress binary =="
+# Build the stress binary from BENCH_REPO (same as ../h1/run.sh) — always, so a
+# stale binary built earlier on another branch can't slip through. cargo is
+# incremental, so it's a fast no-op when nothing changed.
+banner "== build stress binary =="
+# Guard: the stress binary must come from the intended feature branch. If
+# BENCH_REPO is on a different branch, warn and force-checkout the expected one;
+# abort if that checkout fails (dirty tree / missing branch) so we never build or
+# run on the wrong branch. Override the target with EXPECT_BENCH_BRANCH.
+EXPECT_BENCH_BRANCH="${EXPECT_BENCH_BRANCH:-protocol-research/feat/transaction-attestation-feature-test}"
+if [[ -z "${STRESS_BIN_PATH:-}" && -d "$BENCH_REPO/.git" ]]; then
+  cur_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+  if [[ "$cur_branch" != "$EXPECT_BENCH_BRANCH" ]]; then
+    echo "${YELLOW}network-benchmark on '$cur_branch' — switching to '$EXPECT_BENCH_BRANCH'...${RESET}" >&2
+    git -C "$BENCH_REPO" checkout "$EXPECT_BENCH_BRANCH" || {
+      echo "${RED}ERROR: could not checkout '$EXPECT_BENCH_BRANCH' in $BENCH_REPO" >&2
+      echo "       (uncommitted changes, or branch missing?) — resolve and re-run.${RESET}" >&2
+      exit 1
+    }
+  fi
+  built_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD)"
+  echo "network-benchmark on $built_branch (HEAD $(git -C "$BENCH_REPO" rev-parse --short HEAD))"
+fi
 if [[ -n "${STRESS_BIN_PATH:-}" ]]; then
   echo "Using prebuilt stress binary: $STRESS_BIN"
-elif [[ ! -x "$STRESS_BIN" ]]; then
+else
   (cd "$BENCH_REPO" && cargo build --release --bin stress)
 fi
 [[ -x "$STRESS_BIN" ]] || {

@@ -451,6 +451,24 @@ run_one_iteration() {
 sudo -v # cache sudo creds up front so prompts don't interrupt mid-run
 
 banner "== H1 [0/5] build stress binary =="
+# Guard: the stress binary must come from the intended feature branch. If
+# BENCH_REPO is on a different branch, warn and force-checkout the expected one;
+# abort if that checkout fails (dirty tree / missing branch) so we never build or
+# run on the wrong branch. Override the target with EXPECT_BENCH_BRANCH.
+EXPECT_BENCH_BRANCH="${EXPECT_BENCH_BRANCH:-protocol-research/feat/transaction-attestation-feature-test}"
+if [[ -z "${STRESS_BIN_PATH:-}" && -d "$BENCH_REPO/.git" ]]; then
+  cur_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+  if [[ "$cur_branch" != "$EXPECT_BENCH_BRANCH" ]]; then
+    echo "${YELLOW}network-benchmark on '$cur_branch' — switching to '$EXPECT_BENCH_BRANCH'...${RESET}" >&2
+    git -C "$BENCH_REPO" checkout "$EXPECT_BENCH_BRANCH" || {
+      echo "${RED}ERROR: could not checkout '$EXPECT_BENCH_BRANCH' in $BENCH_REPO" >&2
+      echo "       (uncommitted changes, or branch missing?) — resolve and re-run.${RESET}" >&2
+      exit 1
+    }
+  fi
+  built_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD)"
+  echo "network-benchmark on $built_branch (HEAD $(git -C "$BENCH_REPO" rev-parse --short HEAD))"
+fi
 if [[ -n "${STRESS_BIN_PATH:-}" ]]; then
   echo "Using prebuilt stress binary: $STRESS_BIN"
 else
