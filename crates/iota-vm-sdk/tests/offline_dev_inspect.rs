@@ -61,14 +61,11 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
 
     // The store the VM holds is untouched by a dev-inspect run (the mock gas
     // coin is never persisted).
-    let store_after: Vec<_> = vm
-        .store_mut()
-        .get_object(&result.mock_gas_id.expect("mock gas id"), None)
-        .expect("store lookup")
-        .into_iter()
-        .collect();
     assert!(
-        store_after.is_empty(),
+        vm.store()
+            .get_object(&result.mock_gas_id.expect("mock gas id"), None)
+            .expect("store lookup")
+            .is_none(),
         "mock gas coin must not be persisted into the store"
     );
 }

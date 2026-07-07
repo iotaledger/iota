@@ -107,6 +107,11 @@ impl LocalVm {
         })
     }
 
+    /// A shared reference to the underlying store, for read-only lookups.
+    pub fn store(&self) -> &dyn Store {
+        self.store.as_ref()
+    }
+
     /// A mutable reference to the underlying store, for inserting objects
     /// before a run.
     pub fn store_mut(&mut self) -> &mut dyn Store {

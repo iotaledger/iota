@@ -20,10 +20,9 @@ use iota_sdk_types::{
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
-    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
@@ -45,7 +44,7 @@ fn chain_context() -> ChainContext {
 /// A fresh, well-funded gas coin owned by `owner`.
 fn gas_coin(owner: Address) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(SequenceNumber::from(1), ObjectId::random(), GAS_COIN_VALUE),
+        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(owner),
         TransactionDigest::ZERO,
     )
@@ -110,11 +109,11 @@ fn execute_commits_writes_to_store() {
     );
 
     // A new coin was created and is now committed to the store.
-    let created: Vec<_> = result.effects.created();
+    let created = result.effects.created();
     assert_eq!(created.len(), 1, "transfer_iota creates exactly one coin");
     let new_coin_id = created[0].0.object_id;
     assert!(
-        vm.store_mut()
+        vm.store()
             .get_object(&new_coin_id, None)
             .expect("store lookup")
             .is_some(),
@@ -123,7 +122,7 @@ fn execute_commits_writes_to_store() {
 
     // The gas coin was mutated: it is still present, at a higher version.
     let gas_after = vm
-        .store_mut()
+        .store()
         .get_object(&gas_id, None)
         .expect("store lookup")
         .expect("gas coin must remain in the store");
@@ -192,7 +191,7 @@ fn execute_commits_deletions_to_store() {
         "merged coin must appear in effects.deleted()"
     );
     assert!(
-        vm.store_mut()
+        vm.store()
             .get_object(&merged_id, None)
             .expect("store lookup")
             .is_none(),
@@ -224,19 +223,23 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
         assert!(result.status.is_success(), "{mode:?} run must succeed");
         assert!(!result.committed, "{mode:?} must not commit");
 
-        // No created object leaked into the store, and the gas coin is unchanged.
-        let created: Vec<_> = result.effects.created();
-        for (objref, _owner) in &created {
-            assert!(
-                vm.store_mut()
-                    .get_object(&objref.object_id, None)
-                    .expect("store lookup")
-                    .is_none(),
-                "{mode:?}: created object must NOT be committed"
-            );
-        }
+        // The effects still report the created coin; it must not leak into the
+        // store, and the gas coin is unchanged.
+        let created = result.effects.created();
+        assert_eq!(
+            created.len(),
+            1,
+            "{mode:?}: effects must report the created coin"
+        );
+        assert!(
+            vm.store()
+                .get_object(&created[0].0.object_id, None)
+                .expect("store lookup")
+                .is_none(),
+            "{mode:?}: created object must NOT be committed"
+        );
         let gas_after = vm
-            .store_mut()
+            .store()
             .get_object(&gas_id, None)
             .expect("store lookup")
             .expect("gas coin still present");
@@ -294,7 +297,7 @@ fn dev_inspect_and_dry_run_fund_gasless_transactions_with_mock_coin() {
         assert!(!result.committed, "{mode:?} must not commit");
         let mock_gas_id = result.mock_gas_id.expect("mock gas coin must be minted");
         assert!(
-            vm.store_mut()
+            vm.store()
                 .get_object(&mock_gas_id, None)
                 .expect("store lookup")
                 .is_none(),
