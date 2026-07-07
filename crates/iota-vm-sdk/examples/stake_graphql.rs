@@ -6,7 +6,7 @@
 //!
 //! The transaction is never signed: the builder resolves it against testnet,
 //! its input objects (plus the system-state dynamic fields staking reads) are
-//! resolved on demand from a [`GraphqlStore`], and the run is a local
+//! resolved on demand from a [`GraphQLStore`], and the run is a local
 //! [`ExecutionMode::DryRun`] — nothing is submitted to the network.
 //!
 //! Run with:
@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::Address;
-use iota_vm_sdk::{ExecuteOptions, LocalVm, TransactionData, graphql::GraphqlStore};
+use iota_vm_sdk::{ExecuteOptions, LocalVm, TransactionData, graphql::GraphQLStore};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     // The store resolves every object the VM reads over GraphQL on demand —
     // inputs and the system-state dynamic fields staking walks — so only the
     // chain context is fetched up front.
-    let store = GraphqlStore::new(client);
+    let store = GraphQLStore::new(client);
     let ctx = store
         .fetch_chain_context()
         .await

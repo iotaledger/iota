@@ -17,7 +17,7 @@
 //!
 //! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that resolves objects on demand
 //!   from a node via gRPC, caching them in an [`InMemoryStore`].
-//! - `graphql` — a [`GraphqlStore`](graphql::GraphqlStore) over GraphQL.
+//! - `graphql` — a [`GraphQLStore`](graphql::GraphQLStore) over GraphQL.
 //! - `tracing` — compile the Move VM gas profiler and instruction tracer into
 //!   the engine so [`DebugConfig::with_profiling`] /
 //!   [`DebugConfig::with_tracing`] capture output.

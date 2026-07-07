@@ -18,7 +18,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_dynamic_field_object,
+        AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -613,7 +614,7 @@ fn resolve_authenticator_function_ref(
         .map_err(|e| StoreError::new("load authenticator field", e))?
         .ok_or(VmSdkError::missing_object(field_id, None))?;
 
-    authenticator_function_ref_from_dynamic_field_object(account_object_id, &field_obj)
+    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ValidationError::new("decode authenticator field", e).into())
 }
 

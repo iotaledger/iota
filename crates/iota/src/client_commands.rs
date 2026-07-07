@@ -3813,7 +3813,7 @@ pub(crate) async fn fetch_auth_info(
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
     let authenticator_function_ref_id =
-        derive_authenticator_function_ref_v1_dynamic_field_id(signer.into())?;
+        derive_authenticator_function_ref_v1_dynamic_field_id(signer)?;
 
     let response = client
         .read_api()

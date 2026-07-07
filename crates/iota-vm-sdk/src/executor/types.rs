@@ -21,7 +21,7 @@ use crate::debug::{DebugArtifacts, DebugConfig};
 /// Usually obtained from a node via
 /// [`GrpcStore::fetch_chain_context`](crate::grpc::GrpcStore::fetch_chain_context)
 /// or
-/// [`GraphqlStore::fetch_chain_context`](crate::graphql::GraphqlStore::fetch_chain_context);
+/// [`GraphQLStore::fetch_chain_context`](crate::graphql::GraphQLStore::fetch_chain_context);
 /// construct it manually only for offline runs.
 #[derive(Debug, Clone)]
 #[non_exhaustive]

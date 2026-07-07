@@ -58,13 +58,10 @@ use iota_storage::{
 };
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
-// Re-exported for backward compatibility; canonical definition lives in
-// `iota_types::gas_coin`.
-pub use iota_types::gas_coin::SIMULATION_GAS_COIN_VALUE;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-        authenticator_function_ref_from_dynamic_field_object,
+        authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -86,7 +83,7 @@ use iota_types::{
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
-    gas_coin::mock_simulation_gas_coin,
+    gas_coin::{SIMULATION_GAS_COIN_VALUE, mock_simulation_gas_coin},
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -5694,7 +5691,7 @@ impl AuthorityState {
             )?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
-            Ok(authenticator_function_ref_from_dynamic_field_object(
+            Ok(authenticator_function_ref_v1_from_dynamic_field_object(
                 auth_account_object_id,
                 &authenticator_function_ref_field_obj,
             )?)

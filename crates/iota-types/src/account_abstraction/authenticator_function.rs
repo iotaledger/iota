@@ -118,8 +118,9 @@ impl AuthenticatorFunctionRefForExecution {
 /// Derive the id of the dynamic field on the account object that holds its
 /// [`AuthenticatorFunctionRefV1`].
 pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
-    account_object_id: ObjectId,
+    account_object_id: impl Into<ObjectId>,
 ) -> UserInputResult<ObjectId> {
+    let account_object_id = account_object_id.into();
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &AuthenticatorFunctionRefV1Key::tag().into(),
@@ -131,7 +132,7 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
 /// Decode a loaded authenticator dynamic-field object (see
 /// [`derive_authenticator_function_ref_v1_dynamic_field_id`]) into an
 /// [`AuthenticatorFunctionRefForExecution`].
-pub fn authenticator_function_ref_from_dynamic_field_object(
+pub fn authenticator_function_ref_v1_from_dynamic_field_object(
     account_object_id: ObjectId,
     field_obj: &Object,
 ) -> UserInputResult<AuthenticatorFunctionRefForExecution> {

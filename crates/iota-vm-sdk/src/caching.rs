@@ -4,7 +4,7 @@
 //! Shared on-demand caching layer for the networked stores.
 //!
 //! [`GrpcStore`](crate::grpc::GrpcStore) and
-//! [`GraphqlStore`](crate::graphql::GraphqlStore) differ only in how they fetch
+//! [`GraphQLStore`](crate::graphql::GraphQLStore) differ only in how they fetch
 //! objects from a node; the cache and the on-demand [`Store`] resolution are
 //! identical and live here. A backend implements [`ObjectFetcher`] and wraps it
 //! in a [`CachingStore`].

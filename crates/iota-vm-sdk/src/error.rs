@@ -26,7 +26,7 @@ pub enum VmSdkError {
     #[error("signature verification failed: {0}")]
     SignatureVerification(#[source] IotaError),
     /// A networked store ([`GrpcStore`](crate::grpc::GrpcStore) /
-    /// [`GraphqlStore`](crate::graphql::GraphqlStore)) failed to fetch or
+    /// [`GraphQLStore`](crate::graphql::GraphQLStore)) failed to fetch or
     /// decode data from a node.
     #[error(transparent)]
     Store(#[from] StoreError),

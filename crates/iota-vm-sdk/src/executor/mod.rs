@@ -17,10 +17,10 @@
 //! `DevInspect`/`DryRun` leave the store untouched.
 //!
 //! The module is split into:
-//! - [`types`] — the public input/output types.
-//! - [`local_vm`] — the [`LocalVm`] executor and its public API.
 //! - [`env`] — the per-run execution environment and engine/profile wiring.
+//! - [`local_vm`] — the [`LocalVm`] executor and its public API.
 //! - [`prepare`] — shared transaction preparation, execution, and event decode.
+//! - [`types`] — the public input/output types.
 
 mod env;
 mod local_vm;

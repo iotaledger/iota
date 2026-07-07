@@ -22,7 +22,8 @@ use iota_sdk_types::{ObjectData, ObjectId, ObjectReference, Owner, StructTag, Tr
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_dynamic_field_object,
+        AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -2181,7 +2182,7 @@ fn load_authenticator_function_ref(
         ),
     })?;
 
-    authenticator_function_ref_from_dynamic_field_object(account_object_id, &field_obj)
+    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 

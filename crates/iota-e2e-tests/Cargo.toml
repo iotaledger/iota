@@ -76,7 +76,7 @@ prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
-# The node-parity test drives iota-vm-sdk's gRPC store, which needs a real
+# The iota_vm_sdk_comparison_tests test drives iota-vm-sdk's gRPC store, which needs a real
 # multi-threaded runtime, so it does not run under the simulator. Confining the
 # dependency to non-msim keeps iota-vm-sdk's native-only gRPC stack out of the
 # simtest build.

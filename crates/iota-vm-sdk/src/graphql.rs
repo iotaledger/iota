@@ -3,7 +3,7 @@
 
 //! GraphQL-backed store (`feature = "graphql"`, native only).
 //!
-//! [`GraphqlStore`] mirrors [`crate::grpc::GrpcStore`] but fetches objects over
+//! [`GraphQLStore`] mirrors [`crate::grpc::GrpcStore`] but fetches objects over
 //! GraphQL: it wraps a GraphQL client and an in-memory object cache, resolving
 //! objects on demand during execution and caching them, so only the objects a
 //! run actually touches are fetched.
@@ -34,16 +34,16 @@ use crate::{
 /// multi-threaded Tokio runtime; outside one, a cache miss fails with a
 /// [`StoreError`] instead of fetching.
 #[derive(Clone)]
-pub struct GraphqlStore {
-    cache: CachingStore<GraphqlFetcher>,
+pub struct GraphQLStore {
+    cache: CachingStore<GraphQLFetcher>,
 }
 
-impl GraphqlStore {
+impl GraphQLStore {
     /// Wrap an existing client. The store starts with the built-in framework
     /// packages already loaded so Move calls resolve.
     pub fn new(client: Client) -> Self {
         Self {
-            cache: CachingStore::new(GraphqlFetcher { client }),
+            cache: CachingStore::new(GraphQLFetcher { client }),
         }
     }
 
@@ -131,7 +131,7 @@ impl GraphqlStore {
     }
 }
 
-impl Store for GraphqlStore {
+impl Store for GraphQLStore {
     fn get_object(
         &self,
         id: &ObjectId,
@@ -161,11 +161,11 @@ impl Store for GraphqlStore {
 
 /// GraphQL transport for [`CachingStore`].
 #[derive(Clone)]
-struct GraphqlFetcher {
+struct GraphQLFetcher {
     client: Client,
 }
 
-impl GraphqlFetcher {
+impl GraphQLFetcher {
     /// Run a raw GraphQL query and return its `data` payload, surfacing any
     /// GraphQL `errors` as a [`StoreError`] tagged with `context`.
     async fn query(&self, context: &str, query: String) -> Result<serde_json::Value, StoreError> {
@@ -190,7 +190,7 @@ impl GraphqlFetcher {
     }
 }
 
-impl ObjectFetcher for GraphqlFetcher {
+impl ObjectFetcher for GraphQLFetcher {
     async fn fetch_objects(
         &self,
         refs: &[(ObjectId, Option<Version>)],
