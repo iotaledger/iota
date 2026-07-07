@@ -93,6 +93,10 @@ pub(crate) fn validate_get_transaction_requests(
 ///   transaction
 ///
 /// ## Object Fields
+/// If a required object is unavailable (e.g. pruned from the object store),
+/// the transaction's result is a `FAILED_PRECONDITION` error rather than a
+/// silently incomplete list; narrow the read mask or fetch objects
+/// individually via `get_objects` for best-effort retrieval.
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
 ///     - `input_objects.reference.object_id` - the ID of the input object
@@ -116,7 +120,7 @@ pub(crate) fn validate_get_transaction_requests(
 /// Derived from the transaction's effects and input/output objects. If a
 /// required object is unavailable (e.g. pruned from the object store), the
 /// transaction's result is a `FAILED_PRECONDITION` error rather than a
-/// silently incomplete answer; retry without these fields.
+/// silently wrong answer; retry without these fields.
 /// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
 ///   transaction this contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted,

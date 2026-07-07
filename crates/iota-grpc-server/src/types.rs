@@ -1135,6 +1135,10 @@ impl GrpcReader {
     /// fetch of effects and input/output objects, and object changes force the
     /// transaction fetch (for the sender). Over-fetched data never leaks into
     /// the response — the `Merge` impls only populate mask-requested fields.
+    ///
+    /// Errors with `FAILED_PRECONDITION` if a required object is unavailable
+    /// (e.g. pruned): a silently incomplete object set would be undetectable
+    /// by the client and would corrupt derived change fields.
     #[tracing::instrument(skip(self))]
     pub fn get_transaction_read(
         &self,
@@ -1233,16 +1237,31 @@ impl GrpcReader {
                 None
             };
 
+            // The object sets must be complete: a silently missing object
+            // would shorten the input/output object lists and corrupt any
+            // derived change fields, with no way for the client to detect it
+            let require_object = |object_id: &iota_sdk_types::ObjectId,
+                                  version: iota_types::base_types::SequenceNumber|
+             -> Result<Object, crate::error::RpcError> {
+                self.state_reader
+                    .try_get_object_by_key(object_id, version)?
+                    .ok_or_else(|| {
+                        crate::error::RpcError::new(
+                            tonic::Code::FailedPrecondition,
+                            format!(
+                                "object {object_id} at version {version} required by the \
+                                 requested fields is unavailable (possibly pruned); narrow the \
+                                 read_mask or fetch objects individually via `get_objects` for best-effort retrieval"
+                            ),
+                        )
+                    })
+            };
+
             // Get input objects only if requested
             let input_objects = if fields.include_input_objects || include_derived_changes {
                 let mut objects = Vec::new();
                 for (object_id, version) in effects.modified_at_versions() {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_id, version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_id, version)?);
                 }
                 Some(objects)
             } else {
@@ -1258,12 +1277,7 @@ impl GrpcReader {
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_ref.object_id, object_ref.version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_ref.object_id, object_ref.version)?);
                 }
                 Some(objects)
             } else {
