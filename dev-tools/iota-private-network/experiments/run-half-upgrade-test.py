@@ -8,10 +8,11 @@
 Brings up all validators on a released image, then mid-epoch-0 rolls the
 locally-built upgrade image out to a deterministic random half of the
 network. The mixed-binary network holds the lower of the two halves'
-MAX_PROTOCOL_VERSION values (the new-binary half is below 2f+1). Mid-epoch-1,
-upgrades the rest; after the next boundary the whole network supports (and,
-if HEAD's version is higher, advances to) the new protocol. Observes one
-final epoch.
+MAX_PROTOCOL_VERSION values (the new-binary half is below 2f+1) for
+`--mid-observation-epochs` full epochs (epoch 1 by default). At the start of
+the following epoch (epoch 2 by default), upgrades the rest; after the next
+boundary the whole network supports (and, if HEAD's version is higher,
+advances to) the new protocol. Observes one final epoch.
 
 Run from: iota/dev-tools/iota-private-network/experiments/
 """
@@ -341,16 +342,16 @@ def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tup
     return current_epoch, current_start
 
 
-def phase12_observe_upgraded(cfg: Config, epoch_1: int) -> int:
+def phase12_observe_upgraded(cfg: Config, second_half_upgrade_epoch: int) -> int:
     """Cross the post-upgrade epoch boundary (protocol advances here if HEAD's
     version is higher), then hold `cfg.post_observation_epochs` extra epochs.
     Returns the final epoch."""
     phase_start = time.time()
     log(_phase_banner("Waiting for post-second-half-upgrade epoch boundary", "PHASE 12"))
 
-    current_epoch = _wait_for_epoch_with_log_save(cfg, epoch_1)
-    if current_epoch <= epoch_1:
-        raise RuntimeError(f"Epoch did not advance past {epoch_1}")
+    current_epoch = _wait_for_epoch_with_log_save(cfg, second_half_upgrade_epoch)
+    if current_epoch <= second_half_upgrade_epoch:
+        raise RuntimeError(f"Epoch did not advance past {second_half_upgrade_epoch}")
 
     log(f"  Reading validator-1 protocol info...")
     time.sleep(cfg.protocol_probe_wait)
@@ -389,7 +390,8 @@ def parse_args() -> argparse.Namespace:
         epilog=(
             "Defaults: 19 validators, 15-min epoch, geodistributed latency, "
             "two rolling-upgrade phases (first half mid-epoch-0, second half "
-            "mid-epoch-1) with one full mixed-binary epoch between them."
+            "at the start of epoch 2) with one full mixed-binary epoch "
+            "between them."
         ),
     )
     parser.add_argument(
@@ -525,11 +527,11 @@ def main() -> None:
     log(f"  {_C.BOLD}Build local image{_C.RESET}    : {cfg.build}")
     log(f"  {_C.BOLD}Geodistributed{_C.RESET}      : {cfg.geodistributed}")
     log(f"  {_C.BOLD}Split seed{_C.RESET}          : {cfg.seed}")
-    log(f"  {_C.BOLD}First half (mid-ep-0){_C.RESET} : {first_half}  ({len(first_half)} vals)")
-    log(f"  {_C.BOLD}Second half (mid-ep-1){_C.RESET}: {second_half}  ({len(second_half)} vals)")
+    log(f"  {_C.BOLD}First half (mid-epoch 0){_C.RESET} : {first_half}  ({len(first_half)} vals)")
+    log(f"  {_C.BOLD}Second half (start of epoch {1 + cfg.mid_observation_epochs}){_C.RESET}: {second_half}  ({len(second_half)} vals)")
     log(f"  {_C.BOLD}Mid-epoch wait{_C.RESET}      : {cfg.mid_epoch_wait}s")
     log(f"  {_C.BOLD}Rolling offline pause{_C.RESET}: {cfg.rolling_restart_pause_min}-{cfg.rolling_restart_pause_max}s per validator")
-    log(f"  {_C.BOLD}Mid-binary observation{_C.RESET}: {cfg.mid_observation_epochs} extra epoch(s) of mixed-binary state between halves")
+    log(f"  {_C.BOLD}Mixed-binary observation{_C.RESET}: {cfg.mid_observation_epochs} extra epoch(s) of mixed-binary state between halves")
     log(f"  {_C.BOLD}Post-upgrade observation{_C.RESET} : {cfg.post_observation_epochs} extra epoch(s) after all validators on HEAD")
     if cfg.head_only:
         log(f"  {_C.BOLD}Head-only mode{_C.RESET}      : ON — all validators start on HEAD "
@@ -569,20 +571,20 @@ def main() -> None:
 
     # --- Mixed-binary observation in epoch 1 ---
     epoch_0 = get_current_epoch()
-    epoch_1, epoch_1_start = phase9_observe_mixed(cfg, epoch_0_start, epoch_0)
+    second_half_upgrade_epoch, _ = phase9_observe_mixed(cfg, epoch_0_start, epoch_0)
 
-    # --- Second half upgrade — skip the mid-epoch wait so it rolls at the
-    # start of the mixed-binary epoch, leaving most of the epoch as all-on-HEAD
-    # steady state before the boundary fires the protocol advance.
+    # --- Second half upgrade — rolls at the start of the epoch, so most of
+    # it runs as all-on-HEAD steady state before the next boundary fires the
+    # protocol advance.
     phase11_second_half(cfg, second_half)
 
     # --- Cross the post-upgrade epoch boundary (protocol advance if applicable) ---
-    final_epoch = phase12_observe_upgraded(cfg, epoch_1)
+    final_epoch = phase12_observe_upgraded(cfg, second_half_upgrade_epoch)
 
     log(_phase_banner("Half-Network Upgrade Test Complete"))
     log(f"  Final epoch: {final_epoch}")
-    log(f"  First-half (upgraded mid-ep-0): {first_half}")
-    log(f"  Second-half (upgraded mid-ep-1): {second_half}")
+    log(f"  First-half (upgraded mid-epoch 0): {first_half}")
+    log(f"  Second-half (upgraded at start of epoch {second_half_upgrade_epoch}): {second_half}")
     log("  Validator log archives are under experiments/logs/")
 
     # Best-effort latency teardown (cleanup() also does this on exit)
