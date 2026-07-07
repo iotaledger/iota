@@ -148,7 +148,7 @@ the exact cost. A p50 would instead interpolate between histogram bucket edges
 and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 `gas_rounding_step` floor).
 
-![Attestation computation units and latency](h1/results/summary_plots/attestation_latency.png)
+![Attestation computation units and latency](h1/results/summary_plots/attestation_latency_exec.png)
 
 *Computation units, attestation latency (p50/p95), and actual execution latency
 (p95) — findings 1–3. CUs sit at the gas floor for `slow0`/`slow50` and step up
