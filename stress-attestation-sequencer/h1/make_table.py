@@ -151,16 +151,43 @@ VALIDATOR_NAME_RE = "validator-.*"
 # are baked into the names below, so each clears the auto unit suffix ("unit": "").
 RENAME_COLUMNS = {
     "finalized TPS (included in checkpoint)": {"name": "TPS", "unit": ""},
-    "attestation latency p50 (pre-consensus dry-run)": {
-        "name": "attest. lat. p50 (s)",
+    "full attestation latency p50 (wait + exec + resume)": {
+        "name": "attest. full p50 (s)",
         "unit": "",
     },
-    "attestation latency p95 (pre-consensus dry-run)": {
-        "name": "attest. lat. p95 (s)",
+    "full attestation latency p95 (wait + exec + resume)": {
+        "name": "attest. full p95 (s)",
         "unit": "",
     },
-    "attestation latency p99 (pre-consensus dry-run)": {
-        "name": "attest. lat. p99 (s)",
+    "full attestation latency p99 (wait + exec + resume)": {
+        "name": "attest. full p99 (s)",
+        "unit": "",
+    },
+    "attestation dry-run execution p50": {"name": "attest. exec p50 (s)", "unit": ""},
+    "attestation dry-run execution p95": {"name": "attest. exec p95 (s)", "unit": ""},
+    "attestation dry-run execution p99": {"name": "attest. exec p99 (s)", "unit": ""},
+    "attestation pool wait p50 (spawn_blocking)": {
+        "name": "attest. wait p50 (s)",
+        "unit": "",
+    },
+    "attestation pool wait p95 (spawn_blocking)": {
+        "name": "attest. wait p95 (s)",
+        "unit": "",
+    },
+    "attestation pool wait p99 (spawn_blocking)": {
+        "name": "attest. wait p99 (s)",
+        "unit": "",
+    },
+    "attestation async resume p50 (runtime reschedule)": {
+        "name": "attest. resume p50 (s)",
+        "unit": "",
+    },
+    "attestation async resume p95 (runtime reschedule)": {
+        "name": "attest. resume p95 (s)",
+        "unit": "",
+    },
+    "attestation async resume p99 (runtime reschedule)": {
+        "name": "attest. resume p99 (s)",
         "unit": "",
     },
     "attestations / sec": {"name": "attest. / sec", "unit": ""},
@@ -185,21 +212,28 @@ RENAME_COLUMNS = {
         "name": "post-cons shed drops / sec",
         "unit": "",
     },
-    "load shedding % — enforced (quorum)": {"name": "shed % enforced", "unit": ""},
-    "load shedding % — local (broadcast)": {"name": "shed % local", "unit": ""},
+    "post-consensus load-shed % — quorum": {"name": "shed % quorum", "unit": ""},
+    "post-consensus load-shed % — local": {"name": "shed % local", "unit": ""},
     "consensus-queue load shedding %": {"name": "shed % cons-queue", "unit": ""},
-    "overload status (0/1)": {"name": "overload (0/1)", "unit": ""},
     # pre-consensus admission-control shedding
     "pre-consensus overload rejections / sec": {
         "name": "pre-cons overload rej / sec",
         "unit": "",
     },
-    "overload sources / sec (incl. semaphore)": {
-        "name": "overload sources / sec",
+    "consensus overload source: graduated / sec": {
+        "name": "overload graduated / sec",
         "unit": "",
     },
-    "driver retryable overload errors / sec": {
-        "name": "driver overload err / sec",
+    "consensus overload source: max-pending / sec": {
+        "name": "overload max-pending / sec",
+        "unit": "",
+    },
+    "consensus overload source: semaphore / sec": {
+        "name": "overload semaphore / sec",
+        "unit": "",
+    },
+    "consensus in-flight transactions (num_inflight → max_pending)": {
+        "name": "num_inflight",
         "unit": "",
     },
     "validation dropped txs / sec": {"name": "valid. drop. / sec", "unit": ""},
