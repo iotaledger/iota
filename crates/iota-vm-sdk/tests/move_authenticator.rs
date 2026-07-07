@@ -16,7 +16,7 @@
 
 use std::{fs, path::PathBuf};
 
-use base64::Engine;
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     object::Object,
@@ -48,9 +48,7 @@ struct FixtureObject {
 }
 
 fn b64(s: &str) -> Vec<u8> {
-    base64::engine::general_purpose::STANDARD
-        .decode(s)
-        .expect("base64 decode")
+    Base64::decode(s).expect("base64 decode")
 }
 
 /// The [`ChainContext`] described by a fixture.

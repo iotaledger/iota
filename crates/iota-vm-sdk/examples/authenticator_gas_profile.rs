@@ -17,7 +17,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use base64::{Engine, engine::general_purpose::STANDARD};
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
         .context("`objects` must be an array")?
     {
         let object: Object =
-            bcs::from_bytes(&STANDARD.decode(obj["bcs_b64"].as_str().unwrap()).unwrap())?;
+            bcs::from_bytes(&Base64::decode(obj["bcs_b64"].as_str().unwrap()).unwrap())?;
         store.insert(object);
     }
 
@@ -105,14 +105,14 @@ fn fixture() -> Result<Value> {
 fn example_signed_transaction() -> Result<SenderSignedData> {
     let f = fixture()?;
     let tx: TransactionData =
-        bcs::from_bytes(&STANDARD.decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
+        bcs::from_bytes(&Base64::decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
     let sigs: Vec<GenericSignature> = f["signatures"]
         .as_array()
         .context("`signatures` must be an array")?
         .iter()
         .map(|s| {
             Ok(GenericSignature::from_bytes(
-                &STANDARD.decode(s.as_str().unwrap()).unwrap(),
+                &Base64::decode(s.as_str().unwrap()).unwrap(),
             )?)
         })
         .collect::<Result<_>>()?;

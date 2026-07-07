@@ -41,7 +41,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
-base64.workspace = true
+fastcrypto.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
