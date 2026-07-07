@@ -42,8 +42,16 @@ pub struct ValidatorServiceMetrics {
 
     /// Latency of `attest_transaction` (the pre-consensus dry-run) for
     /// `UserTransactionV2` transactions. `tx_verification_latency` covers only
-    /// signature verification, so this isolates the attestation cost.
+    /// signature verification, so this isolates the attestation cost. Spans the
+    /// whole `spawn_blocking` call: pool wait + dry-run execution. The two
+    /// metrics below split that total into its parts.
     pub validator_attestation_latency: Histogram,
+    /// Time an attestation dry-run waits on the `spawn_blocking` pool before a
+    /// worker starts running it (queue wait only — no execution).
+    pub validator_attestation_queue_wait: Histogram,
+    /// Wall-clock of the attestation Move-VM dry-run itself (the
+    /// `spawn_blocking` closure body), excluding the pool wait above.
+    pub validator_attestation_execution_latency: Histogram,
     /// Number of attestations performed (dry-runs that completed without
     /// panicking). Pairs with the latency to give CPU-per-attestation / rate.
     pub validator_attestations_total: IntCounter,
@@ -232,7 +240,21 @@ impl ValidatorServiceMetrics {
                 .unwrap(),
             validator_attestation_latency: register_histogram_with_registry!(
                 "validator_attestation_latency",
-                "Latency of attest_transaction (the pre-consensus dry-run) for UserTransactionV2 transactions",
+                "Latency of attest_transaction (the pre-consensus dry-run) for UserTransactionV2 transactions; spans spawn_blocking pool wait + dry-run execution",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            validator_attestation_queue_wait: register_histogram_with_registry!(
+                "validator_attestation_queue_wait",
+                "Time an attestation dry-run waits on the spawn_blocking pool before a worker starts it (queue wait only)",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            validator_attestation_execution_latency: register_histogram_with_registry!(
+                "validator_attestation_execution_latency",
+                "Wall-clock of the attestation Move-VM dry-run itself (spawn_blocking closure body), excluding pool wait",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )

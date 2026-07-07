@@ -319,12 +319,19 @@ impl ValidatorService {
         let (attestation_data, owned_objects, verified_tx) =
             if epoch_store.protocol_config().enable_validator_attestation() {
                 // Times the pre-consensus dry-run; records on drop, including
-                // the early-return error paths below.
+                // the early-return error paths below. This total spans the whole
+                // spawn_blocking call (pool wait + execution); the two histograms
+                // below split it into queue-wait vs pure dry-run execution.
                 let _attest_guard = metrics.validator_attestation_latency.start_timer();
                 let state_for_attest = state.clone();
                 let epoch_store_for_attest = epoch_store.clone();
                 let governance_for_attest = governance_rules.clone();
+                let queue_wait = metrics.validator_attestation_queue_wait.clone();
+                let exec_latency = metrics.validator_attestation_execution_latency.clone();
+                let enqueued = std::time::Instant::now();
                 let join_result = tokio::task::spawn_blocking(move || {
+                    // Time from enqueue until a pool worker starts us = queue wait.
+                    queue_wait.observe(enqueued.elapsed().as_secs_f64());
                     // Built inside the closure: `DenyRuleUnion` borrows, and
                     // `spawn_blocking` requires `'static` captures.
                     let local_deny_config = &state_for_attest.config.transaction_deny_config;
@@ -339,11 +346,13 @@ impl ValidatorService {
                         }
                         None => local_deny_config,
                     };
+                    let exec_start = std::time::Instant::now();
                     let result = state_for_attest.attest_transaction(
                         &verified_tx,
                         &epoch_store_for_attest,
                         deny_config,
                     );
+                    exec_latency.observe(exec_start.elapsed().as_secs_f64());
                     (result, verified_tx)
                 })
                 .await;
