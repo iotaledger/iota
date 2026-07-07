@@ -19,7 +19,16 @@ import sys
 
 # (raw histogram base name, display label)
 LATENCY_METRICS = [
-    ("validator_attestation_latency", "validator_attestation_latency (s)"),
+    ("validator_attestation_latency", "attestation latency — full (s)"),
+    ("validator_attestation_queue_wait", "attestation latency — pool wait (s)"),
+    (
+        "validator_attestation_execution_latency",
+        "attestation latency — dry-run exec (s)",
+    ),
+    (
+        "validator_attestation_async_resume_latency",
+        "attestation latency — async resume (s)",
+    ),
     (
         "transaction_driver_settlement_finality_latency",
         "settlement_finality_latency (s)",
@@ -55,6 +64,29 @@ SAFETY_COUNTERS = [
 ]
 
 
+# Pre-consensus admission-control rejections by source (cumulative counters:
+# report the total increment over the window). The `source` label lives on the
+# raw transaction_overload_sources series, which dump_timeseries stores under the
+# `_by_source` key (the plain key is source-summed with no label).
+OVERLOAD_SOURCES_KEY = "transaction_overload_sources_by_source"
+OVERLOAD_SOURCES = [
+    ("consensus_graduated", "overload rejections — graduated (total)"),
+    ("consensus_max_pending", "overload rejections — max_pending (total)"),
+    ("consensus_semaphore", "overload rejections — semaphore (total)"),
+]
+# Consensus queue depth + shedding levels (gauges: report the peak over the
+# window). num_inflight is the value graduated/max_pending shedding gates on.
+SHED_GAUGES = [
+    ("sequencing_certificate_inflight", "num_inflight — peak (vs max_pending)"),
+    ("consensus_queue_load_shedding_percentage", "consensus-queue shed % — peak"),
+    (
+        "consensus_handler_load_shedding_percentage",
+        "post-consensus shed % — quorum, peak",
+    ),
+    ("authority_load_shedding_percentage", "post-consensus shed % — local, peak"),
+]
+
+
 def delta(values):
     """Increment of a cumulative counter series over its window (last - first)."""
     if not values:
@@ -76,6 +108,17 @@ def series_max(series_per_run, metric):
                 except (TypeError, ValueError):
                     pass
     return m
+
+
+def source_total(series_per_run, key, source):
+    """Total increment of a labeled counter for one `source`, summed across hosts
+    and runs — the count of rejections attributed to that overload source."""
+    total = 0.0
+    for series in series_per_run:
+        for s in series.get(key, []):
+            if s.get("metric", {}).get("source") == source:
+                total += delta(s.get("values", []))
+    return total
 
 
 def pooled_buckets(series_per_run, base):
@@ -160,6 +203,13 @@ def aggregate(runs):
         cpu_per_run.append(mean(cpu_rates))
     out["_tps"] = mean(tps_per_run)
     out["_cpu"] = mean(cpu_per_run)
+    # Load shedding: per-source rejection totals (counters) + queue-depth/shed
+    # peaks (gauges). Both flows shed, so these are a real V1-vs-V2 comparison.
+    out["_overload"] = {
+        src: source_total(series_per_run, OVERLOAD_SOURCES_KEY, src)
+        for src, _ in OVERLOAD_SOURCES
+    }
+    out["_shed"] = {m: series_max(series_per_run, m) for m, _ in SHED_GAUGES}
     # Safety counters (must stay 0): max value seen across validators and runs.
     out["_safety"] = {m: series_max(series_per_run, m) for m, _ in SAFETY_COUNTERS}
     return out
@@ -266,6 +316,20 @@ def main():
         f"| finalized TPS | {fmt(a['_tps'])} | {fmt(b['_tps'])} | {dlt(a['_tps'], b['_tps'])} |",
         f"| per-validator CPU (busy cores) | {fmt(a['_cpu'])} | {fmt(b['_cpu'])} | {dlt(a['_cpu'], b['_cpu'])} |",
     ]
+    # --- load shedding (pre + post consensus): overload rejection totals by source
+    # + queue-depth/shed peaks. 0 across the board = no shedding at this config. ---
+    L += [
+        "",
+        "## load shedding (pre + post consensus)\n",
+        "| metric | V1 | V2 | V2−V1 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for src, name in OVERLOAD_SOURCES:
+        va, vb = a["_overload"][src], b["_overload"][src]
+        L.append(f"| {name} | {fmt(va)} | {fmt(vb)} | {dlt(va, vb)} |")
+    for m, name in SHED_GAUGES:
+        va, vb = a["_shed"][m], b["_shed"][m]
+        L.append(f"| {name} | {fmt(va)} | {fmt(vb)} | {dlt(va, vb)} |")
     # --- H4 (safety): the ONLY pass/fail hypothesis. FAILS if any safety counter is
     # non-zero (fork / inconsistent state / double-spend / attestor panic / soft-lock
     # equivocation) OR any validator crashed/restarted/OOM'd. Watched on every run. ---
