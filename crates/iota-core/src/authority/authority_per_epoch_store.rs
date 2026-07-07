@@ -31,14 +31,13 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, CheckpointTimestamp, ObjectId, RandomnessRound, TransactionKind,
-    VersionAssignment,
+    CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
+    TransactionKind, VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{
-        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectRef, SequenceNumber,
-        TransactionDigest,
+        AuthorityName, CommitRound, ConciseableName, EpochId, SequenceNumber, TransactionDigest,
     },
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
@@ -781,9 +780,9 @@ pub struct AuthorityEpochTables {
     signed_transactions:
         DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
 
-    /// Map from ObjectRef to transaction locking that object
+    /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
-    owned_object_locked_transactions: DBMap<ObjectRef, LockDetailsWrapper>,
+    owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -1039,7 +1038,10 @@ impl AuthorityEpochTables {
         Ok(self.last_consensus_stats.get(&LAST_CONSENSUS_STATS_ADDR)?)
     }
 
-    pub fn get_locked_transaction(&self, obj_ref: &ObjectRef) -> IotaResult<Option<LockDetails>> {
+    pub fn get_locked_transaction(
+        &self,
+        obj_ref: &ObjectReference,
+    ) -> IotaResult<Option<LockDetails>> {
         Ok(self
             .owned_object_locked_transactions
             .get(obj_ref)?
@@ -1048,7 +1050,7 @@ impl AuthorityEpochTables {
 
     pub fn multi_get_locked_transactions(
         &self,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
     ) -> IotaResult<Vec<Option<LockDetails>>> {
         Ok(self
             .owned_object_locked_transactions
@@ -1061,7 +1063,7 @@ impl AuthorityEpochTables {
     pub fn write_transaction_locks(
         &self,
         transaction: VerifiedSignedTransaction,
-        locks_to_write: impl Iterator<Item = (ObjectRef, LockDetails)>,
+        locks_to_write: impl Iterator<Item = (ObjectReference, LockDetails)>,
     ) -> IotaResult {
         let mut batch = self.owned_object_locked_transactions.batch();
         batch.insert_batch(
@@ -1561,7 +1563,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[cfg(test)]
-    pub fn delete_object_locks_for_test(&self, objects: &[ObjectRef]) {
+    pub fn delete_object_locks_for_test(&self, objects: &[ObjectReference]) {
         for object in objects {
             self.tables()
                 .expect("test should not cross epoch boundary")
@@ -2942,7 +2944,10 @@ impl AuthorityPerEpochStore {
         0
     }
 
-    pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+    pub fn get_quarantined_owned_object_lock(
+        &self,
+        obj_ref: &ObjectReference,
+    ) -> Option<LockDetails> {
         self.consensus_quarantine
             .read()
             .get_owned_object_lock(obj_ref)

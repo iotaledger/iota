@@ -1366,7 +1366,7 @@ fn check_approx_effects_components_size() {
         "Update APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST constant"
     );
     assert!(
-        size_of::<ObjectRef>() < APPROX_SIZE_OF_OBJECT_REF,
+        size_of::<ObjectReference>() < APPROX_SIZE_OF_OBJECT_REF,
         "Update APPROX_SIZE_OF_OBJECT_REF constant"
     );
     assert!(

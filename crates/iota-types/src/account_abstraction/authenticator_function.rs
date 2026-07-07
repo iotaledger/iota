@@ -1,12 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    base_types::{ObjectRef, TransactionDigest},
+    base_types::TransactionDigest,
     dynamic_field::{self, Field},
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
@@ -94,7 +96,7 @@ pub struct AuthenticatorFunctionRefForExecution {
 impl AuthenticatorFunctionRefForExecution {
     pub fn new_v1(
         authenticator_function_ref: AuthenticatorFunctionRefV1,
-        loaded_object_ref: ObjectRef,
+        loaded_object_ref: ObjectReference,
         owner: Owner,
         storage_rebate: u64,
         previous_transaction: TransactionDigest,

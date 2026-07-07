@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner, UnchangedSharedKind,
-    UnchangedSharedObject, Version, crypto::Intent,
+    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, ObjectReference, Owner,
+    UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
     effects::{
@@ -19,7 +19,7 @@ pub use test_effects_builder::TestEffectsBuilder;
 use tracing::instrument;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectRef, SequenceNumber},
+    base_types::{ExecutionDigests, SequenceNumber},
     committee::Committee,
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
@@ -37,7 +37,7 @@ mod v1;
 
 // Since `std::mem::size_of` may not be stable across platforms, we use rough
 // constants We need these for estimating effects sizes
-// Approximate size of `ObjectRef` type in bytes
+// Approximate size of `ObjectReference` type in bytes
 pub const APPROX_SIZE_OF_OBJECT_REF: usize = 80;
 // Approximate size of `ExecutionStatus` type in bytes
 pub const APPROX_SIZE_OF_EXECUTION_STATUS: usize = 144;
@@ -73,8 +73,8 @@ pub enum ObjectRemoveKind {
 /// cancelled.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum InputSharedObject {
-    Mutate(ObjectRef),
-    ReadOnly(ObjectRef),
+    Mutate(ObjectReference),
+    ReadOnly(ObjectReference),
     ReadDeleted(ObjectId, Version),
     MutateDeleted(ObjectId, Version),
     Cancelled(ObjectId, Version),
@@ -86,15 +86,15 @@ impl InputSharedObject {
         (object_id, version)
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
+    pub fn object_ref(&self) -> ObjectReference {
         match self {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_DELETED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }
@@ -149,7 +149,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted.
-    fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
 
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID
@@ -163,34 +163,34 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Objects (Move objects and packages) newly created by this transaction,
     /// paired with their owner. Excludes objects that were created and then
     /// wrapped within the same transaction.
-    fn created(&self) -> Vec<(ObjectRef, Owner)>;
+    fn created(&self) -> Vec<(ObjectReference, Owner)>;
 
     /// Objects that existed before this transaction and whose contents were
     /// updated by it (in-place mutations and system package upgrades),
-    /// reported at their post-execution `(ObjectRef, Owner)`.
-    fn mutated(&self) -> Vec<(ObjectRef, Owner)>;
+    /// reported at their post-execution `(ObjectReference, Owner)`.
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)>;
 
     /// Objects that were wrapped inside another object before this transaction
     /// and have been promoted back to top-level objects in the store by it.
-    fn unwrapped(&self) -> Vec<(ObjectRef, Owner)>;
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)>;
 
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
     /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
-    fn deleted(&self) -> Vec<ObjectRef>;
+    fn deleted(&self) -> Vec<ObjectReference>;
 
     /// Objects that were unwrapped and then deleted within this same
     /// transaction (i.e. did not exist as top-level objects either before
     /// or after). References use the post-execution version and the
     /// [`ObjectDigest::OBJECT_DELETED`] tombstone digest.
-    fn unwrapped_then_deleted(&self) -> Vec<ObjectRef>;
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference>;
 
     /// Objects that existed as top-level objects before this transaction and
     /// have been wrapped inside another object by it (i.e. no longer visible
     /// in the object store as top-level). References use the post-execution
     /// version and the [`ObjectDigest::OBJECT_WRAPPED`] tombstone
     /// digest.
-    fn wrapped(&self) -> Vec<ObjectRef>;
+    fn wrapped(&self) -> Vec<ObjectReference>;
 
     /// Returns a flattened view of every object change recorded in these
     /// effects: for each touched object, the input and output version/digest
@@ -202,7 +202,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
     // return dummy object ref and owner. This is not ideal.
-    fn gas_object(&self) -> (ObjectRef, Owner);
+    fn gas_object(&self) -> (ObjectReference, Owner);
 
     /// Digest of the events emitted by this transaction, or `None` if it
     /// emitted no events.
@@ -263,11 +263,11 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     /// Records an entry that represents the pre-execution version of a still
     /// live object, without validating consistency with the rest of the
     /// effects. For tests only.
-    fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectRef);
+    fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference);
 
     /// Records a tombstone entry for a deleted object, without validating
     /// consistency with the rest of the effects. For tests only.
-    fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectRef);
+    fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference);
 }
 
 mod transaction_effects_ext {
@@ -302,13 +302,13 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// mutated, created and unwrapped objects. In other words, all objects
     /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
-    fn all_changed_objects(&self) -> Vec<(ObjectRef, Owner, WriteKind)>;
+    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)>;
 
     /// Return all objects that existed in the state prior to the transaction
     /// but no longer exist in the state after the transaction.
     /// It includes deleted and wrapped objects, but does not include
     /// unwrapped_then_deleted objects.
-    fn all_removed_objects(&self) -> Vec<(ObjectRef, ObjectRemoveKind)>;
+    fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)>;
 
     /// Returns all objects that will become a tombstone after this transaction.
     /// This includes deleted, unwrapped_then_deleted and wrapped objects.
@@ -318,12 +318,12 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, SequenceNumber)>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)>;
+    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)>;
 
     /// Returns all affected objects in this transaction effects.
     /// Affected objects include created, mutated, unwrapped, deleted,
     /// unwrapped_then_deleted, wrapped and input shared objects.
-    fn all_affected_objects(&self) -> Vec<ObjectRef>;
+    fn all_affected_objects(&self) -> Vec<ObjectReference>;
 
     /// Returns a condensed [`TransactionEffectsDebugSummary`] suitable for
     /// logging and inspection.
@@ -397,7 +397,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, lamport_version)
     }
 
-    fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)> {
+    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
         delegate_effects_api!(self, old_object_metadata)
     }
 
@@ -405,27 +405,27 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, input_shared_objects)
     }
 
-    fn created(&self) -> Vec<(ObjectRef, Owner)> {
+    fn created(&self) -> Vec<(ObjectReference, Owner)> {
         delegate_effects_api!(self, created)
     }
 
-    fn mutated(&self) -> Vec<(ObjectRef, Owner)> {
+    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
         delegate_effects_api!(self, mutated)
     }
 
-    fn unwrapped(&self) -> Vec<(ObjectRef, Owner)> {
+    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
         delegate_effects_api!(self, unwrapped)
     }
 
-    fn deleted(&self) -> Vec<ObjectRef> {
+    fn deleted(&self) -> Vec<ObjectReference> {
         delegate_effects_api!(self, deleted)
     }
 
-    fn unwrapped_then_deleted(&self) -> Vec<ObjectRef> {
+    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
         delegate_effects_api!(self, unwrapped_then_deleted)
     }
 
-    fn wrapped(&self) -> Vec<ObjectRef> {
+    fn wrapped(&self) -> Vec<ObjectReference> {
         delegate_effects_api!(self, wrapped)
     }
 
@@ -433,7 +433,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, object_changes)
     }
 
-    fn gas_object(&self) -> (ObjectRef, Owner) {
+    fn gas_object(&self) -> (ObjectReference, Owner) {
         delegate_effects_api!(self, gas_object)
     }
 
@@ -479,11 +479,11 @@ impl TransactionEffectsAPIForTesting for TransactionEffects {
         delegate_effects_api!(self, unsafe_add_input_shared_object_for_testing, kind)
     }
 
-    fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectRef) {
+    fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {
         delegate_effects_api!(self, unsafe_add_deleted_live_object_for_testing, object_ref)
     }
 
-    fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectRef) {
+    fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference) {
         delegate_effects_api!(self, unsafe_add_object_tombstone_for_testing, object_ref)
     }
 }
@@ -524,7 +524,7 @@ impl TransactionEffectsExt for TransactionEffects {
         }
     }
 
-    fn all_changed_objects(&self) -> Vec<(ObjectRef, Owner, WriteKind)> {
+    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)> {
         self.mutated()
             .into_iter()
             .map(|(r, o)| (r, o, WriteKind::Mutate))
@@ -541,7 +541,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn all_removed_objects(&self) -> Vec<(ObjectRef, ObjectRemoveKind)> {
+    fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)> {
         self.deleted()
             .iter()
             .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Delete))
@@ -581,14 +581,14 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect::<Vec<_>>()
     }
 
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)> {
+    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)> {
         self.mutated()
             .into_iter()
             .filter(|o| o != &self.gas_object())
             .collect()
     }
 
-    fn all_affected_objects(&self) -> Vec<ObjectRef> {
+    fn all_affected_objects(&self) -> Vec<ObjectReference> {
         self.created()
             .into_iter()
             .map(|(r, _)| r)

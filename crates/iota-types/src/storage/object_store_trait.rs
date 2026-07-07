@@ -4,14 +4,10 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 
 use super::{ObjectKey, error::Result};
-use crate::{
-    base_types::{ObjectRef, VersionNumber},
-    object::Object,
-    storage::WriteKind,
-};
+use crate::{base_types::VersionNumber, object::Object, storage::WriteKind};
 
 pub trait ObjectStore {
     fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>>;
@@ -156,7 +152,7 @@ impl ObjectStore for &[Object] {
     }
 }
 
-impl ObjectStore for BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)> {
+impl ObjectStore for BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)> {
     fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
     }

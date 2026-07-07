@@ -29,9 +29,8 @@ use iota_config::{
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
-use iota_sdk_types::{Address, Identifier, ObjectId};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
@@ -113,7 +112,7 @@ pub async fn get_gas_obj_ref(
     iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let coins = iota_client
         .coin_read_api()
         .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)

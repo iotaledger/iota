@@ -10,10 +10,10 @@ use iota_json_rpc_types::{
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
 use iota_sdk_transaction_builder::{PTBArgumentList, SharedMut, TransactionBuilder};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag};
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
-    base_types::ObjectRef, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionData,
 };
 use jsonrpsee::rpc_params;
@@ -577,7 +577,7 @@ impl TestCaseImpl for CoinIndexTest {
 
 async fn publish_managed_coin_package(
     ctx: &mut TestContext,
-) -> Result<(ObjectRef, ObjectRef, ObjectRef), anyhow::Error> {
+) -> Result<(ObjectReference, ObjectReference, ObjectReference), anyhow::Error> {
     let compiled_package = compile_managed_coin_package();
     let all_module_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);

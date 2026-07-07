@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectId, TransactionExpiration, TransactionKind};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionExpiration, TransactionKind};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     digests::ObjectDigest,
     transaction::{GasData, TransactionData, TransactionDataV1},
 };
@@ -34,14 +34,14 @@ pub fn gen_transaction_expiration() -> impl Strategy<Value = TransactionExpirati
     ]
 }
 
-pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
+pub fn gen_object_ref() -> impl Strategy<Value = ObjectReference> {
     (
         any::<AccountAddress>(),
         any::<SequenceNumber>(),
         any::<[u8; 32]>(),
     )
         .prop_map(move |(addr, seq, seed)| {
-            ObjectRef::new(
+            ObjectReference::new(
                 ObjectId::new(addr.into_bytes()),
                 seq,
                 ObjectDigest::new(seed),

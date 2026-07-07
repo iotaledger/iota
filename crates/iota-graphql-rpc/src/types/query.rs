@@ -10,9 +10,8 @@ use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{TransactionKind, TypeTag};
+use iota_sdk_types::{ObjectReference, TransactionKind, TypeTag};
 use iota_types::{
-    base_types::ObjectRef,
     gas_coin::GAS,
     supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI},
@@ -177,7 +176,7 @@ impl Query {
                 let gas_objects = gas_objects.map(|objs| {
                     objs.into_iter()
                         .map(|obj| {
-                            ObjectRef::new(
+                            ObjectReference::new(
                                 obj.address.into(),
                                 obj.version.into(),
                                 obj.digest.into(),

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
+    ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
     RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
     TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
@@ -345,7 +345,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+            &CallArg::ImmutableOrOwned(ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -361,7 +361,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+            &CallArg::Receiving(ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -553,7 +553,7 @@ fn get_registry() -> Result<Registry> {
                 },
             )]),
             Address::ZERO,
-            vec![iota_types::base_types::ObjectRef::new(
+            vec![ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::default(),

@@ -5,10 +5,11 @@
 use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction};
+use iota_sdk_types::{
+    Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
+};
 use iota_types::{
-    base_types::ObjectRef, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::CallArg,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use once_cell::sync::Lazy;
 use proptest::{collection::vec, prelude::*};
@@ -185,7 +186,7 @@ pub fn arg_len_strategy_input_match() -> impl Strategy<Value = usize> {
 }
 
 prop_compose! {
-    pub fn gen_many_input_match(recipient: Address, package: ObjectId, cap: ObjectRef)
+    pub fn gen_many_input_match(recipient: Address, package: ObjectId, cap: ObjectReference)
         (mut command_sketches in vec(gen_command_input_match(), 1..=MAX_COMMANDS_INPUT_MATCH)) -> ProgrammableTransaction {
             let mut builder = ProgrammableTransactionBuilder::new();
             let mut prev_cmd_num = -1;
@@ -212,7 +213,7 @@ fn gen_input(
     prev_cmd_num: i64,
     recipient: Address,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
 ) -> (Command, i64) {
     match cmd {
         CommandSketch::TransferObjects(_) => gen_transfer_input(
@@ -243,7 +244,7 @@ pub fn gen_transfer_input(
     prev_cmd_num: i64,
     recipient: Address,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
 ) -> (Command, i64) {
     let CommandSketch::TransferObjects(args_len) = cmd else {
         panic!("Should be TransferObjects command");
@@ -272,7 +273,7 @@ pub fn gen_split_coins_input(
     cmd: &CommandSketch,
     prev_cmd_num: i64,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
 ) -> (Command, i64) {
     let CommandSketch::SplitCoins(split_amounts) = cmd else {
         panic!("Should be SplitCoins command");
@@ -311,7 +312,7 @@ pub fn gen_merge_coins_input(
     cmd: &CommandSketch,
     prev_cmd_num: i64,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
 ) -> (Command, i64) {
     let CommandSketch::MergeCoins(coins_to_merge) = cmd else {
         panic!("Should be MergeCoins command");
@@ -386,7 +387,7 @@ pub fn gen_move_vec_input(
     cmd: &CommandSketch,
     prev_cmd_num: i64,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
 ) -> (Command, i64) {
     let CommandSketch::MakeMoveVec(vector_coins) = cmd else {
         panic!("Should be MakeMoveVec command");
@@ -417,7 +418,7 @@ fn gen_enough_arguments(
     builder: &mut ProgrammableTransactionBuilder,
     prev_cmd_num: i64,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
     coins_needed: usize,
     coins_available: usize,
     available_coins_used: usize,
@@ -459,7 +460,7 @@ fn gen_transfer_or_move_vec_input_internal(
     builder: &mut ProgrammableTransactionBuilder,
     prev_cmd_num: i64,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
     prev_command: Option<&CommandSketch>,
     coins_needed: usize,
     coins: &mut Vec<Argument>,
@@ -518,7 +519,7 @@ fn gen_transfer_or_move_vec_input_internal(
 fn create_input_calls(
     builder: &mut ProgrammableTransactionBuilder,
     package: ObjectId,
-    cap: ObjectRef,
+    cap: ObjectReference,
     prev_cmd_num: i64,
     coin_value: u64,
     input_size: u64,

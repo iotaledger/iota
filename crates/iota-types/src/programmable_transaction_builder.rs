@@ -8,14 +8,12 @@
 use anyhow::Context;
 use indexmap::IndexMap;
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+    Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
+    TypeTag,
 };
 use serde::Serialize;
 
-use crate::{
-    base_types::ObjectRef,
-    transaction::{CallArg, SharedObjectRef},
-};
+use crate::transaction::{CallArg, SharedObjectRef};
 
 #[derive(PartialEq, Eq, Hash)]
 enum BuilderArg {
@@ -223,7 +221,7 @@ impl ProgrammableTransactionBuilder {
     pub fn transfer_object(
         &mut self,
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> anyhow::Result<()> {
         let rec_arg = self.pure(recipient).unwrap();
         let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref))?;
@@ -254,7 +252,7 @@ impl ProgrammableTransactionBuilder {
         self.pay_impl(recipients, amounts, Argument::Gas)
     }
 
-    pub fn split_coin(&mut self, recipient: Address, coin: ObjectRef, amounts: Vec<u64>) {
+    pub fn split_coin(&mut self, recipient: Address, coin: ObjectReference, amounts: Vec<u64>) {
         let coin_arg = self.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
         let amounts_len = amounts.len();
         let amt_args = amounts.into_iter().map(|a| self.pure(a).unwrap()).collect();
@@ -276,7 +274,7 @@ impl ProgrammableTransactionBuilder {
     /// lengths. Or if coins is empty
     pub fn pay(
         &mut self,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
     ) -> anyhow::Result<()> {
