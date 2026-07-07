@@ -27,7 +27,7 @@ const LOOKUP_BY_DIGEST: &str = "by_digest";
 /// The hit/miss counters are exported as `IntCounterVec`s with a `lookup`
 /// label; the per-label children are resolved once at construction so the
 /// lookup paths increment plain counters.
-pub struct FullContentsCacheMetrics {
+pub struct FullCheckpointContentsCacheMetrics {
     /// Sequence-number lookups served from the cache (`lookup="by_seq"`).
     pub hits_by_seq: IntCounter,
     /// Contents-digest lookups served from the cache (`lookup="by_digest"`).
@@ -47,7 +47,7 @@ pub struct FullContentsCacheMetrics {
     pub total_bytes: IntGauge,
 }
 
-impl FullContentsCacheMetrics {
+impl FullCheckpointContentsCacheMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         let hits = register_int_counter_vec_with_registry!(
             "full_checkpoint_contents_cache_hits",
@@ -146,7 +146,7 @@ impl Inner {
 /// footprint of a full cache is somewhat higher than the budget.
 pub struct FullCheckpointContentsCache {
     max_bytes: usize,
-    metrics: Arc<FullContentsCacheMetrics>,
+    metrics: Arc<FullCheckpointContentsCacheMetrics>,
     inner: Mutex<Inner>,
 }
 
@@ -156,13 +156,13 @@ impl Default for FullCheckpointContentsCache {
     fn default() -> Self {
         Self::new(
             DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB * 1024 * 1024,
-            FullContentsCacheMetrics::new_for_tests(),
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
         )
     }
 }
 
 impl FullCheckpointContentsCache {
-    pub fn new(max_bytes: usize, metrics: Arc<FullContentsCacheMetrics>) -> Self {
+    pub fn new(max_bytes: usize, metrics: Arc<FullCheckpointContentsCacheMetrics>) -> Self {
         Self {
             max_bytes,
             metrics,
@@ -253,8 +253,8 @@ impl FullCheckpointContentsCache {
     /// Looks up contents by sequence number.
     ///
     /// Recorded under the `by_seq` metrics label; see
-    /// [`FullContentsCacheMetrics::misses_by_seq`] for how to interpret it
-    /// per node role.
+    /// [`FullCheckpointContentsCacheMetrics::misses_by_seq`] for how to
+    /// interpret it per node role.
     pub fn get_by_seq(&self, seq: CheckpointSequenceNumber) -> Option<Arc<FullCheckpointContents>> {
         let contents = self
             .inner
@@ -273,8 +273,8 @@ impl FullCheckpointContentsCache {
     /// Looks up contents by contents digest.
     ///
     /// Recorded under the `by_digest` metrics label; see
-    /// [`FullContentsCacheMetrics::misses_by_digest`] for how to interpret
-    /// it per node role.
+    /// [`FullCheckpointContentsCacheMetrics::misses_by_digest`] for how to
+    /// interpret it per node role.
     pub fn get_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
@@ -309,8 +309,10 @@ mod tests {
 
     #[test]
     fn insert_and_get_by_seq_and_digest() {
-        let cache =
-            FullCheckpointContentsCache::new(1000, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            1000,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest, contents) = entry(1);
         cache.insert(7, digest, contents.clone(), 100);
 
@@ -334,8 +336,10 @@ mod tests {
 
     #[test]
     fn evicts_lowest_sequence_numbers_first() {
-        let cache =
-            FullCheckpointContentsCache::new(250, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            250,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         for seq in 0..3 {
             let (digest, contents) = entry(seq as u8);
             cache.insert(seq, digest, contents, 100);
@@ -352,8 +356,10 @@ mod tests {
 
     #[test]
     fn digest_index_is_consistent_after_eviction() {
-        let cache =
-            FullCheckpointContentsCache::new(150, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            150,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest_a, contents_a) = entry(1);
         let (digest_b, contents_b) = entry(2);
         cache.insert(0, digest_a, contents_a, 100);
@@ -365,7 +371,10 @@ mod tests {
 
     #[test]
     fn oversized_entry_is_kept_until_displaced() {
-        let cache = FullCheckpointContentsCache::new(50, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            50,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest_a, contents_a) = entry(1);
         cache.insert(0, digest_a, contents_a, 100);
 
@@ -380,8 +389,10 @@ mod tests {
 
     #[test]
     fn reinsert_same_sequence_replaces_entry_and_accounting() {
-        let cache =
-            FullCheckpointContentsCache::new(1000, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            1000,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest_a, contents_a) = entry(1);
         let (digest_b, contents_b) = entry(2);
         cache.insert(0, digest_a, contents_a, 100);
@@ -399,8 +410,10 @@ mod tests {
 
     #[test]
     fn eviction_keeps_digest_mapping_of_newer_entry_with_same_digest() {
-        let cache =
-            FullCheckpointContentsCache::new(250, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            250,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         // Distinct checkpoints can share a contents digest, e.g. consecutive
         // empty checkpoints.
         let (digest, contents) = entry(1);
@@ -419,7 +432,10 @@ mod tests {
 
     #[test]
     fn zero_budget_disables_the_cache() {
-        let cache = FullCheckpointContentsCache::new(0, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            0,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest_a, contents_a) = entry(1);
 
         assert!(!cache.should_cache(0));
@@ -431,8 +447,10 @@ mod tests {
 
     #[test]
     fn skips_inserts_below_the_window_of_a_full_cache() {
-        let cache =
-            FullCheckpointContentsCache::new(200, FullContentsCacheMetrics::new_for_tests());
+        let cache = FullCheckpointContentsCache::new(
+            200,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         let (digest_a, contents_a) = entry(1);
         let (digest_b, contents_b) = entry(2);
         cache.insert(10, digest_a, contents_a, 100);
@@ -453,8 +471,10 @@ mod tests {
 
         // With byte headroom, entries below the window are retained.
         let (digest_d, contents_d) = entry(4);
-        let roomy =
-            FullCheckpointContentsCache::new(1000, FullContentsCacheMetrics::new_for_tests());
+        let roomy = FullCheckpointContentsCache::new(
+            1000,
+            FullCheckpointContentsCacheMetrics::new_for_tests(),
+        );
         roomy.insert(10, digest_a, entry(1).1, 100);
         assert!(roomy.should_cache(5));
         roomy.insert(5, digest_d, contents_d, 100);

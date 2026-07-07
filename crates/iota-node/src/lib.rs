@@ -51,7 +51,7 @@ use iota_core::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
-        FullContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
+        FullCheckpointContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
     connection_monitor::ConnectionMonitor,
@@ -454,7 +454,7 @@ impl IotaNode {
                 config
                     .full_checkpoint_contents_cache_size_mb
                     .saturating_mul(1024 * 1024),
-                FullContentsCacheMetrics::new(&prometheus_registry),
+                FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
             ),
         );
         let backpressure_manager =

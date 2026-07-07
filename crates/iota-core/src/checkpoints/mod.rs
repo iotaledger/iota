@@ -72,7 +72,9 @@ pub use crate::checkpoints::{
     checkpoint_output::{
         LogCheckpointOutput, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
     },
-    full_checkpoint_contents_cache::{FullCheckpointContentsCache, FullContentsCacheMetrics},
+    full_checkpoint_contents_cache::{
+        FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
+    },
     metrics::CheckpointMetrics,
 };
 use crate::{
