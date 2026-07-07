@@ -590,12 +590,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Collect all committed transaction block refs from commits
+        // 3. Collect all committed transaction refs from commits. Commits passing
+        //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
+        //    legacy `BlockRef` variant is an error.
         let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
-            .filter_map(|gen_tr_ref| gen_tr_ref.expect_transaction_ref().ok())
-            .collect();
+            .map(GenericTransactionRef::expect_transaction_ref)
+            .collect::<ConsensusResult<_>>()?;
 
         // 4. Process fetched transactions. Each serialized_transaction is a
         //    SerializedTransactionsV2 containing both the TransactionRef and the actual
