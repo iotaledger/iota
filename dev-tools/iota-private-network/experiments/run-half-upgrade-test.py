@@ -220,6 +220,31 @@ def rolling_upgrade(cfg: Config, indices: list[int], label: str) -> None:
     )
 
 
+def _prometheus_int(expr: str) -> int | None:
+    value = mt.ec.prometheus_scalar(expr)
+    return int(float(value)) if value is not None else None
+
+
+def read_onchain_protocol_version(attempts: int = 6, delay: float = 5.0) -> int:
+    """Network-wide on-chain protocol version from Prometheus. Raises if the
+    metric stays missing or validators keep disagreeing."""
+    last = "no data"
+    for attempt in range(attempts):
+        lo = _prometheus_int("min(iota_current_protocol_version)")
+        hi = _prometheus_int("max(iota_current_protocol_version)")
+        if lo is not None and hi is not None:
+            if lo == hi:
+                return lo
+            last = f"validators disagree: min={lo}, max={hi}"
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    raise RuntimeError(
+        "could not read a consistent iota_current_protocol_version from "
+        f"Prometheus after {attempts} attempts ({last}); old release images "
+        "may not export this metric"
+    )
+
+
 # ========================= Phase wrappers tailored to half-upgrade =========================
 
 
@@ -304,16 +329,35 @@ def phase11_second_half(cfg: Config, second_half: list[int]) -> None:
     log(_phase_complete("Phase 11", time.time() - phase_start))
 
 
-def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tuple[int, float]:
+def phase9_observe_mixed(
+    cfg: Config, epoch_0: int, initial_proto_version: int
+) -> int:
     """Hold the mixed-binary network from the 0→1 boundary through
-    `cfg.mid_observation_epochs` extra epochs. Returns (epoch, epoch_start)."""
+    `cfg.mid_observation_epochs` extra epochs. Returns the epoch it ended on.
+
+    Raises if the on-chain protocol version moves while the binaries are
+    mixed (the upgraded half is below 2f+1, so it must not)."""
     phase_start = time.time()
     log(_phase_banner("Waiting for epoch 0→1 transition (mixed binaries)", "PHASE 9"))
+
+    def check_protocol_unchanged() -> None:
+        onchain = read_onchain_protocol_version()
+        if cfg.head_only:
+            log(f"  On-chain protocol version {onchain} (head-only mode: an "
+                "advance at any boundary is legitimate; not asserted)")
+        elif onchain != initial_proto_version:
+            raise RuntimeError(
+                f"on-chain protocol version moved from {initial_proto_version} "
+                f"to {onchain} in the mixed-binary state; the upgraded half is "
+                "below 2f+1 and must not carry a version change"
+            )
+        else:
+            log(f"  On-chain protocol version {onchain} — unchanged, as expected "
+                "(upgraded half below 2f+1).")
 
     current_epoch = _wait_for_epoch_with_log_save(cfg, epoch_0)
     if current_epoch <= epoch_0:
         raise RuntimeError(f"Epoch did not advance past {epoch_0}")
-    current_start = time.time()
 
     log(f"  Reading validator-1 protocol info...")
     time.sleep(cfg.protocol_probe_wait)
@@ -322,10 +366,7 @@ def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tup
         f"  {_C.CYAN}Epoch {current_epoch}{_C.RESET} (mixed binaries) — "
         f"max_protocol={proto or 'unknown'}, consensus={consensus or 'unknown'}"
     )
-    log(
-        "  Expectation: protocol version unchanged (supermajority of upgrade-side "
-        "not reached; old binary still in the committee)."
-    )
+    check_protocol_unchanged()
 
     extra = getattr(cfg, "mid_observation_epochs", 0)
     for i in range(extra):
@@ -335,17 +376,22 @@ def phase9_observe_mixed(cfg: Config, epoch_0_start: float, epoch_0: int) -> tup
             log(f"  {_C.YELLOW}WARN: epoch did not advance further; stopping mixed-state observation{_C.RESET}")
             break
         current_epoch = new_epoch
-        current_start = time.time()
         log(f"  Mixed-binary epoch advanced to {current_epoch} (extra observation)")
+        check_protocol_unchanged()
 
     log(_phase_complete("Phase 9", time.time() - phase_start))
-    return current_epoch, current_start
+    return current_epoch
 
 
-def phase12_observe_upgraded(cfg: Config, second_half_upgrade_epoch: int) -> int:
+def phase12_observe_upgraded(
+    cfg: Config, second_half_upgrade_epoch: int, initial_proto_version: int
+) -> int:
     """Cross the post-upgrade epoch boundary (protocol advances here if HEAD's
     version is higher), then hold `cfg.post_observation_epochs` extra epochs.
-    Returns the final epoch."""
+    Returns the final epoch.
+
+    Raises if the on-chain protocol version does not land on the version the
+    whole (now all-upgraded) committee supports, or moves off it later."""
     phase_start = time.time()
     log(_phase_banner("Waiting for post-second-half-upgrade epoch boundary", "PHASE 12"))
 
@@ -360,11 +406,29 @@ def phase12_observe_upgraded(cfg: Config, second_half_upgrade_epoch: int) -> int
         f"  {_C.GREEN}Epoch {current_epoch}{_C.RESET} (all upgraded) — "
         f"max_protocol={proto or 'unknown'}, consensus={consensus or 'unknown'}"
     )
-    log(
-        "  Note: protocol advances here only if HEAD's MAX_PROTOCOL_VERSION "
-        "exceeds the release image's. Otherwise this is steady-state "
-        "observation on the same protocol the whole run used."
-    )
+
+    # Every validator now runs HEAD, so the committee-wide supported maximum
+    # is the lowest configured max across the network; the chain must sit on
+    # it (== the initial version when HEAD brings no protocol bump).
+    supported = _prometheus_int("min(iota_configured_max_protocol_version)")
+    if supported is None:
+        raise RuntimeError(
+            "could not read iota_configured_max_protocol_version from Prometheus"
+        )
+    expected = max(initial_proto_version, supported)
+
+    def check_protocol_settled() -> None:
+        onchain = read_onchain_protocol_version()
+        if onchain != expected:
+            raise RuntimeError(
+                f"on-chain protocol version is {onchain} after the all-upgraded "
+                f"boundary; expected {expected} (started at {initial_proto_version}, "
+                f"every validator supports up to {supported})"
+            )
+        log(f"  On-chain protocol version {onchain} — as expected (started at "
+            f"{initial_proto_version}, supported max {supported}).")
+
+    check_protocol_settled()
 
     extra = getattr(cfg, "post_observation_epochs", 0)
     for i in range(extra):
@@ -375,6 +439,7 @@ def phase12_observe_upgraded(cfg: Config, second_half_upgrade_epoch: int) -> int
             break
         current_epoch = new_epoch
         log(f"  Post-upgrade epoch advanced to {current_epoch}")
+        check_protocol_settled()
 
     log(_phase_complete("Phase 12", time.time() - phase_start))
     return current_epoch
@@ -564,6 +629,8 @@ def main() -> None:
         f"  {_C.BOLD}Local build{_C.RESET}  ({local_branch}@{local_commit}) : "
         "(version will be confirmed after first-half upgrade)"
     )
+    initial_proto_version = read_onchain_protocol_version()
+    log(f"  {_C.BOLD}On-chain protocol{_C.RESET}     : version {initial_proto_version} at start")
 
     # --- First half upgrade in epoch 0 ---
     _wait_mid_epoch(cfg, epoch_0_start, "PHASE 7")
@@ -571,7 +638,9 @@ def main() -> None:
 
     # --- Mixed-binary observation in epoch 1 ---
     epoch_0 = get_current_epoch()
-    second_half_upgrade_epoch, _ = phase9_observe_mixed(cfg, epoch_0_start, epoch_0)
+    second_half_upgrade_epoch = phase9_observe_mixed(
+        cfg, epoch_0, initial_proto_version
+    )
 
     # --- Second half upgrade — rolls at the start of the epoch, so most of
     # it runs as all-on-HEAD steady state before the next boundary fires the
@@ -579,7 +648,9 @@ def main() -> None:
     phase11_second_half(cfg, second_half)
 
     # --- Cross the post-upgrade epoch boundary (protocol advance if applicable) ---
-    final_epoch = phase12_observe_upgraded(cfg, second_half_upgrade_epoch)
+    final_epoch = phase12_observe_upgraded(
+        cfg, second_half_upgrade_epoch, initial_proto_version
+    )
 
     log(_phase_banner("Half-Network Upgrade Test Complete"))
     log(f"  Final epoch: {final_epoch}")
