@@ -297,9 +297,11 @@ main() {
   # Generate genesis template if missing
   generate_genesis_template_if_missing
 
-  # Regenerate the validator service blocks (docker-compose.yaml) and Prometheus
-  # scrape jobs to match NUM_VALIDATORS, so the topology tracks the same -n.
-  "$PRIVNET_DIR/gen-topology.sh" -n "$NUM_VALIDATORS"
+  # NOTE: docker-compose.yaml and prometheus.yaml statically hardcode
+  # validator-1 … validator-100; `run.sh` starts only validator-1 … -N, so no
+  # per-bootstrap regeneration is needed (and bootstrap never rewrites tracked
+  # files). 100 covers production scale; to change it, hand-edit the validator
+  # blocks in both files (or recover gen-topology.sh from git history).
 
   # Only check overlay file existence
   check_configs_exist "$OVERLAY_PATH"

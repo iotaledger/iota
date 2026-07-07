@@ -88,25 +88,26 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
 
 `N` is the single knob for network size. The scripts take `-n N` (default 4) and
 the `h1` matrix takes it as an environment variable, e.g.
-`N=72 LABEL=... ./h1/run.sh`, which forwards `-n 72` to bootstrap and start. The
-whole topology is generated from `N` in lockstep, so nothing else needs editing:
-`bootstrap.sh` regenerates the `genesis-template-<N>.yaml`, and (via
-`iota-private-network/gen-topology.sh`) the `validator-1 … validator-N` service
-blocks in `docker-compose.yaml` and the matching `Validator_1 … Validator_N`
-scrape jobs in `grafana-local/prometheus.yaml`. Only the text between the
-`BEGIN/END generated …` markers is rewritten; the fixed infra (fullnodes,
-indexers, faucet, postgres) and the other scrape jobs are hand-maintained.
-Since only `validator-1 … validator-N` exist, Prometheus scrapes exactly `N`
-targets.
+`N=72 LABEL=... ./h1/run.sh`, which forwards `-n 72` to bootstrap and start.
+`bootstrap.sh` generates `genesis-template-<N>.yaml` and validator configs for
+`validator-1 … validator-N`; `run.sh` then starts only those N containers
+(`docker compose up -d validator-1 … validator-N`).
+
+`docker-compose.yaml` and `prometheus.yaml` **statically hardcode**
+`validator-1 … validator-100` (and the matching `Validator_1 … Validator_100`
+scrape jobs). Since start brings up only `1 … N`, the extra blocks are inert —
+nothing is regenerated per bootstrap, so no tracked file is churned. When `N` is
+below 100, Prometheus lists the unused targets as *down*; that is cosmetic, the
+dashboards reduce over the running validators only.
 
 > [!NOTE]
-> The maximum `N` is 190, and `gen-topology.sh` rejects anything larger. This is
-> a local-addressing limit, not a protocol one: validators take static IPs
-> `10.0.0.(10+i)` (validator-1 → `.11`) and the fixed infra was relocated to
-> `10.0.0.201–.209`, so the highest address a validator may use is `.200` —
-> leaving `200 − 10 = 190` slots in the single `/24` subnet before validators
-> would collide with the infra block. In practice one host is CPU/RAM-bound at
-> a few dozen nodes, well below this ceiling.
+> The hardcoded ceiling is `N = 100` — enough for production scale (≈100
+> validators) and far above what one test host can run (CPU/RAM-bound at a few
+> dozen). To raise it, hand-edit the `validator-*` blocks in
+> `docker-compose.yaml` and the `Validator_*` scrape jobs in `prometheus.yaml`
+> (or recover the old `gen-topology.sh` from git history). The addressing limit
+> is `190`: validators take static IPs `10.0.0.(10+i)` and the fixed infra sits
+> at `10.0.0.201–.209`, leaving `200 − 10 = 190` slots in the `/24` subnet.
 
 ---
 
