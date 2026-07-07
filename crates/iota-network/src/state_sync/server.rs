@@ -84,7 +84,7 @@ where
             return Ok(Response::new(()));
         }
 
-        let highest_verified_checkpoint = *self
+        let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint()
             .map_err(|e| Status::internal(e.to_string()))?
@@ -92,7 +92,7 @@ where
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it
-        if *checkpoint.sequence_number() > highest_verified_checkpoint {
+        if checkpoint.sequence_number() > highest_verified_checkpoint {
             if let Some(sender) = self.sender.upgrade() {
                 sender.send(StateSyncMessage::StartSyncJob).await.unwrap();
             }
@@ -187,7 +187,7 @@ where
                 PeerStateSyncInfo {
                     genesis_checkpoint_digest: *handshake.genesis_checkpoint.digest(),
                     on_same_chain_as_us: on_same_chain,
-                    height: *handshake.highest_synced_checkpoint.sequence_number(),
+                    height: handshake.highest_synced_checkpoint.sequence_number(),
                     lowest: handshake.lowest_available_checkpoint,
                 },
             );

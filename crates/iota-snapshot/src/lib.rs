@@ -381,7 +381,7 @@ impl VerifiedEpochInfo {
             .map(|(entry, start_system_state)| {
                 let start_checkpoint = previous_end_checkpoint.map_or(0, |seq| seq + 1);
                 previous_end_checkpoint =
-                    Some(*entry.last_checkpoint_summary.data().sequence_number());
+                    Some(entry.last_checkpoint_summary.data().sequence_number());
                 epoch_info_v2_row(entry, start_system_state, start_checkpoint)
             })
             .collect()

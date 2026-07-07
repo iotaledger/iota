@@ -83,7 +83,7 @@ impl CheckpointProgressTracker {
                     .unwrap_or(0);
                 let highest_executed_seq_number = highest_executed_checkpoint
                     .as_ref()
-                    .map(|c| *c.sequence_number())
+                    .map(|c| c.sequence_number())
                     .unwrap_or(0);
                 let total_tx = highest_executed_checkpoint
                     .as_ref()
