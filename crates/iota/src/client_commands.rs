@@ -62,7 +62,7 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
-            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_field_id,
+            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
         },
     },
     base_types::SequenceNumber,
@@ -3812,7 +3812,8 @@ pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
-    let authenticator_function_ref_id = derive_authenticator_function_ref_field_id(signer.into())?;
+    let authenticator_function_ref_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(signer.into())?;
 
     let response = client
         .read_api()

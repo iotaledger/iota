@@ -22,8 +22,8 @@ use iota_sdk_types::{ObjectData, ObjectId, ObjectReference, Owner, StructTag, Tr
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_field_object,
-        derive_authenticator_function_ref_field_id, extract_auth_fun_refs,
+        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::{SequenceNumber, VersionNumber},
@@ -2136,7 +2136,7 @@ impl LocalExec {
                 .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
             let authenticator_function_ref_field_id =
-                derive_authenticator_function_ref_field_id(account_object_id)
+                derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
                     .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
             // Get account object version from the already-downloaded objects
@@ -2171,7 +2171,7 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = derive_authenticator_function_ref_field_id(account_object_id)
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
     let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
@@ -2181,7 +2181,7 @@ fn load_authenticator_function_ref(
         ),
     })?;
 
-    authenticator_function_ref_from_field_object(account_object_id, &field_obj)
+    authenticator_function_ref_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 

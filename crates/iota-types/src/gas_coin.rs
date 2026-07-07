@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::{ObjectData, ObjectId};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +15,9 @@ use crate::{
     balance::Supply,
     base_types::SequenceNumber,
     coin::{Coin, TreasuryCap},
+    digests::TransactionDigest,
     error::{ExecutionError, ExecutionErrorKind},
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
 };
 
 /// The number of Nanos per IOTA token
@@ -39,15 +40,15 @@ pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B
 /// Mint the one-shot mock gas coin that simulation paths use for a transaction
 /// carrying no gas payment: a fresh coin at [`ObjectId::MAX`] owned by `owner`
 /// and funded with [`SIMULATION_GAS_COIN_VALUE`].
-pub fn mock_simulation_gas_coin(owner: iota_sdk_types::Address) -> Object {
+pub fn mock_simulation_gas_coin(owner: Address) -> Object {
     Object::new_move(
         MoveObject::new_gas_coin(
-            crate::object::OBJECT_START_VERSION,
+            OBJECT_START_VERSION,
             ObjectId::MAX,
             SIMULATION_GAS_COIN_VALUE,
         ),
-        iota_sdk_types::Owner::Address(owner),
-        crate::digests::TransactionDigest::GENESIS_MARKER,
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 

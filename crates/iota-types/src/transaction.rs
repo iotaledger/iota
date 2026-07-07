@@ -1899,8 +1899,8 @@ impl SenderSignedTransaction {
 /// [`InputObjectKind::left_union_with_checks`] (in particular, a shared object
 /// may differ in mutability but not in initial shared version).
 pub fn merge_authenticator_input_objects<'a>(
-    input_objects: &mut Vec<InputObjectKind>,
     move_authenticators: impl IntoIterator<Item = &'a MoveAuthenticator>,
+    input_objects: &mut Vec<InputObjectKind>,
 ) -> UserInputResult<()> {
     for move_authenticator in move_authenticators {
         for auth_object in move_authenticator.input_objects() {
@@ -2302,7 +2302,7 @@ impl SenderSignedData {
         let mut input_objects = self.transaction_data().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
-        merge_authenticator_input_objects(&mut input_objects, self.move_authenticators())?;
+        merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
 
         Ok(input_objects)
     }

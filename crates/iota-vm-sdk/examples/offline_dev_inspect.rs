@@ -8,7 +8,8 @@
 //! `0x2::hash::blake2b256([0, 1, 2])`, a pure function whose only dependencies
 //! are the framework packages.
 //!
-//! Usage: `cargo run -p iota-vm-sdk --example offline_dev_inspect`
+//! Run with:
+//!   cargo run -p iota-vm-sdk --example offline_dev_inspect
 
 use anyhow::Result;
 use iota_types::{

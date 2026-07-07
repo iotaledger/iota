@@ -7,7 +7,10 @@
 //! function, then the PTB body — so the merged Speedscope document holds a
 //! separate gas flamegraph for each.
 //!
-//! Usage: `cargo run -p iota-vm-sdk --example authenticator_gas_profile`.
+//! Run with:
+//!   cargo run -p iota-vm-sdk --features tracing \
+//!     --example authenticator_gas_profile
+//!
 //! Writes `authenticator_gas_profile.speedscope.json`; view it at
 //! <https://www.speedscope.app>.
 

@@ -18,8 +18,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_field_object,
-        derive_authenticator_function_ref_field_id, extract_auth_fun_refs,
+        AuthenticatorFunctionRefForExecution, authenticator_function_ref_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
@@ -131,7 +131,7 @@ pub(super) fn prepare_transaction(
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();
-    merge_authenticator_input_objects(&mut deny_check_input_kinds, move_authenticators)
+    merge_authenticator_input_objects(move_authenticators, &mut deny_check_input_kinds)
         .map_err(|e| ValidationError::new("merge authenticator inputs", e))?;
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
@@ -604,7 +604,7 @@ fn resolve_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| VmError::new(format!("invalid object_to_authenticate: {e}")))?;
 
-    let field_id = derive_authenticator_function_ref_field_id(account_object_id)
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
         .map_err(|e| ValidationError::new("derive authenticator field id", e))?;
 
     let field_obj = store
@@ -613,7 +613,7 @@ fn resolve_authenticator_function_ref(
         .map_err(|e| StoreError::new("load authenticator field", e))?
         .ok_or(VmSdkError::missing_object(field_id, None))?;
 
-    authenticator_function_ref_from_field_object(account_object_id, &field_obj)
+    authenticator_function_ref_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ValidationError::new("decode authenticator field", e).into())
 }
 
