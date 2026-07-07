@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 
 pub struct EpochMetrics {
     /// The current epoch ID. This is updated only when the AuthorityState
@@ -129,7 +129,8 @@ impl EpochMetrics {
             current_epoch: register_int_gauge_with_registry!(
                 "current_epoch",
                 "Current epoch ID",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             current_voting_right: register_int_gauge_with_registry!(
@@ -191,7 +192,8 @@ impl EpochMetrics {
             is_safe_mode: register_int_gauge_with_registry!(
                 "is_safe_mode",
                 "Whether we are running in safe mode",
-                registry,
+                registry;
+                MetricLevel::Info,
             ).unwrap(),
             checkpoint_builder_advance_epoch_is_safe_mode: register_int_gauge_with_registry!(
                 "checkpoint_builder_advance_epoch_is_safe_mode",

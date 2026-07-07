@@ -128,8 +128,8 @@ use move_core_types::{
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
-    register_histogram_vec_with_registry, register_histogram_with_registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel,
+    Registry, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
@@ -393,7 +393,8 @@ impl AuthorityMetrics {
             "Latency of executing certificates, including waiting for inputs",
             &["tx_type"],
             LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Info,
         )
         .unwrap();
 
@@ -529,7 +530,8 @@ impl AuthorityMetrics {
             transaction_manager_num_pending_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_pending_certificates",
                 "Number of certificates pending in TransactionManager, with at least 1 missing input object",
-                registry,
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             transaction_manager_num_executing_certificates: register_int_gauge_with_registry!(
@@ -559,12 +561,14 @@ impl AuthorityMetrics {
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
-                registry)
+                registry;
+                MetricLevel::Info,)
                 .unwrap(),
             local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
                 "This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
-                registry)
+                registry;
+                MetricLevel::Info,)
                 .unwrap(),
             consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_queue_load_shedding_percentage",
