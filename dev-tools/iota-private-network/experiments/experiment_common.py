@@ -1318,15 +1318,18 @@ def post_run_canary(
                 # Continuation line of a multi-line panic; the first line
                 # carries the timestamp we classify on. Skip.
                 continue
+            # Trim long stack-trace lines for the summary log.
+            snippet = line[:240] + ("..." if len(line) > 240 else "")
             try:
                 ts = _parse_iso_utc(ts_match.group(1))
             except ValueError:
+                unknown.append(
+                    f"{archive.name}:{lineno} (unparseable timestamp): {snippet}"
+                )
                 continue
             if _in_shutdown_window(idx, ts):
                 filtered += 1
             else:
-                # Trim long stack-trace lines for the summary log.
-                snippet = line[:240] + ("..." if len(line) > 240 else "")
                 unknown.append(f"{archive.name}:{lineno}: {snippet}")
 
     if not unknown and filtered == 0:
