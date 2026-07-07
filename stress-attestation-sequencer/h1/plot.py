@@ -81,6 +81,14 @@ SKIP_PANELS = {
     "actual / attested CUs — p95 (1.0 = perfect)",
 }
 
+# dump_timeseries stores the source-labeled transaction_overload_sources under a
+# suffixed key; the plain key holds a source-summed variant with no `source` label
+# (left over from the pre-split single-panel view). The per-source panels filter on
+# `source`, so resolve that metric name to the key that still carries the label.
+METRIC_KEY_ALIAS = {
+    "transaction_overload_sources": "transaction_overload_sources_by_source",
+}
+
 # Per-panel display overrides, keyed by dashboard panel title. Any of "file"
 # (output basename, no extension), "title" (figure title), "ylabel" may be set;
 # omitted keys fall back to the dashboard-derived defaults.
@@ -135,14 +143,34 @@ PANEL_OVERRIDES = {
         "title": "Settlement finality latency (client, via fullnode)",
         "color_by": "version_pct",
     },
-    "attestation latency p50 (pre-consensus dry-run)": {
-        "title": "Attestation latency — p50 (pre-consensus dry-run)",
+    "full attestation latency p50 (wait + exec + resume)": {
+        "title": "Full attestation latency — p50 (wait + exec + resume)",
     },
-    "attestation latency p95 (pre-consensus dry-run)": {
-        "title": "Attestation latency — p95 (pre-consensus dry-run)",
+    "full attestation latency p95 (wait + exec + resume)": {
+        "title": "Full attestation latency — p95 (wait + exec + resume)",
     },
-    "attestation latency p99 (pre-consensus dry-run)": {
-        "title": "Attestation latency — p99 (pre-consensus dry-run)",
+    "full attestation latency p99 (wait + exec + resume)": {
+        "title": "Full attestation latency — p99 (wait + exec + resume)",
+    },
+    # num_inflight + the pre-consensus overload sources are per-validator: under
+    # single-validator pinning only the targeted validator sees the queue depth /
+    # shedding, so collapse by MAX (busiest node) rather than averaging it down.
+    "consensus in-flight transactions (num_inflight → max_pending)": {
+        "host_reduce": "max",
+        "title": "Consensus in-flight transactions (num_inflight)",
+        "ylabel": "txs",
+    },
+    "consensus overload source: graduated / sec": {
+        "host_reduce": "max",
+        "ylabel": "rej/s",
+    },
+    "consensus overload source: max-pending / sec": {
+        "host_reduce": "max",
+        "ylabel": "rej/s",
+    },
+    "consensus overload source: semaphore / sec": {
+        "host_reduce": "max",
+        "ylabel": "rej/s",
     },
     # attestation is V2-only (V1 is a flat-zero line — drop it); show the busiest
     # validator (max), same treatment as receipt->executed.
@@ -455,7 +483,7 @@ def eval_target(spec, run, grid, window, host_stat, host_reduce=None):
     `host_reduce` (max/mean/median) overrides the validator collapse for a panel:
     for histograms it computes the quantile PER validator then reduces (e.g. max =
     the worst/slowest node) instead of pooling; for counters/gauges it picks the op."""
-    series = run["series"].get(spec["metric"])
+    series = run["series"].get(METRIC_KEY_ALIAS.get(spec["metric"], spec["metric"]))
     if not isinstance(series, list):
         return np.full(len(grid), np.nan)
     start = run["start_epoch"]
