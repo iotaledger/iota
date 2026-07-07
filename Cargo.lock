@@ -5594,7 +5594,7 @@ dependencies = [
 [[package]]
 name = "iota-bigtable"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?rev=2331a4689b9214b32fb73b8a0064bcf9a9052330#2331a4689b9214b32fb73b8a0064bcf9a9052330"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.1#7fee772a2b124fe97b94826ca108d22d40b3de0a"
 dependencies = [
  "backoff",
  "gcp_auth",
