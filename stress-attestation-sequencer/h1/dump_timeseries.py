@@ -83,6 +83,40 @@ metrics["consensus_handler_validation_dropped_transactions"] = (
 metrics["consensus_handler_max_congestion_control_object_costs"] = (
     "consensus_handler_max_congestion_control_object_costs"
 )
+# post-consensus load shedding (PR #11301): heavy execution -> overload -> user
+# txns deterministically dropped AFTER consensus by the stake-weighted quorum shed
+# percentage. The drop counter is cumulative (rate() offline); the percentages and
+# the overload flag are gauges (see GAUGES below).
+metrics["consensus_handler_load_shedding_dropped_transactions"] = (
+    "consensus_handler_load_shedding_dropped_transactions"
+)
+metrics["consensus_handler_load_shedding_percentage"] = (
+    "consensus_handler_load_shedding_percentage"  # enforced quorum (2f+1) shed %
+)
+metrics["authority_load_shedding_percentage"] = (
+    "authority_load_shedding_percentage"  # this validator's locally computed %
+)
+metrics["consensus_queue_load_shedding_percentage"] = (
+    "consensus_queue_load_shedding_percentage"  # separate consensus-queue signal
+)
+metrics["authority_overload_status"] = "authority_overload_status"  # 0/1
+# --- pre-consensus admission-control shedding -------------------------------
+# Transactions rejected BEFORE consensus by check_system_overload (validator_v2),
+# so the post-consensus percentages above can read 0 while these fire — e.g. when
+# the submit_semaphore has no permits (surfaces under transaction_overload_sources
+# with source="consensus"). Cumulative counters (rate() offline). The labeled
+# *_during_overload / *_sources counters carry an error_type/source label; store
+# the per-host TOTAL (summed across the label) so plot.py's per-validator network
+# collapse is a clean rate. transaction_overload_sources is ALSO kept raw
+# (per-source) for drill-down — e.g. isolating the semaphore ("consensus") source.
+metrics["validator_service_num_rejected_tx_during_overload"] = (
+    "sum by (host) (validator_service_num_rejected_tx_during_overload)"
+)
+metrics["transaction_overload_sources"] = "sum by (host) (transaction_overload_sources)"
+metrics["transaction_overload_sources_by_source"] = "transaction_overload_sources"
+metrics["quorum_driver_total_retryable_overload_errors"] = (
+    "quorum_driver_total_retryable_overload_errors"
+)
 metrics["container_cpu_usage_seconds_total"] = (
     'container_cpu_usage_seconds_total{name=~"validator-.*|fullnode-.*"}'
 )
@@ -129,6 +163,11 @@ GAUGES = {
     "transaction_manager_num_pending_certificates",
     "container_memory_rss",
     "global_state_hash_inconsistent_state",
+    # load-shedding percentages + overload flag rise and fall (not monotonic).
+    "consensus_handler_load_shedding_percentage",
+    "authority_load_shedding_percentage",
+    "consensus_queue_load_shedding_percentage",
+    "authority_overload_status",
 }
 
 

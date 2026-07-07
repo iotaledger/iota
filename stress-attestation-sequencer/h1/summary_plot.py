@@ -278,6 +278,38 @@ FIGURES = [
         ],
     },
     {
+        "file": "load_shedding_post_consensus",
+        "title": "Post-consensus load shedding (PR #11301)",
+        "metrics": [
+            "post-cons shed drops / sec",
+            "shed % enforced",
+            "shed % local",
+            "shed % cons-queue",
+            "overload (0/1)",
+        ],
+        "subtitles": {
+            "post-cons shed drops / sec": "user txns dropped after consensus / sec",
+            "shed % enforced": "enforced quorum (2f+1) shed %",
+            "shed % local": "locally computed shed % (broadcast)",
+            "shed % cons-queue": "consensus-queue shed % (separate signal)",
+            "overload (0/1)": "overload / load-shedding mode active",
+        },
+    },
+    {
+        "file": "load_shedding_pre_consensus",
+        "title": "Pre-consensus load shedding (admission control)",
+        "metrics": [
+            "pre-cons overload rej / sec",
+            "overload sources / sec",
+            "driver overload err / sec",
+        ],
+        "subtitles": {
+            "pre-cons overload rej / sec": "txns rejected pre-consensus (check_system_overload) / sec",
+            "overload sources / sec": "overload-check trips / sec (incl. semaphore)",
+            "driver overload err / sec": "client/driver retryable overload errors / sec",
+        },
+    },
+    {
         "file": "settlement_finality_latency",
         "title": "Settlement finality latency (client-side)",
         "metrics": [

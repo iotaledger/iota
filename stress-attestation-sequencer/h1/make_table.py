@@ -180,6 +180,28 @@ RENAME_COLUMNS = {
     "checkpoint creation lag — p50": {"name": "ckpt lag p50 (s)", "unit": ""},
     "checkpoint creation lag — p95": {"name": "ckpt lag p95 (s)", "unit": ""},
     "checkpoint creation lag — p99": {"name": "ckpt lag p99 (s)", "unit": ""},
+    # post-consensus load shedding (PR #11301)
+    "post-consensus load-shed drops / sec": {
+        "name": "post-cons shed drops / sec",
+        "unit": "",
+    },
+    "load shedding % — enforced (quorum)": {"name": "shed % enforced", "unit": ""},
+    "load shedding % — local (broadcast)": {"name": "shed % local", "unit": ""},
+    "consensus-queue load shedding %": {"name": "shed % cons-queue", "unit": ""},
+    "overload status (0/1)": {"name": "overload (0/1)", "unit": ""},
+    # pre-consensus admission-control shedding
+    "pre-consensus overload rejections / sec": {
+        "name": "pre-cons overload rej / sec",
+        "unit": "",
+    },
+    "overload sources / sec (incl. semaphore)": {
+        "name": "overload sources / sec",
+        "unit": "",
+    },
+    "driver retryable overload errors / sec": {
+        "name": "driver overload err / sec",
+        "unit": "",
+    },
     "validation dropped txs / sec": {"name": "valid. drop. / sec", "unit": ""},
     "settlement finality latency (client, via fullnode) [transaction p50]": {
         "name": "final. lat. p50 (s)",
