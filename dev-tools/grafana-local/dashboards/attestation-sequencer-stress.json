@@ -157,7 +157,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 116
       },
       "id": 10,
       "collapsed": false
@@ -174,7 +174,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 61
+        "y": 117
       },
       "id": 11,
       "fieldConfig": {
@@ -220,7 +220,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 61
+        "y": 117
       },
       "id": 13,
       "fieldConfig": {
@@ -266,7 +266,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 61
+        "y": 117
       },
       "id": 12,
       "fieldConfig": {
@@ -316,15 +316,15 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 66
       },
       "id": 20,
       "collapsed": false
     },
     {
       "type": "timeseries",
-      "title": "attestation latency p50 (pre-consensus dry-run)",
-      "description": "Per-host p50 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
+      "title": "full attestation latency p50 (wait + exec + resume)",
+      "description": "Total pre-consensus attestation latency: spawn_blocking pool wait + Move-VM dry-run execution.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -333,7 +333,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 35
+        "y": 67
       },
       "id": 21,
       "fieldConfig": {
@@ -369,8 +369,8 @@
     },
     {
       "type": "timeseries",
-      "title": "attestation latency p95 (pre-consensus dry-run)",
-      "description": "Per-host p95 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
+      "title": "full attestation latency p95 (wait + exec + resume)",
+      "description": "Total pre-consensus attestation latency: spawn_blocking pool wait + Move-VM dry-run execution.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -379,7 +379,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 35
+        "y": 67
       },
       "id": 24,
       "fieldConfig": {
@@ -415,8 +415,8 @@
     },
     {
       "type": "timeseries",
-      "title": "attestation latency p99 (pre-consensus dry-run)",
-      "description": "Per-host p99 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
+      "title": "full attestation latency p99 (wait + exec + resume)",
+      "description": "Total pre-consensus attestation latency: spawn_blocking pool wait + Move-VM dry-run execution.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -425,7 +425,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 35
+        "y": 67
       },
       "id": 25,
       "fieldConfig": {
@@ -471,7 +471,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 99
       },
       "id": 22,
       "fieldConfig": {
@@ -517,7 +517,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 99
       },
       "id": 23,
       "fieldConfig": {
@@ -572,7 +572,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 119
+        "y": 175
       },
       "id": 56,
       "fieldConfig": {
@@ -613,7 +613,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 69
+        "y": 125
       },
       "id": 30,
       "collapsed": false
@@ -630,7 +630,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 70
+        "y": 126
       },
       "id": 31,
       "fieldConfig": {
@@ -676,7 +676,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 70
+        "y": 126
       },
       "id": 35,
       "fieldConfig": {
@@ -722,7 +722,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 78
+        "y": 134
       },
       "id": 32,
       "fieldConfig": {
@@ -768,7 +768,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 78
+        "y": 134
       },
       "id": 36,
       "fieldConfig": {
@@ -814,7 +814,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 78
+        "y": 134
       },
       "id": 37,
       "fieldConfig": {
@@ -860,7 +860,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 86
+        "y": 142
       },
       "id": 33,
       "fieldConfig": {
@@ -906,7 +906,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 86
+        "y": 142
       },
       "id": 38,
       "fieldConfig": {
@@ -952,7 +952,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 86
+        "y": 142
       },
       "id": 39,
       "fieldConfig": {
@@ -998,7 +998,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 94
+        "y": 150
       },
       "id": 34,
       "fieldConfig": {
@@ -1044,7 +1044,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 94
+        "y": 150
       },
       "id": 43,
       "fieldConfig": {
@@ -1085,7 +1085,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 33
       },
       "id": 40,
       "collapsed": false
@@ -1102,7 +1102,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 10
+        "y": 34
       },
       "id": 41,
       "fieldConfig": {
@@ -1148,7 +1148,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 10
+        "y": 34
       },
       "id": 46,
       "fieldConfig": {
@@ -1194,7 +1194,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 10
+        "y": 34
       },
       "id": 47,
       "fieldConfig": {
@@ -1240,7 +1240,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 42
       },
       "id": 42,
       "fieldConfig": {
@@ -1286,7 +1286,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 18
+        "y": 42
       },
       "id": 48,
       "fieldConfig": {
@@ -1332,7 +1332,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 18
+        "y": 42
       },
       "id": 55,
       "fieldConfig": {
@@ -1424,7 +1424,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 58
       },
       "id": 44,
       "fieldConfig": {
@@ -1488,7 +1488,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 58
       },
       "id": 45,
       "fieldConfig": {
@@ -1543,7 +1543,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 34
+        "y": 50
       },
       "id": 70,
       "fieldConfig": {
@@ -1589,7 +1589,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 34
+        "y": 50
       },
       "id": 71,
       "fieldConfig": {
@@ -1635,7 +1635,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 34
+        "y": 50
       },
       "id": 72,
       "fieldConfig": {
@@ -1676,7 +1676,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 107
       },
       "id": 50,
       "collapsed": false
@@ -1693,7 +1693,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 52
+        "y": 108
       },
       "id": 51,
       "fieldConfig": {
@@ -1739,7 +1739,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 52
+        "y": 108
       },
       "id": 53,
       "fieldConfig": {
@@ -1785,7 +1785,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 52
+        "y": 108
       },
       "id": 52,
       "fieldConfig": {
@@ -1820,18 +1820,6 @@
       ]
     },
     {
-      "type": "row",
-      "title": "load shedding — post-consensus",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 130
-      },
-      "id": 88,
-      "collapsed": false
-    },
-    {
       "type": "timeseries",
       "title": "post-consensus load-shed drops / sec",
       "description": "Per-host rate(consensus_handler_load_shedding_dropped_transactions): user transactions dropped AFTER consensus by the stake-weighted quorum load-shedding percentage (PR #11301). Heavy execution → overload → drops. One curve per validator. Rate window: $__rate_interval (~1m).",
@@ -1843,7 +1831,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 131
+        "y": 9
       },
       "id": 80,
       "fieldConfig": {
@@ -1879,7 +1867,7 @@
     },
     {
       "type": "timeseries",
-      "title": "load shedding % — enforced (quorum)",
+      "title": "post-consensus load-shed % — quorum",
       "description": "Per-host consensus_handler_load_shedding_percentage: the enforced stake-weighted quorum (2f+1) shed % applied to user transactions in the most recent commit (0 when P-COOL is off). This is the rate actually acted on. One curve per validator.",
       "datasource": {
         "type": "prometheus",
@@ -1889,7 +1877,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 131
+        "y": 9
       },
       "id": 81,
       "fieldConfig": {
@@ -1925,7 +1913,7 @@
     },
     {
       "type": "timeseries",
-      "title": "load shedding % — local (broadcast)",
+      "title": "post-consensus load-shed % — local",
       "description": "Per-host authority_load_shedding_percentage: this validator's locally computed shed % (the value broadcast to peers), not necessarily what is enforced. One curve per validator.",
       "datasource": {
         "type": "prometheus",
@@ -1935,7 +1923,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 131
+        "y": 9
       },
       "id": 82,
       "fieldConfig": {
@@ -1980,8 +1968,8 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 0,
-        "y": 139
+        "x": 8,
+        "y": 25
       },
       "id": 83,
       "fieldConfig": {
@@ -2017,64 +2005,6 @@
     },
     {
       "type": "timeseries",
-      "title": "overload status (0/1)",
-      "description": "Per-host authority_overload_status: whether the validator is currently in overload / load-shedding mode. One curve per validator.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 139
-      },
-      "id": 84,
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max by (host) (authority_overload_status{host=~\"$host\"})",
-          "legendFormat": "{{host}}"
-        }
-      ]
-    },
-    {
-      "type": "row",
-      "title": "load shedding — pre-consensus (admission control)",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 147
-      },
-      "id": 89,
-      "collapsed": false
-    },
-    {
-      "type": "timeseries",
       "title": "pre-consensus overload rejections / sec",
       "description": "Per-host rate(validator_service_num_rejected_tx_during_overload), summed across error_type: user transactions rejected BEFORE consensus by check_system_overload on the submit path (validator_v2). Fires even when the post-consensus percentages are 0. One curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": {
@@ -2085,7 +2015,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 148
+        "y": 25
       },
       "id": 85,
       "fieldConfig": {
@@ -2120,105 +2050,13 @@
       ]
     },
     {
-      "type": "timeseries",
-      "title": "overload sources / sec (incl. semaphore)",
-      "description": "Per-host rate(transaction_overload_sources), summed across source: how often each overload check tripped pre-consensus (source = consensus / execution_queue / execution_pending). The submit_semaphore permit-exhaustion rejection lands under source=consensus, so this catches shedding that consensus_queue_load_shedding_percentage does not. Break out by source in this dashboard (edit query to `sum by (source)`) or the raw scraped series. One curve per validator. Rate window: $__rate_interval (~1m).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 148
-      },
-      "id": 86,
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (host) (rate(transaction_overload_sources{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "{{host}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "driver retryable overload errors / sec",
-      "description": "Per-host rate(quorum_driver_total_retryable_overload_errors): client/driver-side retryable overload errors (the driver's view of validator overload rejections). One curve per host reporting it. Rate window: $__rate_interval (~1m).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 148
-      },
-      "id": 87,
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (host) (rate(quorum_driver_total_retryable_overload_errors{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "{{host}}"
-        }
-      ]
-    },
-    {
       "type": "row",
       "title": "health",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 102
+        "y": 158
       },
       "id": 60,
       "collapsed": false
@@ -2235,7 +2073,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 103
+        "y": 159
       },
       "id": 57,
       "fieldConfig": {
@@ -2290,7 +2128,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 103
+        "y": 159
       },
       "id": 58,
       "fieldConfig": {
@@ -2345,7 +2183,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 103
+        "y": 159
       },
       "id": 59,
       "fieldConfig": {
@@ -2400,7 +2238,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 103
+        "y": 159
       },
       "id": 61,
       "fieldConfig": {
@@ -2455,7 +2293,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 111
+        "y": 167
       },
       "id": 62,
       "fieldConfig": {
@@ -2501,7 +2339,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 111
+        "y": 167
       },
       "id": 63,
       "fieldConfig": {
@@ -2547,7 +2385,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 111
+        "y": 167
       },
       "id": 64,
       "fieldConfig": {
@@ -2593,7 +2431,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 119
+        "y": 175
       },
       "id": 65,
       "fieldConfig": {
@@ -2639,7 +2477,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 119
+        "y": 175
       },
       "id": 66,
       "fieldConfig": {
@@ -2670,6 +2508,604 @@
           },
           "expr": "sum by (name) (container_memory_rss{name=~\"$host\"})",
           "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "consensus overload source: graduated / sec",
+      "description": "Pre-consensus rejections from graduated shedding (probabilistic, soft→hard), per validator.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 90,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (host) (rate(transaction_overload_sources{source=\"consensus_graduated\", host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "consensus overload source: max-pending / sec",
+      "description": "Pre-consensus rejections at the max_pending_transactions capacity bound (100% graduated), per validator.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "id": 91,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (host) (rate(transaction_overload_sources{source=\"consensus_max_pending\", host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "consensus overload source: semaphore / sec",
+      "description": "Pre-consensus rejections from submit_semaphore exhaustion (concurrency limit), per validator.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "id": 92,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (host) (rate(transaction_overload_sources{source=\"consensus_semaphore\", host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation dry-run execution p50",
+      "description": "Move-VM dry-run execution only (spawn_blocking closure body), excluding pool wait.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 75
+      },
+      "id": 94,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(validator_attestation_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation dry-run execution p95",
+      "description": "Move-VM dry-run execution only (spawn_blocking closure body), excluding pool wait.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 75
+      },
+      "id": 95,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(validator_attestation_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation dry-run execution p99",
+      "description": "Move-VM dry-run execution only (spawn_blocking closure body), excluding pool wait.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 75
+      },
+      "id": 96,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(validator_attestation_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation pool wait p50 (spawn_blocking)",
+      "description": "Time an attestation dry-run waits on the spawn_blocking pool before a worker starts it (queue wait only).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 83
+      },
+      "id": 97,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(validator_attestation_queue_wait_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation pool wait p95 (spawn_blocking)",
+      "description": "Time an attestation dry-run waits on the spawn_blocking pool before a worker starts it (queue wait only).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 83
+      },
+      "id": 98,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(validator_attestation_queue_wait_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation pool wait p99 (spawn_blocking)",
+      "description": "Time an attestation dry-run waits on the spawn_blocking pool before a worker starts it (queue wait only).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 83
+      },
+      "id": 99,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(validator_attestation_queue_wait_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation async resume p50 (runtime reschedule)",
+      "description": "Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (join return trip); grows when the async runtime is saturated.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 91
+      },
+      "id": 100,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(validator_attestation_async_resume_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation async resume p95 (runtime reschedule)",
+      "description": "Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (join return trip); grows when the async runtime is saturated.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 91
+      },
+      "id": 101,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(validator_attestation_async_resume_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "attestation async resume p99 (runtime reschedule)",
+      "description": "Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (join return trip); grows when the async runtime is saturated.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 91
+      },
+      "id": 102,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(validator_attestation_async_resume_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "consensus in-flight transactions (num_inflight → max_pending)",
+      "description": "Consensus in-flight transactions per validator: sum of sequencing_certificate_inflight over tx types, which mirrors the internal num_inflight_transactions counter (incremented when a tx is submitted to consensus, decremented once it is sequenced or dropped). This is the value the graduated / max_pending load shedding compares against max_pending_transactions (default 20000, per validator); shedding ramps up as it approaches that limit.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 25
+      },
+      "id": 103,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (host) (sequencing_certificate_inflight{host=~\"$host\"})",
+          "legendFormat": "{{host}}"
         }
       ]
     }
