@@ -916,13 +916,12 @@ fn truncate_to_fully_fetched_prefix(
         })
         .count();
     if prefix_len == 0 {
-        let committed_tx_refs: BTreeSet<GenericTransactionRef> = commits
-            .iter()
-            .flat_map(|commit| commit.committed_transactions())
-            .collect();
         return Err(ConsensusError::FetchedTransactionsMismatch {
             peer,
-            expected: committed_tx_refs.len(),
+            expected: commits
+                .iter()
+                .map(|commit| commit.committed_transactions().len())
+                .sum(),
             received: fetched_transactions.len(),
         });
     }
@@ -959,103 +958,43 @@ mod tests {
     };
 
     mod fetch_once {
-        use std::{sync::Arc, time::Duration};
+        use std::{
+            sync::{Arc, atomic::AtomicBool},
+            time::Duration,
+        };
 
         use bytes::Bytes;
         use parking_lot::RwLock;
         use starfish_config::AuthorityIndex;
 
         use crate::{
-            CommitConsumerMonitor, Round, Transaction,
+            CommitConsumerMonitor, Transaction,
             block_header::{
                 BlockHeaderDigest, BlockRef, TestBlockHeader, TransactionsCommitment,
                 VerifiedBlockHeader,
             },
             block_verifier::NoopBlockVerifier,
-            commit::{CommitDigest, CommitRange, TrustedCommit},
-            commit_syncer::{CommitSyncType, Inner, fast::FastCommitSyncer},
+            commit::{CommitDigest, TrustedCommit},
+            commit_syncer::{
+                CommitSyncType, Inner, fast::FastCommitSyncer, tests::FakeNetworkClient,
+            },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
             core_thread::tests::MockCoreThreadDispatcher,
             dag_state::DagState,
             encoder::create_encoder,
-            error::ConsensusResult,
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
-            network::{BlockBundleStream, NetworkClient, SerializedTransactionsV2},
+            network::SerializedTransactionsV2,
             storage::{Store, mem_store::MemStore},
             transaction_ref::{GenericTransactionRef, TransactionRef},
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
-        /// Serves a canned `fetch_commits_and_transactions` response; all
-        /// other endpoints are unused by `fetch_once`.
-        struct FakeFetchClient {
-            response: (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>),
-        }
-
-        #[async_trait::async_trait]
-        impl NetworkClient for FakeFetchClient {
-            async fn subscribe_block_bundles(
-                &self,
-                _peer: AuthorityIndex,
-                _last_received: Round,
-                _timeout: Duration,
-            ) -> ConsensusResult<BlockBundleStream> {
-                unimplemented!("Unimplemented")
-            }
-
-            async fn fetch_block_headers(
-                &self,
-                _peer: AuthorityIndex,
-                _block_refs: Vec<BlockRef>,
-                _highest_accepted_rounds: Vec<Round>,
-                _timeout: Duration,
-            ) -> ConsensusResult<Vec<Bytes>> {
-                unimplemented!("Unimplemented")
-            }
-
-            async fn fetch_commits(
-                &self,
-                _peer: AuthorityIndex,
-                _commit_range: CommitRange,
-                _timeout: Duration,
-            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-                unimplemented!("Unimplemented")
-            }
-
-            async fn fetch_transactions(
-                &self,
-                _peer: AuthorityIndex,
-                _block_refs: Vec<GenericTransactionRef>,
-                _timeout: Duration,
-            ) -> ConsensusResult<Vec<Bytes>> {
-                unimplemented!("Unimplemented")
-            }
-
-            async fn fetch_commits_and_transactions(
-                &self,
-                _peer: AuthorityIndex,
-                _commit_range: CommitRange,
-                _timeout: Duration,
-            ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-                Ok(self.response.clone())
-            }
-
-            async fn fetch_latest_block_headers(
-                &self,
-                _peer: AuthorityIndex,
-                _authorities: Vec<AuthorityIndex>,
-                _timeout: Duration,
-            ) -> ConsensusResult<Vec<Bytes>> {
-                unimplemented!("Unimplemented")
-            }
-        }
-
         fn make_inner(
             context: Arc<Context>,
-            network_client: Arc<FakeFetchClient>,
-        ) -> Arc<Inner<FakeFetchClient>> {
+            network_client: Arc<FakeNetworkClient>,
+        ) -> Arc<Inner<FakeNetworkClient>> {
             let block_verifier = Arc::new(NoopBlockVerifier {});
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
             let store: Arc<dyn Store> = Arc::new(MemStore::new());
@@ -1080,19 +1019,19 @@ mod tests {
                 None,
                 misbehavior_store.clone(),
             );
-            Arc::new(Inner {
+            FastCommitSyncer::new(
                 context,
                 core_thread_dispatcher,
                 commit_vote_monitor,
-                commit_consumer_monitor: Arc::new(CommitConsumerMonitor::new(0)),
+                Arc::new(CommitConsumerMonitor::new(0)),
                 network_client,
                 block_verifier,
                 dag_state,
                 header_synchronizer,
                 misbehavior_store,
-                sync_type: CommitSyncType::Fast,
-                fast_sync_active: None,
-            })
+                Arc::new(AtomicBool::new(false)),
+            )
+            .inner
         }
 
         /// A response whose transaction payload covers only some of the
@@ -1172,12 +1111,12 @@ mod tests {
                 .unwrap()
                 .into(),
             ];
-            let network_client = Arc::new(FakeFetchClient {
-                response: (
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((
                     vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
                     vote_headers,
                     response_transactions,
-                ),
+                )),
             });
             let inner = make_inner(context.clone(), network_client);
 
