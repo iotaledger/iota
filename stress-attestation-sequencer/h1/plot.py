@@ -172,6 +172,15 @@ PANEL_OVERRIDES = {
         "host_reduce": "max",
         "ylabel": "rej/s",
     },
+    # Pre/post-consensus shedding is per-validator and concentrates on the loaded
+    # (pinned) validator, so collapse by MAX (busiest node) — a mean over the idle
+    # validators levels the signal down. Deterministically-replicated post-consensus
+    # values are equal across validators, so there max == mean (harmless + consistent).
+    "pre-consensus overload rejections / sec": {"host_reduce": "max"},
+    "consensus-queue load shedding %": {"host_reduce": "max"},
+    "post-consensus load-shed drops / sec": {"host_reduce": "max"},
+    "post-consensus load-shed % — quorum": {"host_reduce": "max"},
+    "post-consensus load-shed % — local": {"host_reduce": "max"},
     # attestation is V2-only (V1 is a flat-zero line — drop it); show the busiest
     # validator (max), same treatment as receipt->executed.
     "attestations / sec": {
@@ -179,16 +188,21 @@ PANEL_OVERRIDES = {
         "host_reduce": "max",
         "title": "Attestations / sec",
     },
+    # per-validator execution queues concentrate on the loaded (pinned) validator,
+    # so collapse by MAX (busiest) — a mean over idle validators levels them down.
     "execution dispatch queue": {
         "title": "Execution dispatch queue (execution_driver_dispatch_queue)",
         "ylabel": "count",
+        "host_reduce": "max",
     },
     "pending transactions (waiting for inputs)": {
         "title": "Pending transactions (transaction_manager_num_pending_certificates)",
         "ylabel": "txs",
+        "host_reduce": "max",
     },
     "execution queueing delay p95": {
         "title": "Execution queueing delay — p95 (execution_queueing_delay_s)",
+        "host_reduce": "max",
     },
     "attested vs actual computation units (CUs, p50)": {
         "title": "Attested vs actual computation units — p50",
@@ -198,9 +212,11 @@ PANEL_OVERRIDES = {
     "execution backpressure active (0/1)": {
         "title": "Execution backpressure active 0/1 (execution_cache_backpressure_status)",
         "ylabel": "0/1",
+        "host_reduce": "max",
     },
     "backpressure toggles / sec": {
         "title": "Backpressure toggles / sec — rate(execution_cache_backpressure_toggles)",
+        "host_reduce": "max",
     },
     "soft-lock rejections / sec": {
         "title": "Soft-lock rejections / sec — rate(validator_service_num_rejected_tx_soft_lock_conflict)",

@@ -239,20 +239,47 @@ FIGURES = [
         },
     },
     {
-        "file": "attestation_latency",
-        "title": "Attestation: computation units and latency",
+        "file": "attestation_latency_exec",
+        "title": "Attestation: computation units and dry-run execution latency",
         "metrics": [
             "CUs",
-            "attest. lat. p50 (s)",
-            "attest. lat. p95 (s)",
+            "attest. exec p50 (s)",
+            "attest. exec p95 (s)",
             "exec. lat. p95 (s)",
         ],
         "subtitles": {
             "CUs": "computation units",
-            "attest. lat. p95 (s)": "attestation p95",
-            "attest. lat. p50 (s)": "attestation p50",
+            "attest. exec p95 (s)": "attestation dry-run exec p95",
+            "attest. exec p50 (s)": "attestation dry-run exec p50",
             "exec. lat. p95 (s)": "execution p95",
         },
+    },
+    {
+        "file": "attestation_latency_full",
+        "title": "Full attestation latency (wait + exec + resume)",
+        "metrics": [
+            "attest. full p99 (s)",
+            "attest. full p95 (s)",
+            "attest. full p50 (s)",
+        ],
+    },
+    {
+        "file": "attestation_latency_wait",
+        "title": "Attestation pool wait (spawn_blocking queue)",
+        "metrics": [
+            "attest. wait p99 (s)",
+            "attest. wait p95 (s)",
+            "attest. wait p50 (s)",
+        ],
+    },
+    {
+        "file": "attestation_latency_resume",
+        "title": "Attestation async resume (runtime reschedule)",
+        "metrics": [
+            "attest. resume p99 (s)",
+            "attest. resume p95 (s)",
+            "attest. resume p50 (s)",
+        ],
     },
     {
         "file": "receipt_to_exec_latency",
@@ -282,17 +309,27 @@ FIGURES = [
         "title": "Post-consensus load shedding (PR #11301)",
         "metrics": [
             "post-cons shed drops / sec",
-            "shed % enforced",
+            "shed % quorum",
             "shed % local",
-            "shed % cons-queue",
-            "overload (0/1)",
         ],
         "subtitles": {
             "post-cons shed drops / sec": "user txns dropped after consensus / sec",
-            "shed % enforced": "enforced quorum (2f+1) shed %",
+            "shed % quorum": "enforced quorum (2f+1) shed %",
             "shed % local": "locally computed shed % (broadcast)",
-            "shed % cons-queue": "consensus-queue shed % (separate signal)",
-            "overload (0/1)": "overload / load-shedding mode active",
+        },
+    },
+    {
+        "file": "consensus_overload_sources",
+        "title": "Pre-consensus overload sources (rejections by source)",
+        "metrics": [
+            "overload graduated / sec",
+            "overload max-pending / sec",
+            "overload semaphore / sec",
+        ],
+        "subtitles": {
+            "overload graduated / sec": "graduated (soft-limit) rejections / sec",
+            "overload max-pending / sec": "max-pending (hard-limit) rejections / sec",
+            "overload semaphore / sec": "submit-semaphore-exhausted rejections / sec",
         },
     },
     {
@@ -300,13 +337,13 @@ FIGURES = [
         "title": "Pre-consensus load shedding (admission control)",
         "metrics": [
             "pre-cons overload rej / sec",
-            "overload sources / sec",
-            "driver overload err / sec",
+            "shed % cons-queue",
+            "num_inflight",
         ],
         "subtitles": {
             "pre-cons overload rej / sec": "txns rejected pre-consensus (check_system_overload) / sec",
-            "overload sources / sec": "overload-check trips / sec (incl. semaphore)",
-            "driver overload err / sec": "client/driver retryable overload errors / sec",
+            "shed % cons-queue": "consensus-queue graduated shed %",
+            "num_inflight": "consensus in-flight txns (vs max_pending)",
         },
     },
     {
