@@ -28,13 +28,16 @@ jobs:
           ## Do not fail this step on broken links
           fail: false
           ## Allow pages replying with 200 (Ok)in at most 20 seconds
-          ## This checks all md files in the repo
+          ## This checks all md files in the repo. The root dir lets lychee
+          ## resolve root-relative links (e.g. Docusaurus `/img/...` paths)
+          ## instead of reporting them as errors.
           args: >-
             --verbose
             --accept 200
             --timeout 20
             --max-concurrency 10
             --no-progress
+            --root-dir ${{ github.workspace }}
             './**/*.md'
 
       - name: Find the last report issue open
