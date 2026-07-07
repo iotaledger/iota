@@ -21,7 +21,7 @@
 //! | Consensus submission fails       | Locks released immediately in error path                              |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
 //! | Epoch boundary                   | Same instance is `clear()`-ed; all locks dropped                      |
-//! | Object version mismatch          | Keyed on full `ObjectRef`; different versions don't conflict          |
+//! | Object version mismatch          | Keyed on full `ObjectReference`; different versions don't conflict          |
 //!
 //! # TTL derivation
 //!
@@ -39,10 +39,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_types::{
-    base_types::{ObjectRef, TransactionDigest},
-    error::IotaError,
-};
+use iota_sdk_types::ObjectReference;
+use iota_types::{base_types::TransactionDigest, error::IotaError};
 use parking_lot::Mutex;
 use tracing::{debug, error, trace};
 
@@ -64,11 +62,11 @@ struct LockRecord {
 /// updated atomically in the same critical section.
 #[derive(Debug, Default)]
 struct Inner {
-    /// Maps each owned `ObjectRef` to the record of the transaction that
+    /// Maps each owned `ObjectReference` to the record of the transaction that
     /// soft-locked it.
-    locks: HashMap<ObjectRef, LockRecord>,
+    locks: HashMap<ObjectReference, LockRecord>,
     /// Reverse index: transaction → locked objects, for O(1) batch release.
-    tx_to_objects: HashMap<TransactionDigest, Vec<ObjectRef>>,
+    tx_to_objects: HashMap<TransactionDigest, Vec<ObjectReference>>,
 }
 
 /// In-memory soft locks for pre-consensus owned-object conflict detection.
@@ -123,7 +121,7 @@ impl PreConsensusSoftLocks {
         }
     }
 
-    /// Attempts to soft-lock every `ObjectRef` in `owned_objects` for
+    /// Attempts to soft-lock every `ObjectReference` in `owned_objects` for
     /// `tx_digest`.
     ///
     /// - **Same digest**: idempotent — the lock is refreshed but no error is
@@ -137,7 +135,7 @@ impl PreConsensusSoftLocks {
     pub fn try_acquire(
         &self,
         tx_digest: TransactionDigest,
-        owned_objects: &[ObjectRef],
+        owned_objects: &[ObjectReference],
     ) -> Result<(), IotaError> {
         if !self.enabled || owned_objects.is_empty() {
             return Ok(());
@@ -146,7 +144,7 @@ impl PreConsensusSoftLocks {
         let now = Instant::now();
         let ttl = self.lock_ttl;
         let mut inner = self.inner.lock();
-        let mut acquired: Vec<ObjectRef> = Vec::with_capacity(owned_objects.len());
+        let mut acquired: Vec<ObjectReference> = Vec::with_capacity(owned_objects.len());
 
         for obj_ref in owned_objects {
             match Self::try_set_lock(&mut inner.locks, obj_ref, tx_digest, now, ttl) {
@@ -337,8 +335,8 @@ impl PreConsensusSoftLocks {
     /// Operates on a `&mut HashMap` already borrowed from the outer mutex,
     /// so the caller's critical section is serial over the whole acquire.
     fn try_set_lock(
-        locks: &mut HashMap<ObjectRef, LockRecord>,
-        obj_ref: &ObjectRef,
+        locks: &mut HashMap<ObjectReference, LockRecord>,
+        obj_ref: &ObjectReference,
         new_digest: TransactionDigest,
         now: Instant,
         lock_ttl: Duration,
@@ -393,8 +391,8 @@ mod tests {
 
     use super::*;
 
-    fn obj_ref(id: u8, version: u64) -> ObjectRef {
-        ObjectRef::new(
+    fn obj_ref(id: u8, version: u64) -> ObjectReference {
+        ObjectReference::new(
             ObjectId::new([id; ObjectId::LENGTH]),
             Version::from_u64(version),
             ObjectDigest::random(),

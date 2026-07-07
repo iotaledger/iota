@@ -20,10 +20,10 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, ObjectReference};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, TransactionDigest},
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -104,8 +104,8 @@ impl SingleValidator {
         publish_data: PublishData,
         sender: Address,
         keypair: &AccountKeyPair,
-        gas: ObjectRef,
-    ) -> (ObjectRef, ObjectRef) {
+        gas: ObjectReference,
+    ) -> (ObjectReference, ObjectReference) {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)
             .publish_with_data(publish_data);
         let transaction = tx_builder.build_and_sign(keypair);

@@ -19,12 +19,14 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionKind, TypeTag, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, StructTag, TransactionKind, TypeTag, Version,
+};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{ObjectInfo, ObjectRef},
+    base_types::ObjectInfo,
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -113,7 +115,7 @@ pub trait StateRead: Send + Sync {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )>;
@@ -125,7 +127,7 @@ pub trait StateRead: Send + Sync {
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
         gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults>;
@@ -323,7 +325,7 @@ impl StateRead for AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )> {
@@ -337,7 +339,7 @@ impl StateRead for AuthorityState {
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
         gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults> {

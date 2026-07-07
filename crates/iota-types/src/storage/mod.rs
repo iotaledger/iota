@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, Version, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, ObjectReference, Version, move_package::MovePackage};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -33,7 +33,7 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, TransactionDigest, VersionNumber},
+    base_types::{TransactionDigest, VersionNumber},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
@@ -489,14 +489,14 @@ impl ObjectKey {
     }
 }
 
-impl From<ObjectRef> for ObjectKey {
-    fn from(object_ref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectKey {
+    fn from(object_ref: ObjectReference) -> Self {
         ObjectKey::from(&object_ref)
     }
 }
 
-impl From<&ObjectRef> for ObjectKey {
-    fn from(object_ref: &ObjectRef) -> Self {
+impl From<&ObjectReference> for ObjectKey {
+    fn from(object_ref: &ObjectReference) -> Self {
         Self(object_ref.object_id, object_ref.version)
     }
 }
@@ -504,11 +504,11 @@ impl From<&ObjectRef> for ObjectKey {
 #[derive(Clone)]
 pub enum ObjectOrTombstone {
     Object(Object),
-    Tombstone(ObjectRef),
+    Tombstone(ObjectReference),
 }
 
 impl ObjectOrTombstone {
-    pub fn as_objref(&self) -> ObjectRef {
+    pub fn as_objref(&self) -> ObjectReference {
         match self {
             ObjectOrTombstone::Object(obj) => obj.object_ref(),
             ObjectOrTombstone::Tombstone(obref) => *obref,

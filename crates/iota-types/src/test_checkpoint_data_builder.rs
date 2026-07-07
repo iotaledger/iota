@@ -6,13 +6,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
-    TransactionKind, TypeTag, Version,
+    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectRef, dbg_addr, random_object_ref},
+    base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
@@ -77,14 +77,14 @@ struct CheckpointBuilder {
 
 struct TransactionBuilder {
     sender_idx: u8,
-    gas: ObjectRef,
+    gas: ObjectReference,
     move_calls: Vec<(ObjectId, &'static str, &'static str)>,
     created_objects: BTreeMap<ObjectId, Object>,
     mutated_objects: BTreeMap<ObjectId, Object>,
     unwrapped_objects: BTreeSet<ObjectId>,
     wrapped_objects: BTreeSet<ObjectId>,
     deleted_objects: BTreeSet<ObjectId>,
-    frozen_objects: BTreeSet<ObjectRef>,
+    frozen_objects: BTreeSet<ObjectReference>,
     shared_inputs: BTreeMap<ObjectId, Shared>,
     events: Option<Vec<Event>>,
 }
@@ -95,7 +95,7 @@ struct Shared {
 }
 
 impl TransactionBuilder {
-    pub fn new(sender_idx: u8, gas: ObjectRef) -> Self {
+    pub fn new(sender_idx: u8, gas: ObjectReference) -> Self {
         Self {
             sender_idx,
             gas,

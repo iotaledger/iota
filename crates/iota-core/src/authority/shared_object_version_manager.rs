@@ -273,10 +273,9 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{Address, RandomnessRound};
+    use iota_sdk_types::{Address, ObjectReference, RandomnessRound};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::ObjectRef,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
         executable_transaction::{
@@ -713,7 +712,7 @@ mod tests {
         }
         let tx_data = TestTransactionBuilder::new(
             Address::ZERO,
-            ObjectRef::new(
+            ObjectReference::new(
                 ObjectId::random(),
                 Version::from_u64(gas_object_version),
                 ObjectDigest::random(),

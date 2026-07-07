@@ -58,9 +58,9 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, VerifiedExecutionData},
+    base_types::{EpochId, VerifiedExecutionData},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -1492,15 +1492,15 @@ impl ObjectCacheRead for WritebackCache {
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<Option<ObjectRef>> {
+    ) -> IotaResult<Option<ObjectReference>> {
         match self.get_object_entry_by_id_cache_only("latest_objref_or_tombstone", &object_id) {
             CacheResult::Hit((version, entry)) => Ok(Some(match entry {
                 ObjectEntry::Object(object) => object.object_ref(),
                 ObjectEntry::Deleted => {
-                    ObjectRef::new(object_id, version, ObjectDigest::OBJECT_DELETED)
+                    ObjectReference::new(object_id, version, ObjectDigest::OBJECT_DELETED)
                 }
                 ObjectEntry::Wrapped => {
-                    ObjectRef::new(object_id, version, ObjectDigest::OBJECT_WRAPPED)
+                    ObjectReference::new(object_id, version, ObjectDigest::OBJECT_WRAPPED)
                 }
             })),
             CacheResult::NegativeHit => Ok(None),
@@ -1522,7 +1522,7 @@ impl ObjectCacheRead for WritebackCache {
                     ObjectEntry::Object(object) => (key, object.into()),
                     ObjectEntry::Deleted => (
                         key,
-                        ObjectOrTombstone::Tombstone(ObjectRef::new(
+                        ObjectOrTombstone::Tombstone(ObjectReference::new(
                             object_id,
                             version,
                             ObjectDigest::OBJECT_DELETED,
@@ -1530,7 +1530,7 @@ impl ObjectCacheRead for WritebackCache {
                     ),
                     ObjectEntry::Wrapped => (
                         key,
-                        ObjectOrTombstone::Tombstone(ObjectRef::new(
+                        ObjectOrTombstone::Tombstone(ObjectReference::new(
                             object_id,
                             version,
                             ObjectDigest::OBJECT_WRAPPED,
@@ -1751,7 +1751,7 @@ impl ObjectCacheRead for WritebackCache {
 
     fn try_get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
         match self.get_object_by_id_cache_only("lock", &obj_ref.object_id) {
@@ -1788,7 +1788,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
-    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectReference> {
         let obj = self.get_object_impl("live_objref", &object_id)?.ok_or(
             UserInputError::ObjectNotFound {
                 object_id,
@@ -1798,7 +1798,10 @@ impl ObjectCacheRead for WritebackCache {
         Ok(obj.object_ref())
     }
 
-    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(
+        &self,
+        owned_object_refs: &[ObjectReference],
+    ) -> IotaResult {
         try_do_fallback_lookup(
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.object_id) {
@@ -2131,7 +2134,7 @@ impl ExecutionCacheWrite for WritebackCache {
     fn try_acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         self.object_locks.acquire_transaction_locks(
@@ -2142,7 +2145,10 @@ impl ExecutionCacheWrite for WritebackCache {
         )
     }
 
-    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult {
+    fn validate_owned_object_versions(
+        &self,
+        owned_input_objects: &[ObjectReference],
+    ) -> IotaResult {
         ObjectLocks::validate_owned_object_versions(self, owned_input_objects)
     }
 

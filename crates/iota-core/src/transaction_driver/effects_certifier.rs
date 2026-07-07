@@ -10,8 +10,9 @@ use std::{
 
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
+use iota_sdk_types::ObjectReference;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName as _, ObjectRef},
+    base_types::{AuthorityName, ConciseableName as _},
     committee::StakeUnit,
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffectsAPI as _, TransactionEffectsExt as _},
@@ -1057,7 +1058,7 @@ fn verify_executed_data(
 /// message.
 fn verify_objects_recorded(
     objects: &[Object],
-    expected_refs: HashSet<ObjectRef>,
+    expected_refs: HashSet<ObjectReference>,
     object_kind: &str,
 ) -> Result<(), String> {
     for object in objects {

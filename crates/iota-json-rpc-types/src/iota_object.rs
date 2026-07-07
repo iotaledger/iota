@@ -14,11 +14,11 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, Owner, StructTag, Version,
+    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectInfo, ObjectRef, ObjectType, TransactionDigest},
+    base_types::{ObjectDigest, ObjectInfo, ObjectType, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -154,7 +154,7 @@ impl IotaObjectResponse {
         })
     }
 
-    pub fn object_ref_if_exists(&self) -> Option<ObjectRef> {
+    pub fn object_ref_if_exists(&self) -> Option<ObjectReference> {
         match (&self.data, &self.error) {
             (Some(obj_data), None) => Some(obj_data.object_ref()),
             _ => None,
@@ -253,7 +253,7 @@ pub struct IotaObjectData {
 
 impl IotaObjectData {
     pub fn new(
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         obj: Object,
         layout: impl Into<Option<MoveStructLayout>>,
         options: &IotaObjectDataOptions,
@@ -272,7 +272,7 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let ObjectRef {
+        let ObjectReference {
             object_id,
             version,
             digest,
@@ -338,8 +338,8 @@ impl IotaObjectData {
         })
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.object_id, self.version, self.digest)
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
@@ -660,8 +660,8 @@ pub struct ObjectRefSchema {
     pub digest: ObjectDigest,
 }
 
-impl SerializeAs<ObjectRef> for ObjectRefSchema {
-    fn serialize_as<S>(source: &ObjectRef, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<ObjectReference> for ObjectRefSchema {
+    fn serialize_as<S>(source: &ObjectReference, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -670,8 +670,8 @@ impl SerializeAs<ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
-    fn deserialize_as<D>(deserializer: D) -> Result<ObjectRef, D::Error>
+impl<'de> DeserializeAs<'de, ObjectReference> for ObjectRefSchema {
+    fn deserialize_as<D>(deserializer: D) -> Result<ObjectReference, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -680,8 +680,8 @@ impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl From<ObjectRef> for ObjectRefSchema {
-    fn from(oref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectRefSchema {
+    fn from(oref: ObjectReference) -> Self {
         Self {
             object_id: oref.object_id,
             version: oref.version.into(),
@@ -690,9 +690,9 @@ impl From<ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl From<ObjectRefSchema> for ObjectRef {
+impl From<ObjectRefSchema> for ObjectReference {
     fn from(oref: ObjectRefSchema) -> Self {
-        ObjectRef::new(oref.object_id, oref.version.into(), oref.digest)
+        ObjectReference::new(oref.object_id, oref.version.into(), oref.digest)
     }
 }
 
@@ -1183,7 +1183,7 @@ pub enum IotaPastObjectResponse {
     ObjectDeleted(
         #[schemars(with = "ObjectRefSchema")]
         #[serde_as(as = "ObjectRefSchema")]
-        ObjectRef,
+        ObjectReference,
     ),
     /// The object exists but not found with this version
     VersionNotFound(

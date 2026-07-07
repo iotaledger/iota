@@ -4,10 +4,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{ExecutionStatus, ObjectId, Owner, Version, gas::GasCostSummary};
+use iota_sdk_types::{
+    ExecutionStatus, ObjectId, ObjectReference, Owner, Version, gas::GasCostSummary,
+};
 
 use crate::{
-    base_types::ObjectRef,
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
@@ -124,7 +125,7 @@ impl TestEffectsBuilder {
             .shared_input_versions
             .iter()
             .map(|(id, version)| {
-                SharedInput::Existing(ObjectRef::new(*id, *version, ObjectDigest::MIN))
+                SharedInput::Existing(ObjectReference::new(*id, *version, ObjectDigest::MIN))
             })
             .collect();
         let epoch = 0;

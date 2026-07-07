@@ -4,12 +4,11 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, TypeTag, Version, crypto::IntentMessage};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TypeTag, Version, crypto::IntentMessage};
 pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 use serde::Serialize;
 
 use crate::{
-    base_types::ObjectRef,
     digests::ObjectDigest,
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
@@ -43,7 +42,7 @@ pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
 
     fn input_objects(&self) -> Vec<InputObjectKind>;
 
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
 
     fn shared_objects(&self) -> Vec<SharedObjectRef>;
 
@@ -107,7 +106,7 @@ impl MoveAuthenticatorExt for MoveAuthenticator {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         match self {
             Self::V1(v1) => v1.receiving_objects(),
             _ => unimplemented!(
@@ -199,7 +198,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             .collect::<Vec<_>>()
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         self.call_args()
             .iter()
             .filter_map(|arg| arg.as_opt_receiving().copied())

@@ -9,11 +9,10 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, ObjectId, ProgrammableTransaction, TransactionKind, UnchangedSharedKind,
-    Version, VersionAssignment,
+    ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, TransactionKind,
+    UnchangedSharedKind, Version, VersionAssignment,
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
@@ -69,9 +68,9 @@ struct GasPriceFeedbackTester {
     sender: Address,
     sender_key: AccountKeyPair,
     gas_object_ids: Vec<ObjectId>,
-    package: ObjectRef,
-    shared_counter_1: ObjectRef,
-    shared_counter_2: ObjectRef,
+    package: ObjectReference,
+    shared_counter_1: ObjectReference,
+    shared_counter_2: ObjectReference,
 }
 
 impl GasPriceFeedbackTester {
@@ -179,7 +178,7 @@ impl GasPriceFeedbackTester {
         gas_object_id: &ObjectId,
         sender: &Address,
         sender_key: &AccountKeyPair,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         move_call! {

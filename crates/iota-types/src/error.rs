@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, ObjectReference, Owner, Version};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -99,7 +99,7 @@ pub enum UserInputError {
         .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
-        provided_obj_ref: ObjectRef,
+        provided_obj_ref: ObjectReference,
         current_version: Version,
     },
     #[error("Package verification failed: {err}")]
@@ -134,7 +134,7 @@ pub enum UserInputError {
 
     #[error("Object used as shared is not shared")]
     NotSharedObject,
-    #[error("The transaction inputs contain duplicated ObjectRef's")]
+    #[error("The transaction inputs contain duplicated ObjectReference's")]
     DuplicateObjectRefInput,
     #[error("A transaction input {object_id} is inconsistent")]
     InconsistentInput { object_id: ObjectId },
@@ -187,7 +187,7 @@ pub enum UserInputError {
         latest_version: Version,
     },
     #[error("Object deleted at reference {:?}", object_ref)]
-    ObjectDeleted { object_ref: ObjectRef },
+    ObjectDeleted { object_ref: ObjectReference },
     #[error("Invalid Batch Transaction: {}", error)]
     InvalidBatchTransaction { error: String },
     #[error("This Move function is currently disabled and not available for call")]
@@ -500,17 +500,17 @@ pub enum IotaError {
 
     // Internal state errors
     #[error("Attempt to re-initialize a transaction lock for objects {refs:?}")]
-    ObjectLockAlreadyInitialized { refs: Vec<ObjectRef> },
+    ObjectLockAlreadyInitialized { refs: Vec<ObjectReference> },
     #[error("Object {obj_ref:?} already locked by a different transaction: {pending_transaction}")]
     ObjectLockConflict {
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         pending_transaction: TransactionDigest,
     },
     #[error(
         "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
     )]
     ObjectLockedAtFutureEpoch {
-        obj_refs: Vec<ObjectRef>,
+        obj_refs: Vec<ObjectReference>,
         locked_epoch: EpochId,
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,

@@ -27,11 +27,12 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, StructTag, TypeTag, Version, gas::GasCostSummary,
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, Version,
+    gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectRef, ObjectType, TransactionDigest, random_object_ref},
+    base_types::{ObjectDigest, ObjectType, TransactionDigest, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
     digests::TransactionEventsDigest,
@@ -180,7 +181,7 @@ impl RpcExampleProvider {
             builder
                 .transfer_object(
                     recipient,
-                    ObjectRef::new(
+                    ObjectReference::new(
                         object_id,
                         Version::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
@@ -192,7 +193,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![ObjectRef::new(
+            vec![ObjectReference::new(
                 gas_id,
                 Version::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
@@ -672,12 +673,12 @@ impl RpcExampleProvider {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
         let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let obj_id = ObjectId::new(self.rng.gen());
-        let gas_ref = ObjectRef::new(
+        let gas_ref = ObjectReference::new(
             ObjectId::new(self.rng.gen()),
             Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = ObjectRef::new(
+        let object_ref = ObjectReference::new(
             obj_id,
             Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),

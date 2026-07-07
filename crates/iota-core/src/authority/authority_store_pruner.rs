@@ -933,9 +933,9 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{ObjectId, Version};
+    use iota_sdk_types::{ObjectId, ObjectReference, Version};
     use iota_types::{
-        base_types::{ObjectDigest, ObjectRef},
+        base_types::ObjectDigest,
         digests::TransactionDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
@@ -1067,14 +1067,14 @@ mod tests {
             let mut effects =
                 TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
             for object in to_delete {
-                effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
+                effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
                 ));
             }
             for object in tombstones {
-                effects.unsafe_add_object_tombstone_for_testing(ObjectRef::new(
+                effects.unsafe_add_object_tombstone_for_testing(ObjectReference::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
@@ -1161,7 +1161,7 @@ mod tests {
         let mut effects =
             TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
         for object in to_delete {
-            effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
+            effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
                 object.0,
                 object.1,
                 ObjectDigest::MIN,

@@ -13,10 +13,9 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
-    Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::Digest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -138,7 +137,7 @@ pub fn build_upgrade_test_modules_with_dep_addr(
 pub fn build_upgrade_txn(
     current_pkg_id: ObjectId,
     upgraded_pkg_name: &str,
-    upgrade_cap: ObjectRef,
+    upgrade_cap: ObjectReference,
 ) -> ProgrammableTransaction {
     let mut builder = ProgrammableTransactionBuilder::new();
     let (digest, modules) = build_upgrade_test_modules(upgraded_pkg_name);
@@ -167,8 +166,8 @@ struct UpgradeStateRunner {
     pub sender_key: AccountKeyPair,
     pub gas_object_id: ObjectId,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
-    pub upgrade_cap: ObjectRef,
+    pub package: ObjectReference,
+    pub upgrade_cap: ObjectReference,
     pub rgp: u64,
 }
 
@@ -208,7 +207,7 @@ impl UpgradeStateRunner {
         &mut self,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-    ) -> (ObjectRef, ObjectRef) {
+    ) -> (ObjectReference, ObjectReference) {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let cap = builder.publish_upgradeable(modules, dep_ids);

@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, RandomnessRound, Version, VersionAssignment};
+use iota_sdk_types::{ObjectId, ObjectReference, RandomnessRound, Version, VersionAssignment};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, TransactionDigest},
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
@@ -86,7 +86,7 @@ pub(crate) struct ConsensusCommitOutput {
     report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 
     // P-COOL owned object locks acquired in this commit
-    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
     // Latest overload-shed percentage advertised by each authority via
     // OverloadNotificationV1 during this commit. Flushed to
@@ -229,7 +229,7 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
-    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectRef, LockDetails>) {
+    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
     }
 
@@ -561,7 +561,7 @@ pub(crate) struct ConsensusOutputQuarantine {
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
     // P-COOL owned object locks (aggregate across all quarantined commits)
-    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
     // In-memory cache of the `authority_overload_notifications` table: the most
     // recent load-shedding percentage each authority has broadcast, for the
@@ -855,7 +855,7 @@ impl ConsensusOutputQuarantine {
         }
     }
 
-    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
         self.owned_object_locks.get(obj_ref).copied()
     }
 

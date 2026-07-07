@@ -36,13 +36,12 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, SharedObjectReference,
-    TypeTag, crypto::Intent,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::ObjectRef,
     crypto::SignatureScheme,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     move_authenticator::MoveAuthenticatorV1,
@@ -1895,7 +1894,7 @@ async fn run_account_for_benchmarks(
             .map(|&c| placeholder(c, err.clone(), "create"))
             .collect();
     }
-    let bench_refs: Vec<ObjectRef> = bench_effects
+    let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
         .filter_map(|(oref, owner, kind)| {
@@ -2005,7 +2004,7 @@ impl TestEnvironment {
         name: &str,
     ) -> anyhow::Result<(
         ObjectId,
-        ObjectRef,
+        ObjectReference,
         iota_json_rpc_types::IotaTransactionBlockResponse,
     )> {
         let path = Self::example_path(name);
@@ -2082,7 +2081,7 @@ impl TestEnvironment {
 fn build_auth_function_ref_v1(
     builder: &mut ProgrammableTransactionBuilder,
     account_type: TypeTag,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     module_name: &str,
     function_name: &str,
 ) -> anyhow::Result<Argument> {
@@ -2104,7 +2103,7 @@ fn build_auth_function_ref_v1(
 /// Extract the single newly created shared object reference from a set of
 /// effects. We use this for account creation transactions which always create
 /// exactly one shared account object.
-fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRef> {
+fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectReference> {
     effects
         .all_changed_objects()
         .into_iter()
@@ -2126,7 +2125,7 @@ async fn tx_data_from_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
     sender: Address,
-    gas: ObjectRef,
+    gas: ObjectReference,
 ) -> TransactionData {
     let gas_price = env.test_cluster.get_reference_gas_price().await;
     TransactionData::new_programmable_allow_sponsor(
@@ -2179,7 +2178,7 @@ async fn execute_aa_tx_outcome(
 async fn create_account_with_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let tx_data = env
         .test_cluster
         .test_transaction_builder()
@@ -2221,7 +2220,7 @@ impl AuthCallArgs {
 
 async fn run_simple_auth_ed25519(
     env: &TestEnvironment,
-    account_ref: ObjectRef,
+    account_ref: ObjectReference,
     _pkg_id: ObjectId,
     args: AuthCallArgs,
 ) -> anyhow::Result<(Outcome, Option<String>)> {
@@ -2348,7 +2347,7 @@ fn build_sorted_keccak_merkle_tree(leaves: &[Vec<u8>]) -> (Vec<u8>, Vec<Vec<Vec<
 
 /// Build a `MoveAuthenticator` v1 from extra args and the account ref.
 fn make_move_authenticator(
-    account_ref: ObjectRef,
+    account_ref: ObjectReference,
     extra_args: Vec<CallArg>,
 ) -> anyhow::Result<GenericSignature> {
     Ok(GenericSignature::MoveAuthenticator(
@@ -2367,7 +2366,7 @@ fn make_move_authenticator(
 fn find_created_shared_in_response(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     expected: &TypeTag,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     let expected_struct = match expected {
         TypeTag::Struct(s) => s.as_ref(),
         _ => return None,
@@ -2380,7 +2379,9 @@ fn find_created_shared_in_response(
             version,
             digest,
             ..
-        } if object_type == expected_struct => Some(ObjectRef::new(*object_id, *version, *digest)),
+        } if object_type == expected_struct => {
+            Some(ObjectReference::new(*object_id, *version, *digest))
+        }
         _ => None,
     })
 }

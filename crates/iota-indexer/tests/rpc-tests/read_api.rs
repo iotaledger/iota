@@ -21,13 +21,12 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, Version};
+use iota_sdk_types::{Identifier, ObjectId, ObjectReference, Version};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -1661,7 +1660,7 @@ fn try_get_past_object_object_deleted() {
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -1677,7 +1676,7 @@ fn try_get_past_object_object_deleted() {
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -2082,7 +2081,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let sword_object_ref = *sword_object_ref
             .first()
@@ -2171,7 +2170,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|warrior| warrior.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let warrior_object_ref = *warrior_object_ref
             .first()
@@ -2479,7 +2478,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .unwrapped()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         assert_eq!(
             sword_object_ref.len(),

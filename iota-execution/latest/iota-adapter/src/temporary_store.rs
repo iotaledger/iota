@@ -12,11 +12,12 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectData, ObjectId, Owner, Version, gas::GasCostSummary,
+    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, Version,
+    gas::GasCostSummary,
 };
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, TransactionDigest, VersionDigest},
+    base_types::{TransactionDigest, VersionDigest},
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -79,7 +80,7 @@ pub struct TemporaryStore<'backing> {
 
     /// The set of objects that we may receive during execution. Not guaranteed
     /// to receive all, or any of the objects referenced in this set.
-    receiving_objects: Vec<ObjectRef>,
+    receiving_objects: Vec<ObjectReference>,
 
     // TODO: Now that we track epoch here, there are a few places we don't need to pass it around.
     /// The current epoch.
@@ -100,7 +101,7 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn new(
         store: &'backing dyn BackingStore,
         input_objects: InputObjects,
-        receiving_objects: Vec<ObjectRef>,
+        receiving_objects: Vec<ObjectReference>,
         tx_digest: TransactionDigest,
         protocol_config: &'backing ProtocolConfig,
         cur_epoch: EpochId,
@@ -215,28 +216,25 @@ impl<'backing> TemporaryStore<'backing> {
     /// Returns the [`EffectsObjectChange`] for `id`, gathered from the
     /// execution results.
     fn object_change_for_id(&self, id: &ObjectId) -> EffectsObjectChange {
-        let modified_at = self
-            .get_object_modified_at(id)
-            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
         let results = &self.execution_results;
-        let written = results.written_objects.get(id);
         let id_created = results.created_object_ids.contains(id);
         let id_deleted = results.deleted_object_ids.contains(id);
-
         debug_assert!(
             !id_created || !id_deleted,
             "Object ID can't be created and deleted at the same time."
         );
-        EffectsObjectChange {
-            object_id: *id,
-            input_state: modified_at.map_or(ObjectIn::Missing, |((version, digest), owner)| {
-                ObjectIn::Data {
-                    version,
-                    digest,
-                    owner,
-                }
-            }),
-            output_state: written.map_or(ObjectOut::Missing, |o| {
+
+        let input_state = self
+            .get_object_modified_at(id)
+            .map_or(ObjectIn::Missing, |m| ObjectIn::Data {
+                version: m.version,
+                digest: m.digest,
+                owner: m.owner,
+            });
+        let output_state = results
+            .written_objects
+            .get(id)
+            .map_or(ObjectOut::Missing, |o| {
                 if o.is_package() {
                     ObjectOut::PackageWrite {
                         version: o.version(),
@@ -248,14 +246,20 @@ impl<'backing> TemporaryStore<'backing> {
                         owner: o.owner,
                     }
                 }
-            }),
-            id_operation: if id_created {
-                IDOperation::Created
-            } else if id_deleted {
-                IDOperation::Deleted
-            } else {
-                IDOperation::None
-            },
+            });
+        let id_operation = if id_created {
+            IDOperation::Created
+        } else if id_deleted {
+            IDOperation::Deleted
+        } else {
+            IDOperation::None
+        };
+
+        EffectsObjectChange {
+            object_id: *id,
+            input_state,
+            output_state,
+            id_operation,
         }
     }
 

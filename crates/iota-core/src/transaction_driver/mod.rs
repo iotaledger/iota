@@ -31,12 +31,12 @@ use tokio::{
 use tracing::instrument;
 use transaction_submitter::*;
 
+// `ValidatorClientMetrics` is used in public `TransactionDriver::new`
+pub use crate::validator_client_monitor::ValidatorClientMetrics;
 use crate::{
     authority_aggregator::AuthorityAggregator,
     authority_client::AuthorityAPI,
-    validator_client_monitor::{
-        OperationFeedback, OperationType, ValidatorClientMetrics, ValidatorClientMonitor,
-    },
+    validator_client_monitor::{OperationFeedback, OperationType, ValidatorClientMonitor},
 };
 
 pub mod reconfig_observer;

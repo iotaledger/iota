@@ -12,9 +12,9 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::ObjectReference as ObjectRef;
 use iota_sdk_types::{
-    Address, Identifier, MoveObjectType, ObjectId, Owner, StructTag, TypeTag, Version,
+    Address, Identifier, MoveObjectType, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+    Version,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
@@ -70,8 +70,8 @@ pub trait ConciseableName<'a> {
 
 pub type VersionDigest = (Version, ObjectDigest);
 
-pub fn random_object_ref() -> ObjectRef {
-    ObjectRef::new(
+pub fn random_object_ref() -> ObjectReference {
+    ObjectReference::new(
         ObjectId::random(),
         Version::default(),
         ObjectDigest::new([0; 32]),
@@ -181,7 +181,7 @@ pub struct ObjectInfo {
 }
 
 impl ObjectInfo {
-    pub fn new(oref: &ObjectRef, o: &Object) -> Self {
+    pub fn new(oref: &ObjectReference, o: &Object) -> Self {
         Self {
             object_id: oref.object_id,
             version: oref.version,
@@ -204,15 +204,15 @@ impl ObjectInfo {
     }
 }
 
-impl From<ObjectInfo> for ObjectRef {
+impl From<ObjectInfo> for ObjectReference {
     fn from(info: ObjectInfo) -> Self {
-        ObjectRef::new(info.object_id, info.version, info.digest)
+        ObjectReference::new(info.object_id, info.version, info.digest)
     }
 }
 
-impl From<&ObjectInfo> for ObjectRef {
+impl From<&ObjectInfo> for ObjectReference {
     fn from(info: &ObjectInfo) -> Self {
-        ObjectRef::new(info.object_id, info.version, info.digest)
+        ObjectReference::new(info.object_id, info.version, info.digest)
     }
 }
 

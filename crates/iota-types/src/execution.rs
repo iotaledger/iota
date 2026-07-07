@@ -4,12 +4,13 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{Argument, Event, ObjectData, ObjectId, Owner, TypeTag, Version};
+use iota_sdk_types::{
+    Argument, Event, ObjectData, ObjectId, ObjectReference, Owner, TypeTag, Version,
+};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::ObjectRef,
     digests::{ObjectDigest, TransactionDigest},
     object::{MoveObjectExt, Object},
     storage::BackingPackageStore,
@@ -32,7 +33,7 @@ pub type DeletedSharedObjects = Vec<DeletedSharedObjectInfo>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SharedInput {
-    Existing(ObjectRef),
+    Existing(ObjectReference),
     Deleted(DeletedSharedObjectInfo),
     Cancelled((ObjectId, Version)),
 }

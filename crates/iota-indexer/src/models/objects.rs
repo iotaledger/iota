@@ -6,9 +6,9 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::{
-    base_types::{ObjectIdParseError, ObjectRef},
+    base_types::ObjectIdParseError,
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
@@ -203,7 +203,7 @@ impl StoredHistoryObject {
                 ))
             }
             ObjectStatus::WrappedOrDeleted => {
-                let object_ref = ObjectRef::new(
+                let object_ref = ObjectReference::new(
                     ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
                         IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice)
                     })?,
@@ -436,7 +436,7 @@ impl StoredObject {
         Ok(ObjectRead::Exists(oref, object, Some(*move_struct_layout)))
     }
 
-    pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
+    pub fn get_object_ref(&self) -> Result<ObjectReference, IndexerError> {
         let object_id = ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
@@ -447,7 +447,7 @@ impl StoredObject {
                     self.object_digest
                 ))
             })?;
-        Ok(ObjectRef::new(
+        Ok(ObjectReference::new(
             object_id,
             (self.object_version as u64).into(),
             object_digest,
@@ -545,7 +545,7 @@ impl TryFrom<StoredObject> for IotaCoin {
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
         let object: Object = o.clone().try_into()?;
-        let ObjectRef {
+        let ObjectReference {
             object_id,
             version,
             digest,

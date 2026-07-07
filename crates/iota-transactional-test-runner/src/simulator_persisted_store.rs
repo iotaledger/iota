@@ -7,10 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Version};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{ObjectRef, VersionNumber},
+    base_types::VersionNumber,
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -308,7 +308,7 @@ impl SimulatorStore for PersistedStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     ) {
         for object_ref in deleted_objects {
             self.read_write

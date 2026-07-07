@@ -5,8 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
+use iota_sdk_types::ObjectReference;
 use iota_types::{
-    base_types::{EpochId, ObjectRef, TransactionDigest},
+    base_types::{EpochId, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
     storage::ObjectKey,
     transaction::{
@@ -45,7 +46,7 @@ impl TransactionInputLoader {
         &self,
         _tx_digest_for_caching: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         // Length of input_object_kinds have been checked via validity_check() for
@@ -267,13 +268,13 @@ impl TransactionInputLoader {
 impl TransactionInputLoader {
     fn read_receiving_objects_for_signing(
         &self,
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<ReceivingObjects> {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let ObjectRef {
+            let ObjectReference {
                 object_id, version, ..
             } = *objref;
 

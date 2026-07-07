@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_types::{Address, ObjectId, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -41,7 +41,6 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -552,7 +551,7 @@ pub async fn publish_test_move_package(
     address: Address,
     account_keypair: &IotaKeyPair,
     test_package_name: &str,
-) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+) -> Result<(ObjectReference, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK
         .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
         .await

@@ -31,11 +31,12 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag, Version,
+    Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
+    StructTag, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectRef, TransactionDigest, TxContext},
+    base_types::{ExecutionDigests, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -1664,7 +1665,7 @@ pub fn split_timelocks(
     executor: &dyn Executor,
     genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
-    timelocks_to_split: &[(ObjectRef, u64, Address)],
+    timelocks_to_split: &[(ObjectReference, u64, Address)],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(

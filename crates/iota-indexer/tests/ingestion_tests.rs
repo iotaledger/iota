@@ -32,10 +32,11 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, Version};
+    use iota_sdk_types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Version,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::ObjectRef,
         crypto::KeypairTraits,
         effects::{TransactionEffects, TransactionEffectsAPI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -879,7 +880,7 @@ mod ingestion_tests {
         effects
     }
 
-    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectRef {
+    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectReference {
         sim.with_store(|s| {
             s.owned_objects(sender)
                 .find(|o| o.is_gas_coin())

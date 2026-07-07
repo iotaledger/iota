@@ -38,7 +38,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, ObjectReference};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -51,7 +51,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, ObjectRef},
+    base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
@@ -270,7 +270,7 @@ impl TestCluster {
             .with(|node| node.state().get_object(object_id))
     }
 
-    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
+    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectReference {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
@@ -280,7 +280,7 @@ impl TestCluster {
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
         object_id: ObjectId,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         self.fullnode_handle
             .iota_node
             .state()
@@ -566,7 +566,7 @@ impl TestCluster {
     pub async fn test_transaction_builder_with_gas_object(
         &self,
         sender: Address,
-        gas: ObjectRef,
+        gas: ObjectReference,
     ) -> TestTransactionBuilder {
         let rgp = self.get_reference_gas_price().await;
         TestTransactionBuilder::new(sender, gas, rgp)
@@ -711,7 +711,7 @@ impl TestCluster {
         rgp: u64,
         amount: Option<u64>,
         funding_address: Address,
-    ) -> (ObjectRef, TransactionDigest) {
+    ) -> (ObjectReference, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
@@ -766,7 +766,7 @@ impl TestCluster {
         rgp: u64,
         amount: Option<u64>,
         funding_address: Address,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         let (object_ref, _tx_digest) = self
             .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
             .await;

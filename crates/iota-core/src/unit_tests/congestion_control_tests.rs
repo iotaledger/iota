@@ -9,9 +9,10 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId, Version};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Version,
+};
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
@@ -50,7 +51,7 @@ struct TestSetup {
     protocol_config: ProtocolConfig,
     sender: Address,
     sender_key: AccountKeyPair,
-    package: ObjectRef,
+    package: ObjectReference,
     gas_object_id: ObjectId,
 }
 
@@ -110,7 +111,7 @@ impl TestSetup {
 
     // Creates a shared object in `setup_authority_state` and returns the object
     // reference.
-    async fn create_shared_object(&self) -> ObjectRef {
+    async fn create_shared_object(&self) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
@@ -139,7 +140,7 @@ impl TestSetup {
 
     // Creates a owned object in `setup_authority_state` and returns the object
     // reference.
-    async fn create_owned_object(&self) -> ObjectRef {
+    async fn create_owned_object(&self) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
@@ -207,12 +208,12 @@ impl TestSetup {
 // the congestion control before being executed.
 async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
-    package: &ObjectRef,
+    package: &ObjectReference,
     sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     shared_objects: &[(ObjectId, Version)],
-    owned_object: &ObjectRef,
+    owned_object: &ObjectReference,
     gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();

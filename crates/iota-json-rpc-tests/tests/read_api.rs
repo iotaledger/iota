@@ -17,10 +17,9 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    base_types::ObjectRef, digests::TransactionDigest,
-    messages_checkpoint::CheckpointSequenceNumber,
+    digests::TransactionDigest, messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
@@ -277,7 +276,7 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let ObjectRef {
+    let ObjectReference {
         object_id: mutated_obj_id,
         version: mutated_obj_version,
         ..
@@ -1604,7 +1603,7 @@ async fn try_get_past_object_deleted() {
         .data
         .unwrap();
 
-    let arg = CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+    let arg = CallArg::ImmutableOrOwned(ObjectReference::new(
         created_object.object_id,
         created_object.version,
         created_object.digest,
@@ -1678,7 +1677,7 @@ async fn try_get_object_before_version() {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let ObjectRef {
+    let ObjectReference {
         object_id: mutated_obj_id,
         version: mutated_obj_version,
         ..

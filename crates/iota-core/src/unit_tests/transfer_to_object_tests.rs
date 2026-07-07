@@ -5,11 +5,10 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
-    Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, Version,
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -66,8 +65,8 @@ struct TestRunner {
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
-    pub upgrade_cap: ObjectRef,
+    pub package: ObjectReference,
+    pub upgrade_cap: ObjectReference,
     pub rgp: u64,
     pub aggressive_pruning_enabled: bool,
 }
@@ -255,8 +254,8 @@ impl TestRunner {
 }
 
 fn get_parent_and_child(
-    created: Vec<(ObjectRef, Owner)>,
-) -> ((ObjectRef, Owner), (ObjectRef, Owner)) {
+    created: Vec<(ObjectReference, Owner)>,
+) -> ((ObjectReference, Owner), (ObjectReference, Owner)) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
@@ -429,19 +428,19 @@ async fn test_tto_invalid_receiving_arguments() {
 
         #[expect(clippy::type_complexity)]
         let mutations: Vec<(
-            Box<dyn FnOnce(ObjectRef) -> ObjectRef>,
+            Box<dyn FnOnce(ObjectReference) -> ObjectReference>,
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(ObjectId::ZERO, x.version, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(ObjectId::ZERO, x.version, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.next().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.next().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -450,7 +449,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.previous().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.previous().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -459,23 +458,23 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|_: ObjectRef| package_object_ref),
+                Box::new(|_: ObjectReference| package_object_ref),
                 Box::new(|err| matches!(err, UserInputError::MovePackageAsObject { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version, ObjectDigest::random())),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version, ObjectDigest::random())),
                 Box::new(|err| matches!(err, UserInputError::InvalidObjectDigest { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| shared.0),
+                Box::new(|_: ObjectReference| shared.0),
                 Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
-                Box::new(|_: ObjectRef| object_owned.0),
+                Box::new(|_: ObjectReference| object_owned.0),
                 Box::new(|err| matches!(err, UserInputError::InvalidChildObjectArgument { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| immutable.0),
+                Box::new(|_: ObjectReference| immutable.0),
                 Box::new(|err| matches!(err, UserInputError::MutableParameterExpected { .. })),
             ),
         ];

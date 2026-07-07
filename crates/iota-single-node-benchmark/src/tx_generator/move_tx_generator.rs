@@ -4,10 +4,9 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Address, Identifier, ObjectId, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Version};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef, Transaction},
 };
@@ -19,7 +18,7 @@ pub struct MoveTxGenerator {
     num_transfers: u64,
     use_native_transfer: bool,
     computation: u8,
-    root_objects: HashMap<Address, ObjectRef>,
+    root_objects: HashMap<Address, ObjectReference>,
     shared_objects: Vec<(ObjectId, Version)>,
     num_mints: u16,
     nft_size: u16,
@@ -32,7 +31,7 @@ impl MoveTxGenerator {
         num_transfers: u64,
         use_native_transfer: bool,
         computation: u8,
-        root_objects: HashMap<Address, ObjectRef>,
+        root_objects: HashMap<Address, ObjectReference>,
         shared_objects: Vec<(ObjectId, Version)>,
         num_mints: u16,
         nft_size: u16,
