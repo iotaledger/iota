@@ -83,6 +83,7 @@ impl KvStoreClient {
                 None,
             )
             .await?
+            .with_backoff(BigTableClient::default_backoff())
         };
 
         Ok(Self {
