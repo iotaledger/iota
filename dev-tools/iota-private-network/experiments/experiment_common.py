@@ -1324,7 +1324,7 @@ def post_run_canary(
                 ts = _parse_iso_utc(ts_match.group(1))
             except ValueError:
                 unknown.append(
-                    f"{archive.name}:{lineno} (unparseable timestamp): {snippet}"
+                    f"{archive.name}:{lineno} (unparsable timestamp): {snippet}"
                 )
                 continue
             if _in_shutdown_window(idx, ts):
