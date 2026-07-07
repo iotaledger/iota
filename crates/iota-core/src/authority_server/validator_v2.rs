@@ -320,14 +320,17 @@ impl ValidatorService {
             if epoch_store.protocol_config().enable_validator_attestation() {
                 // Times the pre-consensus dry-run; records on drop, including
                 // the early-return error paths below. This total spans the whole
-                // spawn_blocking call (pool wait + execution); the two histograms
-                // below split it into queue-wait vs pure dry-run execution.
+                // spawn_blocking call; the histograms below split it three ways:
+                // queue wait (until a pool worker starts), dry-run execution, and
+                // async resume (until the awaiting task is rescheduled after the
+                // blocking work finishes) — full ≈ queue wait + execution + resume.
                 let _attest_guard = metrics.validator_attestation_latency.start_timer();
                 let state_for_attest = state.clone();
                 let epoch_store_for_attest = epoch_store.clone();
                 let governance_for_attest = governance_rules.clone();
                 let queue_wait = metrics.validator_attestation_queue_wait.clone();
                 let exec_latency = metrics.validator_attestation_execution_latency.clone();
+                let resume_latency = metrics.validator_attestation_async_resume_latency.clone();
                 let enqueued = std::time::Instant::now();
                 let join_result = tokio::task::spawn_blocking(move || {
                     // Time from enqueue until a pool worker starts us = queue wait.
@@ -353,11 +356,16 @@ impl ValidatorService {
                         deny_config,
                     );
                     exec_latency.observe(exec_start.elapsed().as_secs_f64());
-                    (result, verified_tx)
+                    // Stamp when the blocking work finished so the awaiting task
+                    // can measure the async-resume delay (join return trip).
+                    (result, verified_tx, std::time::Instant::now())
                 })
                 .await;
                 let (result, verified_tx) = match join_result {
-                    Ok(pair) => pair,
+                    Ok((result, verified_tx, done)) => {
+                        resume_latency.observe(done.elapsed().as_secs_f64());
+                        (result, verified_tx)
+                    }
                     Err(join_err) => {
                         // A panic inside `attest_transaction` (e.g., an
                         // arithmetic panic in Move VM dry-run) surfaces here

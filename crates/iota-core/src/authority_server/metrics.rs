@@ -52,6 +52,11 @@ pub struct ValidatorServiceMetrics {
     /// Wall-clock of the attestation Move-VM dry-run itself (the
     /// `spawn_blocking` closure body), excluding the pool wait above.
     pub validator_attestation_execution_latency: Histogram,
+    /// Time from the dry-run finishing on the blocking pool until the awaiting
+    /// async task resumes (the `spawn_blocking` join return trip). Grows when
+    /// the async runtime is saturated. `validator_attestation_latency` ≈
+    /// queue wait + execution + this.
+    pub validator_attestation_async_resume_latency: Histogram,
     /// Number of attestations performed (dry-runs that completed without
     /// panicking). Pairs with the latency to give CPU-per-attestation / rate.
     pub validator_attestations_total: IntCounter,
@@ -240,22 +245,29 @@ impl ValidatorServiceMetrics {
                 .unwrap(),
             validator_attestation_latency: register_histogram_with_registry!(
                 "validator_attestation_latency",
-                "Latency of attest_transaction (the pre-consensus dry-run) for UserTransactionV2 transactions; spans spawn_blocking pool wait + dry-run execution",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                "Latency of attest_transaction (the pre-consensus dry-run) for UserTransactionV2 transactions; spans pool wait + dry-run execution + async resume",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
                 .unwrap(),
             validator_attestation_queue_wait: register_histogram_with_registry!(
                 "validator_attestation_queue_wait",
                 "Time an attestation dry-run waits on the spawn_blocking pool before a worker starts it (queue wait only)",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
                 .unwrap(),
             validator_attestation_execution_latency: register_histogram_with_registry!(
                 "validator_attestation_execution_latency",
                 "Wall-clock of the attestation Move-VM dry-run itself (spawn_blocking closure body), excluding pool wait",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            validator_attestation_async_resume_latency: register_histogram_with_registry!(
+                "validator_attestation_async_resume_latency",
+                "Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (spawn_blocking join). Grows when the async runtime is saturated; full latency = queue wait + execution + this.",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
                 .unwrap(),
