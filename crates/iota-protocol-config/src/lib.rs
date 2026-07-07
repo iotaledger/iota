@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 30;
+pub const MAX_PROTOCOL_VERSION: u64 = 31;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -173,6 +173,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Expose `is_feature_enabled` and `get_attr<T>` natives to the
 //             iota_system package via a new iota_system::protocol_config
 //             module.
+// Version 31: Enable validator metadata verification v2.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2971,7 +2972,8 @@ impl ProtocolConfig {
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
                     // iota_system via a new iota_system::protocol_config
                     // module.
-
+                }
+                31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
                 }
                 // Use this template when making changes:
