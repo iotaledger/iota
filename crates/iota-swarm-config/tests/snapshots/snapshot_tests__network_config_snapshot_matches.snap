@@ -93,6 +93,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -193,6 +194,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -293,6 +295,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -393,6 +396,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -493,6 +497,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -593,6 +598,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -693,6 +699,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
