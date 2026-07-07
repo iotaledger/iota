@@ -13,7 +13,7 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Address, Event, ObjectId,
+    Address, Event, ObjectId, ObjectReference,
     transaction::{Input, TransactionKind},
 };
 use iota_types::{
@@ -653,7 +653,7 @@ fn load_input_objects(
 
 fn load_receiving_objects(
     store: &dyn BackingStore,
-    receiving_object_refs: &[iota_types::base_types::ObjectRef],
+    receiving_object_refs: &[ObjectReference],
 ) -> Result<ReceivingObjects, VmSdkError> {
     let mut receiving_objects = Vec::new();
     for objref in receiving_object_refs {

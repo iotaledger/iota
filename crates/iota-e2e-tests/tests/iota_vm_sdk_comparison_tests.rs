@@ -16,9 +16,9 @@
 use std::collections::BTreeSet;
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_sdk_types::Owner;
+use iota_sdk_types::{ObjectReference, Owner};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI};
+use iota_types::effects::TransactionEffectsAPI;
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, TypeTag, grpc::GrpcStore};
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -87,24 +87,25 @@ async fn compare_local_vm_staking_against_test_cluster() {
     // content digest (its post-execution balance). It is compared by its own
     // assertion below and kept out of the mutated set so it is not checked
     // twice.
-    let node_gas: (ObjectRef, Owner) = {
+    let node_gas: (ObjectReference, Owner) = {
         let gas = dry_run.effects.gas_object();
         (gas.reference, gas.owner)
     };
-    let node_created: BTreeSet<(ObjectRef, Owner)> = dry_run
+    let node_created: BTreeSet<(ObjectReference, Owner)> = dry_run
         .effects
         .created()
         .iter()
         .map(|o| (o.reference, o.owner))
         .collect();
-    let node_mutated: BTreeSet<(ObjectRef, Owner)> = dry_run
+    let node_mutated: BTreeSet<(ObjectReference, Owner)> = dry_run
         .effects
         .mutated()
         .iter()
         .filter(|o| o.object_id() != node_gas.0.object_id)
         .map(|o| (o.reference, o.owner))
         .collect();
-    let node_deleted: BTreeSet<ObjectRef> = dry_run.effects.deleted().iter().copied().collect();
+    let node_deleted: BTreeSet<ObjectReference> =
+        dry_run.effects.deleted().iter().copied().collect();
 
     // Local VM: every object the run reads — the transaction inputs and the
     // system-state dynamic fields staking walks — is resolved on demand over
@@ -126,15 +127,16 @@ async fn compare_local_vm_staking_against_test_cluster() {
             local_gas, node_gas,
             "{mode}: gas object must match the node in full (ref and owner)"
         );
-        let local_created: BTreeSet<(ObjectRef, Owner)> =
+        let local_created: BTreeSet<(ObjectReference, Owner)> =
             result.effects.created().into_iter().collect();
-        let local_mutated: BTreeSet<(ObjectRef, Owner)> = result
+        let local_mutated: BTreeSet<(ObjectReference, Owner)> = result
             .effects
             .mutated()
             .into_iter()
             .filter(|(r, _)| r.object_id != node_gas.0.object_id)
             .collect();
-        let local_deleted: BTreeSet<ObjectRef> = result.effects.deleted().into_iter().collect();
+        let local_deleted: BTreeSet<ObjectReference> =
+            result.effects.deleted().into_iter().collect();
         assert_eq!(
             node_created, local_created,
             "{mode}: created objects must match"
