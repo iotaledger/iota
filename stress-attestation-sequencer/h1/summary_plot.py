@@ -249,8 +249,8 @@ FIGURES = [
         ],
         "subtitles": {
             "CUs": "computation units",
-            "attest. exec p95 (s)": "attestation dry-run exec p95",
-            "attest. exec p50 (s)": "attestation dry-run exec p50",
+            "attest. exec p95 (s)": "attestation dry-run execution p95",
+            "attest. exec p50 (s)": "attestation dry-run execution p50",
             "exec. lat. p95 (s)": "execution p95",
         },
     },
@@ -306,7 +306,7 @@ FIGURES = [
     },
     {
         "file": "load_shedding_post_consensus",
-        "title": "Post-consensus load shedding (PR #11301)",
+        "title": "Post-consensus load shedding",
         "metrics": [
             "post-cons shed drops / sec",
             "shed % quorum",
@@ -453,7 +453,9 @@ def make_figure(
         else:
             sup = f"{bases.pop()} — {tag}" if homogeneous else tag
         fig.suptitle(sup, fontsize=11)
-        fig.tight_layout(rect=(0, 0, 1, 0.97))
+        # h_pad opens vertical space between stacked subplots so a subplot's title
+        # doesn't read as the x-label of the plot above it.
+        fig.tight_layout(rect=(0, 0, 1, 0.97), h_pad=3.0)
     else:
         fig.tight_layout()
 
