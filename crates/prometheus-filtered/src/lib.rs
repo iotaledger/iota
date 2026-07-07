@@ -5,12 +5,9 @@
 //! filtering.
 //!
 //! Replace `use prometheus::*` with `use prometheus_filtered::*` to control
-//! which metrics are registered. The active filter is resolved, in order of
-//! precedence:
-//!
-//! 1. the `METRICS_FILTER` environment variable;
-//! 2. the node config;
-//! 3. the default (every metric enabled).
+//! which metrics are registered. The active filter combines the node config's
+//! directives with the `METRICS_FILTER` environment variable's; where both
+//! match the same metric, the env var wins.
 //!
 //! Filter syntax: comma-separated `pattern=LEVEL` directives, last-match
 //! wins, where `LEVEL` is one of `off`, `warn`, `info`, `debug`, `trace`.
@@ -564,12 +561,17 @@ impl Filter {
         threshold >= level.verbosity()
     }
 
-    /// Resolves the final filter following the precedence.
+    /// Resolves the metrics filter from `fallback` (the node config)
+    /// and the `METRICS_FILTER` env variables. If the same key exists in both,
+    /// the env var takes precedence.
     pub fn resolve(fallback: Option<&str>) -> Self {
-        if let Ok(s) = std::env::var("METRICS_FILTER") {
-            return Self::parse(&s);
+        let env = std::env::var("METRICS_FILTER").ok();
+        match (fallback, env.as_deref()) {
+            (Some(f), Some(e)) => Self::parse(&format!("{f},{e}")),
+            (Some(f), None) => Self::parse(f),
+            (None, Some(e)) => Self::parse(e),
+            (None, None) => Self::default(),
         }
-        fallback.map(Self::parse).unwrap_or_default()
     }
 }
 
@@ -1148,11 +1150,11 @@ mod tests {
     }
 
     #[test]
-    fn resolve_prefers_env_over_fallback() {
+    fn resolve_applies_fallback() {
         use super::{Arc, Filter, MetricLevel, Registry};
 
-        // The env var takes precedence over the fallback, so the fallback
-        // assertions only hold when it is unset.
+        // The env var's directives are merged after the fallback's, so the
+        // assertions below only hold when it is unset.
         if std::env::var_os("METRICS_FILTER").is_some() {
             return;
         }

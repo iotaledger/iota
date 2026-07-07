@@ -8,7 +8,7 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_metrics::hardware_metrics::register_hardware_metrics;
+use iota_metrics::{MetricLevel, hardware_metrics::register_hardware_metrics};
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
     committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
@@ -91,7 +91,7 @@ fn main() {
     // Hardware metrics default to enabled and can be switched off via the
     // `metrics.groups` config.
     let metric_groups = config.metrics.as_ref().and_then(|m| m.groups.as_ref());
-    if metric_groups.is_none_or(|g| g.hardware) {
+    if metric_groups.is_none_or(|g| g.hardware != MetricLevel::Off) {
         register_hardware_metrics(&registry_service, &config.db_path)
             .expect("Failed registering hardware metrics");
     }

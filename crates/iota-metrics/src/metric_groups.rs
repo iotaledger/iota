@@ -25,11 +25,11 @@
 //! `debug`, while a group defaults to the `warn` threshold, so the default
 //! config keeps only the dashboard metrics.
 //!
-//! The `hw` hardware metrics are registered as a `prometheus` `Collector` and
-//! so bypass the filtering macros entirely. They cannot be filtered, only
-//! registered or not, so the `hardware` group is a plain on/off switch read at
-//! registration time and does not appear in
-//! [`MetricGroups::to_filter_string`].
+//! The `hw` hardware metrics are registered as a prometheus collector and
+//! so bypass the filtering macros entirely. They cannot be level-filtered
+//! individually: the `hardware` group's level is read once at registration
+//! time — [`MetricLevel::Off`] skips the whole group, any other level
+//! registers it.
 
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
@@ -95,8 +95,9 @@ pub struct MetricGroups {
     /// Modules: `iota_core::epoch::epoch_metrics`.
     pub epoch: MetricLevel,
     /// Host hardware metrics (CPU / memory / disk). Registered as a collector,
-    /// so it cannot be level-filtered — only switched on or off.
-    pub hardware: bool,
+    /// so individual metrics cannot be level-filtered: `off` skips the whole
+    /// group and every other level registers it.
+    pub hardware: MetricLevel,
 }
 
 impl Default for MetricGroups {
@@ -112,7 +113,7 @@ impl Default for MetricGroups {
             storage: MetricLevel::Warn,
             rpc: MetricLevel::Warn,
             epoch: MetricLevel::Warn,
-            hardware: true,
+            hardware: MetricLevel::Warn,
         }
     }
 }
@@ -227,7 +228,7 @@ mod tests {
             storage: MetricLevel::Trace,
             rpc: MetricLevel::Trace,
             epoch: MetricLevel::Trace,
-            hardware: true,
+            hardware: MetricLevel::Trace,
         }
     }
 
@@ -271,7 +272,7 @@ mod tests {
     #[test]
     fn metric_groups_hardware_absent_from_filter() {
         let groups = MetricGroups {
-            hardware: false,
+            hardware: MetricLevel::Off,
             ..all_trace()
         };
         assert_eq!(groups.to_filter_string(), "");
@@ -284,7 +285,7 @@ mod tests {
         let groups: MetricGroups = serde_yaml::from_str("traffic-control: off").unwrap();
         assert_eq!(groups.consensus, MetricLevel::Warn);
         assert_eq!(groups.traffic_control, MetricLevel::Off);
-        assert!(groups.hardware);
+        assert_eq!(groups.hardware, MetricLevel::Warn);
         let filter = groups.to_filter_string();
         assert!(filter.contains("iota_core::traffic_controller=off"));
         assert!(filter.contains("starfish_core=warn"));
