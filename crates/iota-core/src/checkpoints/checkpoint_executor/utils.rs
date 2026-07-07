@@ -11,7 +11,6 @@ use futures::{Stream, future::Either};
 use iota_common::fatal;
 use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
-    message_envelope::Message,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint},
 };
 use strum::VariantNames;

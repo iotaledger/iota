@@ -26,7 +26,7 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
@@ -746,7 +746,7 @@ fn mock_checkpoint_data_bytes_with_opt(
     let mut rng = StdRng::from_seed(RNG_SEED);
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-    let summary = CheckpointSummary::new(
+    let summary = CheckpointSummary::new_with_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         epoch,
         seq_number,

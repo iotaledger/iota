@@ -66,7 +66,7 @@ pub trait ReadStore: ObjectStore {
     /// sequence number of the latest executed checkpoint.
     fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
         let latest_checkpoint = self.try_get_latest_checkpoint()?;
-        Ok(*latest_checkpoint.sequence_number())
+        Ok(latest_checkpoint.sequence_number())
     }
 
     /// Non-fallible version of `try_get_latest_checkpoint_sequence_number`.
@@ -899,7 +899,7 @@ impl EpochInfoV2 {
     pub fn end_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
         self.epoch_close_proof
             .as_ref()
-            .map(|entry| *entry.last_checkpoint_summary.data().sequence_number())
+            .map(|entry| entry.last_checkpoint_summary.data().sequence_number())
     }
 }
 

@@ -327,7 +327,7 @@ impl CoinReadApiServer for CoinReadApi {
         Ok(IotaCirculatingSupply {
             value: circulating_supply,
             circulating_supply_percentage,
-            at_checkpoint: *latest_cp.sequence_number(),
+            at_checkpoint: latest_cp.sequence_number(),
         })
     }
 }

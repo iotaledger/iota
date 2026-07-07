@@ -404,7 +404,7 @@ impl BenchmarkContext {
             .build_checkpoints(transactions, effects, checkpoint_size)
             .await;
         info!("Built {} checkpoints", checkpoints.len());
-        let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
+        let last_checkpoint_seq = checkpoints.last().unwrap().0.sequence_number();
         let checkpoint_executor = validator.create_checkpoint_executor();
         for (checkpoint, contents) in checkpoints {
             let state = validator.get_validator();
