@@ -475,9 +475,9 @@ def parse_args() -> argparse.Namespace:
         "-n", "--num-validators",
         default=19,
         type=int,
-        choices=range(2, 101),
+        choices=range(mt.ec.MIN_VALIDATORS, mt.ec.MAX_VALIDATORS + 1),
         metavar="N",
-        help="Number of validators to run (2-100, default: 19)",
+        help="Number of validators to run (2-30, default: 19)",
     )
     parser.add_argument(
         "-c", "--chain-override",
