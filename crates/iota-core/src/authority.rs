@@ -156,7 +156,7 @@ use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
-    consensus_adapter::ConsensusAdapter,
+    consensus_adapter::{ConsensusAdapter, ConsensusOverloadSource},
     epoch::committee_store::CommitteeStore,
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
@@ -1604,21 +1604,28 @@ impl AuthorityState {
     ) -> IotaResult {
         if pcool_flow_enabled {
             // Graduated shedding: 0% to 100% as consensus queue fills from soft
-            // to hard limit.
+            // to hard limit. The check reports its own source — `graduated` for
+            // probabilistic rejection below the hard limit, `max_pending` once it
+            // reaches 100% (the capacity bound).
             self.check_consensus_queue_graduated_limits(consensus_adapter, tx)
-                .tap_err(|_| {
-                    self.update_overload_metrics("consensus");
+                .map_err(|(err, source)| {
+                    self.update_overload_metrics(source.metric_label());
+                    err
                 })?;
 
             // NOTE: graduated shedding at 100% already rejects everything at or above
             // `max_pending_transactions`, so the queue-length part of the check below
-            // is redundant but harmless. But `check_consensus_overload()` should be
-            // kept here because it also verifies that `submit_semaphore` has permits
-            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
-            // separate concurrency limit not covered by the graduated shedding.
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
-            })?;
+            // is redundant but harmless. But the hard-limits check is kept here because
+            // it also verifies that `submit_semaphore` has permits (a separate
+            // concurrency limit not covered by graduated shedding). Call it directly
+            // (rather than `check_consensus_overload`) so the overload metric records
+            // which limit tripped — `consensus_max_pending` vs `consensus_semaphore`.
+            consensus_adapter
+                .check_consensus_hard_limits()
+                .map_err(|source| {
+                    self.update_overload_metrics(source.metric_label());
+                    IotaError::TooManyTransactionsPendingConsensus
+                })?;
         } else {
             if do_authority_overload_check {
                 self.check_authority_overload(tx).tap_err(|_| {
@@ -1655,16 +1662,21 @@ impl AuthorityState {
 
     /// Rejects `tx_data` via graduated shedding based on consensus queue
     /// length. Scales from 0% at the soft limit to 100% at
-    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
-    /// for probabilistic rejection (shedding percentage < 100%, via
-    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
-    /// for unconditional rejection (shedding percentage >= 100%). Updates
-    /// `consensus_queue_load_shedding_percentage` metric.
+    /// `max_pending_transactions`. On rejection returns both the client error
+    /// and the overload source (for the `transaction_overload_sources` metric):
+    /// - below the hard limit (shedding percentage < 100%): probabilistic
+    ///   rejection via `overload_monitor_accept_tx` →
+    ///   `ValidatorOverloadedRetryAfter`, labeled `Graduated`;
+    /// - at/above the hard limit (shedding percentage >= 100%): unconditional
+    ///   rejection → `TooManyTransactionsPendingConsensus`, labeled
+    ///   `MaxPending` (this is the capacity bound, not graduated shedding).
+    ///
+    /// Updates the `consensus_queue_load_shedding_percentage` metric.
     fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx: &SenderSignedTransaction,
-    ) -> IotaResult {
+    ) -> Result<(), (IotaError, ConsensusOverloadSource)> {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
 
         let shedding_pct = compute_graduated_load_shedding_percentage(
@@ -1684,12 +1696,17 @@ impl AuthorityState {
         // At/above the hard limit, rejection is unconditional (not
         // probabilistic), so the seed-rotation retry hint of
         // `ValidatorOverloadedRetryAfter` doesn't apply - return the
-        // capacity-bound error instead.
+        // capacity-bound error instead. This is the max-pending capacity bound,
+        // not graduated shedding, so label it `MaxPending`.
         if shedding_pct >= 100 {
-            return Err(IotaError::TooManyTransactionsPendingConsensus);
+            return Err((
+                IotaError::TooManyTransactionsPendingConsensus,
+                ConsensusOverloadSource::MaxPending,
+            ));
         }
 
         overload_monitor_accept_tx(shedding_pct, tx.digest())
+            .map_err(|e| (e, ConsensusOverloadSource::Graduated))
     }
 
     fn check_authority_overload(&self, tx: &SenderSignedTransaction) -> IotaResult {

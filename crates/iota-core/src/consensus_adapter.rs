@@ -314,6 +314,31 @@ pub struct ConnectionMonitorStatus {
 
 pub struct ConnectionMonitorStatusForTests {}
 
+/// Which P-COOL consensus-submission overload limit rejected a transaction.
+/// Maps to the `transaction_overload_sources` metric `source` label so the
+/// admission-control breakdown can tell graduated shedding apart from the two
+/// binary hard limits (max-pending queue length and submit-semaphore permits).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConsensusOverloadSource {
+    /// Graduated shedding: rejected as the consensus queue fills soft → hard.
+    Graduated,
+    /// In-flight count exceeded `max_pending_transactions` (binary hard limit).
+    MaxPending,
+    /// `submit_semaphore` had no permits (a separate concurrency limit).
+    Semaphore,
+}
+
+impl ConsensusOverloadSource {
+    /// The `source` label value for the `transaction_overload_sources` metric.
+    pub(crate) fn metric_label(self) -> &'static str {
+        match self {
+            Self::Graduated => "consensus_graduated",
+            Self::MaxPending => "consensus_max_pending",
+            Self::Semaphore => "consensus_semaphore",
+        }
+    }
+}
+
 impl ConsensusAdapter {
     /// Make a new Consensus adapter instance.
     pub fn new(
@@ -671,12 +696,14 @@ impl ConsensusAdapter {
             .store(value, Ordering::Relaxed);
     }
 
-    /// Returns `true` if both hard limits allow another transaction:
+    /// Returns `Ok(())` if both hard limits allow another transaction:
     /// (i) in-flight count is at or below `max_pending_transactions`, and
     /// (ii) `submit_semaphore` has at least one available permit.
+    /// On rejection, reports which limit tripped so the P-COOL admission path
+    /// can label the overload source (`transaction_overload_sources`).
     ///
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
-    fn check_consensus_hard_limits(&self) -> bool {
+    pub(crate) fn check_consensus_hard_limits(&self) -> Result<(), ConsensusOverloadSource> {
         // First check total in-flight transactions (waiting and in submission).
         // TODO: this check is redundant in the P-COOL flow - graduated
         // shedding already rejects at 100% once `num_inflight_transactions`
@@ -687,22 +714,24 @@ impl ConsensusAdapter {
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
-            return false;
+            return Err(ConsensusOverloadSource::MaxPending);
         }
 
         // Then check if `submit_semaphore` has permits
-        self.submit_semaphore.available_permits() > 0
+        if self.submit_semaphore.available_permits() == 0 {
+            return Err(ConsensusOverloadSource::Semaphore);
+        }
+
+        Ok(())
     }
 
     /// `IotaResult` wrapper for `check_consensus_hard_limits`. Returns
     /// `TooManyTransactionsPendingConsensus` when the hard limits are exceeded.
+    /// Callers that need to know *which* limit tripped (to label the overload
+    /// source) should call `check_consensus_hard_limits` directly.
     pub(crate) fn check_consensus_overload(&self) -> IotaResult {
-        fp_ensure!(
-            self.check_consensus_hard_limits(),
-            IotaError::TooManyTransactionsPendingConsensus
-        );
-
-        Ok(())
+        self.check_consensus_hard_limits()
+            .map_err(|_| IotaError::TooManyTransactionsPendingConsensus)
     }
 
     fn submit_unchecked(
