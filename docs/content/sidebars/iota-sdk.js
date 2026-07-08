@@ -60,9 +60,9 @@ const iotaSDK = [
                     slug: 'developer/iota-sdk/how-tos/transactions',
                 },
                 items: [
-                    'developer/iota-sdk/how-tos/transactions/prepare-send-iota',
                     'developer/iota-sdk/how-tos/transactions/sign-send-iota',
-                    'developer/iota-sdk/how-tos/transactions/transactions-with-function',
+                    'developer/iota-sdk/how-tos/transactions/stake',
+                    'developer/iota-sdk/how-tos/transactions/move-call-results',
                 ],
             },
             {
@@ -75,6 +75,7 @@ const iotaSDK = [
                 items: [
                     'developer/iota-sdk/how-tos/queries/owned-objects',
                     'developer/iota-sdk/how-tos/queries/query-events',
+                    'developer/iota-sdk/how-tos/queries/query-transactions',
                 ],
             },
         ],
