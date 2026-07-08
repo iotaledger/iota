@@ -236,7 +236,7 @@ impl LocalVm {
                 // Only the authenticator path threads a `MoveTraceBuilder`
                 // through the engine, so a trace is built only here.
                 let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
-                let (sim, verdict) = execute_with_move_authenticators(
+                let (sim, authenticator_outcome) = execute_with_move_authenticators(
                     &env,
                     &backend,
                     prepared,
@@ -245,7 +245,11 @@ impl LocalVm {
                     opts.check_coin_deny_list,
                     &mut trace_builder,
                 )?;
-                (sim, SignatureStatus::from_verdict(verdict), trace_builder)
+                (
+                    sim,
+                    SignatureStatus::from_authentication(authenticator_outcome),
+                    trace_builder,
+                )
             }
         };
         let artifacts = env.collect_artifacts(trace_builder)?;
@@ -324,7 +328,7 @@ impl LocalVm {
         )
         .map_err(|e| ValidationError::new("signing gas status", e))?;
 
-        let verdict = authenticate_only(
+        let authenticator_outcome = authenticate_only(
             &env,
             &backend,
             &transaction,
@@ -332,7 +336,7 @@ impl LocalVm {
             gas_status,
             auth_context_data,
         )?;
-        Ok(SignatureStatus::from_verdict(verdict))
+        Ok(SignatureStatus::from_authentication(authenticator_outcome))
     }
 
     /// The profiler-free executor shared by `decode_events` and non-profiled

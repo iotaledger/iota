@@ -66,7 +66,7 @@ fn main() -> Result<()> {
         .with_debug(DebugConfig::default().with_profiling(ProfileSink::Path(out_path)));
     let result = vm.execute_signed(signed, opts)?;
 
-    // Inspect status, signature verdict, and the gas ledger.
+    // Inspect the execution status, signature status, and the gas ledger.
     println!("Execution status: {:?}", result.effects.status());
     println!("Signature status: {:?}", result.signature_status);
     println!("Gas cost summary: {:?}", result.gas_summary);

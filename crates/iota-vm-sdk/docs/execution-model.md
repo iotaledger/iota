@@ -46,7 +46,7 @@ they differ only in the mock-gas rule and whether effects are committed.
 | `execute_signed`, with `MoveAuthenticator`s | crypto + authenticator run in the VM | `authenticate_then_execute_transaction_to_effects`               | per mode, shared by authenticators + body | post-consensus certified execution | `Verified`, or `Failed` if an authenticator rejects                           |
 | `check_signing_authentication`              | crypto + authenticator run in the VM | `authenticate_transaction` (no body, commits nothing)            | **`max_auth_gas`**                        | pre-consensus signing              | `Verified`, or `Failed` if an authenticator rejects or exceeds `max_auth_gas` |
 
-### Authenticator verdict
+### Authenticator outcome
 
 The authenticator path runs the authenticators and body together to effects. On
 failure the cause is ambiguous, so:

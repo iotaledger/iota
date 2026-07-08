@@ -309,14 +309,14 @@ fn simulation_result(
 }
 
 /// Run a transaction whose sender and/or sponsor authorize via a
-/// `MoveAuthenticator`, returning the simulation together with an aggregate
-/// verdict over all authenticators.
+/// `MoveAuthenticator`, returning the simulation together with the aggregate
+/// authentication outcome over all authenticators.
 ///
 /// Every `MoveAuthenticator` on the transaction is resolved and executed — the
 /// sender's and, for a sponsored transaction, the sponsor's. A successful run
 /// implies all of them accepted. On a failed run the failure may come from any
 /// authenticator or from the transaction body, so the authenticators are
-/// re-executed alone for an unambiguous verdict: `Err` if any rejected, `Ok` if
+/// re-executed alone for an unambiguous outcome: `Err` if any rejected, `Ok` if
 /// they all passed and the body was at fault. The re-run is sound — the
 /// authentication phase discards writes.
 pub(super) fn execute_with_move_authenticators(
@@ -343,8 +343,8 @@ pub(super) fn execute_with_move_authenticators(
         checked_input_objects,
         mock_gas_id,
     } = prepared;
-    // Captured before `gas_status` is consumed so the verdict re-run can meter
-    // at the same budget as the combined run.
+    // Captured before `gas_status` is consumed so the re-run below can meter at
+    // the same budget as the combined run.
     let run_gas_budget = gas_status.gas_budget();
 
     // Resolve every authenticator, then union each one's inputs into the
@@ -418,7 +418,7 @@ pub(super) fn execute_with_move_authenticators(
             trace_builder_opt,
         );
 
-    let verdict = if effects.status().is_success() {
+    let authenticator_outcome = if effects.status().is_success() {
         Ok(())
     } else if effects.status().error_command().is_some_and(|cmd| cmd > 0) {
         // The authenticators run as a fake command 0, so a failure in any later
@@ -436,19 +436,19 @@ pub(super) fn execute_with_move_authenticators(
         // budget outside `DevInspect`, matching the node's post-consensus
         // execution), so the re-run never reports a rejection for a run the
         // combined execution had enough gas for.
-        let verdict_gas_status = IotaGasStatus::new(
+        let rerun_gas_status = IotaGasStatus::new(
             run_gas_budget,
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,
         )
-        .map_err(|e| ValidationError::new("authenticator verdict gas status", e))?;
+        .map_err(|e| ValidationError::new("authenticator re-run gas status", e))?;
         authenticate_only(
             env,
             store,
             &transaction,
             &prepared_auths,
-            verdict_gas_status,
+            rerun_gas_status,
             auth_context_data,
         )?
     };
@@ -462,7 +462,7 @@ pub(super) fn execute_with_move_authenticators(
             execution_result.map(|_| Vec::new()),
             mock_gas_id,
         ),
-        verdict,
+        authenticator_outcome,
     ))
 }
 
@@ -532,7 +532,7 @@ pub(super) fn build_auth_context_data(
 }
 
 /// Run `authenticate_transaction` over `auths_to_run` under `gas_status`,
-/// returning the aggregate verdict (`Err` if any authenticator rejected). Used
+/// returning the aggregate outcome (`Err` if any authenticator rejected). Used
 /// to disambiguate a failed combined run and, on its own, to model the node's
 /// pre-consensus signing check.
 pub(super) fn authenticate_only(

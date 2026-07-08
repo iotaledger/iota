@@ -122,7 +122,7 @@ fn try_run(name: &str, opts: ExecuteOptions) -> Result<ExecutionResult, VmSdkErr
 }
 
 fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
-    try_run(name, opts).expect("execute_signed returns Ok (auth verdict is carried in the result)")
+    try_run(name, opts).expect("execute_signed returns Ok (auth outcome is carried in the result)")
 }
 
 /// Run a fixture in dev-inspect mode and return the status / signature-status
@@ -139,7 +139,7 @@ fn signing_check(name: &str) -> SignatureStatus {
     let vm = f.vm();
 
     vm.check_signing_authentication(f.signed())
-        .expect("check_signing_authentication returns Ok (verdict carried in status)")
+        .expect("check_signing_authentication returns Ok (outcome carried in status)")
 }
 
 /// `authenticate_free_access`: the authenticator function unconditionally
@@ -159,7 +159,7 @@ fn move_authenticator_accepts() {
 
 /// An accepting `MoveAuthenticator` paired with a transaction body that aborts
 /// must still report `SignatureStatus::Verified` — a body failure is not an
-/// authentication failure. This exercises the verdict re-run in
+/// authentication failure. This exercises the re-run in
 /// `execute_with_move_authenticators`: run the free-access fixture once (the
 /// `add_field` body succeeds), seed the created dynamic field back into the
 /// store, then replay the identical transaction so `add_field` aborts on the
@@ -201,7 +201,7 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     );
 }
 
-/// The verdict re-run must meter at the same budget the combined run used.
+/// The re-run must meter at the same budget the combined run used.
 /// In dev-inspect the declared budget is often still `0` (not yet settled) and
 /// the combined run meters at the dev-inspect budget instead; a re-run metered
 /// at the declared `0` would run the authenticator out of gas and misreport a
@@ -210,7 +210,7 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
 /// declared budget zeroed (the free-access authenticator ignores the message,
 /// so the mutated transaction still authenticates).
 #[test]
-fn move_authenticator_dev_inspect_verdict_rerun_ignores_zero_declared_budget() {
+fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
     let f = load("move_auth_free_access_valid.json");
     let mut tx = f.transaction();
     tx.gas_data_mut().budget = 0;
@@ -237,7 +237,7 @@ fn move_authenticator_dev_inspect_verdict_rerun_ignores_zero_declared_budget() {
         vm.store_mut().insert(obj);
     }
 
-    // Second run: the body aborts, triggering the verdict re-run. Metered at
+    // Second run: the body aborts, triggering the re-run. Metered at
     // the combined run's budget the free-access authenticator still accepts;
     // metered at the declared `0` it would run out of gas and misreport.
     let second = vm

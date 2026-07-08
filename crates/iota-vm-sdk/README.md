@@ -15,12 +15,21 @@ It is built around a three-part surface:
 Typical uses: simulating a transaction before signing, estimating gas,
 debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI or a test.
 
-Signed runs report a `SignatureStatus` next to the execution status:
+A signed run reports two separate results:
 
-- standard schemes are verified cryptographically up front,
-- a `MoveAuthenticator` by running its function in the VM,
+- the **execution status** — did the transaction succeed or abort;
+- the **`SignatureStatus`** — did its signatures pass.
 
-so a failing transaction body never shows up as a signature failure.
+Keeping them apart lets you tell a genuinely bad signature from a transaction
+whose signatures were fine but whose body failed — the latter still reports
+`Verified`.
+
+How a signature is checked depends on its type:
+
+- standard schemes (e.g. ed25519) are verified cryptographically before the
+  transaction runs;
+- a `MoveAuthenticator` is a programmable authenticator, checked by running its
+  Move function in the VM — so its result comes out of execution itself.
 
 Object references are resolved against the versions the store holds, so a
 simulation keeps working with objects fetched at "latest" — but a stale

@@ -113,8 +113,10 @@ pub enum SignatureStatus {
 }
 
 impl SignatureStatus {
-    pub(crate) fn from_verdict(verdict: Result<(), iota_types::error::ExecutionError>) -> Self {
-        match verdict {
+    pub(crate) fn from_authentication(
+        outcome: Result<(), iota_types::error::ExecutionError>,
+    ) -> Self {
+        match outcome {
             Ok(()) => Self::Verified,
             Err(e) => Self::Failed(crate::error::SignatureError::new(e)),
         }
