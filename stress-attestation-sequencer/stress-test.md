@@ -129,6 +129,12 @@ work, that shared Move cost dominates both and the extras fade, so the two move
 together. A heavy attested transaction is still executed twice, though — once
 for the dry-run, once for real — so it costs the validator roughly double.
 
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `validator_attestation_latency` | Latency of `attest_transaction` (the pre-consensus dry-run) for `UserTransactionV2` transactions; spans pool wait + dry-run execution + async resume | histogram; p50/p95 (`histogram_quantile`) over `le` buckets pooled across validators; mean over time, pooled over iterations |
+| `authority_state_internal_execution_latency` | Latency of actual certificate executions | histogram; p95 (`histogram_quantile`) over buckets pooled across validators; mean over time |
+| `actual_computation_units` | Actual computation cost in gas units (CU) of attested transactions (`computation_cost` / `gas_price`), observed after execution | histogram; per-tx mean `rate(_sum)/rate(_count)` pooled across validators (exact, not a quantile); mean over time |
+
 ---
 
 **2. Internal execution latency: unchanged.**
@@ -136,6 +142,10 @@ for the dry-run, once for real — so it costs the validator roughly double.
 execution) is A≈B (median B/A = **1.00**, range 0.77–1.32). Attestation adds
 nothing to actual execution — its cost lives entirely in the pre-consensus
 dry-run.
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `authority_state_internal_execution_latency` | Latency of actual certificate executions | histogram; p95 (`histogram_quantile`) over buckets pooled across validators; median of the per-config B/A ratio; mean over time |
 
 ---
 
@@ -153,6 +163,12 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 *Computation units, attestation latency (p50/p95), and actual execution latency
 (p95) — findings 1–3. CUs sit at the gas floor for `slow0`/`slow50` and step up
 from `slow100`; attestation latency converges to execution latency.*
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `attested_computation_units` | Attestor's pre-consensus estimate of the computation cost in gas units (CU), for transactions that arrived as `UserTransactionV2` | histogram; per-tx mean `rate(_sum)/rate(_count)` pooled across validators; mean over time |
+| `actual_computation_units` | Actual computation cost in gas units (CU) of attested transactions (`computation_cost` / `gas_price`), observed after execution | histogram; per-tx mean `rate(_sum)/rate(_count)` pooled across validators; mean over time |
+| `actual_to_attested_computation_units_ratio` | Ratio actual / attested computation units for attested transactions | histogram; per-tx mean `rate(_sum)/rate(_count)` pooled across validators; mean over time |
 
 ---
 
@@ -180,6 +196,10 @@ queueing. p95 tracks the same (`slow500-f` 7.1 s → 14.8 s).
 
 *Validator-internal receipt → executed latency — the pure validator-internal
 pipeline, with no client/fullnode time.*
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `validator_transaction_execution_latency` | Validator-internal latency from receiving a transaction via `submit_tx` until it finished executing (pre-consensus check, consensus, post-consensus validation, sequencing incl. deferral, execution); excludes client/fullnode time | histogram; p50/p95 (`histogram_quantile`) per validator, then max across validators (busiest); mean over time |
 
 ---
 
@@ -234,6 +254,10 @@ noise; its cost is pre-consensus (finding 1), not here.
 *Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is
 the attestation-added work on this path.*
 
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `post_consensus_validation_latency` | Latency of `validate_and_resolve_conflicts` over one consensus commit's user transactions (Checks #0-#3 plus owned-object conflict resolution) | histogram; p50/p95 (`histogram_quantile`) over buckets pooled across validators; mean over time |
+
 ---
 
 **6. Submit latency (fullnode path): a fixed per-transaction addition.** B's
@@ -259,6 +283,10 @@ Submit p50 (ms) on the fullnode path (A = attestation off, B = on):
 
 *Client submit latency, fullnode path only — finding 6.*
 
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `transaction_driver_submit_transaction_latency` | Time in seconds to successfully submit a transaction to a validator | histogram; p50 (`histogram_quantile`), fullnode client series only; mean over time |
+
 ---
 
 **7. Settlement finality latency: the client sees the same doubling.**
@@ -281,6 +309,10 @@ the doubling from finding 4 carried through to what the client observes.
 ![Settlement finality latency](h1/results/summary_plots/settlement_finality_latency.png)
 
 *Client settlement-finality latency, fullnode path only.*
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `transaction_driver_settlement_finality_latency` | Settlement finality latency observed from transaction driver | histogram; p50/p95 (`histogram_quantile`), fullnode client series only; mean over time |
 
 ---
 
@@ -320,6 +352,12 @@ not memory.
 ![CPU and memory](h1/results/summary_plots/resources.png)
 
 *Whole-machine host CPU and busiest-validator CPU / memory (RSS) — finding 8.*
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `container_cpu_usage_seconds_total` | cadvisor (no in-repo help): cumulative CPU seconds consumed by the container | counter; `rate()` → busy cores, max across validators (busiest); mean over time |
+| `container_memory_rss` | cadvisor (no in-repo help): container resident set size (RSS) in bytes | gauge; max across validators (busiest); mean over time |
+| `node_cpu_seconds_total` | node-exporter (no in-repo help): seconds each CPU spent in each mode | counter; `rate()` over non-idle modes summed to whole-machine busy cores; mean over time |
 
 ---
 
@@ -365,6 +403,11 @@ attestations / sec by path (busiest validator, `qps1000`):
 | `slow200-q1000` | 327 | 1371 | 4.2× |
 | `slow500-q1000` | 73  | 475  | 6.5× |
 
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `transactions_included_in_checkpoint` | Transactions included in a checkpoint | counter; `rate()` → finalized TPS, mean across validators (replicated); mean over time |
+| `validator_attestations_total` | Number of attestations performed (dry-runs that completed without panicking) | counter; `rate()` → attestations/s, max across validators (busiest); mean over time |
+
 ---
 
 **10. No post-consensus validation drops.**
@@ -375,6 +418,10 @@ attestations / sec by path (busiest validator, `qps1000`):
 
 *Finalized TPS, attestations / sec, and post-consensus validation-drops / sec —
 findings 9 and 10. TPS is A≈B; no validation drops on either path.*
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `consensus_handler_validation_dropped_transactions` | Number of `UserTransactionV1`/`UserTransactionV2` transactions dropped by post-consensus validation | counter; `rate()` → drops/s, mean across validators; mean over time |
 
 ---
 
@@ -403,6 +450,12 @@ not dipping under attestation either.
 *Execution dispatch queue, pending transactions, and execution queue delay
 (p95).*
 
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `execution_queueing_delay_s` | Queueing delay between a transaction is ready for execution until it starts executing | histogram; p95 (`histogram_quantile`) per validator, then max across validators; mean over time |
+| `execution_driver_dispatch_queue` | Number of transaction pending in execution driver dispatch queue | gauge; max across validators (busiest); peak (max) over time |
+| `transaction_manager_num_pending_certificates` | Number of certificates pending in `TransactionManager`, with at least 1 missing input object | gauge; max across validators (busiest); peak (max) over time |
+
 ---
 
 ### H4 — safety (pass/fail)
@@ -410,6 +463,15 @@ not dipping under attestation either.
 **PASS.** All safety counters are zero across the pooled runs (checkpoint forks,
 inconsistent state hash, double-spend, attestation task panics, soft-lock
 equivocation), and no validator crashed, restarted, or OOM'd.
+
+| metric | description (codebase) | aggregation |
+| --- | --- | --- |
+| `split_brain_checkpoint_forks` | Number of checkpoints that have resulted in a split brain | counter; max across validators over the whole window (H4 requires 0) |
+| `remote_checkpoint_forks` | Number of remote checkpoints that forked from local checkpoints | counter; max across validators over the whole window (H4 requires 0) |
+| `global_state_hash_inconsistent_state` | 1 if accumulated live object set differs from `GlobalStateHasher` root state hash for the previous epoch | gauge; max across validators over the whole window (H4 requires 0) |
+| `total_client_double_spend_attempts_detected` | Total number of client double spend attempts that are detected | counter; max over the whole window (H4 requires 0) |
+| `validator_attestation_task_panics` | Number of attestation dry-runs that panicked (surfaced as a `JoinError`) | counter; max across validators over the whole window (H4 requires 0) |
+| `validator_service_num_rejected_tx_soft_lock_conflict` | Number of transactions rejected due to pre-consensus soft lock conflict on owned objects | counter; max across validators over the whole window (H4 requires 0) |
 
 > [!NOTE]
 > These results use two temporary post-consensus-validation fixes (one per
