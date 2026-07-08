@@ -1001,7 +1001,13 @@ pub trait TransactionDataAPI {
     /// function_name)` tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
 
-    /// Returns all input objects required by this transaction.
+    /// Returns the input objects required by the transaction body.
+    ///
+    /// Note: this does NOT include the objects read by any `MoveAuthenticator`s
+    /// (abstract-account authenticators); those are carried by the transaction
+    /// envelope, not by `TransactionData`. For the full set including
+    /// authenticator inputs, use `SenderSignedData::input_objects` or
+    /// `SenderSignedData::collect_all_input_object_kind_for_reading`.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
 
     /// Returns object references for all objects being received in this
