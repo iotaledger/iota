@@ -23,10 +23,11 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     gas_coin::mock_simulation_gas_coin,
+    inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::bounded_visitor::BoundedVisitor,
@@ -45,7 +46,7 @@ use crate::{
     error::{ExecutionError, StoreError, ValidationError, VmError, VmSdkError},
     executor::{
         env::ExecutionEnv,
-        types::{DecodedEvent, ExecutionMode},
+        types::{CommandResult, DecodedEvent, ExecutionMode},
     },
 };
 
@@ -82,23 +83,17 @@ pub(super) fn prepare_transaction(
     // Update gas payment references to match actual object versions in the
     // store, summing the coins' balance for the dev-inspect budget below.
     let mut gas_balance: u64 = 0;
-    let updated_gas: Vec<_> = transaction
-        .gas()
-        .iter()
-        .map(|gas_ref| {
-            let obj = store
-                .as_object_store()
-                .try_get_object(&gas_ref.object_id)
-                .map_err(|e| StoreError::new("load gas object", e))?;
-            Ok(obj
-                .map(|o| {
-                    gas_balance =
-                        gas_balance.saturating_add(o.as_coin_maybe().map_or(0, |c| c.value()));
-                    o.object_ref()
-                })
-                .unwrap_or(*gas_ref))
-        })
-        .collect::<Result<_, VmSdkError>>()?;
+    let mut updated_gas = Vec::with_capacity(transaction.gas().len());
+    for gas_ref in transaction.gas() {
+        let obj = store
+            .as_object_store()
+            .try_get_object(&gas_ref.object_id)
+            .map_err(|e| StoreError::new("load gas object", e))?;
+        updated_gas.push(obj.map_or(*gas_ref, |o| {
+            gas_balance = gas_balance.saturating_add(o.as_coin_maybe().map_or(0, |c| c.value()));
+            o.object_ref()
+        }));
+    }
     transaction.gas_data_mut().objects = updated_gas;
 
     // Update receiving references in the PTB inputs the same way: execution
@@ -287,7 +282,22 @@ pub(super) fn execute_prepared(
         dev_inspect,
     );
 
-    Ok(SimulateTransactionResult {
+    Ok(simulation_result(
+        inner_temp_store,
+        effects,
+        execution_result,
+        mock_gas_id,
+    ))
+}
+
+/// Assemble the engine's raw outputs into a [`SimulateTransactionResult`].
+fn simulation_result(
+    inner_temp_store: InnerTemporaryStore,
+    effects: TransactionEffects,
+    execution_result: Result<Vec<CommandResult>, iota_types::error::ExecutionError>,
+    mock_gas_id: Option<ObjectId>,
+) -> SimulateTransactionResult {
+    SimulateTransactionResult {
         input_objects: inner_temp_store.input_objects,
         output_objects: inner_temp_store.written,
         events: effects.events_digest().map(|_| inner_temp_store.events),
@@ -295,7 +305,7 @@ pub(super) fn execute_prepared(
         execution_result,
         mock_gas_id,
         suggested_gas_price: None,
-    })
+    }
 }
 
 /// Run a transaction whose sender and/or sponsor authorize via a
@@ -333,10 +343,8 @@ pub(super) fn execute_with_move_authenticators(
         checked_input_objects,
         mock_gas_id,
     } = prepared;
-    // The budget the combined run below is metered at — per mode: the
-    // transaction's declared budget in `DryRun`/`Execute`, the dev-inspect
-    // budget in `DevInspect`. Captured before `gas_status` is consumed so the
-    // verdict re-run can meter at the same budget.
+    // Captured before `gas_status` is consumed so the verdict re-run can meter
+    // at the same budget as the combined run.
     let run_gas_budget = gas_status.gas_budget();
 
     // Resolve every authenticator, then union each one's inputs into the
@@ -445,18 +453,15 @@ pub(super) fn execute_with_move_authenticators(
         )?
     };
 
+    // The authenticator engine entry point does not return per-command
+    // results, so a signed `MoveAuthenticator` run carries none.
     Ok((
-        SimulateTransactionResult {
-            input_objects: inner_temp_store.input_objects,
-            output_objects: inner_temp_store.written,
-            events: effects.events_digest().map(|_| inner_temp_store.events),
+        simulation_result(
+            inner_temp_store,
             effects,
-            // The authenticator engine entry point does not return per-command
-            // results, so a signed `MoveAuthenticator` run carries none.
-            execution_result: execution_result.map(|_| Vec::new()),
+            execution_result.map(|_| Vec::new()),
             mock_gas_id,
-            suggested_gas_price: None,
-        },
+        ),
         verdict,
     ))
 }
@@ -612,7 +617,10 @@ fn resolve_authenticator_function_ref(
         .as_object_store()
         .try_get_object(&field_id)
         .map_err(|e| StoreError::new("load authenticator field", e))?
-        .ok_or(VmSdkError::missing_object(field_id, None))?;
+        .ok_or(VmSdkError::MissingObject {
+            id: field_id,
+            version: None,
+        })?;
 
     authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
         .map_err(|e| ValidationError::new("decode authenticator field", e).into())
@@ -629,7 +637,10 @@ fn load_input_objects(
             .as_object_store()
             .try_get_object(&kind.object_id())
             .map_err(|e| StoreError::new("load input object", e))?
-            .ok_or(VmSdkError::missing_object(kind.object_id(), kind.version()))?;
+            .ok_or(VmSdkError::MissingObject {
+                id: kind.object_id(),
+                version: kind.version(),
+            })?;
 
         let loaded_kind = match kind {
             InputObjectKind::MovePackage(_) => *kind,
@@ -662,10 +673,10 @@ fn load_receiving_objects(
             .as_object_store()
             .try_get_object(&objref.object_id)
             .map_err(|e| StoreError::new("load receiving object", e))?
-            .ok_or(VmSdkError::missing_object(
-                objref.object_id,
-                Some(objref.version),
-            ))?;
+            .ok_or(VmSdkError::MissingObject {
+                id: objref.object_id,
+                version: Some(objref.version),
+            })?;
         let updated_ref = obj.object_ref();
         receiving_objects.push(ReceivingObjectReadResult::new(updated_ref, obj.into()));
     }

@@ -1,17 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! gRPC-backed store (`feature = "grpc"`, native only).
-//!
-//! [`GrpcStore`] wraps a gRPC [`Client`] and an in-memory object cache: it
-//! resolves objects on demand during execution and caches them, so only the
-//! objects a run actually touches are fetched.
-//! [`fetch_chain_context`](GrpcStore::fetch_chain_context) runs up front to get
-//! the chain parameters a run needs.
-//!
-//! On-demand fetching blocks the executor thread on async I/O, so
-//! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
-//! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
+//! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
 use iota_grpc_client::Client;
 use iota_sdk_types::{Digest, ObjectId, Version};
@@ -34,8 +24,8 @@ use crate::{
 /// caveat.
 ///
 /// On-demand object resolution (via the synchronous [`Store`] impl) requires a
-/// multi-threaded Tokio runtime; outside one, a cache miss fails with a
-/// [`StoreError`] instead of fetching.
+/// multi-threaded Tokio runtime (e.g. `#[tokio::main]`); outside one, a cache
+/// miss fails with a [`StoreError`] instead of fetching.
 #[derive(Clone)]
 pub struct GrpcStore {
     cache: CachingStore<GrpcFetcher>,
@@ -172,16 +162,16 @@ impl ObjectFetcher for GrpcFetcher {
             }
             Err(e) => return Err(StoreError::new("fetch objects via gRPC", e)),
         };
-        let mut objects = Vec::with_capacity(proto_objects.len());
-        for proto_obj in proto_objects {
-            // The proto helper yields the SDK `Object`, which the node's
-            // `iota_types::object::Object` is a newtype over.
-            let obj: Object = proto_obj
-                .object()
-                .map_err(|e| StoreError::new("decode gRPC object", e))?
-                .into();
-            objects.push(obj);
-        }
-        Ok(objects)
+        // The proto helper yields the SDK `Object`, which the node's
+        // `iota_types::object::Object` is a newtype over.
+        proto_objects
+            .into_iter()
+            .map(|proto_obj| {
+                proto_obj
+                    .object()
+                    .map(Into::into)
+                    .map_err(|e| StoreError::new("decode gRPC object", e))
+            })
+            .collect()
     }
 }

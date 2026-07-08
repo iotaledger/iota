@@ -7,7 +7,10 @@
 //! debug-configured Move engine for that one call. This module also owns the
 //! executor construction and the gas-profile capture.
 
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
@@ -37,8 +40,8 @@ pub(super) struct ExecutionEnv {
 /// per-invocation JSON into, plus the caller's requested output path for
 /// [`ProfileSink::Path`] (`None` for [`ProfileSink::Capture`]).
 struct ProfileCapture {
-    dir: std::path::PathBuf,
-    target: Option<std::path::PathBuf>,
+    dir: PathBuf,
+    target: Option<PathBuf>,
 }
 
 impl ExecutionEnv {
@@ -125,8 +128,6 @@ fn warn_if_tracing_unavailable() {
     });
 }
 
-/// With the `tracing` feature on, capture works and there is nothing to warn
-/// about.
 #[cfg(feature = "tracing")]
 fn warn_if_tracing_unavailable() {}
 
@@ -170,14 +171,12 @@ fn collect_profile(capture: Option<&ProfileCapture>) -> Result<Option<ProfileOut
         return Ok(None);
     };
     match &capture.target {
-        // `ProfileSink::Path`: write the merged profile to the caller's path.
         Some(target) => {
             std::fs::write(target, &merged).map_err(|e| {
                 VmError::new(format!("write gas profile to {}: {e}", target.display()))
             })?;
             Ok(Some(ProfileOutput::Path(target.clone())))
         }
-        // `ProfileSink::Capture`: hand back the merged bytes.
         None => Ok(Some(ProfileOutput::Json(merged))),
     }
 }
@@ -186,7 +185,7 @@ fn collect_profile(capture: Option<&ProfileCapture>) -> Result<Option<ProfileOut
 /// system temp dir.
 const PROFILE_CAPTURE_DIR_PREFIX: &str = "iota-vm-sdk-gas-profile-";
 
-fn profile_capture_dir() -> std::path::PathBuf {
+fn profile_capture_dir() -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -199,7 +198,7 @@ fn profile_capture_dir() -> std::path::PathBuf {
 /// authenticator call plus the PTB body), each with its own frames table, so
 /// the merge concatenates `profiles` and rebuilds a de-duplicated
 /// `shared.frames`.
-fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
+fn merge_profile_dir(dir: &Path) -> Option<Vec<u8>> {
     let entries = std::fs::read_dir(dir).ok()?;
     // Sort by file name: the profiler's nanosecond-stamped names put the
     // authenticator profile(s) before the PTB body, i.e. invocation order.

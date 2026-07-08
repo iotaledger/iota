@@ -58,15 +58,15 @@ fn main() -> Result<()> {
 
     println!("Sender:           {sender}");
 
-    // --- Execute, with the gas profiler writing a Speedscope doc. The merged
-    // doc carries one profile for the authenticator function and one for the
-    // PTB body. ---
+    // Execute with the gas profiler writing a Speedscope doc; the merged doc
+    // carries one profile for the authenticator function and one for the PTB
+    // body.
     let mut vm = LocalVm::new(ctx, store)?;
     let opts = ExecuteOptions::dry_run()
         .with_debug(DebugConfig::default().with_profiling(ProfileSink::Path(out_path)));
     let result = vm.execute_signed(signed, opts)?;
 
-    // --- Inspect: status, signature verdict, and the gas ledger. ---
+    // Inspect status, signature verdict, and the gas ledger.
     println!("Execution status: {:?}", result.effects.status());
     println!("Signature status: {:?}", result.signature_status);
     println!("Gas cost summary: {:?}", result.gas_summary);

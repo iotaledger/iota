@@ -1,11 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Debug, gas-profiling, and tracing configuration plus the artifacts a run
-//! captures.
-//!
-//! [`DebugConfig`] toggles the Move VM gas profiler and instruction tracing
-//! independently; a run returns the matching [`DebugArtifacts`].
+//! Debug capture: [`DebugConfig`] toggles the Move VM gas profiler and
+//! instruction tracing independently; a run returns the matching
+//! [`DebugArtifacts`].
 
 use std::path::PathBuf;
 

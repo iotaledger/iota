@@ -38,21 +38,27 @@ fn gas_coin(owner: Address) -> Object {
     )
 }
 
+/// `transfer_iota(recipient, Some(amount))`: splits a fresh coin off gas and
+/// transfers it.
+fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> TransactionData {
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.transfer_iota(recipient, Some(amount));
+    TransactionData::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    )
+}
+
 #[test]
 fn standard_signature_is_verified_on_success() {
     let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
-    let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
-    let tx = TransactionData::new_programmable(
-        sender,
-        vec![gas.object_ref()],
-        b.finish(),
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
-        GAS_PRICE,
-    );
+    let tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
     let signed = to_sender_signed_transaction(tx, &key).into_data();
 
     let mut store = InMemoryStore::with_framework();
@@ -79,15 +85,7 @@ fn invalid_standard_signature_is_rejected() {
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
-    let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
-    let tx = TransactionData::new_programmable(
-        sender,
-        vec![gas.object_ref()],
-        b.finish(),
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
-        GAS_PRICE,
-    );
+    let tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
     // Sign with a key that does not own `sender`: the signature is well-formed
     // but authored by the wrong address.
     let signed = to_sender_signed_transaction(tx, &wrong_key).into_data();
@@ -114,15 +112,7 @@ fn standard_signature_stays_verified_when_body_aborts() {
     let recipient = Address::from(ObjectId::random());
 
     // Try to split off more than the gas coin holds: the body aborts.
-    let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(GAS_COIN_VALUE * 2));
-    let tx = TransactionData::new_programmable(
-        sender,
-        vec![gas.object_ref()],
-        b.finish(),
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
-        GAS_PRICE,
-    );
+    let tx = transfer_tx(sender, &gas, recipient, GAS_COIN_VALUE * 2);
     let signed = to_sender_signed_transaction(tx, &key).into_data();
 
     let mut store = InMemoryStore::with_framework();
@@ -148,15 +138,7 @@ fn missing_input_object_is_reported_with_its_id() {
     let gas = gas_coin(Address::ZERO);
     let phantom_id = gas.id();
     let recipient = Address::from(ObjectId::random());
-    let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
-    let tx = TransactionData::new_programmable(
-        Address::ZERO,
-        vec![gas.object_ref()],
-        b.finish(),
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
-        GAS_PRICE,
-    );
+    let tx = transfer_tx(Address::ZERO, &gas, recipient, TRANSFER_AMOUNT);
 
     // The store never saw the gas coin.
     let store = InMemoryStore::with_framework();

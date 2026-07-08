@@ -3,11 +3,8 @@
 
 //! Object storage surface for the local VM.
 //!
-//! The public [`Store`] trait is a four-method surface —
-//! `get_object` / `get_child_object` / `insert` / `remove`.
-//!
-//! [`InMemoryStore`] is the default, fully-offline implementation. The
-//! networked stores ([`crate::grpc`] / [`crate::graphql`]) front an
+//! [`InMemoryStore`] is the default, fully-offline [`Store`] implementation.
+//! The networked stores (`GrpcStore` / `GraphQLStore`) front an
 //! `InMemoryStore` cache and resolve cache misses on demand, blocking on the
 //! node, so the trait stays synchronous everywhere.
 
@@ -85,15 +82,10 @@ impl InMemoryStore {
     /// offline execution, since any non-trivial Move call needs the framework.
     pub fn with_framework() -> Self {
         let mut store = Self::new();
-        store.extend(BuiltInFramework::genesis_objects());
-        store
-    }
-
-    /// Insert every object from `objects` into the store.
-    pub(crate) fn extend<I: IntoIterator<Item = Object>>(&mut self, objects: I) {
-        for obj in objects {
-            self.insert(obj);
+        for obj in BuiltInFramework::genesis_objects() {
+            store.insert(obj);
         }
+        store
     }
 
     /// Iterate over all `(id, object)` pairs currently held.
@@ -118,13 +110,11 @@ impl Store for InMemoryStore {
         id: &ObjectId,
         version: Option<Version>,
     ) -> Result<Option<Object>, StoreError> {
-        let Some(obj) = self.objects.get(id) else {
-            return Ok(None);
-        };
-        Ok(match version {
-            Some(v) if obj.version() != v => None,
-            _ => Some(obj.clone()),
-        })
+        Ok(self
+            .objects
+            .get(id)
+            .filter(|obj| version.is_none_or(|v| obj.version() == v))
+            .cloned())
     }
 
     fn get_child_object(
@@ -133,8 +123,8 @@ impl Store for InMemoryStore {
         child: &ObjectId,
         version_upper_bound: Version,
     ) -> Result<Option<Object>, StoreError> {
-        // A child must be owned by `parent`, and the version bound is applied
-        // to the single version held (this store keeps one version per id).
+        // This store keeps one version per id; the bound applies to that
+        // version.
         Ok(self
             .objects
             .get(child)

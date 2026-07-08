@@ -3,11 +3,10 @@
 
 //! Shared on-demand caching layer for the networked stores.
 //!
-//! [`GrpcStore`](crate::grpc::GrpcStore) and
-//! [`GraphQLStore`](crate::graphql::GraphQLStore) differ only in how they fetch
-//! objects from a node; the cache and the on-demand [`Store`] resolution are
-//! identical and live here. A backend implements [`ObjectFetcher`] and wraps it
-//! in a [`CachingStore`].
+//! `GrpcStore` and `GraphQLStore` differ only in how they fetch objects from a
+//! node; the cache and the on-demand [`Store`] resolution are identical and
+//! live here. A backend implements [`ObjectFetcher`] and wraps it in a
+//! [`CachingStore`].
 //!
 //! The [`Store`] trait is synchronous, but the Move VM resolves objects on
 //! demand mid-execution, so a cache miss blocks on the fetcher via
@@ -21,7 +20,7 @@
 use std::{
     collections::BTreeSet,
     future::Future,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use iota_sdk_types::{ObjectId, Version};
@@ -62,6 +61,21 @@ struct CacheState {
     removed: BTreeSet<ObjectId>,
 }
 
+impl CacheState {
+    /// Cache a fetched object, unless a newer version is already cached or the
+    /// id was removed while the fetch was in flight.
+    fn insert_fetched(&mut self, obj: Object) -> Result<(), StoreError> {
+        let downgrades = self
+            .objects
+            .get_object(&obj.id(), None)?
+            .is_some_and(|cached| cached.version() > obj.version());
+        if !downgrades && !self.removed.contains(&obj.id()) {
+            self.objects.insert(obj);
+        }
+        Ok(())
+    }
+}
+
 impl<F: Clone> Clone for CachingStore<F> {
     fn clone(&self) -> Self {
         Self {
@@ -92,11 +106,11 @@ impl<F: ObjectFetcher> CachingStore<F> {
     /// A snapshot clone of the objects cached so far (framework packages plus
     /// anything fetched on demand).
     pub(crate) fn store(&self) -> InMemoryStore {
-        self.inner
-            .lock()
-            .expect("store lock poisoned")
-            .objects
-            .clone()
+        self.state().objects.clone()
+    }
+
+    fn state(&self) -> MutexGuard<'_, CacheState> {
+        self.inner.lock().expect("store lock poisoned")
     }
 
     /// Fetch `refs` by blocking on the fetcher from within the executor.
@@ -131,7 +145,7 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         // Scope the read lock so it is released before the blocking fetch
         // re-acquires it (a std `Mutex` is not reentrant).
         {
-            let state = self.inner.lock().expect("store lock poisoned");
+            let state = self.state();
             if state.removed.contains(id) {
                 return Ok(None);
             }
@@ -140,7 +154,7 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
             }
         }
         let fetched = self.fetch_blocking(&[(*id, version)])?;
-        let mut state = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.state();
         let mut requested = None;
         for obj in fetched {
             if obj.id() == *id {
@@ -148,15 +162,9 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
             }
             // Only an unpinned fetch returns the node's latest version; a
             // pinned fetch may be older and must not become the cached entry
-            // (which `get_object(id, None)` reports as latest). The fetch runs
-            // outside the lock, so honor a newer version or a removal another
-            // handle committed in the meantime.
-            let downgrades = state
-                .objects
-                .get_object(&obj.id(), None)?
-                .is_some_and(|cached| cached.version() > obj.version());
-            if version.is_none() && !downgrades && !state.removed.contains(&obj.id()) {
-                state.objects.insert(obj);
+            // (which `get_object(id, None)` reports as latest).
+            if version.is_none() {
+                state.insert_fetched(obj)?;
             }
         }
         Ok(requested.filter(|o| version.is_none_or(|v| o.version() == v)))
@@ -169,7 +177,7 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         version_upper_bound: Version,
     ) -> Result<Option<Object>, StoreError> {
         {
-            let state = self.inner.lock().expect("store lock poisoned");
+            let state = self.state();
             if state.removed.contains(child) {
                 return Ok(None);
             }
@@ -183,19 +191,9 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         // Fetch the child at its latest version; the upper-bound check is
         // re-applied below once it is cached.
         let fetched = self.fetch_blocking(&[(*child, None)])?;
-        let mut state = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.state();
         for obj in fetched {
-            // The cache holds one version per id, so keep a newer cached
-            // version (e.g. committed by an `Execute` run) over the node's
-            // older latest, and honor a removal another handle committed while
-            // the fetch was in flight.
-            let downgrades = state
-                .objects
-                .get_object(&obj.id(), None)?
-                .is_some_and(|cached| cached.version() > obj.version());
-            if !downgrades && !state.removed.contains(&obj.id()) {
-                state.objects.insert(obj);
-            }
+            state.insert_fetched(obj)?;
         }
         state
             .objects
@@ -203,13 +201,13 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
     }
 
     fn insert(&mut self, object: Object) {
-        let mut state = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.state();
         state.removed.remove(&object.id());
         state.objects.insert(object);
     }
 
     fn remove(&mut self, id: &ObjectId) {
-        let mut state = self.inner.lock().expect("store lock poisoned");
+        let mut state = self.state();
         state.objects.remove(id);
         state.removed.insert(*id);
     }

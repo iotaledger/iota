@@ -1,13 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! [`LocalVm`] — the public store -> execute -> inspect executor.
-//!
-//! `LocalVm` owns a [`Store`] and a Move execution engine configured for the
-//! chain described by a [`ChainContext`]. Each [`LocalVm::execute`] /
-//! [`LocalVm::execute_signed`] call runs a transaction in one of three
-//! [`ExecutionMode`]s; `DevInspect`/`DryRun` leave the store untouched, while
-//! `Execute` commits writes/deletions on success.
+//! The [`LocalVm`] executor and its public API.
 
 use std::sync::{Arc, OnceLock};
 
@@ -191,20 +185,8 @@ impl LocalVm {
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
+        self.verify_standard_signatures(&signed)?;
 
-        // Match the node's verifier, which derives these from the protocol
-        // config (see `AuthorityPerEpochStore`); `VerifyParams::default()` would
-        // hardcode both off and diverge for passkey-in-multisig / additional
-        // multisig checks.
-        let verify_params = VerifyParams::new(
-            self.protocol_config.accept_passkey_in_multisig(),
-            self.protocol_config.additional_multisig_checks(),
-        );
-        verify_sender_signed_data_message_signatures(&signed, &verify_params)
-            .map_err(VmSdkError::SignatureVerification)?;
-
-        // All `MoveAuthenticator`s on the transaction — the sender's and, for a
-        // sponsored transaction, the sponsor's — must be verified.
         let move_authenticators: Vec<_> =
             signed.move_authenticators().into_iter().cloned().collect();
         // The deny checks inspect the signatures (e.g. `move_authenticator_disabled`,
@@ -263,14 +245,7 @@ impl LocalVm {
                     opts.check_coin_deny_list,
                     &mut trace_builder,
                 )?;
-                let status = match verdict {
-                    Ok(()) => SignatureStatus::Verified,
-                    // Carry the authenticator's typed rejection cause;
-                    // `SignatureError`'s `Display` adds the "signature
-                    // verification failed:" prefix.
-                    Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
-                };
-                (sim, status, trace_builder)
+                (sim, SignatureStatus::from_verdict(verdict), trace_builder)
             }
         };
         let artifacts = env.collect_artifacts(trace_builder)?;
@@ -279,25 +254,21 @@ impl LocalVm {
     }
 
     /// Check whether the transaction's `MoveAuthenticator`(s) would be admitted
-    /// at signing, by running the pre-consensus authenticator set under the
-    /// signing gas cap (`max_auth_gas`).
+    /// at signing: runs the pre-consensus authenticator set alone — all
+    /// authenticators, or only the sponsor's for a sponsored transaction when
+    /// the protocol enables `pre_consensus_sponsor_only_move_authentication` —
+    /// via
+    /// [`authenticate_transaction`](iota_execution::Executor::authenticate_transaction),
+    /// metered at the signing gas cap (`max_auth_gas`); commits nothing.
     ///
-    /// This models the node's pre-consensus signing phase, which
-    /// [`execute_signed`](Self::execute_signed) does not:
-    /// `execute_signed` runs the authenticators and body to effects under the
-    /// full transaction budget (the post-consensus path), so it accepts an
-    /// authenticator that would exceed `max_auth_gas` at signing. This method
-    /// instead runs only the authenticators the node checks before consensus —
-    /// all of them, or only the sponsor's for a sponsored transaction when the
-    /// protocol's `pre_consensus_sponsor_only_move_authentication` is enabled —
-    /// metered at `max_auth_gas`, via
-    /// [`authenticate_transaction`](iota_execution::Executor::authenticate_transaction).
-    /// It commits nothing and produces no effects.
+    /// Complements [`execute_signed`](Self::execute_signed), which models the
+    /// post-consensus path and is never capped at `max_auth_gas`; a transaction
+    /// is accepted on-chain only if it passes both. See
+    /// `docs/execution-model.md` for the full phase/budget mapping.
     ///
     /// Standard-scheme signatures are verified cryptographically first, as at
     /// signing; a transaction with no `MoveAuthenticator` is admitted once they
-    /// verify. This checks authentication only, not the deny-list or input
-    /// policies a validator also applies.
+    /// verify. Deny-list and input policies are not checked.
     ///
     /// # Errors
     ///
@@ -311,12 +282,7 @@ impl LocalVm {
         &self,
         signed: SenderSignedData,
     ) -> Result<SignatureStatus, VmSdkError> {
-        let verify_params = VerifyParams::new(
-            self.protocol_config.accept_passkey_in_multisig(),
-            self.protocol_config.additional_multisig_checks(),
-        );
-        verify_sender_signed_data_message_signatures(&signed, &verify_params)
-            .map_err(VmSdkError::SignatureVerification)?;
+        self.verify_standard_signatures(&signed)?;
 
         let move_authenticators: Vec<_> =
             signed.move_authenticators().into_iter().cloned().collect();
@@ -346,9 +312,8 @@ impl LocalVm {
         let auth_context_data =
             build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
         let to_run: Vec<_> = prepared_auths
-            .iter()
+            .into_iter()
             .filter(|(a, _, _)| pre_consensus_addresses.contains(&a.address()))
-            .cloned()
             .collect();
 
         let gas_status = IotaGasStatus::new(
@@ -367,10 +332,7 @@ impl LocalVm {
             gas_status,
             auth_context_data,
         )?;
-        Ok(match verdict {
-            Ok(()) => SignatureStatus::Verified,
-            Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
-        })
+        Ok(SignatureStatus::from_verdict(verdict))
     }
 
     /// The profiler-free executor shared by `decode_events` and non-profiled
@@ -438,6 +400,20 @@ impl LocalVm {
             })
     }
 
+    /// Verify the standard-scheme signatures on `signed`.
+    fn verify_standard_signatures(&self, signed: &SenderSignedData) -> Result<(), VmSdkError> {
+        // Match the node's verifier, which derives these from the protocol
+        // config (see `AuthorityPerEpochStore`); `VerifyParams::default()` would
+        // hardcode both off and diverge for passkey-in-multisig / additional
+        // multisig checks.
+        let verify_params = VerifyParams::new(
+            self.protocol_config.accept_passkey_in_multisig(),
+            self.protocol_config.additional_multisig_checks(),
+        );
+        verify_sender_signed_data_message_signatures(signed, &verify_params)
+            .map_err(VmSdkError::SignatureVerification)
+    }
+
     /// Assemble an [`ExecutionResult`] from a raw simulation, committing the
     /// effects to the store when the mode is [`ExecutionMode::Execute`] and the
     /// run succeeded.
@@ -451,8 +427,7 @@ impl LocalVm {
         let gas_summary = sim.effects.gas_cost_summary().clone();
         let status = sim.effects.status().clone();
 
-        let succeeded = sim.effects.status().is_success();
-        let committed = matches!(mode, ExecutionMode::Execute) && succeeded;
+        let committed = matches!(mode, ExecutionMode::Execute) && status.is_success();
         if committed {
             self.apply_effects(&sim);
         }
@@ -502,16 +477,14 @@ fn pre_consensus_authenticator_addresses(
     signed: &SenderSignedData,
     protocol_config: &ProtocolConfig,
 ) -> Vec<Address> {
-    let selected: Vec<&MoveAuthenticator> =
-        if protocol_config.pre_consensus_sponsor_only_move_authentication() {
-            if signed.transaction_data().is_sponsored_tx() {
-                signed.sponsor_move_authenticator().into_iter().collect()
-            } else {
-                signed.move_authenticators()
-            }
-        } else {
-            signed.move_authenticators()
-        };
+    let selected: Vec<&MoveAuthenticator> = if protocol_config
+        .pre_consensus_sponsor_only_move_authentication()
+        && signed.transaction_data().is_sponsored_tx()
+    {
+        signed.sponsor_move_authenticator().into_iter().collect()
+    } else {
+        signed.move_authenticators()
+    };
     selected.iter().map(|a| a.address()).collect()
 }
 
@@ -526,15 +499,13 @@ fn ensure_move_authentication_supported(
     protocol_config: &ProtocolConfig,
     has_authenticators: bool,
 ) -> Result<(), VmSdkError> {
-    if !has_authenticators {
-        return Ok(());
-    }
-    protocol_config.max_auth_gas_as_option().map(|_| ()).ok_or(
-        VmSdkError::UnsupportedProtocolVersion {
+    if has_authenticators && protocol_config.max_auth_gas_as_option().is_none() {
+        return Err(VmSdkError::UnsupportedProtocolVersion {
             version: protocol_config.version,
             feature: Some("MoveAuthenticator signatures"),
-        },
-    )
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]

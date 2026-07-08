@@ -1,19 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! `ExecutionMode` store-commit semantics against the public `iota-vm-sdk` API.
-//!
-//! Asserts the store-commit contract for the three modes:
-//! - `Execute` applies effects (writes *and* deletions) back to the store and
-//!   sets `committed == true` on success — a follow-up call sees the
-//!   post-state.
-//! - `DevInspect` / `DryRun` leave the store untouched and set `committed ==
-//!   false`.
-//!
-//! Self-contained: seeds one real gas coin and runs a `transfer_iota` PTB
-//! (splits a fresh coin off gas and transfers it), which both mutates the gas
-//! coin and creates a new coin — using only the built-in framework, no Move
-//! compiler.
+//! Store-commit semantics of the three `ExecutionMode`s against the public
+//! `iota-vm-sdk` API: `Execute` commits writes and deletions on success;
+//! `DevInspect` / `DryRun` leave the store untouched. Self-contained — uses
+//! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
     ObjectId, Owner,

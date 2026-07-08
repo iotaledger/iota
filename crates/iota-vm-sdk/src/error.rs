@@ -25,8 +25,7 @@ pub enum VmSdkError {
     /// the wrapped [`IotaError`] for the concrete cause.
     #[error("signature verification failed: {0}")]
     SignatureVerification(#[source] IotaError),
-    /// A networked store ([`GrpcStore`](crate::grpc::GrpcStore) /
-    /// [`GraphQLStore`](crate::graphql::GraphQLStore)) failed to fetch or
+    /// A networked store (`GrpcStore` / `GraphQLStore`) failed to fetch or
     /// decode data from a node.
     #[error(transparent)]
     Store(#[from] StoreError),
@@ -60,13 +59,6 @@ pub enum VmSdkError {
     },
 }
 
-impl VmSdkError {
-    /// Construct a [`VmSdkError::MissingObject`].
-    pub fn missing_object(id: ObjectId, version: Option<Version>) -> Self {
-        Self::MissingObject { id, version }
-    }
-}
-
 /// Pre-execution validation failed. `source` is the underlying node error to
 /// match on; `context` names the check that produced it.
 #[derive(Debug, thiserror::Error)]
@@ -79,8 +71,6 @@ pub struct ValidationError {
 }
 
 impl ValidationError {
-    /// `context` names the failed check; `source` is the node error it
-    /// produced.
     pub fn new(context: impl Into<String>, source: impl Into<IotaError>) -> Self {
         Self {
             context: context.into(),
@@ -93,23 +83,17 @@ impl ValidationError {
 /// aborted). Carried by [`SignatureStatus::Failed`](crate::SignatureStatus).
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-#[error("signature verification failed: {message}")]
+#[error("signature verification failed: {source}")]
 pub struct SignatureError {
-    pub message: String,
     /// The authenticator's typed rejection cause, for matching on the concrete
     /// `ExecutionErrorKind`.
     #[source]
-    pub source: Option<iota_types::error::ExecutionError>,
+    pub source: iota_types::error::ExecutionError,
 }
 
 impl SignatureError {
-    /// Build a [`SignatureError`] from the authenticator's typed rejection
-    /// cause.
     pub fn new(source: iota_types::error::ExecutionError) -> Self {
-        Self {
-            message: source.to_string(),
-            source: Some(source),
-        }
+        Self { source }
     }
 }
 
@@ -142,8 +126,6 @@ pub struct ExecutionError {
 }
 
 impl ExecutionError {
-    /// Build an [`ExecutionError`] from a layout-resolution or deserialization
-    /// failure message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),
@@ -160,7 +142,6 @@ pub struct VmError {
 }
 
 impl VmError {
-    /// Build a [`VmError`] from a VM fault message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),

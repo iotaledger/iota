@@ -1,16 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! GraphQL-backed store (`feature = "graphql"`, native only).
-//!
-//! [`GraphQLStore`] mirrors [`crate::grpc::GrpcStore`] but fetches objects over
-//! GraphQL: it wraps a GraphQL client and an in-memory object cache, resolving
-//! objects on demand during execution and caching them, so only the objects a
-//! run actually touches are fetched.
-//!
-//! On-demand fetching blocks the executor thread on async I/O, so
-//! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
-//! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
+//! GraphQL-backed store (`feature = "graphql"`, native only); see
+//! [`GraphQLStore`], which mirrors `GrpcStore` but fetches over GraphQL.
 
 use iota_sdk_graphql_client::Client;
 use iota_sdk_types::{ObjectId, Version};
@@ -31,8 +23,8 @@ use crate::{
 /// caveat.
 ///
 /// On-demand object resolution (via the synchronous [`Store`] impl) requires a
-/// multi-threaded Tokio runtime; outside one, a cache miss fails with a
-/// [`StoreError`] instead of fetching.
+/// multi-threaded Tokio runtime (e.g. `#[tokio::main]`); outside one, a cache
+/// miss fails with a [`StoreError`] instead of fetching.
 #[derive(Clone)]
 pub struct GraphQLStore {
     cache: CachingStore<GraphQLFetcher>,
@@ -86,7 +78,7 @@ impl GraphQLStore {
         }"#;
         let fetcher = self.cache.fetcher();
         let (data, chain_id) = tokio::join!(
-            fetcher.query("fetch epoch via GraphQL", query.to_string()),
+            fetcher.query("fetch epoch via GraphQL", query),
             fetcher.client.chain_id(),
         );
         let data = data?;
@@ -168,25 +160,27 @@ struct GraphQLFetcher {
 impl GraphQLFetcher {
     /// Run a raw GraphQL query and return its `data` payload, surfacing any
     /// GraphQL `errors` as a [`StoreError`] tagged with `context`.
-    async fn query(&self, context: &str, query: String) -> Result<serde_json::Value, StoreError> {
-        let request =
-            serde_json::Map::from_iter([("query".to_owned(), serde_json::Value::String(query))]);
+    async fn query(&self, context: &str, query: &str) -> Result<serde_json::Value, StoreError> {
+        let request = serde_json::Map::from_iter([(
+            "query".to_owned(),
+            serde_json::Value::String(query.to_owned()),
+        )]);
         let response = self
             .client
             .run_query_from_json(request)
             .await
-            .map_err(|e| StoreError::new(context.to_owned(), e))?;
+            .map_err(|e| StoreError::new(context, e))?;
         if let Some(errors) = response.errors.filter(|errors| !errors.is_empty()) {
             let message = errors
                 .iter()
                 .map(|e| e.message.as_str())
                 .collect::<Vec<_>>()
                 .join("; ");
-            return Err(StoreError::new(context.to_owned(), message));
+            return Err(StoreError::new(context, message));
         }
         response
             .data
-            .ok_or_else(|| StoreError::new(context.to_owned(), "empty response"))
+            .ok_or_else(|| StoreError::new(context, "empty response"))
     }
 }
 

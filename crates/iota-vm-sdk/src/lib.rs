@@ -15,9 +15,9 @@
 //!
 //! All are off by default.
 //!
-//! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that resolves objects on demand
-//!   from a node via gRPC, caching them in an [`InMemoryStore`].
-//! - `graphql` — a [`GraphQLStore`](graphql::GraphQLStore) over GraphQL.
+//! - `grpc` — a `GrpcStore` that resolves objects on demand from a node via
+//!   gRPC, caching them in an [`InMemoryStore`].
+//! - `graphql` — a `GraphQLStore` over GraphQL.
 //! - `tracing` — compile the Move VM gas profiler and instruction tracer into
 //!   the engine so [`DebugConfig::with_profiling`] /
 //!   [`DebugConfig::with_tracing`] capture output.
@@ -36,14 +36,13 @@ pub mod grpc;
 #[cfg(feature = "graphql")]
 pub mod graphql;
 
-// --- SDK surface ---------------------------------------------------------
 pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
 pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
 pub use executor::{
     ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
     LocalVm, SignatureStatus,
 };
-// --- Re-exports of upstream types in the public API ----------------------
+// Upstream types re-exported in the public API.
 pub use iota_config::transaction_deny_config::{
     TransactionDenyConfig, TransactionDenyConfigBuilder,
 };

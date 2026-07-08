@@ -1,9 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Public input / output types for the [`LocalVm`](super::LocalVm) surface:
-//! the [`ChainContext`] / [`ExecuteOptions`] inputs and the
-//! [`ExecutionResult`] / [`DecodedEvent`] / [`SignatureStatus`] outputs.
+//! Public input / output types for the [`LocalVm`](super::LocalVm) surface.
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
@@ -18,11 +16,9 @@ use crate::debug::{DebugArtifacts, DebugConfig};
 
 /// The chain parameters a [`LocalVm`](super::LocalVm) needs.
 ///
-/// Usually obtained from a node via
-/// [`GrpcStore::fetch_chain_context`](crate::grpc::GrpcStore::fetch_chain_context)
-/// or
-/// [`GraphQLStore::fetch_chain_context`](crate::graphql::GraphQLStore::fetch_chain_context);
-/// construct it manually only for offline runs.
+/// Usually obtained from a node via `GrpcStore::fetch_chain_context` or
+/// `GraphQLStore::fetch_chain_context`; construct it manually only for
+/// offline runs.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ChainContext {
@@ -116,8 +112,16 @@ pub enum SignatureStatus {
     Failed(crate::error::SignatureError),
 }
 
-/// Options for a single run: the [`ExecutionMode`], a [`DebugConfig`], and the
-/// deny-list configuration.
+impl SignatureStatus {
+    pub(crate) fn from_verdict(verdict: Result<(), iota_types::error::ExecutionError>) -> Self {
+        match verdict {
+            Ok(()) => Self::Verified,
+            Err(e) => Self::Failed(crate::error::SignatureError::new(e)),
+        }
+    }
+}
+
+/// Options for a single run.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct ExecuteOptions {
@@ -159,13 +163,6 @@ impl ExecuteOptions {
             mode: ExecutionMode::Execute,
             ..Self::default()
         }
-    }
-
-    /// Set the [`ExecutionMode`].
-    #[must_use]
-    pub fn with_mode(mut self, mode: ExecutionMode) -> Self {
-        self.mode = mode;
-        self
     }
 
     /// Attach a [`DebugConfig`] to capture a gas profile and/or an execution

@@ -47,6 +47,42 @@ struct FixtureObject {
     bcs_b64: String,
 }
 
+impl Fixture {
+    fn transaction(&self) -> TransactionData {
+        bcs::from_bytes(&b64(&self.tx_b64)).expect("decode tx")
+    }
+
+    fn decoded_signatures(&self) -> Vec<GenericSignature> {
+        self.signatures
+            .iter()
+            .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+            .collect()
+    }
+
+    fn signed(&self) -> SenderSignedData {
+        SenderSignedData::new(self.transaction(), self.decoded_signatures())
+    }
+
+    fn objects(&self) -> Vec<Object> {
+        self.objects
+            .iter()
+            .map(|obj| bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object"))
+            .collect()
+    }
+
+    fn store(&self) -> InMemoryStore {
+        let mut store = InMemoryStore::with_framework();
+        for obj in self.objects() {
+            store.insert(obj);
+        }
+        store
+    }
+
+    fn vm(&self) -> LocalVm {
+        LocalVm::new(chain_context(self), self.store()).expect("build LocalVm")
+    }
+}
+
 fn b64(s: &str) -> Vec<u8> {
     Base64::decode(s).expect("base64 decode")
 }
@@ -61,9 +97,8 @@ fn chain_context(f: &Fixture) -> ChainContext {
 
 /// The fixture's `MoveAuthenticator` signature.
 fn move_authenticator_sig(f: &Fixture) -> GenericSignature {
-    f.signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+    f.decoded_signatures()
+        .into_iter()
         .find(|s| matches!(s, GenericSignature::MoveAuthenticator(_)))
         .expect("fixture carries a MoveAuthenticator signature")
 }
@@ -81,25 +116,9 @@ fn load(name: &str) -> Fixture {
 /// `MoveAuthenticator` is verified inside the VM in every mode.
 fn try_run(name: &str, opts: ExecuteOptions) -> Result<ExecutionResult, VmSdkError> {
     let f = load(name);
+    let mut vm = f.vm();
 
-    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
-
-    let mut store = InMemoryStore::with_framework();
-    for obj in &f.objects {
-        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
-        store.insert(object);
-    }
-
-    let sigs: Vec<GenericSignature> = f
-        .signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
-        .collect();
-    let signed = SenderSignedData::new(tx, sigs);
-
-    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
-
-    vm.execute_signed(signed, opts)
+    vm.execute_signed(f.signed(), opts)
 }
 
 fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
@@ -117,23 +136,9 @@ fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
 /// and return the reported signature status.
 fn signing_check(name: &str) -> SignatureStatus {
     let f = load(name);
-    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+    let vm = f.vm();
 
-    let mut store = InMemoryStore::with_framework();
-    for obj in &f.objects {
-        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
-        store.insert(object);
-    }
-
-    let sigs: Vec<GenericSignature> = f
-        .signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
-        .collect();
-    let signed = SenderSignedData::new(tx, sigs);
-
-    let vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
-    vm.check_signing_authentication(signed)
+    vm.check_signing_authentication(f.signed())
         .expect("check_signing_authentication returns Ok (verdict carried in status)")
 }
 
@@ -162,26 +167,11 @@ fn move_authenticator_accepts() {
 #[test]
 fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     let f = load("move_auth_free_access_valid.json");
-    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
-    let sigs: Vec<GenericSignature> = f
-        .signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
-        .collect();
-
-    let mut store = InMemoryStore::with_framework();
-    for obj in &f.objects {
-        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
-        store.insert(object);
-    }
-    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
+    let mut vm = f.vm();
 
     // First run: the free-access authenticator accepts and `add_field` succeeds.
     let first = vm
-        .execute_signed(
-            SenderSignedData::new(tx.clone(), sigs.clone()),
-            ExecuteOptions::dev_inspect(),
-        )
+        .execute_signed(f.signed(), ExecuteOptions::dev_inspect())
         .expect("first run returns Ok");
     assert!(
         first.status.is_success(),
@@ -198,10 +188,7 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
     // Second run: the body aborts (field already exists) but the free-access
     // authenticator still accepts.
     let second = vm
-        .execute_signed(
-            SenderSignedData::new(tx, sigs),
-            ExecuteOptions::dev_inspect(),
-        )
+        .execute_signed(f.signed(), ExecuteOptions::dev_inspect())
         .expect("second run returns Ok (the abort is carried in the status)");
     assert!(
         !second.status.is_success(),
@@ -225,27 +212,16 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
 #[test]
 fn move_authenticator_dev_inspect_verdict_rerun_ignores_zero_declared_budget() {
     let f = load("move_auth_free_access_valid.json");
-    let mut tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+    let mut tx = f.transaction();
     tx.gas_data_mut().budget = 0;
-    let sigs: Vec<GenericSignature> = f
-        .signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
-        .collect();
-
-    let mut store = InMemoryStore::with_framework();
-    for obj in &f.objects {
-        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
-        store.insert(object);
-    }
-    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
+    let mut vm = f.vm();
 
     // First run: the free-access authenticator accepts and `add_field`
     // succeeds — dev-inspect meters at the dev-inspect budget, not the
     // declared `0`.
     let first = vm
         .execute_signed(
-            SenderSignedData::new(tx.clone(), sigs.clone()),
+            SenderSignedData::new(tx.clone(), f.decoded_signatures()),
             ExecuteOptions::dev_inspect(),
         )
         .expect("first run returns Ok");
@@ -266,7 +242,7 @@ fn move_authenticator_dev_inspect_verdict_rerun_ignores_zero_declared_budget() {
     // metered at the declared `0` it would run out of gas and misreport.
     let second = vm
         .execute_signed(
-            SenderSignedData::new(tx, sigs),
+            SenderSignedData::new(tx, f.decoded_signatures()),
             ExecuteOptions::dev_inspect(),
         )
         .expect("second run returns Ok (the abort is carried in the status)");
@@ -303,7 +279,7 @@ fn sponsor_move_authenticator_is_executed_and_can_reject() {
     // dropping the gas payment mints a mock gas coin for the sponsor, and
     // sender != gas owner makes it a sponsored transaction. The free-access
     // authenticator ignores the message, so the mutated tx still authenticates.
-    let mut tx: TransactionData = bcs::from_bytes(&b64(&sender_fx.tx_b64)).expect("decode tx");
+    let mut tx = sender_fx.transaction();
     {
         let gas = tx.gas_data_mut();
         gas.objects = vec![];
@@ -318,10 +294,9 @@ fn sponsor_move_authenticator_is_executed_and_can_reject() {
 
     // The store needs both accounts' objects (each authenticator resolves its
     // own `AuthenticatorFunctionRefV1` dynamic field).
-    let mut store = InMemoryStore::with_framework();
-    for obj in sender_fx.objects.iter().chain(sponsor_fx.objects.iter()) {
-        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
-        store.insert(object);
+    let mut store = sender_fx.store();
+    for obj in sponsor_fx.objects() {
+        store.insert(obj);
     }
 
     let mut vm = LocalVm::new(chain_context(&sender_fx), store).expect("build LocalVm");
@@ -407,20 +382,13 @@ fn move_authenticator_run_captures_trace_and_profile() {
 #[test]
 fn move_authenticator_missing_object_is_reported() {
     let f = load("move_auth_free_access_valid.json");
-    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
-    let sigs: Vec<GenericSignature> = f
-        .signatures
-        .iter()
-        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
-        .collect();
-    let signed = SenderSignedData::new(tx, sigs);
 
     // Only the framework is present — none of the fixture's objects.
     let store = InMemoryStore::with_framework();
     let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
 
     let err = vm
-        .execute_signed(signed, ExecuteOptions::dev_inspect())
+        .execute_signed(f.signed(), ExecuteOptions::dev_inspect())
         .expect_err("a missing referenced object must fail");
     assert!(
         matches!(err, VmSdkError::MissingObject { .. }),
