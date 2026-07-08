@@ -62,13 +62,16 @@ fun test_get_attr_type_mismatch() {
     let _: u64 = protocol_config::get_attr(b"max_arguments");
 }
 
-// --- set_feature_enabled_for_testing tests ---
+// --- set_protocol_config_value_for_testing tests ---
 
 #[test]
 // A flag that is disabled by default can be overridden to enabled for the test.
 fun test_override_flag_disabled_to_enabled() {
     assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), false);
-    protocol_config::set_feature_enabled_for_testing(b"consensus_smart_ancestor_selection", true);
+    protocol_config::set_protocol_config_value_for_testing(
+        b"consensus_smart_ancestor_selection",
+        true,
+    );
     assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), true);
 }
 
@@ -76,20 +79,57 @@ fun test_override_flag_disabled_to_enabled() {
 // A flag that is enabled by default can be overridden to disabled for the test.
 fun test_override_flag_enabled_to_disabled() {
     assert_eq(protocol_config::is_feature_enabled(b"enable_move_authentication"), true);
-    protocol_config::set_feature_enabled_for_testing(b"enable_move_authentication", false);
+    protocol_config::set_protocol_config_value_for_testing(b"enable_move_authentication", false);
     assert_eq(protocol_config::is_feature_enabled(b"enable_move_authentication"), false);
 }
 
 #[test]
+// A config parameter can be overridden and is read back by get_attr.
+fun test_override_attr() {
+    assert_eq(protocol_config::get_attr(b"max_arguments"), 512u32);
+    protocol_config::set_protocol_config_value_for_testing(b"max_arguments", 42u32);
+    assert_eq(protocol_config::get_attr(b"max_arguments"), 42u32);
+}
+
+#[test]
+// A flag and a parameter can be overridden in the same test without conflict:
+// they resolve to separate namespaces (is_feature_enabled vs get_attr).
+fun test_override_flag_and_attr_together() {
+    assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), false);
+    protocol_config::set_protocol_config_value_for_testing(
+        b"consensus_smart_ancestor_selection",
+        true,
+    );
+    protocol_config::set_protocol_config_value_for_testing(b"max_arguments", 42u32);
+
+    assert_eq(protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection"), true);
+    assert_eq(protocol_config::get_attr(b"max_arguments"), 42u32);
+}
+
+#[test]
 #[expected_failure(abort_code = 0, location = iota_system::protocol_config)]
-// A non-UTF-8 flag name is a programming error and must abort.
+// A non-UTF-8 name is a programming error and must abort.
 fun test_override_invalid_utf8() {
-    protocol_config::set_feature_enabled_for_testing(x"ff", true);
+    protocol_config::set_protocol_config_value_for_testing(x"ff", true);
 }
 
 #[test]
 #[expected_failure(abort_code = 1, location = iota_system::protocol_config)]
-// An unknown flag name is a programming error and must abort, so typos fail loudly.
-fun test_override_unknown_flag() {
-    protocol_config::set_feature_enabled_for_testing(b"nonexistent_feature_flag", true);
+// An unknown name is a programming error and must abort, so typos fail loudly.
+fun test_override_unknown_name() {
+    protocol_config::set_protocol_config_value_for_testing(b"nonexistent_config_value", true);
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota_system::protocol_config)]
+// max_arguments is a u32; overriding it with a u64 is a programming error that must abort.
+fun test_override_type_mismatch() {
+    protocol_config::set_protocol_config_value_for_testing(b"max_arguments", 42u64);
+}
+
+#[test]
+#[expected_failure(abort_code = 2, location = iota_system::protocol_config)]
+// A feature flag is a bool; overriding it with a non-bool is a programming error that must abort.
+fun test_override_flag_type_mismatch() {
+    protocol_config::set_protocol_config_value_for_testing(b"enable_move_authentication", 42u64);
 }

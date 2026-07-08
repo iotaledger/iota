@@ -28,15 +28,17 @@ public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bo
 /// * `T` - Must be one of `u16`, `u32`, `u64`, or `bool`.
 public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u8>): T;
 
-/// Overrides a feature flag for the duration of the current unit test, so tests
-/// can exercise both the enabled and disabled paths of a feature-flagged code
-/// path. The override is read back by `is_feature_enabled` and reset between
-/// tests.
+/// Overrides a feature flag or config parameter for the duration of the current
+/// unit test, so tests can exercise both the enabled and disabled (or
+/// differently-valued) paths of feature-flagged code. `name` resolves to a
+/// feature flag first (which must be a `bool`), otherwise to a config parameter
+/// whose type must match `T`. The override is read back by `is_feature_enabled`
+/// / `get_attr` and reset between tests.
 ///
-/// Aborts if `feature_flag_name` is not valid UTF-8 or does not name a flag in
-/// the current protocol config.
+/// Aborts if `name` is not valid UTF-8, names neither a flag nor a parameter in
+/// the current protocol config, or `T` does not match the target's type.
 #[test_only]
-public(package) native fun set_feature_enabled_for_testing(
-    feature_flag_name: vector<u8>,
-    value: bool,
+public(package) native fun set_protocol_config_value_for_testing<T: copy + drop + store>(
+    name: vector<u8>,
+    value: T,
 );
