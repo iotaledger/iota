@@ -170,6 +170,9 @@ def draw_metric(
     ax.set_xticklabels(
         xlabels if show_xlabels else [], rotation=45, ha="right", fontsize=7
     )
+    # sharex=True auto-hides tick labels on non-bottom subplots; force them on so
+    # every subplot carries its own x-labels.
+    ax.tick_params(axis="x", labelbottom=show_xlabels)
     ax.set_xlim(-GAP_LARGE, x + GAP_SMALL)
     if ylabel is None:
         ylabel = metric + (f" ({unit})" if unit and unit != "none" else "")
@@ -441,7 +444,7 @@ def make_figure(
             disp,
             logy,
             versions,
-            show_xlabels=(i == n - 1),  # only the bottom subplot
+            show_xlabels=True,  # x-labels on every subplot, not just the bottom
             show_legend=(i == 0),  # only the top subplot
             title=subplot_title,
             ylabel=ylabel,
