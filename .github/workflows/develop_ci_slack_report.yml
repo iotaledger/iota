@@ -17,7 +17,7 @@ jobs:
           webhook-type: incoming-webhook
           # Fail the run if Slack rejects the request, so a broken webhook is visible instead of silently dropped.
           errors: true
-          # toJSON keeps the payload valid JSON even when commit titles or author names contain quotes.
+          # The commit title is free-form and can contain quotes, so wrap it with toJSON to keep the payload valid JSON.
           payload: |
             {
               "attachments": [
@@ -28,7 +28,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": ${{ toJSON(format(':fire: *{0}* {1} on `{2}` — <{3}/{4}/actions/runs/{5}|View Failure>', github.event.workflow_run.name, github.event.workflow_run.conclusion, github.event.workflow_run.head_branch, github.server_url, github.repository, github.event.workflow_run.id)) }}
+                        "text": ":fire: *${{ github.event.workflow_run.name }}* ${{ github.event.workflow_run.conclusion }} on `${{ github.event.workflow_run.head_branch }}` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}|View Failure>"
                       }
                     },
                     {
@@ -36,7 +36,11 @@ jobs:
                       "elements": [
                         {
                           "type": "mrkdwn",
-                          "text": ${{ toJSON(format('author: {0} · {1} · <{2}/{3}/commit/{4}|commit>', github.event.workflow_run.head_commit.author.name, github.event.workflow_run.display_title, github.server_url, github.repository, github.event.workflow_run.head_commit.id)) }}
+                          "text": ${{ toJSON(github.event.workflow_run.display_title) }}
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "by ${{ github.event.workflow_run.head_commit.author.name }} · <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}|commit>"
                         }
                       ]
                     }
