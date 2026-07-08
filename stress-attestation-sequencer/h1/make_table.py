@@ -268,22 +268,6 @@ RENAME_COLUMNS = {
 }
 
 
-# Metrics reduced over TIME by peak (max-over-time) instead of the --stat default
-# (mean). Keyed by final column key (post-rename). These are bursty instantaneous
-# gauges whose mean-over-time hides the spike that actually hits a limit — e.g.
-# num_inflight sits at ~4k on average but peaks to the 10k submit-semaphore size;
-# shedding is 0 most of the window and spikes during stalls, so a mean dilutes it
-# toward 0. Rates and latencies stay mean (see cell_values).
-TIME_REDUCE = {
-    "num_inflight": "max",
-    "exec. dispatch queue": "max",
-    "pending txs": "max",
-    "shed % cons-queue": "max",
-    "shed % quorum": "max",
-    "shed % local": "max",
-}
-
-
 def build_columns(panels, keep_all):
     """Flatten the dashboard into (col_key, kind, payload) column specs.
 
@@ -378,14 +362,9 @@ def compute_row(task):
 def cell_values(col, runs, grid, window, stat):
     """Reduce a column's per-run series to (center, std, sem, n).
 
-    Default (mean/median): center/std pool every finite timepoint across all
-    iterations (the sample IS the timeseries values); sem = std of the
-    per-iteration temporal means / sqrt(n) — the cross-iteration uncertainty.
-
-    Metrics in TIME_REDUCE use PEAK (max-over-time): each iteration is reduced by
-    its max, then center = mean of the per-iteration peaks (std/sem across them).
-    For a bursty queue/shed gauge the mean-over-time hides the peak that actually
-    hits a limit (e.g. num_inflight spikes to the submit-semaphore size)."""
+    center/std pool every finite timepoint across all iterations (the sample IS
+    the timeseries values). sem = std of the per-iteration temporal means / sqrt(n)
+    — the cross-iteration uncertainty (undefined for a single iteration)."""
     if not runs:
         return np.nan, np.nan, np.nan, 0
     per_run = []
@@ -396,17 +375,6 @@ def cell_values(col, runs, grid, window, stat):
             per_run.append(
                 plot.eval_target(col["spec"], r, grid, window, stat, col["host_reduce"])
             )
-    if TIME_REDUCE.get(col["key"]) == "max":
-        # peak per iteration, then average the peaks across iterations.
-        peaks = [float(np.nanmax(s)) for s in per_run if np.any(np.isfinite(s))]
-        if not peaks:
-            return np.nan, np.nan, np.nan, len(runs)
-        sem = (
-            float(np.std(peaks, ddof=1) / np.sqrt(len(peaks)))
-            if len(peaks) > 1
-            else np.nan
-        )
-        return float(np.mean(peaks)), float(np.std(peaks)), sem, len(runs)
     pooled = np.concatenate(per_run) if per_run else np.array([])
     pooled = pooled[np.isfinite(pooled)]
     if pooled.size == 0:
@@ -616,9 +584,6 @@ def main():
         f"- **A** = V1 (attestation OFF), **B** = V2 (attestation ON).\n"
         f"- Cell = `{args.stat} ± {args.disp}` of the network-level series over time, "
         f"pooled across iterations (`—` = no data / metric absent).\n"
-        f"- Bursty queue/shed gauges (num_inflight, dispatch queue, pending txs, "
-        f"shed %) instead report the **peak** (max-over-time, mean of per-iter peaks) "
-        f"— a mean would hide the spike that hits a limit.\n"
         f"- Series are computed exactly as plot.py does (rate/histogram_quantile, "
         f"per-validator collapse); rate window = {args.rate_window}s.\n"
         f"- {len(labels)} config(s), {len(cols)} metric(s)."
