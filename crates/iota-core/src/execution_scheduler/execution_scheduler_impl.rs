@@ -94,9 +94,14 @@ impl ExecutionScheduler {
     ) {
         let enqueue_time = Instant::now();
         let tx_data = cert.transaction_data();
-        let input_object_kinds = tx_data
-            .input_objects()
-            .expect("input_objects() cannot fail");
+        // Use the full input set (transaction inputs plus every MoveAuthenticator's
+        // input objects), not just `input_objects()`. Execution reads the same
+        // superset via `collect_all_input_object_kind_for_reading`; scheduling on
+        // the narrower set would dispatch before an authenticator's shared input
+        // (e.g. the Clock) is available and panic in the input loader.
+        let input_object_kinds = cert
+            .collect_all_input_object_kind_for_reading()
+            .expect("collect_all_input_object_kind_for_reading() cannot fail");
         let input_object_keys: Vec<_> =
             match epoch_store.get_input_object_keys(&cert.key(), &input_object_kinds) {
                 Ok(keys) => keys,

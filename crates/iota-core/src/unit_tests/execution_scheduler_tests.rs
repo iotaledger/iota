@@ -25,8 +25,11 @@ use iota_types::{
     digests::TransactionEffectsDigest,
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
+    move_authenticator::MoveAuthenticatorV1,
     object::Object,
-    transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
+    signature::GenericSignature,
+    storage::InputKey,
+    transaction::{CallArg, SharedObjectRef, Transaction, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -37,6 +40,7 @@ use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, execution_scheduler_impl::ExecutionScheduler,
+        transaction_manager::TransactionManager,
     },
 };
 
@@ -54,6 +58,23 @@ fn make_execution_scheduler(
         state.metrics.clone(),
     );
     (execution_scheduler, rx_ready_transactions)
+}
+
+#[expect(clippy::disallowed_methods)] // allow unbounded_channel()
+fn make_transaction_manager(
+    state: &AuthorityState,
+) -> (TransactionManager, UnboundedReceiver<PendingTransaction>) {
+    // A standalone manager, so the test can observe its output on
+    // rx_ready_transactions.
+    let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();
+    let transaction_manager = TransactionManager::new(
+        state.get_object_cache_reader().clone(),
+        state.get_transaction_cache_reader().clone(),
+        &state.epoch_store_for_testing(),
+        tx_ready_transactions,
+        state.metrics.clone(),
+    );
+    (transaction_manager, rx_ready_transactions)
 }
 
 fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutableTransaction {
@@ -132,6 +153,143 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     assert_eq!(execution_scheduler.num_pending_certificates(), 1);
     drop(ready);
     assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+}
+
+/// A transaction whose own input is only the (available) gas object, but whose
+/// `MoveAuthenticator` authenticates the given shared object.
+fn make_shared_authenticator_transaction(
+    gas_object: &Object,
+    shared_object: &Object,
+) -> VerifiedExecutableTransaction {
+    let (sender, _sender_key) = deterministic_random_account_key();
+    let tx_data = TestTransactionBuilder::new(sender, gas_object.object_ref(), 100)
+        .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", vec![])
+        .build();
+    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+        vec![],
+        vec![],
+        SharedObjectRef::new(shared_object.id(), 0.into(), false),
+    );
+    let signed = Transaction::from_generic_sig_data(
+        tx_data,
+        vec![GenericSignature::MoveAuthenticator(authenticator.into())],
+    );
+    VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(signed), 0)
+}
+
+/// Enqueues `transaction`, asserts it is held while its authenticator's shared
+/// input is missing, then releases the input via `make_shared_input_available`
+/// and asserts the transaction is dispatched.
+async fn assert_awaits_authenticator_input(
+    who: &str,
+    state: &AuthorityState,
+    scheduler: &dyn ExecutionSchedulerAPI,
+    rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
+    transaction: &VerifiedExecutableTransaction,
+    make_shared_input_available: impl FnOnce(),
+) {
+    scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(
+        rx_ready_transactions.try_recv().is_err(),
+        "{who} dispatched before its authenticator's shared input became available"
+    );
+    assert_eq!(scheduler.num_pending_certificates(), 1);
+
+    make_shared_input_available();
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+}
+
+/// A transaction's readiness set must include the objects read by its
+/// `MoveAuthenticator`s, not only the transaction's own inputs: the gas input
+/// is available but the authenticator authenticates a shared object that is
+/// not, so the scheduler must hold the transaction until that object becomes
+/// available.
+///
+/// - `ExecutionScheduler` fails this without scheduling on
+///   `collect_all_input_object_kind_for_reading`: it dispatches early and would
+///   later panic in the input loader.
+/// - `TransactionManager` already passes: it schedules on the envelope's
+///   `SenderSignedData::input_objects()`, which already includes authenticator
+///   inputs.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn schedulers_wait_for_authenticator_inputs() {
+    let shared_version = 2000.into();
+
+    // ExecutionScheduler: released by writing the shared object into the cache,
+    // which the scheduler observes through `notify_read_input_objects`.
+    {
+        let (owner, _keypair) = deterministic_random_account_key();
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let shared_object = Object::shared_for_testing();
+        let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+        let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+        let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
+        state
+            .epoch_store_for_testing()
+            .set_shared_object_versions_for_testing(
+                transaction.digest(),
+                &[VersionAssignment::new(shared_object.id(), shared_version)],
+            )
+            .unwrap();
+
+        assert_awaits_authenticator_input(
+            "ExecutionScheduler",
+            &state,
+            &scheduler,
+            &mut rx_ready_transactions,
+            &transaction,
+            || {
+                state.get_cache_writer().write_object_entry_for_test(
+                    Object::with_id_owner_version_for_testing(
+                        shared_object.id(),
+                        shared_version,
+                        iota_sdk_types::Owner::Shared(0.into()),
+                    ),
+                );
+            },
+        )
+        .await;
+    }
+
+    // TransactionManager: released by an explicit `objects_available` push.
+    {
+        let (owner, _keypair) = deterministic_random_account_key();
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let shared_object = Object::shared_for_testing();
+        let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+        let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+        let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
+        state
+            .epoch_store_for_testing()
+            .set_shared_object_versions_for_testing(
+                transaction.digest(),
+                &[VersionAssignment::new(shared_object.id(), shared_version)],
+            )
+            .unwrap();
+
+        assert_awaits_authenticator_input(
+            "TransactionManager",
+            &state,
+            &scheduler,
+            &mut rx_ready_transactions,
+            &transaction,
+            || {
+                scheduler.objects_available(
+                    vec![InputKey::VersionedObject {
+                        id: shared_object.id(),
+                        version: shared_version,
+                    }],
+                    &state.epoch_store_for_testing(),
+                );
+            },
+        )
+        .await;
+    }
 }
 
 /// One object becoming available must release ALL transactions waiting on it.
