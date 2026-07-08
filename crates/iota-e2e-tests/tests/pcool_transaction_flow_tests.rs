@@ -250,12 +250,13 @@ async fn test_pcool_reconfiguration_reaches_new_epoch_execution_scheduler() {
     run_reconfiguration_reaches_new_epoch(&test_cluster).await;
 }
 
-/// I3: A real multi-node epoch change is driven while the scheduler is in effect.
-/// The end-of-epoch change-epoch transaction must itself be scheduled and
-/// executed, and transfers must finalize both before and after the boundary.
-/// This is the only place the `ExecutionScheduler` is exercised through an actual
-/// reconfiguration — where a cross-epoch gauge leak, a stale-overload hang, or a
-/// change-epoch transaction that never becomes ready would surface.
+/// I3: A real multi-node epoch change is driven while the scheduler is in
+/// effect. The end-of-epoch change-epoch transaction must itself be scheduled
+/// and executed, and transfers must finalize both before and after the
+/// boundary. This is the only place the `ExecutionScheduler` is exercised
+/// through an actual reconfiguration — where a cross-epoch gauge leak, a
+/// stale-overload hang, or a change-epoch transaction that never becomes ready
+/// would surface.
 async fn run_reconfiguration_reaches_new_epoch(test_cluster: &TestCluster) {
     assert_pcool_active(test_cluster);
 

@@ -2,6 +2,19 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Unit tests for the `ExecutionScheduler`, run against a standalone scheduler
+//! instance wired to a real authority's caches so its output can be observed
+//! directly on `rx_ready_transactions` (the channel the execution driver
+//! consumes in production).
+//!
+//! Each test pins one scheduling invariant that swapping the
+//! `TransactionManager` for the `ExecutionScheduler` must preserve: dispatch
+//! only after ALL inputs are available, verbatim effects-digest propagation
+//! (fork detection), wrong-epoch filtering, and the RAII gauge/overload
+//! accounting that feeds admission control — including its cleanup through
+//! `within_alive_epoch` cancellation at an epoch boundary, which is the
+//! scheduler's only reconfiguration mechanism.
+
 use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
@@ -10,6 +23,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
     digests::TransactionEffectsDigest,
+    error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
@@ -403,11 +417,16 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
         max_transaction_manager_per_object_queue_length: txns.len(),
         ..Default::default()
     };
+    // Pin the exact error: the per-object queue-length check fires before the
+    // age check in `OverloadTracker::check_execution_overload`, so a plain
+    // `is_err()` could pass for the wrong reason (global limit, transaction age).
+    let err = execution_scheduler
+        .check_execution_overload(&overload_config, txns[0].data())
+        .unwrap_err();
     assert!(
-        execution_scheduler
-            .check_execution_overload(&overload_config, txns[0].data())
-            .is_err(),
-        "the hot shared object must read as overloaded while its transactions are pending"
+        matches!(err, IotaError::TooManyTransactionsPendingOnObject { .. }),
+        "the hot shared object must read as overloaded while its transactions are pending; \
+         got {err:?}"
     );
 
     // Terminating the epoch cancels the per-transaction tasks; their PendingGuards
