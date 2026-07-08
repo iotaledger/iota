@@ -65,17 +65,20 @@ fn enable_pcool_for_testing() -> iota_protocol_config::OverrideGuard {
 async fn build_pcool_cluster(
     use_execution_scheduler: bool,
 ) -> (TestCluster, iota_protocol_config::OverrideGuard) {
+    // Both env vars are set explicitly so the choice is pinned regardless of
+    // DEFAULT_USE_EXECUTION_SCHEDULER (`ENABLE_TRANSACTION_MANAGER` is the
+    // opt-out and takes precedence). Otherwise the TransactionManager variant
+    // would silently follow the default and select the wrong scheduler if the
+    // default is ever flipped to ExecutionScheduler. Read at runtime by every
+    // node under the simulator (single process), so this selects the scheduler
+    // cluster-wide; nextest/simtest isolate each test in its own process, so it
+    // does not leak. Must be set before the nodes are constructed.
+    // SAFETY (edition 2021): plain env mutation, no other threads race it here.
     if use_execution_scheduler {
-        // Read at runtime by every node under the simulator (single process), so
-        // this selects the scheduler cluster-wide. nextest/simtest isolate each
-        // test in its own process, so it does not leak. Must be set before the
-        // nodes are constructed.
-        // SAFETY (edition 2021): plain env mutation, no other threads race it here.
         std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
     } else {
-        // Defend against the var leaking from an ExecutionScheduler variant that
-        // ran earlier in the process (process-per-test makes this unlikely, and
-        // assert_scheduler would catch it, but be explicit).
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
         std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
     }
     let guard = enable_pcool_for_testing();
