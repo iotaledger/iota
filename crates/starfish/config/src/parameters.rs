@@ -106,6 +106,12 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_commit_sync_batches_ahead")]
     pub commit_sync_batches_ahead: usize,
 
+    /// Maximum number of commits scanned and replayed per batch during
+    /// recovery, bounding peak memory when a large unprocessed range is
+    /// replayed at startup.
+    #[serde(default = "Parameters::default_commit_recovery_batch_size")]
+    pub commit_recovery_batch_size: u32,
+
     /// Maximum number of headers to be included in a bundle. Headers exceeding
     /// the max allowed limit will be truncated.
     #[serde(default = "Parameters::default_max_headers_per_bundle")]
@@ -134,13 +140,8 @@ pub struct Parameters {
     pub commit_sync_gap_threshold: u32,
 
     /// Enable FastCommitSyncer for faster recovery from large commit gaps.
-    /// This is a local node configuration that works in conjunction with the
-    /// protocol-level consensus_fast_commit_sync feature flag. Both must be
-    /// enabled for FastCommitSyncer to run. The protocol flag controls
-    /// whether gRPC endpoints are available, while this local flag controls
-    /// whether this specific node creates and runs the FastCommitSyncer.
     /// Enabled by default; operators can disable it locally if bugs are
-    /// discovered, without affecting protocol-level endpoint availability.
+    /// discovered.
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
 
@@ -161,6 +162,13 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    /// Threshold for the number of commits sent to the consumer but not yet
+    /// handled, above which commit producers (commit syncers, commit observer
+    /// recovery) pause to let the consumer catch up.
+    pub fn unhandled_commits_threshold(&self) -> u32 {
+        self.commit_sync_batch_size * (self.commit_sync_batches_ahead as u32)
+    }
+
     pub(crate) fn default_leader_timeout() -> Duration {
         Duration::from_millis(200)
     }
@@ -214,6 +222,81 @@ impl Parameters {
         } else {
             self.max_headers_per_header_sync_fetch
         }
+    }
+
+    /// Validates local consensus parameters, rejecting zero values that can
+    /// lead to synchronization problems. Returns a description of the first
+    /// offending field.
+    pub fn validate(&self) -> Result<(), String> {
+        let positive_fields = [
+            (
+                "max_headers_per_commit_sync_fetch",
+                self.max_headers_per_commit_sync_fetch as u128,
+            ),
+            (
+                "max_transactions_per_commit_sync_fetch",
+                self.max_transactions_per_commit_sync_fetch as u128,
+            ),
+            (
+                "max_headers_per_header_sync_fetch",
+                self.max_headers_per_header_sync_fetch as u128,
+            ),
+            (
+                "max_transactions_per_transaction_sync_fetch",
+                self.max_transactions_per_transaction_sync_fetch as u128,
+            ),
+            (
+                "dag_state_cached_rounds",
+                self.dag_state_cached_rounds as u128,
+            ),
+            (
+                "commit_sync_parallel_fetches",
+                self.commit_sync_parallel_fetches as u128,
+            ),
+            (
+                "commit_sync_batch_size",
+                self.commit_sync_batch_size as u128,
+            ),
+            (
+                "commit_recovery_batch_size",
+                self.commit_recovery_batch_size as u128,
+            ),
+            (
+                "commit_sync_batches_ahead",
+                self.commit_sync_batches_ahead as u128,
+            ),
+            (
+                "max_headers_per_bundle",
+                self.max_headers_per_bundle as u128,
+            ),
+            ("max_shards_per_bundle", self.max_shards_per_bundle as u128),
+            (
+                "fast_commit_sync_batch_size",
+                self.fast_commit_sync_batch_size as u128,
+            ),
+            (
+                "tonic.connection_buffer_size",
+                self.tonic.connection_buffer_size as u128,
+            ),
+            (
+                "tonic.excessive_message_size",
+                self.tonic.excessive_message_size as u128,
+            ),
+            (
+                "tonic.message_size_limit",
+                self.tonic.message_size_limit as u128,
+            ),
+            (
+                "tonic.keepalive_interval",
+                self.tonic.keepalive_interval.as_nanos(),
+            ),
+        ];
+        for (name, value) in positive_fields {
+            if value == 0 {
+                return Err(format!("{name} must be positive"));
+            }
+        }
+        Ok(())
     }
 
     // Maximum number of block headers to fetch per commit sync request.
@@ -290,6 +373,10 @@ impl Parameters {
         }
     }
 
+    pub(crate) fn default_commit_recovery_batch_size() -> u32 {
+        if cfg!(msim) { 3 } else { 250 }
+    }
+
     pub(crate) fn default_commit_sync_batches_ahead() -> usize {
         // This is set to be a multiple of default commit_sync_parallel_fetches to allow
         // fetching ahead, while keeping the total number of inflight fetches
@@ -361,6 +448,7 @@ impl Default for Parameters {
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
+            commit_recovery_batch_size: Parameters::default_commit_recovery_batch_size(),
             max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
@@ -401,6 +489,33 @@ pub struct TonicParameters {
     /// If unspecified, this will default to 1GiB.
     #[serde(default = "TonicParameters::default_message_size_limit")]
     pub message_size_limit: usize,
+
+    /// Maximum number of concurrent HTTP/2 streams a peer may open on a single
+    /// connection. Bounds per-connection request fan-out.
+    ///
+    /// `0` (the default) disables the limit, leaving the transport default.
+    #[serde(default)]
+    pub max_concurrent_streams: u32,
+
+    /// Server-side fallback deadline for requests that omit a `grpc-timeout`
+    /// header. The long-lived block-subscription stream is always exempt.
+    ///
+    /// A zero duration (the default) disables the fallback deadline.
+    #[serde(default)]
+    pub request_timeout: Duration,
+
+    /// Hard size limit for inbound (decoded) requests. Consensus requests are
+    /// small (ref lists); large payloads belong to responses, bounded by
+    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
+    /// single in-flight request can pin before its handler runs.
+    ///
+    /// `0` (the default) falls back to `message_size_limit`.
+    #[serde(default)]
+    pub max_inbound_message_size: usize,
+
+    /// Per-peer, per-RPC admission caps for the inbound consensus server.
+    #[serde(default)]
+    pub admission: AdmissionParameters,
 }
 
 impl TonicParameters {
@@ -419,6 +534,25 @@ impl TonicParameters {
     fn default_message_size_limit() -> usize {
         64 << 20
     }
+
+    /// Overrides only the inbound resource bounds with the protective preset
+    /// (sized for ~100-validator committees), preserving any
+    /// operator-configured transport settings (keepalive, buffers,
+    /// `message_size_limit`). `default()` stays inert, so the bounds never
+    /// change behaviour unless explicitly enabled.
+    pub fn apply_protective(&mut self) {
+        self.max_concurrent_streams = 64;
+        self.request_timeout = Duration::from_secs(120);
+        self.max_inbound_message_size = 1 << 20;
+        self.admission = AdmissionParameters::protective();
+    }
+
+    /// The inert defaults with the protective bounds applied.
+    pub fn protective() -> Self {
+        let mut params = Self::default();
+        params.apply_protective();
+        params
+    }
 }
 
 impl Default for TonicParameters {
@@ -428,6 +562,57 @@ impl Default for TonicParameters {
             connection_buffer_size: TonicParameters::default_connection_buffer_size(),
             excessive_message_size: TonicParameters::default_excessive_message_size(),
             message_size_limit: TonicParameters::default_message_size_limit(),
+            max_concurrent_streams: 0,
+            request_timeout: Duration::ZERO,
+            max_inbound_message_size: 0,
+            admission: AdmissionParameters::default(),
+        }
+    }
+}
+
+/// Per-peer, per-RPC concurrency caps for the inbound consensus gRPC server.
+///
+/// Each cap bounds how many concurrent requests of one RPC group a single
+/// committee peer (keyed on its authenticated authority index) may have in
+/// flight; a peer cannot consume another peer's budget. These are local,
+/// non-protocol parameters — heterogeneous values across authorities are safe,
+/// so they can be rolled out and tuned per node.
+///
+/// `0` (the default for every cap) disables admission for that group, leaving
+/// the mechanism inert until an operator opts in. Recommended values for the
+/// opt-in protective preset, sized for ~100-validator committees and the local
+/// synchronizer fan-out toward one server: subscriptions 2, header fetches 32,
+/// transaction fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct AdmissionParameters {
+    /// Max concurrent block-subscription streams per peer.
+    #[serde(default)]
+    pub max_subscriptions_per_peer: u32,
+
+    /// Max concurrent header fetches per peer
+    /// (`fetch_block_headers` + `fetch_latest_block_headers`).
+    #[serde(default)]
+    pub max_header_fetches_per_peer: u32,
+
+    /// Max concurrent transaction fetches per peer (`fetch_transactions`).
+    #[serde(default)]
+    pub max_transaction_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches per peer
+    /// (`fetch_commits` + `fetch_commits_and_transactions`).
+    #[serde(default)]
+    pub max_commit_fetches_per_peer: u32,
+}
+
+impl AdmissionParameters {
+    /// Opt-in preset sized for ~100-validator committees and the local
+    /// synchronizer fan-out toward one server.
+    pub fn protective() -> Self {
+        Self {
+            max_subscriptions_per_peer: 2,
+            max_header_fetches_per_peer: 32,
+            max_transaction_fetches_per_peer: 16,
+            max_commit_fetches_per_peer: Parameters::default_commit_sync_parallel_fetches() as u32,
         }
     }
 }

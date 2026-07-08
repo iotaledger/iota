@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
-    ExecutionError as ExecutionFailureStatus, Identifier, MoveLocation, ObjectId,
+use iota_sdk_types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
+use iota_types::{
+    error::{ExecutionError, IotaError},
+    iota_sdk_types_conversions::identifier_core_to_sdk,
 };
-use iota_types::error::{ExecutionError, IotaError};
 use move_binary_format::{
     errors::{Location, VMError},
     file_format::FunctionDefinitionIndex,
@@ -40,15 +41,15 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
             let function_name = vm.load_module(id, state_view).ok().map(|module| {
                 let fdef = module.function_def_at(FunctionDefinitionIndex(function));
                 let fhandle = module.function_handle_at(fdef.function);
-                module.identifier_at(fhandle.name).to_string()
+                identifier_core_to_sdk(module.identifier_at(fhandle.name))
             });
             ExecutionFailureStatus::MoveAbort {
                 location: MoveLocation {
                     package: ObjectId::new(abort_location_id.address().into_bytes()),
-                    module: Identifier::new_unchecked(abort_location_id.name().as_str()),
+                    module: identifier_core_to_sdk(abort_location_id.name()),
                     function,
                     instruction,
-                    function_name: function_name.map(Identifier::new_unchecked),
+                    function_name,
                 },
                 code,
             }
@@ -68,14 +69,14 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                         let function_name = vm.load_module(id, state_view).ok().map(|module| {
                             let fdef = module.function_def_at(FunctionDefinitionIndex(function));
                             let fhandle = module.function_handle_at(fdef.function);
-                            module.identifier_at(fhandle.name).to_string()
+                            identifier_core_to_sdk(module.identifier_at(fhandle.name))
                         });
                         Some(MoveLocation {
                             package: ObjectId::new(id.address().into_bytes()),
-                            module: Identifier::new_unchecked(id.name().as_str()),
+                            module: identifier_core_to_sdk(id.name()),
                             function,
                             instruction,
-                            function_name: function_name.map(Identifier::new_unchecked),
+                            function_name,
                         })
                     }
                     _ => None,

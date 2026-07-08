@@ -894,18 +894,14 @@ async fn get_checkpoint_by_seq_number() {
 
     cluster.wait_for_checkpoint(6, None).await;
 
-    let fullnode_checkpoints = cluster
-        .fullnode_handle
-        .iota_node
-        .with_async(|node| async {
-            node.state()
-                .get_checkpoint_store()
-                .multi_get_checkpoint_by_sequence_number(
-                    &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
-                )
-                .unwrap()
-        })
-        .await;
+    let fullnode_checkpoints = cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .get_checkpoint_store()
+            .multi_get_checkpoint_by_sequence_number(
+                &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
+            )
+            .unwrap()
+    });
 
     let envelope = fullnode_checkpoints[0].clone().unwrap();
     let digest = *envelope.digest();
@@ -962,18 +958,14 @@ async fn get_checkpoint_by_digest() {
 
     cluster.wait_for_checkpoint(6, None).await;
 
-    let fullnode_checkpoints = cluster
-        .fullnode_handle
-        .iota_node
-        .with_async(|node| async {
-            node.state()
-                .get_checkpoint_store()
-                .multi_get_checkpoint_by_sequence_number(
-                    &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
-                )
-                .unwrap()
-        })
-        .await;
+    let fullnode_checkpoints = cluster.fullnode_handle.iota_node.with(|node| {
+        node.state()
+            .get_checkpoint_store()
+            .multi_get_checkpoint_by_sequence_number(
+                &(0..=5).collect::<Vec<CheckpointSequenceNumber>>(),
+            )
+            .unwrap()
+    });
 
     let envelope = fullnode_checkpoints[0].clone().unwrap();
     let digest = *envelope.digest();

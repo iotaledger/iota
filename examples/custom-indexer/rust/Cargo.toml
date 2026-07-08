@@ -8,12 +8,12 @@ license = "Apache-2.0"
 # external dependencies
 anyhow = "1.0"
 async-trait = "0.1"
-prometheus = "0.14"
 tokio = "1.49.0"
 
 # internal dependencies
 iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
 iota-types = { path = "../../../crates/iota-types" }
+prometheus-filtered = { path = "../../../crates/prometheus-filtered" }
 
 [[bin]]
 name = "local_reader"

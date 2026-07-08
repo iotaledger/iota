@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,
 };

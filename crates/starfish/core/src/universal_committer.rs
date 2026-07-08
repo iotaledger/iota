@@ -69,11 +69,11 @@ impl UniversalCommitter {
                     break 'outer;
                 }
 
-                tracing::debug!("Trying to decide {slot} with {committer}",);
+                tracing::trace!("Trying to decide {slot} with {committer}",);
 
                 let mut status = committer.try_direct_decide(slot);
                 let mut decision = Decision::Direct;
-                tracing::debug!("Outcome of direct rule: {status}");
+                tracing::debug!("Outcome of direct rule: {status} with {committer}");
 
                 // If the direct result is not final (Commit(Pending) or
                 // Undecided), run the indirect rule. For Pending, a
@@ -83,7 +83,7 @@ impl UniversalCommitter {
                     let indirect = committer
                         .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
                     if indirect != status {
-                        tracing::debug!("Outcome of indirect rule: {indirect}");
+                        tracing::debug!("Outcome of indirect rule: {indirect} with {committer}");
                         decision = match (&status, &indirect) {
                             (
                                 LeaderStatus::Commit(_, Some(CommitMetastate::Pending), _),
@@ -115,7 +115,9 @@ impl UniversalCommitter {
             Self::update_metrics(&self.context, &decided_leader, decision);
             decided_leaders.push(decided_leader);
         }
-        tracing::debug!("Decided {decided_leaders:?}");
+        if !decided_leaders.is_empty() {
+            tracing::debug!("Decided {decided_leaders:?}");
+        }
         decided_leaders
     }
 

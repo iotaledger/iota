@@ -169,34 +169,29 @@ impl Linearizer {
             "Duplicate BlockRef found"
         );
 
-        // Convert BlockRef to GenericTransactionRef based on protocol flag
-        let committed_transactions_refs: Vec<GenericTransactionRef> =
-            if self.context.protocol_config.consensus_fast_commit_sync() {
-                // Use batch function to get transaction commitments efficiently
-                let dag_state_guard = self.dag_state.read();
-                let transactions_commitments =
-                    dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
+        // Convert each committed BlockRef to a TransactionRef, looking up its
+        // transactions commitment.
+        let committed_transactions_refs: Vec<GenericTransactionRef> = {
+            // Use batch function to get transaction commitments efficiently
+            let dag_state_guard = self.dag_state.read();
+            let transactions_commitments =
+                dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
 
-                // Zip block_refs with their corresponding transaction commitments
-                committed_transactions
-                    .into_iter()
-                    .zip(transactions_commitments)
-                    .map(|(block_ref, transactions_commitment_opt)| {
-                        let transactions_commitment = transactions_commitment_opt
-                            .expect("Block header must exist for committed transaction");
-                        GenericTransactionRef::TransactionRef(TransactionRef {
-                            round: block_ref.round,
-                            author: block_ref.author,
-                            transactions_commitment,
-                        })
+            // Zip block_refs with their corresponding transaction commitments
+            committed_transactions
+                .into_iter()
+                .zip(transactions_commitments)
+                .map(|(block_ref, transactions_commitment_opt)| {
+                    let transactions_commitment = transactions_commitment_opt
+                        .expect("Block header must exist for committed transaction");
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block_ref.round,
+                        author: block_ref.author,
+                        transactions_commitment,
                     })
-                    .collect()
-            } else {
-                committed_transactions
-                    .into_iter()
-                    .map(GenericTransactionRef::BlockRef)
-                    .collect()
-            };
+                })
+                .collect()
+        };
 
         // Create the Commit.
         let commit = Commit::new(
@@ -644,7 +639,7 @@ mod tests {
             context.clone(),
             Arc::new(MemStore::new()),
         )));
-        const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
+        const NUM_OF_COMMITS_PER_SCHEDULE: u32 = 10;
         let leader_schedule = Arc::new(
             LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
                 .with_num_commits_per_schedule(NUM_OF_COMMITS_PER_SCHEDULE),

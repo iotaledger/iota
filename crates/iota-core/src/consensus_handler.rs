@@ -560,6 +560,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::NewJWKFetchedDeprecated => "new_jwk_fetched_deprecated",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
+        ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => "overload_notification_v1",
     }
 }
 
@@ -671,6 +672,22 @@ impl SequencedConsensusTransactionKind {
                 _ => None,
             },
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
+        }
+    }
+
+    /// Returns the digest only for user-originated transaction kinds
+    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
+    /// load shedding to guarantee that no internal consensus messages
+    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
+    /// are eligible to be dropped.
+    pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
@@ -857,7 +874,7 @@ mod tests {
         },
         utils::to_sender_signed_transaction,
     };
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_core::{
         BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
         VerifiedBlockHeader, VerifiedTransactions,
@@ -1068,12 +1085,8 @@ mod tests {
         let mut subdag_transactions = Vec::new();
 
         for (i, (owned_obj, gas_obj)) in owned_objects.iter().zip(gas_objects.iter()).enumerate() {
-            let owned_ref = state
-                .get_object(&owned_obj.id())
-                .await
-                .unwrap()
-                .object_ref();
-            let gas_ref = state.get_object(&gas_obj.id()).await.unwrap().object_ref();
+            let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
+            let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
             let tx_data = TransactionData::new_transfer(
                 recipient,

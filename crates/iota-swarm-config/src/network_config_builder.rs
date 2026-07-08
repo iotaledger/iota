@@ -649,7 +649,7 @@ mod test {
             .expect("Creating an executor should not fail here");
 
         // Use a throwaway metrics registry for genesis transaction execution.
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         let metrics = Arc::new(LimitsMetrics::new(&registry));
         let expensive_checks = false;
         let certificate_deny_set = HashSet::new();

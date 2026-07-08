@@ -48,14 +48,14 @@ impl TransactionSubmitter {
     #[instrument(level = "debug", skip_all, err(level = "debug"))]
     pub(crate) async fn submit_transaction<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         amplification_factor: u64,
         transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let start_time = Instant::now();
 
@@ -66,15 +66,10 @@ impl TransactionSubmitter {
         let mut retrier = RequestRetrier::new(
             authority_aggregator,
             client_monitor,
-            options.allowed_validators.clone(),
-            options.blocked_validators.clone(),
+            &options.allowed_validators,
+            &options.blocked_validators,
         );
 
-        let ping_label = if transaction.is_none() {
-            "true"
-        } else {
-            "false"
-        };
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();
 
@@ -89,7 +84,7 @@ impl TransactionSubmitter {
                         let display_name = authority_aggregator.get_display_name(&name);
                         self.metrics
                             .validator_selections
-                            .with_label_values(&[display_name.as_str(), ping_label])
+                            .with_label_values(&[display_name.as_str()])
                             .inc();
 
                         // Create a future that returns the name and display_name along with the
@@ -137,16 +132,13 @@ impl TransactionSubmitter {
                 Some((name, display_name, Ok(result))) => {
                     self.metrics
                         .validator_submit_transaction_successes
-                        .with_label_values(&[display_name.as_str(), ping_label])
+                        .with_label_values(&[display_name.as_str()])
                         .inc();
                     self.metrics
                         .submit_transaction_retries
                         .observe(retries as f64);
                     let elapsed = start_time.elapsed().as_secs_f64();
-                    self.metrics
-                        .submit_transaction_latency
-                        .with_label_values(&[ping_label])
-                        .observe(elapsed);
+                    self.metrics.submit_transaction_latency.observe(elapsed);
 
                     return Ok((name, result));
                 }
@@ -154,7 +146,7 @@ impl TransactionSubmitter {
                     let error_type = e.categorize().into();
                     self.metrics
                         .validator_submit_transaction_errors
-                        .with_label_values(&[display_name.as_str(), error_type, ping_label])
+                        .with_label_values(&[display_name.as_str(), error_type])
                         .inc();
 
                     retries += 1;
@@ -189,15 +181,16 @@ impl TransactionSubmitter {
         client: Arc<SafeClient<A>>,
         transaction: &Option<Transaction>,
         options: &SubmitTransactionOptions,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        client_monitor: &ValidatorClientMonitor,
         validator: AuthorityName,
         display_name: String,
     ) -> Result<TxStatusUpdate, TransactionRequestError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
+        let feedback_builder =
+            &OperationFeedback::builder(validator, display_name, OperationType::Submit);
         let submit_start = Instant::now();
-        let is_ping = transaction.is_none();
 
         let statuses = timeout(
             SUBMIT_TRANSACTION_TIMEOUT,
@@ -208,24 +201,12 @@ impl TransactionSubmitter {
         )
         .await
         .map_err(|_| {
-            client_monitor.record_interaction_result(OperationFeedback {
-                authority_name: validator,
-                display_name: display_name.clone(),
-                operation: OperationType::Submit,
-                ping: is_ping,
-                result: Err(()),
-            });
+            client_monitor.record_interaction_result(feedback_builder.clone().err_now());
             TransactionRequestError::TimedOutSubmittingTransaction
         })?
         .map_err(|error| {
             if is_validator_error(error.categorize()) {
-                client_monitor.record_interaction_result(OperationFeedback {
-                    authority_name: validator,
-                    display_name: display_name.clone(),
-                    operation: OperationType::Submit,
-                    ping: is_ping,
-                    result: Err(()),
-                });
+                client_monitor.record_interaction_result(feedback_builder.clone().err_now());
             }
             TransactionRequestError::RejectedAtValidator(error)
         })?;
@@ -244,13 +225,7 @@ impl TransactionSubmitter {
             TxStatusUpdate::Rejected { error } => {
                 let err = error.clone();
                 if is_validator_error(err.categorize()) {
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: validator,
-                        display_name,
-                        operation: OperationType::Submit,
-                        ping: is_ping,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.clone().err_now());
                 }
                 return Err(TransactionRequestError::RejectedAtValidator(err));
             }
@@ -261,13 +236,7 @@ impl TransactionSubmitter {
         }
 
         let latency = submit_start.elapsed();
-        client_monitor.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name,
-            operation: OperationType::Submit,
-            ping: is_ping,
-            result: Ok(latency),
-        });
+        client_monitor.record_interaction_result(feedback_builder.clone().ok_now(latency));
         Ok(result)
     }
 }

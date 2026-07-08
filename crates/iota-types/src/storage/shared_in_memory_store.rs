@@ -363,13 +363,10 @@ impl InMemoryStore {
         let sequence_number = *checkpoint.sequence_number();
 
         if let Some(end_of_epoch_data) = &checkpoint.data().end_of_epoch_data {
-            let next_committee = end_of_epoch_data
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                &end_of_epoch_data.next_epoch_committee,
+            );
             self.insert_committee(committee);
         }
 

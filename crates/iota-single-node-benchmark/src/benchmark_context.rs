@@ -120,7 +120,7 @@ impl BenchmarkContext {
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
@@ -131,7 +131,7 @@ impl BenchmarkContext {
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| owner.as_address_opt().map(|owner| (*owner, oref)))
+                .filter_map(|(oref, owner)| owner.as_opt_address().map(|owner| (*owner, oref)))
                 .next()
                 .unwrap();
             root_objects.insert(owner, root_object);
@@ -191,7 +191,7 @@ impl BenchmarkContext {
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
                 batch,

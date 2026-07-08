@@ -46,7 +46,7 @@ use iota_types::{
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -353,7 +353,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     manifest_reader.rewind()?;
     let magic = manifest_reader.read_u32::<BigEndian>()?;
     if magic != MANIFEST_FILE_MAGIC {
-        bail!("Unexpected magic byte in manifest: {}", magic);
+        bail!("Unexpected magic byte in manifest: {magic}");
     }
 
     // Reads from the end of the file and gets the SHA3 checksum
@@ -372,9 +372,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     let computed_digest = hasher.finalize().digest;
     if computed_digest != sha3_digest {
         bail!(
-            "Manifest corrupted, computed checksum: {:?}, stored checksum: {:?}",
-            computed_digest,
-            sha3_digest
+            "Manifest corrupted, computed checksum: {computed_digest:?}, stored checksum: {sha3_digest:?}"
         );
     }
     manifest_reader.rewind()?;
@@ -475,7 +473,7 @@ pub async fn verify_archive_with_genesis_config(
         }
     }
 
-    bail!("Failed to verify archive after {} retries", num_retries)
+    bail!("Failed to verify archive after {num_retries} retries")
 }
 
 pub async fn verify_archive_with_checksums(

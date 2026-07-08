@@ -18,7 +18,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     rpc_params,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 #[tokio::test]
 async fn test_rpc_backward_compatibility() {

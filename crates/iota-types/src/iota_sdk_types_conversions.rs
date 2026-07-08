@@ -14,11 +14,10 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
     checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
-        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+        CheckpointContents, CheckpointData, CheckpointSummary, CheckpointTransaction,
+        CheckpointTransactionInfo, SignedCheckpointSummary,
     },
     crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
-    digest::Digest,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -233,72 +232,6 @@ impl TryFrom<UserSignature> for crate::signature::GenericSignature {
     }
 }
 
-impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
-    fn from(value: crate::messages_checkpoint::EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|(public_key, stake)| ValidatorCommitteeMember {
-                    public_key: Bls12381PublicKey::new(public_key.0),
-                    stake,
-                })
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.as_u64(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
-    fn from(value: EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|v| (v.public_key.into(), v.stake))
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.into(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<crate::messages_checkpoint::CheckpointCommitment> for CheckpointCommitment {
-    fn from(value: crate::messages_checkpoint::CheckpointCommitment) -> Self {
-        let crate::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest(digest) =
-            value;
-        Self::EcmhLiveObjectSet {
-            digest: Digest::new(digest.digest.into_inner()),
-        }
-    }
-}
-
-impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommitment {
-    fn from(value: CheckpointCommitment) -> Self {
-        match value {
-            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
-                Self::ECMHLiveObjectSetDigest(crate::messages_checkpoint::ECMHLiveObjectSetDigest {
-                    digest: crate::digests::Digest::new(digest.into_inner()),
-                })
-            }
-            _ => unimplemented!(
-                "a new CheckpointCommitment enum variant was added and needs to be handled"
-            ),
-        }
-    }
-}
-
 impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummary {
     type Error = SdkTypeConversionError;
 
@@ -311,12 +244,8 @@ impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummar
             previous_digest: value.previous_digest,
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            checkpoint_commitments: value.checkpoint_commitments,
+            end_of_epoch_data: value.end_of_epoch_data,
             version_specific_data: value.version_specific_data,
         }
         .pipe(Ok)
@@ -335,12 +264,8 @@ impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummar
             previous_digest: value.previous_digest,
             epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
+            checkpoint_commitments: value.checkpoint_commitments,
+            end_of_epoch_data: value.end_of_epoch_data,
             version_specific_data: value.version_specific_data,
         }
         .pipe(Ok)
@@ -507,6 +432,16 @@ pub fn type_tag_sdk_to_core(value: &TypeTag) -> move_core_types::language_storag
     }
 }
 
+pub fn identifier_core_to_sdk(value: &move_core_types::identifier::IdentStr) -> Identifier {
+    Identifier::new_unchecked(value.as_str())
+}
+
+pub fn identifier_sdk_to_core(value: &Identifier) -> move_core_types::identifier::Identifier {
+    // SAFETY: an SDK `Identifier` is an already-validated Move identifier; preserve
+    // it verbatim without re-validation.
+    unsafe { move_core_types::identifier::Identifier::new_unchecked(value.as_str()) }
+}
+
 pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructTag) -> StructTag {
     let move_core_types::language_storage::StructTag {
         address,
@@ -516,8 +451,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new_unchecked(module.as_str());
-    let name = Identifier::new_unchecked(name.as_str());
+    let module = identifier_core_to_sdk(module);
+    let name = identifier_core_to_sdk(name);
     let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }
@@ -525,8 +460,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
 pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let address =
         move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
-    let module = move_core_types::identifier::Identifier::new(value.module().as_str()).unwrap();
-    let name = move_core_types::identifier::Identifier::new(value.name().as_str()).unwrap();
+    let module = identifier_sdk_to_core(value.module());
+    let name = identifier_sdk_to_core(value.name());
     let type_params = value
         .type_params()
         .iter()

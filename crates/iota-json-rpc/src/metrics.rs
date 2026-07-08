@@ -9,7 +9,7 @@ use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
 };
 use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGaugeVec, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
@@ -61,7 +61,7 @@ impl MetricsLogger {
         }
     }
 
-    pub fn new(registry: &prometheus::Registry, method_whitelist: &[&str]) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry, method_whitelist: &[&str]) -> Self {
         let metrics = Metrics {
             requests_by_route: register_int_counter_vec_with_registry!(
                 "rpc_requests_by_route",
@@ -131,7 +131,7 @@ impl MetricsLogger {
                 "rpc_request_size",
                 "Request size of rpc requests",
                 &["protocol"],
-                prometheus::exponential_buckets(32.0, 2.0, 19)
+                prometheus_filtered::exponential_buckets(32.0, 2.0, 19)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -141,7 +141,7 @@ impl MetricsLogger {
                 "rpc_response_size",
                 "Response size of rpc requests",
                 &["protocol"],
-                prometheus::exponential_buckets(1024.0, 2.0, 20)
+                prometheus_filtered::exponential_buckets(1024.0, 2.0, 20)
                     .unwrap()
                     .to_vec(),
                 registry,

@@ -172,7 +172,7 @@ pub(crate) trait FutureWithTracing<O>: Future<Output = RpcInterimResult<O>> {
             let interim_result: RpcInterimResult<_> = self.await;
             let elapsed = start.elapsed();
             let result = interim_result.map_err(|e| {
-                let anyhow_error = anyhow!("{:?}", e);
+                let anyhow_error = anyhow!("{e:?}");
 
                 let rpc_error: RpcError = e.into();
                 if !matches!(rpc_error, RpcError::Call(_)) {

@@ -15,9 +15,11 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
+use iota_sdk_types::{Address, MovePackageData, ObjectId};
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -150,7 +152,11 @@ async fn successful_verification_module_ordering() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn successful_verification_upgrades() -> anyhow::Result<()> {
-    let mut cluster = TestClusterBuilder::new().build().await;
+    let mut cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+    let grpc_url = cluster.grpc_url();
     let context = &mut cluster.wallet;
 
     let b_v1_fixtures = iota_common::tempdir();
@@ -162,7 +168,7 @@ async fn successful_verification_upgrades() -> anyhow::Result<()> {
     let b_v2_fixtures = iota_common::tempdir();
     let b_v2 = {
         let b_src = copy_published_package(&b_v2_fixtures, "b-v2", Address::ZERO).await?;
-        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, &grpc_url, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     let b_fixtures = iota_common::tempdir();
@@ -524,7 +530,11 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn linkage_differs() -> anyhow::Result<()> {
-    let mut cluster = TestClusterBuilder::new().build().await;
+    let mut cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+    let grpc_url = cluster.grpc_url();
     let context = &mut cluster.wallet;
 
     let b_v1_fixtures = iota_common::tempdir();
@@ -538,7 +548,7 @@ async fn linkage_differs() -> anyhow::Result<()> {
         let b_src =
             copy_upgraded_package(&b_v2_fixtures, "b-v2", b_v1.object_id.into(), Address::ZERO)
                 .await?;
-        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, &grpc_url, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish b-v2 a second time, to create a third version of the package that is
@@ -548,7 +558,7 @@ async fn linkage_differs() -> anyhow::Result<()> {
         let b_src =
             copy_upgraded_package(&b_v3_fixtures, "b-v2", b_v2.object_id.into(), Address::ZERO)
                 .await?;
-        upgrade_package(context, b_v2.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, &grpc_url, b_v2.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish E pointing at v2 of B.
@@ -767,6 +777,7 @@ async fn publish_package(context: &WalletContext, package: PathBuf) -> (ObjectRe
 
 async fn upgrade_package(
     context: &WalletContext,
+    grpc_url: &str,
     package_id: ObjectId,
     upgrade_cap: ObjectId,
     package: impl AsRef<Path>,
@@ -778,6 +789,7 @@ async fn upgrade_package(
 
     upgrade_package_with_wallet(
         context,
+        grpc_url,
         package_id,
         upgrade_cap,
         package_bytes,
@@ -865,29 +877,36 @@ async fn copy_upgraded_package(
 
 pub async fn upgrade_package_with_wallet(
     context: &WalletContext,
+    grpc_url: &str,
     package_id: ObjectId,
     upgrade_cap: ObjectId,
     all_module_bytes: Vec<Vec<u8>>,
     dep_ids: Vec<ObjectId>,
 ) -> (ObjectRef, TransactionDigest) {
     let sender = context.get_addresses()[0];
-    let client = context.get_client().await.unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
+    let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();
     let transaction = {
-        let data = client
-            .transaction_builder()
-            .upgrade(
-                sender,
-                package_id,
-                all_module_bytes,
-                dep_ids,
-                upgrade_cap,
-                UpgradePolicy::COMPATIBLE,
-                None,
-                TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price,
-            )
-            .await
-            .unwrap();
+        let package_data = MovePackageData::new(all_module_bytes, dep_ids);
+
+        let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+        builder.gas_price(gas_price);
+        builder.gas_budget(TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price);
+
+        builder
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "package", "authorize_upgrade")
+            .arguments((upgrade_cap, UpgradePolicy::COMPATIBLE, package_data.digest))
+            .assign("ticket");
+
+        let receipt = builder
+            .upgrade(package_id, package_data, assigned("ticket"))
+            .arg();
+
+        builder
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "package", "commit_upgrade")
+            .arguments((upgrade_cap, receipt));
+
+        let data = builder.finish().await.unwrap();
 
         context.sign_transaction(&data)
     };

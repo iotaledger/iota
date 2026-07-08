@@ -46,7 +46,7 @@ CallArg:
 CancelledTransaction:
   STRUCT:
     - digest:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - version_assignments:
         SEQ:
           TYPENAME: VersionAssignment
@@ -121,15 +121,19 @@ ChangedObject:
 CheckpointCommitment:
   ENUM:
     0:
-      ECMHLiveObjectSetDigest:
-        NEWTYPE:
-          TYPENAME: ECMHLiveObjectSetDigest
+      EcmhLiveObjectSet:
+        STRUCT:
+          - digest:
+              TYPENAME: Digest
 CheckpointContents:
   ENUM:
     0:
       V1:
         NEWTYPE:
           TYPENAME: CheckpointContentsV1
+CheckpointContentsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 CheckpointContentsV1:
   STRUCT:
     - transactions:
@@ -148,16 +152,19 @@ CheckpointData:
     - transactions:
         SEQ:
           TYPENAME: CheckpointTransaction
+CheckpointDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 CheckpointSummary:
   STRUCT:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
     - content_digest:
-        TYPENAME: Digest
+        TYPENAME: CheckpointContentsDigest
     - previous_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: CheckpointDigest
     - epoch_rolling_gas_cost_summary:
         TYPENAME: GasCostSummary
     - timestamp_ms: U64
@@ -249,6 +256,9 @@ CommandArgumentError:
       SharedObjectOperationNotAllowed: UNIT
     12:
       InvalidArgumentArity: UNIT
+ConsensusCommitDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -257,7 +267,7 @@ ConsensusCommitPrologueV1:
         OPTION: U64
     - commit_timestamp_ms: U64
     - consensus_commit_digest:
-        TYPENAME: Digest
+        TYPENAME: ConsensusCommitDigest
     - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
 ConsensusDeterminedVersionAssignments:
@@ -278,25 +288,21 @@ DeleteKind:
       Wrap: UNIT
 Digest:
   NEWTYPESTRUCT: BYTES
-ECMHLiveObjectSetDigest:
-  STRUCT:
-    - digest:
-        TYPENAME: Digest
+EffectsAuxDataDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
   STRUCT:
-    - nextEpochCommittee:
+    - next_epoch_committee:
         SEQ:
-          TUPLE:
-            - TYPENAME: AuthorityPublicKeyBytes
-            - U64
-    - nextEpochProtocolVersion:
-        TYPENAME: ProtocolVersion
-    - epochCommitments:
+          TYPENAME: ValidatorCommitteeMember
+    - next_epoch_protocol_version: U64
+    - epoch_commitments:
         SEQ:
           TYPENAME: CheckpointCommitment
-    - epochSupplyChange: I64
+    - epoch_supply_change: I64
 EndOfEpochTransactionKind:
   ENUM:
     0:
@@ -334,9 +340,9 @@ ExecutionData:
 ExecutionDigests:
   STRUCT:
     - transaction:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - effects:
-        TYPENAME: Digest
+        TYPENAME: TransactionEffectsDigest
 ExecutionError:
   ENUM:
     0:
@@ -632,7 +638,7 @@ Object:
     - owner:
         TYPENAME: Owner
     - previous_transaction:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - storage_rebate: U64
 ObjectArg:
   ENUM:
@@ -661,6 +667,9 @@ ObjectData:
       Package:
         NEWTYPE:
           TYPENAME: MovePackage
+ObjectDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -673,7 +682,7 @@ ObjectIn:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
           - owner:
               TYPENAME: Owner
 ObjectInfoRequestKind:
@@ -691,7 +700,7 @@ ObjectOut:
       ObjectWrite:
         STRUCT:
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
           - owner:
               TYPENAME: Owner
     2:
@@ -699,14 +708,14 @@ ObjectOut:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
 ObjectReference:
   STRUCT:
     - object_id:
         TYPENAME: ObjectId
     - version: U64
     - digest:
-        TYPENAME: Digest
+        TYPENAME: ObjectDigest
 Owner:
   ENUM:
     0:
@@ -760,8 +769,6 @@ ProgrammableTransaction:
     - commands:
         SEQ:
           TYPENAME: Command
-ProtocolVersion:
-  NEWTYPESTRUCT: U64
 Publish:
   STRUCT:
     - modules:
@@ -816,12 +823,18 @@ Transaction:
       V1:
         NEWTYPE:
           TYPENAME: TransactionV1
+TransactionDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionEffects:
   ENUM:
     0:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
+TransactionEffectsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionEffectsV1:
   STRUCT:
     - status:
@@ -830,15 +843,15 @@ TransactionEffectsV1:
     - gas_cost_summary:
         TYPENAME: GasCostSummary
     - transaction_digest:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - gas_object_index:
         OPTION: U32
     - events_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: TransactionEventsDigest
     - dependencies:
         SEQ:
-          TYPENAME: Digest
+          TYPENAME: TransactionDigest
     - lamport_version: U64
     - changed_objects:
         SEQ:
@@ -848,11 +861,14 @@ TransactionEffectsV1:
           TYPENAME: UnchangedSharedObject
     - auxiliary_data_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: EffectsAuxDataDigest
 TransactionEvents:
   NEWTYPESTRUCT:
     SEQ:
       TYPENAME: Event
+TransactionEventsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionExpiration:
   ENUM:
     0:
@@ -966,7 +982,7 @@ UnchangedSharedKind:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
     1:
       MutateDeleted:
         STRUCT:
@@ -1003,6 +1019,10 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectId
     - upgraded_version: U64
+ValidatorCommitteeMember:
+  STRUCT:
+    - public_key: BYTES
+    - stake: U64
 VersionAssignment:
   STRUCT:
     - object_id:

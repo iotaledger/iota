@@ -43,7 +43,7 @@ mod checked {
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        move_authenticator::MoveAuthenticator,
+        move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
@@ -628,7 +628,7 @@ mod checked {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(
-                authenticator.digest(),
+                authenticator.digest().into(),
                 auth_context_data.sender_auth_digest,
                 auth_context_data.sponsor_auth_digest,
                 auth_context_data
@@ -1852,7 +1852,7 @@ mod checked {
                 // the version growing by one in the effects.
                 new_package
                     .data
-                    .as_package_mut_opt()
+                    .as_opt_mut_package()
                     .unwrap()
                     .decrement_version()
                     .expect("package version should never underflow");
@@ -1981,7 +1981,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            authenticator.type_arguments().clone(),
+            authenticator.type_args().to_vec(),
             args,
         );
 

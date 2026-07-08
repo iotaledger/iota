@@ -64,7 +64,7 @@ impl Merge<&EpochReadSource> for Epoch {
             }
 
             if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
-                if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+                if let Some(end_checkpoint) = epoch_info.end_checkpoint() {
                     self.last_checkpoint = Some(end_checkpoint);
                 }
             }
@@ -74,21 +74,22 @@ impl Merge<&EpochReadSource> for Epoch {
             }
 
             if mask.contains(Self::END_FIELD.name) {
-                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms() {
                     self.end = Some(timestamp_ms_to_proto(end_timestamp_ms));
                 }
             }
 
             if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
-                self.reference_gas_price = Some(epoch_info.reference_gas_price);
+                self.reference_gas_price = Some(epoch_info.reference_gas_price());
             }
 
             if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
+                let protocol_version = epoch_info.protocol_version();
                 let iota_config = IotaProtocolConfig::get_for_version_if_supported(
-                    epoch_info.protocol_version.into(),
+                    protocol_version.into(),
                     source.chain,
                 )
-                .ok_or_else(|| ProtocolVersionNotFoundError::new(epoch_info.protocol_version))?;
+                .ok_or_else(|| ProtocolVersionNotFoundError::new(protocol_version))?;
                 self.protocol_config = Some(ProtocolConfig::merge_from(&iota_config, &submask)?);
             }
         }

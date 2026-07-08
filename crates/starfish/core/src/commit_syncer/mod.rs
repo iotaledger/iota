@@ -64,14 +64,14 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI, TransactionRef},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
 /// fetch-commits response.
 // TODO: Reduce to 1 once all networks serve certifier votes deduplicated by
 // author, so a response never needs more than one header per authority.
-const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
+pub(crate) const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
 
 pub(crate) enum CommitSyncType {
     Fast,
@@ -86,6 +86,19 @@ impl CommitSyncType {
         }
     }
 
+    /// Maximum number of commits a peer may return in a single fetch response.
+    /// This is the bound `verify_commits` enforces and the same bound the
+    /// streaming fetch loop applies before buffering. Fast sync extends past
+    /// the requested range end to reach a  certifiable commit, so it accepts up
+    /// to twice the batch size; regular sync stays within one batch.
+    pub(crate) fn max_commits_per_response(&self, context: &Context) -> usize {
+        let batch_size = self.commit_sync_batch_size(context) as usize;
+        match self {
+            CommitSyncType::Fast => 2 * batch_size,
+            CommitSyncType::Regular => batch_size,
+        }
+    }
+
     pub(crate) fn as_str(&self) -> &'static str {
         match self {
             CommitSyncType::Fast => "fast_commit_sync",
@@ -97,15 +110,12 @@ impl CommitSyncType {
         &self,
         gap: u32,
         commit_sync_gap_threshold: u32,
-        consensus_fast_commit_sync: bool,
+        fast_commit_sync_enabled: bool,
     ) -> bool {
         match self {
-            // Fast syncer requires consensus_fast_commit_sync to be enabled
-            CommitSyncType::Fast => consensus_fast_commit_sync && gap > commit_sync_gap_threshold,
-            // Regular syncer handles all gaps when consensus_fast_commit_sync is disabled,
-            // otherwise only handles small gaps
+            CommitSyncType::Fast => fast_commit_sync_enabled && gap > commit_sync_gap_threshold,
             CommitSyncType::Regular => {
-                !consensus_fast_commit_sync || gap <= commit_sync_gap_threshold
+                !fast_commit_sync_enabled || gap <= commit_sync_gap_threshold
             }
         }
     }
@@ -174,9 +184,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
-    /// Present only when `FastCommitSyncer` is constructed (both the
-    /// protocol flag `consensus_fast_commit_sync` and the local flag
-    /// `enable_fast_commit_syncer` are on). The atomic is seeded at
+    /// Present only when `FastCommitSyncer` is enabled. The atomic is seeded at
     /// startup from the durable `DagState::fast_sync_ongoing()` flag so
     /// that a restart during fast sync correctly pauses regular syncing
     /// before fast sync's own loop has had a chance to run. After
@@ -187,15 +195,6 @@ pub(crate) struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
-    /// Calculates the threshold for unhandled commits to apply backpressure.
-    /// When the gap between synced and scheduled commits exceeds this
-    /// threshold, scheduling new fetches should pause to let the handler
-    /// catch up.
-    pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.context.parameters.commit_sync_batch_size
-            * (self.context.parameters.commit_sync_batches_ahead as u32)
-    }
-
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the verified voting block headers.
@@ -229,11 +228,10 @@ pub(crate) fn check_commit_version_matches_flags(
     commit: &Commit,
     protocol_config: &iota_protocol_config::ProtocolConfig,
 ) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
     let starfish_speed = protocol_config.consensus_starfish_speed();
     let variant_matches_flags = matches!(
-        (commit, fast_commit_sync, starfish_speed),
-        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), true, true)
+        (commit, starfish_speed),
+        (Commit::V2(_), false) | (Commit::V3(_), true)
     );
     if !variant_matches_flags {
         let actual = match commit {
@@ -243,7 +241,6 @@ pub(crate) fn check_commit_version_matches_flags(
         };
         return Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
             starfish_speed,
         });
     }
@@ -404,79 +401,7 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies transactions against their block headers and returns a map of
-/// BlockRef to VerifiedTransactions.
-pub(crate) fn verify_transactions_with_headers(
-    context: Arc<Context>,
-    peer: AuthorityIndex,
-    serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
-    block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
-    let mut verified_transactions_map = BTreeMap::new();
-    let mut encoder = create_encoder(&context);
-    let size_limit = serialized_transactions_size_limit(&context);
-    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let block_ref = match committed_transactions_ref {
-            GenericTransactionRef::BlockRef(br) => br,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: false,
-                    expected_variant: "BlockRef",
-                    received_variant: "TransactionRef",
-                });
-            }
-        };
-        // Bound the peer-supplied payload before erasure-encoding it.
-        if inner_serialized_transactions.len() > size_limit {
-            return Err(ConsensusError::SerializedTransactionsTooLarge {
-                size: inner_serialized_transactions.len(),
-                limit: size_limit,
-            });
-        }
-        // Step 1: Get the block header and verify that the transactions commitment
-        // matches. This ensures the transactions we received are exactly
-        // the ones that were included in the block when it was created.
-        let block_header = block_headers
-            .get(&block_ref)
-            .ok_or(ConsensusError::MissingBlockHeader { block_ref })?;
-
-        if block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &inner_serialized_transactions,
-                &context,
-                &mut encoder,
-            )?
-        {
-            return Err(ConsensusError::TransactionCommitmentFailure {
-                round: block_ref.round,
-                author: block_ref.author,
-                peer,
-            });
-        }
-
-        // Step 2: Deserialize the actual transactions vector.
-        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
-
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            TransactionRef::new(block_ref, block_header.transactions_commitment()),
-            Some(block_ref.digest),
-            inner_serialized_transactions,
-        );
-
-        verified_transactions_map.insert(
-            GenericTransactionRef::BlockRef(block_ref),
-            verified_transactions,
-        );
-    }
-
-    Ok(verified_transactions_map)
-}
-
-/// Verifies transactions against their transaction refs and returns a map of
-/// BlockRef to VerifiedTransactions.
+/// Verifies transactions and returns them keyed by transaction reference.
 pub(crate) fn verify_transactions_with_transactions_refs(
     context: &Arc<Context>,
     peer: AuthorityIndex,
@@ -486,16 +411,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let transaction_ref = match committed_transactions_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => tx_ref,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: true,
-                    expected_variant: "TransactionRef",
-                    received_variant: "BlockRef",
-                });
-            }
-        };
+        let transaction_ref = committed_transactions_ref.expect_transaction_ref()?;
         // Bound the peer-supplied payload before erasure-encoding it.
         if inner_serialized_transactions.len() > size_limit {
             return Err(ConsensusError::SerializedTransactionsTooLarge {
@@ -887,21 +803,15 @@ mod tests {
         block_header::BlockHeaderDigest,
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
+        transaction_ref::TransactionRef,
     };
 
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The
     /// version check fires before the index check, so the default commit
     /// index of 0 is fine here.
-    fn run_verify(
-        commit: Commit,
-        fast_commit_sync_on: bool,
-        starfish_speed_on: bool,
-    ) -> ConsensusResult<()> {
+    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(fast_commit_sync_on);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(starfish_speed_on);
@@ -922,39 +832,31 @@ mod tests {
     }
 
     #[rstest::rstest]
-    #[case::v1_with_fast_on(Commit::V1(CommitV1::default()), true, false, "V1")]
-    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, true, "V1")]
-    #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
-    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, true, "V2")]
-    #[case::v3_with_fast_off(Commit::V3(CommitV3::default()), false, false, "V3")]
-    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
+    #[case::v1_with_starfish_off(Commit::V1(CommitV1::default()), false, "V1")]
+    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, "V1")]
+    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, "V2")]
+    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), false, "V3")]
     #[tokio::test]
     async fn verify_commits_rejects_wrong_version(
         #[case] commit: Commit,
-        #[case] fast_commit_sync_on: bool,
         #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, fast_commit_sync_on, starfish_speed_on);
+        let result = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
             starfish_speed,
         }) = result
         else {
             panic!("expected WrongCommitVersionForFlags, got {result:?}");
         };
         assert_eq!(actual, expected_variant);
-        assert_eq!(fast_commit_sync, fast_commit_sync_on);
         assert_eq!(starfish_speed, starfish_speed_on);
     }
 
     #[tokio::test]
     async fn verify_commits_rejects_out_of_range_authority_index() {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(false);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(false);

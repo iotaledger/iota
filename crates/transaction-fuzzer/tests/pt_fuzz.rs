@@ -46,11 +46,11 @@ fn publish_coin_factory(
         .into_iter()
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
-                .rt
-                .block_on(exec.state.get_object(&obj_ref.object_id))
+                .state
+                .get_object(&obj_ref.object_id)
                 .unwrap()
                 .data
-                .struct_tag()
+                .opt_struct_tag()
             {
                 stag.name().as_str().eq("TreasuryCap")
             } else {
@@ -103,11 +103,11 @@ pub fn run_pt_success(
         .into_iter()
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
-                .rt
-                .block_on(exec.state.get_object(&obj_ref.object_id))
+                .state
+                .get_object(&obj_ref.object_id)
                 .unwrap()
                 .data
-                .struct_tag()
+                .opt_struct_tag()
             {
                 stag.name().as_str().eq("TreasuryCap")
             } else {

@@ -307,6 +307,8 @@ impl LocalAuthorityClient {
     }
 }
 
+type GetTxStatusResult = IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>;
+
 #[derive(Clone)]
 pub struct MockAuthorityApi {
     delay: Duration,
@@ -314,6 +316,7 @@ pub struct MockAuthorityApi {
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
     handle_capability_notification_result:
         Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
+    tx_status_stub: Arc<Mutex<Option<GetTxStatusResult>>>,
 }
 
 impl MockAuthorityApi {
@@ -323,6 +326,7 @@ impl MockAuthorityApi {
             count,
             handle_object_info_request_result: None,
             handle_capability_notification_result: None,
+            tx_status_stub: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -335,6 +339,10 @@ impl MockAuthorityApi {
         result: IotaResult<HandleCapabilityNotificationResponseV1>,
     ) {
         self.handle_capability_notification_result = Some(result);
+    }
+
+    pub fn stub_tx_status(&self, response: GetTxStatusResult) {
+        *self.tx_status_stub.lock().unwrap() = Some(response);
     }
 }
 
@@ -361,7 +369,13 @@ impl ValidatorV2API for MockAuthorityApi {
         _request: GetTxStatusRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        unimplemented!()
+        let Some(result) = self.tx_status_stub.lock().unwrap().clone() else {
+            return Err(IotaError::Unknown(
+                "MockAuthorityApi::get_tx_status was called without a stub".to_string(),
+            ));
+        };
+        tokio::time::sleep(self.delay).await;
+        result
     }
     async fn notify_capabilities_v2(
         &self,
