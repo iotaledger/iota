@@ -11,11 +11,36 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out'
     steps:
-      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
+      - uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
         with:
-          status: ${{ github.event.workflow_run.conclusion }}
-          notification_title: " ${{github.event.workflow_run.name}} - ${{github.event.workflow_run.conclusion}} on ${{github.event.workflow_run.head_branch}}"
-          message_format: ":fire: *${{github.event.workflow_run.name}}* ${{github.event.workflow_run.conclusion}} <${{github.server_url}}/${{github.repository}}/actions/runs/${{github.event.workflow_run.id}}|View Failure> author: ${{ github.event.workflow_run.head_commit.author.name }}"
-          footer: "${{ github.event.workflow_run.display_title }} \n<${{github.server_url}}/${{github.repository}}/commit/${{github.event.workflow_run.head_commit.id}}>"
-        env:
-          SLACK_WEBHOOK_URL: ${{ (github.event.workflow_run.name == 'Nightly checks' || github.event.workflow_run.name == 'Turborepo Nightly checks') && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          webhook: ${{ (github.event.workflow_run.name == 'Nightly checks' || github.event.workflow_run.name == 'Turborepo Nightly checks') && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          # Fail the run if Slack rejects the request, so a broken webhook is visible instead of silently dropped.
+          errors: true
+          # toJSON keeps the payload valid JSON even when commit titles or author names contain quotes.
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#E01E5A",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": ${{ toJSON(format(':fire: *{0}* {1} on `{2}` — <{3}/{4}/actions/runs/{5}|View Failure>', github.event.workflow_run.name, github.event.workflow_run.conclusion, github.event.workflow_run.head_branch, github.server_url, github.repository, github.event.workflow_run.id)) }}
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": ${{ toJSON(format('author: {0} · {1} · <{2}/{3}/commit/{4}|commit>', github.event.workflow_run.head_commit.author.name, github.event.workflow_run.display_title, github.server_url, github.repository, github.event.workflow_run.head_commit.id)) }}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
