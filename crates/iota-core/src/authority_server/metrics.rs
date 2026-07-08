@@ -38,6 +38,8 @@ pub struct ValidatorServiceMetrics {
     pub x_forwarded_for_num_hops: Gauge,
     pub num_rejected_tx_soft_lock_conflict: IntCounter,
     pub soft_lock_table_size: IntGauge,
+    pub num_rejected_tx_recently_resubmitted: IntCounter,
+    pub recently_resubmitted_interval: Histogram,
 }
 
 impl ValidatorServiceMetrics {
@@ -203,6 +205,19 @@ impl ValidatorServiceMetrics {
             num_rejected_tx_soft_lock_conflict: register_int_counter_with_registry!(
                 "validator_service_num_rejected_tx_soft_lock_conflict",
                 "Number of transactions rejected due to pre-consensus soft lock conflict on owned objects",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_recently_resubmitted: register_int_counter_with_registry!(
+                "validator_service_num_rejected_tx_recently_resubmitted",
+                "Number of transactions rejected as duplicate resubmissions of a transaction whose soft locks are still held",
+                registry,
+            )
+                .unwrap(),
+            recently_resubmitted_interval: register_histogram_with_registry!(
+                "validator_service_recently_resubmitted_interval_seconds",
+                "Time between a transaction acquiring its soft locks and a duplicate resubmission of it being suppressed",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
                 .unwrap(),

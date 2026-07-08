@@ -5,15 +5,22 @@
 //!
 //! This module provides an in-memory, defense-in-depth mechanism that prevents
 //! a validator from accepting two transactions that conflict on the same owned
-//! objects at pre-submission time. The authoritative conflict resolution
-//! remains in post-consensus validation (`post_consensus_validation.rs`); this
-//! layer merely reduces wasted consensus bandwidth and client-visible latency.
+//! objects at pre-submission time, and from forwarding duplicate resubmissions
+//! of a transaction that is already in flight (its locks are still held). The
+//! authoritative conflict resolution remains in post-consensus validation
+//! (`post_consensus_validation.rs`); this layer merely reduces wasted
+//! consensus bandwidth and client-visible latency.
+//!
+//! Every user transaction holds at least one owned object (its gas coin), so
+//! the lock table sees every transaction and duplicate suppression covers
+//! shared-object transactions too.
 //!
 //! # Edge cases
 //!
 //! | Case                            | Behavior                                                              |
 //! |---------------------------------|-----------------------------------------------------------------------|
-//! | Same tx digest resubmitted      | `try_acquire` is idempotent for same digest — passes through          |
+//! | Same tx digest, locks held      | Rejected with `RecentlyResubmitted` until released or expired         |
+//! | Same tx digest, locks released/expired | Re-acquired; passes through                                    |
 //! | Different tx, same owned objects | Soft lock conflict → `ObjectLockConflict` error                       |
 //! | Tx processed by consensus        | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx dropped in post-consensus     | Released in `authority_per_epoch_store` after quarantine               |
@@ -107,7 +114,9 @@ impl PreConsensusSoftLocks {
 
     /// Creates a disabled instance: every operation is a no-op and
     /// `try_acquire` never reports a conflict, so post-consensus validation is
-    /// the sole conflict resolver.
+    /// the sole conflict resolver. Disabling also disables duplicate
+    /// resubmission suppression — consensus-level dedup remains the only
+    /// defense against same-digest resubmission storms.
     pub fn disabled() -> Self {
         Self::new_inner(DEFAULT_SOFT_LOCK_TTL, false)
     }
@@ -124,8 +133,11 @@ impl PreConsensusSoftLocks {
     /// Attempts to soft-lock every `ObjectReference` in `owned_objects` for
     /// `tx_digest`.
     ///
-    /// - **Same digest**: idempotent — the lock is refreshed but no error is
-    ///   returned. This allows the same transaction to be resubmitted freely.
+    /// - **Same digest, locks held**: returns `RecentlyResubmitted` — the
+    ///   transaction is already in flight on this validator and forwarding it
+    ///   again would only duplicate it in consensus.
+    /// - **Same digest, locks released or expired**: re-acquired with a fresh
+    ///   timestamp, so retrying a consensus-forgotten transaction works.
     /// - **Different digest, unexpired**: returns `ObjectLockConflict`.
     /// - **Expired lock**: silently overwritten by the new transaction.
     ///
@@ -144,6 +156,16 @@ impl PreConsensusSoftLocks {
         let now = Instant::now();
         let ttl = self.lock_ttl;
         let mut inner = self.inner.lock();
+
+        // A digest whose locks are still held is already in flight on this
+        // validator — suppress the duplicate before it reaches consensus
+        // again. Locks are released once consensus processes or drops the
+        // transaction (or on submit failure), which is exactly when
+        // resubmission becomes meaningful.
+        if Self::in_flight_elapsed(&inner, &tx_digest, now, ttl).is_some() {
+            return Err(IotaError::RecentlyResubmitted { digest: tx_digest });
+        }
+
         let mut acquired: Vec<ObjectReference> = Vec::with_capacity(owned_objects.len());
 
         for obj_ref in owned_objects {
@@ -278,6 +300,18 @@ impl PreConsensusSoftLocks {
         self.lock_count.load(Ordering::Relaxed)
     }
 
+    /// Returns the elapsed time since `tx_digest` soft-locked its objects, if
+    /// the transaction is still in flight on this validator (locks held and
+    /// unexpired). Returns `None` for unknown, released, or expired digests,
+    /// and always `None` when disabled.
+    pub fn check_in_flight(&self, tx_digest: &TransactionDigest) -> Option<Duration> {
+        if !self.enabled {
+            return None;
+        }
+        let inner = self.inner.lock();
+        Self::in_flight_elapsed(&inner, tx_digest, Instant::now(), self.lock_ttl)
+    }
+
     /// Drops all entries.  Called at epoch boundary.
     pub fn clear(&self) {
         if !self.enabled {
@@ -329,6 +363,31 @@ impl PreConsensusSoftLocks {
     }
 
     // -- private helpers -----------------------------------------------------
+
+    /// Returns the elapsed time since `tx_digest` acquired its locks if at
+    /// least one of them is still held by this digest and unexpired.
+    ///
+    /// Operates on the `Inner` already borrowed from the outer mutex so
+    /// callers can combine the check with a mutation in one critical section.
+    fn in_flight_elapsed(
+        inner: &Inner,
+        tx_digest: &TransactionDigest,
+        now: Instant,
+        lock_ttl: Duration,
+    ) -> Option<Duration> {
+        inner
+            .tx_to_objects
+            .get(tx_digest)?
+            .iter()
+            .find_map(|obj_ref| {
+                let record = inner.locks.get(obj_ref)?;
+                if record.digest != *tx_digest {
+                    return None;
+                }
+                let elapsed = now.duration_since(record.acquired_at);
+                (elapsed < lock_ttl).then_some(elapsed)
+            })
+    }
 
     /// Test-and-set a single object lock in the forward index.
     ///
@@ -428,15 +487,73 @@ mod tests {
     }
 
     #[test]
-    fn test_same_digest_idempotent() {
+    fn test_same_digest_in_flight_rejected() {
         let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
         let obj = obj_ref(1, 1);
         let tx = digest(1);
 
         table.try_acquire(tx, &[obj]).unwrap();
-        // Same digest again — should succeed.
+        // Same digest while its locks are held — suppressed as a duplicate.
+        let err = table.try_acquire(tx, &[obj]).unwrap_err();
+        assert!(
+            matches!(err, IotaError::RecentlyResubmitted { digest } if digest == tx),
+            "expected RecentlyResubmitted, got {err:?}"
+        );
+        assert!(
+            err.is_retryable().0,
+            "suppression must be retryable so clients back off instead of failing hard"
+        );
+        assert_eq!(table.lock_count(), 1);
+    }
+
+    #[test]
+    fn test_same_digest_after_release_passes() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let obj = obj_ref(1, 1);
+        let tx = digest(1);
+
+        table.try_acquire(tx, &[obj]).unwrap();
+        table.release(&tx);
+        // Locks released (consensus processed/dropped the tx) — resubmission
+        // is meaningful again and must pass.
         table.try_acquire(tx, &[obj]).unwrap();
         assert_eq!(table.lock_count(), 1);
+    }
+
+    #[test]
+    fn test_check_in_flight_lifecycle() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let obj = obj_ref(1, 1);
+        let tx = digest(1);
+
+        assert!(table.check_in_flight(&tx).is_none());
+        table.try_acquire(tx, &[obj]).unwrap();
+        assert!(
+            table.check_in_flight(&tx).is_some(),
+            "digest with held locks must be reported in flight"
+        );
+        table.release(&tx);
+        assert!(table.check_in_flight(&tx).is_none());
+    }
+
+    #[test]
+    fn test_check_in_flight_expired_lock_is_not_in_flight() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::ZERO);
+        let tx = digest(1);
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+        assert!(
+            table.check_in_flight(&tx).is_none(),
+            "expired locks must not count as in flight"
+        );
+    }
+
+    #[test]
+    fn test_disabled_allows_same_digest_resubmission() {
+        let table = PreConsensusSoftLocks::disabled();
+        let tx = digest(1);
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+        assert!(table.check_in_flight(&tx).is_none());
     }
 
     #[test]
@@ -484,13 +601,12 @@ mod tests {
         );
     }
 
-    /// The idempotent same-digest path must refresh the lock's timestamp so a
-    /// legitimately-retrying client doesn't see its own lock expire mid-flight.
-    /// We inspect the stored `Instant` directly rather than race the wall
-    /// clock.
+    /// Re-acquiring after expiry (e.g. a client retrying a transaction that
+    /// consensus forgot) must pass and refresh the lock's timestamp. We
+    /// inspect the stored `Instant` directly rather than race the wall clock.
     #[test]
-    fn test_same_digest_refreshes_timestamp() {
-        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+    fn test_same_digest_after_expiry_reacquires_with_fresh_timestamp() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::ZERO);
         let obj = obj_ref(1, 1);
         let tx = digest(1);
 

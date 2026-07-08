@@ -451,6 +451,87 @@ async fn test_v2_submit_tx_success() {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_resubmission_suppressed() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+
+    let tx_data = TransactionData::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let expected_digest = *tx.digest();
+
+    // First submission goes through.
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx.clone()]))
+        .await
+        .expect("submit_tx stream should open successfully");
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    assert!(
+        matches!(results[0].1, TxStatusUpdate::Submitted),
+        "Expected Submitted, got {:?}",
+        results[0].1
+    );
+
+    // Resubmitting the same digest while it is still in flight (soft locks
+    // held, not yet processed by consensus) must be suppressed.
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx]))
+        .await
+        .expect("submit_tx stream should open successfully");
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    match &results[0].1 {
+        TxStatusUpdate::Rejected { error } => {
+            assert!(
+                matches!(
+                    error,
+                    IotaError::RecentlyResubmitted { digest } if *digest == expected_digest
+                ),
+                "Expected RecentlyResubmitted, got {error:?}"
+            );
+        }
+        other => panic!("Expected Rejected, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_invalid_signature() {
     telemetry_subscribers::init_for_testing();
 
