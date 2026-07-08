@@ -238,6 +238,28 @@ They are needed for the testing only, not to be merged to upstream branches.
   metric; correlate per-validator container CPU (via cadvisor, now wired into
   grafana-local; plus host-level node-exporter for the whole machine) with
   attestation on/off.
+- Split `validator_attestation_latency` into its three parts, since
+  `attest_transaction` runs on `tokio::task::spawn_blocking` and the total hides
+  where the cost goes:
+  - `validator_attestation_queue_wait`: time queued before a blocking-pool
+    worker starts the dry-run.
+  - `validator_attestation_execution_latency`: the Move-VM dry-run itself.
+  - `validator_attestation_async_resume_latency`: time from the dry-run
+    finishing on the pool until the waiting async task runs again. Under load
+    this is the largest part (full ≈ wait + exec + resume): the blocking-task
+    pool grows to many threads that keep every CPU core fully busy, so the fixed
+    number of async workers get almost no CPU time, and a finished dry-run waits
+    seconds before its task is picked up again. All four attestation histograms
+    use the 90s `LATENCY_SEC_BUCKETS`, not the 1s `SUBSECOND` ones, which cuts
+    off every value above 1s under load.
+- Label pre-consensus overload rejections by source. `check_system_overload`
+  rejects a transaction before consensus when the consensus queue is saturated,
+  and its `transaction_overload_sources` counter used one `consensus` label for
+  every cause. Split it into `consensus_graduated` (graduated soft-limit shed),
+  `consensus_max_pending` (`num_inflight` past `max_pending_transactions`), and
+  `consensus_semaphore` (submit semaphore out of permits), so it is clear which
+  limit was hit. The semaphore (`max_pending_transactions * 2 / committee_size`)
+  is reached first and holds `num_inflight` below `max_pending`.
 - Add three congestion-control metrics on the validator (the existing ones cover
   deferred/cancelled counts and the max per-object scheduled estimate, but not
   these):
@@ -265,8 +287,8 @@ They are needed for the testing only, not to be merged to upstream branches.
     (`try_is_tx_already_executed`, a cache/database lookup) and the owned
     object conflict resolution and lock acquisition, so any V1-vs-V2 delta is
     buried in that noise. The real attestation overhead is pre-consensus, in
-    `validator_attestation_latency` (the dry-run); post-consensus is
-    effectively free.
+    `validator_attestation_latency` (the dry-run and the async resume it waits
+    on - see the split above); post-consensus is effectively free.
 - W6 (under-reporting attestor): a validator-side change that makes the
   attestor report a computation cost below the real one, to check that the
   scheduler and the safety limits hold when the estimate is wrong.
@@ -282,9 +304,12 @@ They are needed for the testing only, not to be merged to upstream branches.
   - [x] `actual_computation_units`
   - [x] `actual_to_attested_computation_units_ratio`
 - [x] Attestation-overhead metrics:
-  - [x] `validator_attestation_latency`
+  - [x] `validator_attestation_latency` (split into `_queue_wait`,
+    `_execution_latency`, `_async_resume_latency`; 90s buckets)
   - [x] `validator_attestations_total`
   - [x] `validator_attestation_task_panics`
+- [x] Pre-consensus overload sources labeled by cause (`consensus_graduated` /
+  `consensus_max_pending` / `consensus_semaphore`)
 - [x] Congestion metrics:
   - [x] `consensus_handler_scheduled_transactions_per_object_per_commit`
   - [x] `consensus_handler_transaction_deferral_rounds`
@@ -555,7 +580,23 @@ health. Open it at [localhost](http://localhost:3000/d/attestation-sequencer-str
   `execution_queueing_latency`, soft 1s / hard 10s); execution time via
   `authority_state_internal_execution_latency`; backpressure via
   `execution_cache_backpressure_status` / `_toggles`.
-- Attestation dry-run latency, and the `attestation_task_panics` counter.
+- Attestation cost via `validator_attestation_latency`, split into
+  `validator_attestation_queue_wait` (blocking-pool wait),
+  `validator_attestation_execution_latency` (the Move-VM dry-run), and
+  `validator_attestation_async_resume_latency` (the wait for the async task to
+  run again after the dry-run finishes) - under load this resume part is the
+  largest, so read the split, not just the total. Plus the
+  `validator_attestation_task_panics` counter.
+- Consensus-queue depth and load shedding. Depth via
+  `sequencing_certificate_inflight` (`num_inflight` - transactions submitted to
+  consensus but not yet sequenced, the value the graduated / max-pending limits
+  gate on, per validator). Pre-consensus admission shedding via
+  `transaction_overload_sources` (by source; see validator node changes) and
+  `validator_service_num_rejected_tx_during_overload`, with the graduated
+  `consensus_queue_load_shedding_percentage`. Post-consensus (execution
+  overload) shedding via `consensus_handler_load_shedding_dropped_transactions`
+  and the percentages `consensus_handler_load_shedding_percentage` (enforced
+  quorum) and `authority_load_shedding_percentage` (this validator's local view).
 - Attested vs actual computation cost ratio (histogram).
 - Consensus handler commit rate via `rate(consensus_committed_subdags[2m])`
   (and `consensus_handler_processed`). Post-consensus validation time is NOT
