@@ -259,7 +259,7 @@ FIGURES = [
     },
     {
         "file": "attestation_latency_full",
-        "title": "Full attestation latency (wait + exec + resume)",
+        "title": "Full attestation latency (spawn_blocking wait + exec + resume)",
         "metrics": [
             "attest. full p99 (s)",
             "attest. full p95 (s)",
@@ -346,7 +346,7 @@ FIGURES = [
         "subtitles": {
             "pre-cons overload rej / sec": "txns rejected pre-consensus (check_system_overload) / sec",
             "shed % cons-queue": "consensus-queue graduated shed %",
-            "num_inflight": "consensus in-flight txns (vs max_pending)",
+            "num_inflight": "peak consensus in-flight transactions (num_inflight)",
         },
     },
     {
