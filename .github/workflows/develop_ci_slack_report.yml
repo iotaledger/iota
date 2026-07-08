@@ -17,34 +17,16 @@ jobs:
           webhook-type: incoming-webhook
           # Fail the run if Slack rejects the request, so a broken webhook is visible instead of silently dropped.
           errors: true
-          # The commit title is free-form and can contain quotes, so wrap it with toJSON to keep the payload valid JSON.
+          # `text` and `footer` embed the free-form author name and commit title, so build them with toJSON to keep the payload valid JSON when those contain quotes or newlines.
           payload: |
             {
               "attachments": [
                 {
-                  "color": "#E01E5A",
-                  "blocks": [
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": ":fire: *${{ github.event.workflow_run.name }}* ${{ github.event.workflow_run.conclusion }} on `${{ github.event.workflow_run.head_branch }}` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}|View Failure>"
-                      }
-                    },
-                    {
-                      "type": "context",
-                      "elements": [
-                        {
-                          "type": "mrkdwn",
-                          "text": ${{ toJSON(github.event.workflow_run.display_title) }}
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "by ${{ github.event.workflow_run.head_commit.author.name }} · <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}|commit>"
-                        }
-                      ]
-                    }
-                  ]
+                  "color": "${{ github.event.workflow_run.conclusion == 'timed_out' && 'warning' || 'danger' }}",
+                  "mrkdwn_in": ["text"],
+                  "pretext": " ${{ github.event.workflow_run.name }} - ${{ github.event.workflow_run.conclusion }} on ${{ github.event.workflow_run.head_branch }}",
+                  "text": ${{ toJSON(format(':fire: *{0}* {1} <{2}/{3}/actions/runs/{4}|View Failure> author: {5}', github.event.workflow_run.name, github.event.workflow_run.conclusion, github.server_url, github.repository, github.event.workflow_run.id, github.event.workflow_run.head_commit.author.name)) }},
+                  "footer": ${{ toJSON(format('{0} {1}<{2}/{3}/commit/{4}>', github.event.workflow_run.display_title, fromJSON('"\n"'), github.server_url, github.repository, github.event.workflow_run.head_commit.id)) }}
                 }
               ]
             }
