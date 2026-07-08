@@ -1230,6 +1230,237 @@ mod tests {
         }
     }
 
+    /// Post-consensus load shedding must be deterministic across honest
+    /// validators: for the same sequence of consensus commits, every validator
+    /// must schedule (and eventually checkpoint) the same set of user
+    /// transactions.
+    ///
+    /// This test reproduces a divergence: a transaction dropped by load
+    /// shedding is never recorded in the durable
+    /// `consensus_message_processed` set (so its retry can be accepted
+    /// later), but its key has already been inserted into the consensus
+    /// handler's in-memory `processed_cache` LRU. When the transaction is
+    /// retried and committed again after shedding has cleared, a validator
+    /// whose handler kept running skips it via the LRU, while a validator
+    /// that restarted in between (fresh LRU, durable set unset) processes
+    /// and schedules it — a checkpoint fork.
+    ///
+    /// Scenario, driven by identical commits on both validators:
+    /// - Commit A: every committee member broadcasts a 100% overload
+    ///   notification, plus user transaction T. The quorum percentage is 100,
+    ///   so T is dropped on both validators.
+    /// - Commit B: every committee member broadcasts 0%, plus T again (the
+    ///   retry that `ValidatorOverloadedRetryAfter` asks the client for).
+    ///   Validator A processes commit B with the same handler; validator B's
+    ///   handler is recreated first, modeling a restart after commit A was
+    ///   flushed (the epoch store's consensus-derived state is the same either
+    ///   way — only the handler's LRU is lost).
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_load_shedding_dropped_transaction_retry_diverges_across_restart() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_objects(vec![owned_object.clone(), gas_object.clone()])
+                .build();
+
+        // Two honest validators of the same committee, fed identical commits.
+        let state_a = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let state_b = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 1)
+            .build()
+            .await;
+
+        let epoch_store_a = state_a.epoch_store_for_testing().clone();
+        let epoch_store_b = state_b.epoch_store_for_testing().clone();
+        let committee = epoch_store_a.committee().clone();
+        let consensus_committee = epoch_store_a.epoch_start_state().get_consensus_committee();
+
+        let new_handler = |state: &Arc<AuthorityState>, metrics: &Arc<AuthorityMetrics>| {
+            ConsensusHandler::new(
+                state.epoch_store_for_testing().clone(),
+                state.clone(),
+                Arc::new(CheckpointServiceNoop {}),
+                state.transaction_manager().clone(),
+                state.get_object_cache_reader().clone(),
+                state.get_transaction_cache_reader().clone(),
+                Arc::new(ArcSwap::default()),
+                consensus_committee.clone(),
+                metrics.clone(),
+                BackpressureManager::new_for_tests().subscribe(),
+            )
+        };
+
+        let metrics_a = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let metrics_b = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let mut handler_a = new_handler(&state_a, &metrics_a);
+        let mut handler_b = new_handler(&state_b, &metrics_b);
+        // Stand-in for validator B's post-restart handler. `ConsensusHandler::new`
+        // asserts it only runs at startup (empty quarantine), so it cannot be
+        // created after commit A; creating it here gives the same state the
+        // restart produces on the path under test — an empty `processed_cache`
+        // over the same epoch store.
+        let mut handler_b_restarted = new_handler(&state_b, &metrics_b);
+
+        // User transaction T, identical bytes in both commits (a client retry
+        // resubmits the same signed transaction, so the same digest).
+        let rgp = epoch_store_a.reference_gas_price();
+        let owned_ref = state_a.get_object(&owned_object.id()).unwrap().object_ref();
+        let gas_ref = state_a.get_object(&gas_object.id()).unwrap().object_ref();
+        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let tx_data = TransactionData::new_transfer(
+            recipient,
+            owned_ref,
+            sender,
+            gas_ref,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let tx = to_sender_signed_transaction(tx_data, &sender_key);
+        let verified_tx = epoch_store_a.verify_transaction(tx).unwrap();
+        let tx_digest = *verified_tx.digest();
+        let user_tx_bytes = bcs::to_bytes(&ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+            tracking_id: Default::default(),
+        })
+        .unwrap();
+        let tx_key = SequencedConsensusTransactionKey::External(
+            ConsensusTransactionKey::UserTransaction(tx_digest),
+        );
+
+        // A block authored by committee member `author` carrying its overload
+        // notification. The generation only has to be unique per (authority,
+        // commit); wall-clock-based generations could collide across the two
+        // commits built back-to-back here.
+        let notification_block = |author: u32, round: u32, generation: u64, percentage: u8| {
+            let authority = *committee.authority_by_index(author).unwrap();
+            let bytes = bcs::to_bytes(&ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(
+                    authority, generation, percentage,
+                ),
+                tracking_id: Default::default(),
+            })
+            .unwrap();
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author as u8).build(),
+            );
+            let batch = VerifiedTransactions::new_for_test(&header, vec![Transaction::new(bytes)]);
+            (header, batch)
+        };
+        let user_tx_block = |author: u32, round: u32| {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author as u8).build(),
+            );
+            let batch = VerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(user_tx_bytes.clone())],
+            );
+            (header, batch)
+        };
+        let make_commit = |blocks: Vec<(VerifiedBlockHeader, VerifiedTransactions)>,
+                           sub_dag_index: u64| {
+            let (headers, batches): (Vec<_>, Vec<_>) = blocks.into_iter().unzip();
+            let leader = headers[0].clone();
+            let refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
+            CommittedSubDag::new(
+                leader.reference(),
+                headers,
+                refs,
+                batches,
+                leader.timestamp_ms(),
+                CommitRef::new(sub_dag_index as u32, CommitDigest::MIN),
+                vec![],
+                vec![],
+            )
+        };
+
+        // Commit A: 100% notifications from all 4 members, then T. T is the
+        // last key inserted into the handler LRU, so it survives even the
+        // smallest randomized test capacity (2).
+        let mut blocks_a: Vec<_> = (0..4u32)
+            .map(|i| notification_block(i, 100 + i, 1, 100))
+            .collect();
+        blocks_a.push(user_tx_block(0, 110));
+        let commit_a = make_commit(blocks_a, 10);
+
+        // Commit B: T first (its LRU lookup happens before any other key is
+        // inserted), then 0% notifications from all 4 members.
+        let mut blocks_b = vec![user_tx_block(1, 200)];
+        blocks_b.extend((0..4u32).map(|i| notification_block(i, 201 + i, 2, 0)));
+        let commit_b = make_commit(blocks_b, 11);
+
+        // Both validators process commit A and drop T.
+        handler_a
+            .handle_consensus_output_for_test(commit_a.clone())
+            .await;
+        handler_b.handle_consensus_output_for_test(commit_a).await;
+        for (epoch_store, metrics) in [(&epoch_store_a, &metrics_a), (&epoch_store_b, &metrics_b)] {
+            assert_eq!(
+                epoch_store.get_quorum_load_shedding_percentage().unwrap(),
+                100
+            );
+            assert_eq!(
+                metrics
+                    .consensus_handler_load_shedding_dropped_transactions
+                    .get(),
+                1
+            );
+            assert!(!epoch_store.is_consensus_message_processed(&tx_key).unwrap());
+        }
+
+        // Validator B restarts before the retry arrives: the handler (and its
+        // LRU) is gone, the epoch store's consensus-derived state remains.
+        drop(handler_b);
+
+        // Both validators process commit B, which clears shedding and retries T.
+        handler_a
+            .handle_consensus_output_for_test(commit_b.clone())
+            .await;
+        handler_b_restarted
+            .handle_consensus_output_for_test(commit_b)
+            .await;
+
+        // Both validators derived the same shedding state from the commits...
+        assert_eq!(
+            epoch_store_a.get_quorum_load_shedding_percentage().unwrap(),
+            0
+        );
+        assert_eq!(
+            epoch_store_b.get_quorum_load_shedding_percentage().unwrap(),
+            0
+        );
+
+        // ...so they must agree on whether the retry of T was processed.
+        let processed_a = epoch_store_a
+            .is_consensus_message_processed(&tx_key)
+            .unwrap();
+        let processed_b = epoch_store_b
+            .is_consensus_message_processed(&tx_key)
+            .unwrap();
+        assert_eq!(
+            processed_a, processed_b,
+            "honest validators diverged on a load-shed-then-retried transaction \
+             (checkpoint fork): still-running validator processed={processed_a}, \
+             restarted validator processed={processed_b}",
+        );
+        // And with shedding at 0% the retry must actually have been accepted.
+        assert!(
+            processed_b,
+            "retry of a load-shed transaction was not processed after shedding cleared"
+        );
+    }
+
     #[test]
     fn test_order_by_gas_price() {
         let chain = Chain::Unknown;
