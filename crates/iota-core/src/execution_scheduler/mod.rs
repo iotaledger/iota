@@ -154,7 +154,7 @@ pub enum ExecutionSchedulerWrapper {
 /// default. Flip to `true` (and update the CI matrix) when promoting
 /// `ExecutionScheduler` to the default; the selector below and any test that
 /// asserts the default both follow it automatically.
-pub(crate) const DEFAULT_USE_EXECUTION_SCHEDULER: bool = false;
+pub(crate) const DEFAULT_USE_EXECUTION_SCHEDULER: bool = true;
 
 impl ExecutionSchedulerWrapper {
     pub fn new(
