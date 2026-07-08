@@ -311,6 +311,9 @@ async fn test_execution_with_dependencies_execution_scheduler() {
 
 async fn execution_with_dependencies(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    // Pin the scheduler before the authorities are built (the env vars are read
+    // by ExecutionSchedulerWrapper::new); process-per-test isolation keeps the
+    // two variants from leaking into each other.
     if use_execution_scheduler {
         std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
         std::env::remove_var("ENABLE_TRANSACTION_MANAGER");

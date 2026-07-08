@@ -502,16 +502,18 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
 }
 
 // Same cold-sync scenario, but every node runs the ExecutionScheduler. The
-// scheduler has otherwise never been exercised through the checkpoint-executor /
-// state-sync path, where transactions are enqueued with a certified expected
+// scheduler has otherwise never been exercised through the checkpoint-executor
+// / state-sync path, where transactions are enqueued with a certified expected
 // effects digest and their inputs arrive by applying synced checkpoints rather
 // than from local submission. A regression where a synced transaction never
 // becomes ready under the ExecutionScheduler would stall sync silently.
 #[sim_test]
 async fn test_full_node_cold_sync_execution_scheduler() -> Result<(), anyhow::Error> {
     // Selected at node construction; set before the cluster and fullnode are
-    // built. Process-per-test isolation keeps it from leaking to other tests.
+    // built. The opt-out variable is cleared too since it takes precedence.
+    // Process-per-test isolation keeps this from leaking to other tests.
     std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     let context = &mut test_cluster.wallet;

@@ -7018,10 +7018,6 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     .await
     .expect("conflict winner did not execute within 20s after being enqueued")
     .unwrap();
-    assert!(
-        authority.is_tx_already_executed(verified_tx1.digest()),
-        "the conflict winner must execute after being enqueued"
-    );
 
     // The dropped loser was never enqueued, so it must never execute.
     assert!(
@@ -7303,7 +7299,8 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
         .execution_scheduler()
         .enqueue_certificates(vec![cert.clone(), cert], &epoch_store);
 
-    // It executes (once).
+    // It executes, and successfully: a failed status here would mean the
+    // duplicate dispatch corrupted execution rather than being absorbed.
     tokio::time::timeout(
         std::time::Duration::from_secs(20),
         authority
@@ -7313,7 +7310,11 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
     .await
     .expect("transaction did not finish executing within 20s")
     .unwrap();
-    assert!(authority.is_tx_already_executed(&digest));
+    let effects = authority
+        .get_transaction_cache_reader()
+        .get_executed_effects(&digest)
+        .unwrap();
+    effects.status().unwrap();
 
     // The duplicate leaves no leaked in-flight work: both the pending and the
     // executing gauge return to 0 once the second attempt observes the first's

@@ -102,7 +102,9 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
     transaction_manager.reconfigure(1);
 
     transaction_manager.check_empty_for_testing();
-    assert_eq!(transaction_manager.inflight_queue_len(), 0);
+    // The count that feeds overload admission must read 0 as well. (Asserted via
+    // the trait method only: `inflight_queue_len` is its exact definition, so
+    // checking both would be redundant.)
     assert_eq!(transaction_manager.num_pending_certificates(), 0);
 }
 

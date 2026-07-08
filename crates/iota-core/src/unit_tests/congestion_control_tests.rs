@@ -297,6 +297,9 @@ async fn test_congestion_control_execution_cancellation_execution_scheduler() {
 // in the scheduler instead of executing them to cancelled effects.
 async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    // Pin the scheduler before the authorities are built (the env vars are read
+    // by ExecutionSchedulerWrapper::new); process-per-test isolation keeps the
+    // two variants from leaking into each other.
     if use_execution_scheduler {
         std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
         std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
