@@ -61,7 +61,7 @@ use crate::{
     apis::GovernanceReadApi,
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
     errors::{Context, IndexerError},
-    historical_fallback::reader::HistoricalFallbackReader,
+    historical_fallback::reader::{CheckpointTxCursor, HistoricalFallbackReader},
     ingestion::common::persist::CommitterTables,
     models::{
         address_metrics::StoredAddressMetrics,
@@ -1292,7 +1292,12 @@ impl IndexerReader {
             (db_res.as_ref(), self.fallback_reader())
         {
             kv_reader
-                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+                .checkpoint_transactions(
+                    cursor.map(CheckpointTxCursor::Digest),
+                    checkpoint_seq,
+                    limit,
+                    is_descending,
+                )
                 .await
                 .context(&format!("fallback triggered by {err}"))?
         } else {
@@ -1300,6 +1305,42 @@ impl IndexerReader {
         };
         self.stored_transaction_to_transaction_block(stored_txs, options)
             .await
+    }
+
+    /// Fetches transactions belonging to a checkpoint, paginated by
+    /// `tx_sequence_number` (exclusive cursor). Falls back to the historical
+    /// storage (when configured) if the checkpoint has been pruned from
+    /// Postgres.
+    pub async fn query_stored_transactions_by_checkpoint_seq_with_fallback(
+        &self,
+        checkpoint_seq: u64,
+        cursor_tx_seq: Option<u64>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        let db_res = self
+            .db()
+            .query_transactions_by_checkpoint_seq_with_seq_cursor(
+                checkpoint_seq,
+                cursor_tx_seq,
+                limit,
+                is_descending,
+            )
+            .await;
+        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.fallback_reader())
+        {
+            return kv_reader
+                .checkpoint_transactions(
+                    cursor_tx_seq.map(CheckpointTxCursor::Seq),
+                    checkpoint_seq,
+                    limit,
+                    is_descending,
+                )
+                .await
+                .context(&format!("fallback triggered by {err}"));
+        }
+        db_res
     }
 
     /// Fetches a paginated list of transactions that affect a given address,
@@ -2875,6 +2916,28 @@ impl<'a> DBReader<'a> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
+        let cursor_tx_seq = match cursor {
+            Some(cursor) => Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await? as u64),
+            None => None,
+        };
+        self.query_transactions_by_checkpoint_seq_with_seq_cursor(
+            checkpoint_seq,
+            cursor_tx_seq,
+            limit,
+            is_descending,
+        )
+        .await
+    }
+
+    /// Same as [`Self::query_transactions_by_checkpoint_seq`], but the cursor
+    /// is a `tx_sequence_number` (exclusive) instead of a transaction digest.
+    async fn query_transactions_by_checkpoint_seq_with_seq_cursor(
+        &self,
+        checkpoint_seq: u64,
+        cursor_tx_seq: Option<u64>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
         self.main_reader.ensure_data_not_pruned_for_checkpoint(
             checkpoint_seq,
             &[
@@ -2898,22 +2961,17 @@ impl<'a> DBReader<'a> {
         })
         .context("failed to get transaction range from pruner_cp_watermark table")?;
 
-        let cursor_tx_seq = if let Some(cursor) = cursor {
-            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
-        } else {
-            None
-        };
-
         let mut query = transactions::dsl::transactions
             .filter(transactions::tx_sequence_number.between(tx_range.0, tx_range.1))
             .into_boxed();
 
-        // Translate transaction digest cursor to tx sequence number
         if let Some(cursor_tx_seq) = cursor_tx_seq {
             if is_descending {
-                query = query.filter(transactions::dsl::tx_sequence_number.lt(cursor_tx_seq));
+                query =
+                    query.filter(transactions::dsl::tx_sequence_number.lt(cursor_tx_seq as i64));
             } else {
-                query = query.filter(transactions::dsl::tx_sequence_number.gt(cursor_tx_seq));
+                query =
+                    query.filter(transactions::dsl::tx_sequence_number.gt(cursor_tx_seq as i64));
             }
         }
         if is_descending {

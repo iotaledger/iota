@@ -50,7 +50,7 @@ Epoch advanced: 2
 
 task 10, line 46:
 //# run Test::M::bump --sender A --args object(2,0)
-events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: [1, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AQAAAAAAAAA=" }
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
 

@@ -405,6 +405,18 @@ impl TransactionBlock {
         let db: &Db = ctx.data_unchecked();
         let is_from_front = page.is_from_front();
 
+        // For the only-`atCheckpoint` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(at_checkpoint) = filter.only_at_checkpoint() {
+            return Self::paginate_at_checkpoint_with_fallback(
+                db,
+                page,
+                u64::from(at_checkpoint),
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
             bool,
@@ -497,6 +509,85 @@ impl TransactionBlock {
     /// Returns whether this transaction block is within the available range.
     pub(crate) fn is_available(&self) -> bool {
         self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+    }
+
+    /// Paginates transactions in a single checkpoint with fallback support.
+    async fn paginate_at_checkpoint_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        at_checkpoint: u64,
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        if at_checkpoint > checkpoint_viewed_at {
+            return Ok(ScanConnection::new(false, false));
+        }
+
+        let is_from_front = page.is_from_front();
+        let limit = page.limit();
+        let after_seq = page.after().map(|c| c.tx_sequence_number);
+        let before_seq = page.before().map(|c| c.tx_sequence_number);
+
+        // Fetch the page plus one row on each side, to later compute
+        // `has_next`/`has_prev`. Cursors are exclusive.
+        let fetch_cursor = if is_from_front {
+            after_seq.and_then(|seq| seq.checked_sub(1))
+        } else {
+            before_seq.and_then(|seq| seq.checked_add(1))
+        };
+        let fetched = db
+            .inner
+            .query_stored_transactions_by_checkpoint_seq_with_fallback(
+                at_checkpoint,
+                fetch_cursor,
+                limit + 2,
+                !is_from_front,
+            )
+            .await
+            .map_err(Error::from)?;
+
+        // The inclusive window of rows the client asked for using cursors (cursors are
+        // exclusive).
+        let window_lo = after_seq.map_or(0, |after| after.saturating_add(1));
+        let window_hi = before_seq.map_or(u64::MAX, |before| before.saturating_sub(1));
+
+        // Fill the page with up to `limit` rows. Any row that does
+        // not make it into the page sets `has_prev`/`has_next` accordingly.
+        let mut page_rows: Vec<StoredTransaction> = Vec::with_capacity(limit);
+        let mut has_prev = false;
+        let mut has_next = false;
+        for row in fetched {
+            let seq = row.tx_sequence_number as u64;
+            if seq < window_lo {
+                has_prev = true;
+            } else if seq > window_hi {
+                has_next = true;
+            } else if page_rows.len() < limit {
+                page_rows.push(row);
+            } else if is_from_front {
+                has_next = true;
+            } else {
+                has_prev = true;
+            }
+        }
+
+        // We always serve the result in ascending order
+        if !is_from_front {
+            page_rows.reverse();
+        }
+
+        let mut conn = ScanConnection::new(has_prev, has_next);
+        for stored in page_rows {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
     }
 }
 
