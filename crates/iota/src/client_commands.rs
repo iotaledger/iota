@@ -307,6 +307,9 @@ pub enum IotaClientCommands {
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
+        /// Optional gRPC Url, for example http://127.0.0.1:9000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
         #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
@@ -1923,6 +1926,7 @@ impl IotaClientCommands {
                 rpc,
                 graphql,
                 ws,
+                grpc,
                 basic_auth,
                 faucet,
             } => {
@@ -1932,6 +1936,7 @@ impl IotaClientCommands {
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
                     .with_ws(ws)
+                    .with_grpc(grpc)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
 

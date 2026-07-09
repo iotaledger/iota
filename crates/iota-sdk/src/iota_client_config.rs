@@ -13,10 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_GRAPHQL_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
-    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_MAINNET_GRAPHQL_URL,
-    IOTA_MAINNET_URL, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient,
-    IotaClientBuilder,
+    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_GRAPHQL_URL, IOTA_DEVNET_GRPC_URL, IOTA_DEVNET_URL,
+    IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_GRPC_URL,
+    IOTA_LOCAL_NETWORK_URL, IOTA_MAINNET_GRAPHQL_URL, IOTA_MAINNET_GRPC_URL, IOTA_MAINNET_URL,
+    IOTA_TESTNET_GAS_URL, IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_GRPC_URL, IOTA_TESTNET_URL,
+    IotaClient, IotaClientBuilder,
 };
 
 /// Configuration for the IOTA client, containing a [`Keystore`] and potentially
@@ -140,6 +141,10 @@ pub struct IotaEnv {
     pub(crate) rpc: String,
     pub(crate) graphql: Option<String>,
     pub(crate) ws: Option<String>,
+    /// Optional gRPC URL. Absent from older `client.yaml` files, so it
+    /// defaults to `None` on load.
+    #[serde(default)]
+    pub(crate) grpc: Option<String>,
     /// Basic HTTP access authentication in the format of username:password, if
     /// needed.
     pub(crate) basic_auth: Option<String>,
@@ -154,6 +159,7 @@ impl IotaEnv {
             rpc: rpc.into(),
             graphql: None,
             ws: None,
+            grpc: None,
             basic_auth: None,
             faucet: None,
         }
@@ -179,6 +185,17 @@ impl IotaEnv {
     /// Set a websocket URL.
     pub fn set_ws(&mut self, ws: impl Into<Option<String>>) {
         self.ws = ws.into();
+    }
+
+    /// Set a gRPC URL.
+    pub fn with_grpc(mut self, grpc: impl Into<Option<String>>) -> Self {
+        self.set_grpc(grpc);
+        self
+    }
+
+    /// Set a gRPC URL.
+    pub fn set_grpc(&mut self, grpc: impl Into<Option<String>>) {
+        self.grpc = grpc.into();
     }
 
     /// Set basic authentication information in the format of username:password.
@@ -235,6 +252,20 @@ impl IotaEnv {
         Ok(builder.build(&self.rpc).await?)
     }
 
+    /// Create an [`iota_grpc_client::Client`] for this env's gRPC endpoint.
+    ///
+    /// Errors if the env has no `grpc` URL configured. The gRPC URL is not
+    /// derived from the RPC URL: the two use different hosts and ports, so a
+    /// missing value is a configuration gap rather than something to guess.
+    pub fn create_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
+        let grpc_url = self
+            .grpc
+            .as_ref()
+            .ok_or_else(|| anyhow!("gRPC is not configured for environment [{}]", self.alias))?;
+        iota_grpc_client::Client::new(grpc_url.as_str())
+            .map_err(|e| anyhow!("failed to create a gRPC client for [{grpc_url}]: {e}"))
+    }
+
     /// Create the env with the default mainnet configuration.
     pub fn mainnet() -> Self {
         Self {
@@ -242,6 +273,7 @@ impl IotaEnv {
             rpc: IOTA_MAINNET_URL.into(),
             graphql: Some(IOTA_MAINNET_GRAPHQL_URL.into()),
             ws: None,
+            grpc: Some(IOTA_MAINNET_GRPC_URL.into()),
             basic_auth: None,
             faucet: None,
         }
@@ -254,6 +286,7 @@ impl IotaEnv {
             rpc: IOTA_DEVNET_URL.into(),
             graphql: Some(IOTA_DEVNET_GRAPHQL_URL.into()),
             ws: None,
+            grpc: Some(IOTA_DEVNET_GRPC_URL.into()),
             basic_auth: None,
             faucet: Some(IOTA_DEVNET_GAS_URL.into()),
         }
@@ -266,6 +299,7 @@ impl IotaEnv {
             rpc: IOTA_TESTNET_URL.into(),
             graphql: Some(IOTA_TESTNET_GRAPHQL_URL.into()),
             ws: None,
+            grpc: Some(IOTA_TESTNET_GRPC_URL.into()),
             basic_auth: None,
             faucet: Some(IOTA_TESTNET_GAS_URL.into()),
         }
@@ -278,6 +312,7 @@ impl IotaEnv {
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
             graphql: Some(IOTA_LOCAL_NETWORK_GRAPHQL_URL.into()),
             ws: None,
+            grpc: Some(IOTA_LOCAL_NETWORK_GRPC_URL.into()),
             basic_auth: None,
             faucet: Some(IOTA_LOCAL_NETWORK_GAS_URL.into()),
         }
@@ -296,6 +331,10 @@ impl Display for IotaEnv {
         if let Some(ws) = &self.ws {
             writeln!(writer)?;
             write!(writer, "Websocket URL: {ws}")?;
+        }
+        if let Some(grpc) = &self.grpc {
+            writeln!(writer)?;
+            write!(writer, "gRPC URL: {grpc}")?;
         }
         if let Some(basic_auth) = &self.basic_auth {
             writeln!(writer)?;
