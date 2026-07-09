@@ -96,12 +96,31 @@ def delta(values):
     return d if d >= 0 else last  # counter reset within the window: fall back to last
 
 
+_warned_error_series = set()
+
+
+def series_list(series, name):
+    """A metric's series list from one run's `series` dict, tolerating scrape
+    failures: dump_timeseries stores `{"error": "..."}` when a Prometheus query
+    failed, which is not iterable as series. Warn once per metric and treat it
+    as no data, so one bad scrape does not abort aggregation of a whole label."""
+    v = series.get(name, [])
+    if isinstance(v, list):
+        return v
+    if name not in _warned_error_series:
+        _warned_error_series.add(name)
+        err = v.get("error", v) if isinstance(v, dict) else v
+        print(f"WARN: metric '{name}' has a failed scrape ({err}); "
+              f"treating as no data", file=sys.stderr)
+    return []
+
+
 def series_max(series_per_run, metric):
     """Max value of a metric across all series and runs — a robust 'ever non-zero'
     test for safety counters (counters: final count; gauges: transient flip to 1)."""
     m = 0.0
     for s in series_per_run:
-        for x in s.get(metric, []):
+        for x in series_list(s, metric):
             for _, v in x.get("values", []):
                 try:
                     m = max(m, float(v))
@@ -115,7 +134,7 @@ def source_total(series_per_run, key, source):
     and runs — the count of rejections attributed to that overload source."""
     total = 0.0
     for series in series_per_run:
-        for s in series.get(key, []):
+        for s in series_list(series, key):
             if s.get("metric", {}).get("source") == source:
                 total += delta(s.get("values", []))
     return total
@@ -129,7 +148,7 @@ def pooled_buckets(series_per_run, base):
     """
     acc = {}
     for series in series_per_run:
-        for s in series.get(f"{base}_bucket", []):
+        for s in series_list(series, f"{base}_bucket"):
             le = s.get("metric", {}).get("le")
             if le is None:
                 continue
@@ -192,12 +211,12 @@ def aggregate(runs):
         s = r.get("series", {})
         tps_rates = [
             delta(x.get("values", [])) / win
-            for x in s.get("transactions_included_in_checkpoint", [])
+            for x in series_list(s, "transactions_included_in_checkpoint")
         ]
         tps_per_run.append(max(tps_rates) if tps_rates else None)
         cpu_rates = [
             delta(x.get("values", [])) / win
-            for x in s.get("container_cpu_usage_seconds_total", [])
+            for x in series_list(s, "container_cpu_usage_seconds_total")
             if x.get("metric", {}).get("name", "").startswith("validator-")
         ]
         cpu_per_run.append(mean(cpu_rates))
