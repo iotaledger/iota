@@ -222,34 +222,70 @@ impl RandomnessManager {
             .epoch_start_config()
             .epoch_start_state()
             .get_authority_names_to_peer_ids();
-        let authority_info = authority_ids
+        let authority_info: HashMap<AuthorityName, (PeerId, PartyId)> = match authority_ids
             .into_iter()
             .map(|(name, id)| {
-                let peer_id = *authority_peer_ids
+                authority_peer_ids
                     .get(&name)
-                    .expect("authority name should be in peer_ids");
-                (name, (peer_id, id))
+                    .map(|peer_id| (name, (*peer_id, id)))
             })
-            .collect();
-        let nodes = info
+            .collect()
+        {
+            Some(authority_info) => authority_info,
+            None => {
+                error!(
+                    "could not construct RandomnessManager: authority name missing from peer_ids"
+                );
+                return None;
+            }
+        };
+        let nodes = match info
             .iter()
-            .map(|(id, _, pk, stake)| nodes::Node::<EncG> {
-                id: *id,
-                pk: pk.clone(),
-                weight: (*stake).try_into().expect("stake should fit in u16"),
+            .map(|(id, _, pk, stake)| {
+                Some(nodes::Node::<EncG> {
+                    id: *id,
+                    pk: pk.clone(),
+                    weight: (*stake).try_into().ok()?,
+                })
             })
-            .collect();
+            .collect::<Option<Vec<_>>>()
+        {
+            Some(nodes) => nodes,
+            None => {
+                error!(
+                    "could not construct RandomnessManager: validator stake does not fit in u16"
+                );
+                return None;
+            }
+        };
+        let validity_threshold: u16 = match committee.validity_threshold().try_into() {
+            Ok(validity_threshold) => validity_threshold,
+            Err(_) => {
+                error!(
+                    validity_threshold = committee.validity_threshold(),
+                    "could not construct RandomnessManager: committee validity threshold does not fit in u16"
+                );
+                return None;
+            }
+        };
+        let reduction_lower_bound: u16 = match protocol_config
+            .random_beacon_reduction_lower_bound()
+            .try_into()
+        {
+            Ok(reduction_lower_bound) => reduction_lower_bound,
+            Err(_) => {
+                error!(
+                    reduction_lower_bound = protocol_config.random_beacon_reduction_lower_bound(),
+                    "could not construct RandomnessManager: random beacon reduction lower bound does not fit in u16"
+                );
+                return None;
+            }
+        };
         let (nodes, t) = match nodes::Nodes::new_reduced(
             nodes,
-            committee
-                .validity_threshold()
-                .try_into()
-                .expect("validity threshold should fit in u16"),
+            validity_threshold,
             protocol_config.random_beacon_reduction_allowed_delta(),
-            protocol_config
-                .random_beacon_reduction_lower_bound()
-                .try_into()
-                .expect("should fit u16"),
+            reduction_lower_bound,
         ) {
             Ok((nodes, t)) => (nodes, t),
             Err(err) => {
@@ -1358,5 +1394,51 @@ mod tests {
             );
             assert!(recovered.used_messages.initialized());
         }
+    }
+
+    #[tokio::test]
+    async fn try_new_returns_none_when_reduction_lower_bound_exceeds_u16() {
+        telemetry_subscribers::init_for_testing();
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_reference_gas_price(500)
+                .build();
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config
+            .set_random_beacon_reduction_lower_bound_for_testing(u32::from(u16::MAX) + 1);
+
+        let validator = &network_config.validator_configs[0];
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+            .build()
+            .await;
+        let consensus_adapter = Arc::new(ConsensusAdapter::new(
+            Arc::new(MockConsensusClient::new()),
+            CheckpointStore::new_for_tests(),
+            state.name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        ));
+        let epoch_store = state.epoch_store_for_testing();
+
+        let randomness_manager = RandomnessManager::try_new(
+            Arc::downgrade(&epoch_store),
+            Box::new(consensus_adapter),
+            iota_network::randomness::Handle::new_stub(),
+            validator.authority_key_pair(),
+        )
+        .await;
+
+        assert!(randomness_manager.is_none());
     }
 }
