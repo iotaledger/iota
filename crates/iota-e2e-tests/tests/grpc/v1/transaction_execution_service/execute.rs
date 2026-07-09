@@ -137,6 +137,44 @@ async fn execute_transaction_readmask_scenarios() {
 }
 
 #[sim_test]
+async fn execute_transaction_derived_changes() {
+    use iota_types::transaction::TransactionDataAPI as _;
+
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = Address::random();
+    let txn = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    let sender = txn.transaction_data().sender();
+    let item = build_item(&txn);
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from
+    let response = assert_execute_transaction_request(
+        &mut exec_client,
+        item,
+        Some(FieldMask::from_paths([
+            "balance_changes",
+            "object_changes",
+            "effects",
+        ])),
+        &["balance_changes", "object_changes", "effects"],
+        "derived changes only",
+    )
+    .await;
+
+    let executed_transaction = first_executed_transaction(&response);
+    crate::utils::assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        9,
+        "execute_transactions derived changes",
+    );
+}
+
+#[sim_test]
 async fn execute_transaction_invalid_bcs() {
     let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
