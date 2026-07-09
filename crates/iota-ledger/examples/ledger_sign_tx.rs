@@ -92,7 +92,7 @@ pub fn main() -> Result<()> {
         &transaction,
         objects,
     )?;
-    println!("Signature: {}", &signature.signature.encode_base64());
+    println!("Signature: {}", signature.signature.encode_base64());
 
     Ok(())
 }

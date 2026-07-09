@@ -127,13 +127,10 @@ impl ObjectStore for InMemoryObjectStore {
         object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
-            if o.version() == version {
-                Some(o)
-            } else {
-                None
-            }
-        }))
+        Ok(self
+            .try_get_object(object_id)
+            .unwrap()
+            .filter(|o| o.version() == version))
     }
 }
 
@@ -150,12 +147,8 @@ impl ChildObjectResolver for InMemoryObjectStore {
         child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.try_get_object(child)?.and_then(|o| {
-            if o.version() <= child_version_upper_bound && o.owner == Owner::Object(*parent) {
-                Some(o)
-            } else {
-                None
-            }
+        Ok(self.try_get_object(child)?.filter(|o| {
+            o.version() <= child_version_upper_bound && o.owner == Owner::Object(*parent)
         }))
     }
 

@@ -1075,13 +1075,7 @@ impl AuthorityStore {
         Ok(iterator
             .next()
             .transpose()?
-            .and_then(|value| {
-                if value.0.object_id == object_id {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
+            .filter(|&value| value.0.object_id == object_id)
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id,

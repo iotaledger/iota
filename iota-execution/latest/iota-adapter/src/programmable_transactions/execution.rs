@@ -1283,10 +1283,7 @@ mod checked {
         else {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::FunctionNotFound,
-                format!(
-                    "Could not resolve function '{}' in module {}",
-                    function, &module_id,
-                ),
+                format!("Could not resolve function '{function}' in module {module_id}",),
             ));
         };
 

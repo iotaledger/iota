@@ -342,7 +342,7 @@ impl PartialEq for IotaTransactionBlockResponse {
 
 impl Display for IotaTransactionBlockResponse {
     fn fmt(&self, writer: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(writer, "Transaction Digest: {}", &self.digest)?;
+        writeln!(writer, "Transaction Digest: {}", self.digest)?;
 
         if let Some(t) = &self.transaction {
             writeln!(writer, "{t}")?;

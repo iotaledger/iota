@@ -738,7 +738,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                         self.stabilize_str(format!(
                             "Owner: {}\nVersion: {}\nContents: {:#}",
-                            &obj.owner,
+                            obj.owner,
                             obj.version(),
                             move_struct
                         ))
@@ -1449,7 +1449,7 @@ impl IotaTestAdapter {
             .compiled_state
             .named_address_mapping
             .iter()
-            .map(|(name, addr)| (name.clone(), format!("{addr:#02x}")));
+            .map(|(name, addr)| (name.clone(), format!("{addr:#04x}")));
 
         for (name, addr) in named_addrs {
             let addr = addr.to_string();
