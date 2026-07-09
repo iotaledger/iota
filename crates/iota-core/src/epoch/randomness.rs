@@ -177,31 +177,18 @@ pub struct RandomnessManager {
 }
 
 impl RandomnessManager {
-    // Returns None in case of invalid input or other failure to initialize DKG.
+    /// Returns an error in case of invalid input or other failure to
+    /// initialize DKG.
     pub async fn try_new(
         epoch_store_weak: Weak<AuthorityPerEpochStore>,
         consensus_adapter: Box<dyn SubmitToConsensus>,
         network_handle: randomness::Handle,
         authority_key_pair: &AuthorityKeyPair,
-    ) -> Option<Self> {
-        let epoch_store = match epoch_store_weak.upgrade() {
-            Some(epoch_store) => epoch_store,
-            None => {
-                error!(
-                    "could not construct RandomnessManager: AuthorityPerEpochStore already gone"
-                );
-                return None;
-            }
-        };
-        let tables = match epoch_store.tables() {
-            Ok(tables) => tables,
-            Err(_) => {
-                error!(
-                    "could not construct RandomnessManager: AuthorityPerEpochStore tables already gone"
-                );
-                return None;
-            }
-        };
+    ) -> IotaResult<Self> {
+        let epoch_store = epoch_store_weak
+            .upgrade()
+            .ok_or_else(|| IotaError::Unknown("AuthorityPerEpochStore already gone".to_string()))?;
+        let tables = epoch_store.tables()?;
         let protocol_config = epoch_store.protocol_config();
 
         let name: AuthorityName = authority_key_pair.public().into();
@@ -222,24 +209,18 @@ impl RandomnessManager {
             .epoch_start_config()
             .epoch_start_state()
             .get_authority_names_to_peer_ids();
-        let authority_info: HashMap<AuthorityName, (PeerId, PartyId)> = match authority_ids
+        let authority_info: HashMap<AuthorityName, (PeerId, PartyId)> = authority_ids
             .into_iter()
             .map(|(name, id)| {
                 authority_peer_ids
                     .get(&name)
                     .map(|peer_id| (name, (*peer_id, id)))
             })
-            .collect()
-        {
-            Some(authority_info) => authority_info,
-            None => {
-                error!(
-                    "could not construct RandomnessManager: authority name missing from peer_ids"
-                );
-                return None;
-            }
-        };
-        let nodes = match info
+            .collect::<Option<_>>()
+            .ok_or_else(|| {
+                IotaError::Unknown("authority name missing from peer_ids".to_string())
+            })?;
+        let nodes = info
             .iter()
             .map(|(id, _, pk, stake)| {
                 Some(nodes::Node::<EncG> {
@@ -249,50 +230,29 @@ impl RandomnessManager {
                 })
             })
             .collect::<Option<Vec<_>>>()
-        {
-            Some(nodes) => nodes,
-            None => {
-                error!(
-                    "could not construct RandomnessManager: validator stake does not fit in u16"
-                );
-                return None;
-            }
-        };
-        let validity_threshold: u16 = match committee.validity_threshold().try_into() {
-            Ok(validity_threshold) => validity_threshold,
-            Err(_) => {
-                error!(
-                    validity_threshold = committee.validity_threshold(),
-                    "could not construct RandomnessManager: committee validity threshold does not fit in u16"
-                );
-                return None;
-            }
-        };
-        let reduction_lower_bound: u16 = match protocol_config
+            .ok_or_else(|| IotaError::Unknown("validator stake does not fit in u16".to_string()))?;
+        let validity_threshold: u16 = committee.validity_threshold().try_into().map_err(|_| {
+            IotaError::Unknown(format!(
+                "committee validity threshold {} does not fit in u16",
+                committee.validity_threshold()
+            ))
+        })?;
+        let reduction_lower_bound: u16 = protocol_config
             .random_beacon_reduction_lower_bound()
             .try_into()
-        {
-            Ok(reduction_lower_bound) => reduction_lower_bound,
-            Err(_) => {
-                error!(
-                    reduction_lower_bound = protocol_config.random_beacon_reduction_lower_bound(),
-                    "could not construct RandomnessManager: random beacon reduction lower bound does not fit in u16"
-                );
-                return None;
-            }
-        };
-        let (nodes, t) = match nodes::Nodes::new_reduced(
+            .map_err(|_| {
+                IotaError::Unknown(format!(
+                    "random beacon reduction lower bound {} does not fit in u16",
+                    protocol_config.random_beacon_reduction_lower_bound()
+                ))
+            })?;
+        let (nodes, t) = nodes::Nodes::new_reduced(
             nodes,
             validity_threshold,
             protocol_config.random_beacon_reduction_allowed_delta(),
             reduction_lower_bound,
-        ) {
-            Ok((nodes, t)) => (nodes, t),
-            Err(err) => {
-                error!("random beacon: error while initializing Nodes: {err:?}");
-                return None;
-            }
-        };
+        )
+        .map_err(|err| IotaError::Unknown(format!("error while initializing Nodes: {err:?}")))?;
         let total_weight = nodes.total_weight();
         let num_nodes = nodes.num_nodes();
         let prefix_str = format!(
@@ -309,7 +269,7 @@ impl RandomnessManager {
                 .expect("key length should match"),
         )
         .expect("should work to convert BLS key to Scalar");
-        let party = match dkg_v1::Party::<PkG, EncG>::new(
+        let party = dkg_v1::Party::<PkG, EncG>::new(
             fastcrypto_tbls::ecies_v1::PrivateKey::<bls12381::G2Element>::from(
                 randomness_private_key,
             ),
@@ -317,13 +277,8 @@ impl RandomnessManager {
             t,
             fastcrypto_tbls::random_oracle::RandomOracle::new(prefix_str.as_str()),
             &mut rand::thread_rng(),
-        ) {
-            Ok(party) => party,
-            Err(err) => {
-                error!("random beacon: error while initializing Party: {err:?}");
-                return None;
-            }
-        };
+        )
+        .map_err(|err| IotaError::Unknown(format!("error while initializing Party: {err:?}")))?;
         info!(
             "random beacon: state initialized with authority={name}, total_weight={total_weight}, t={t}, num_nodes={num_nodes}, oracle initial_prefix={prefix_str:?}",
         );
@@ -467,7 +422,7 @@ impl RandomnessManager {
             }
         }
 
-        Some(rm)
+        Ok(rm)
     }
 
     /// Sends the initial dkg::Message to begin the randomness DKG protocol.
@@ -1397,7 +1352,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn try_new_returns_none_when_reduction_lower_bound_exceeds_u16() {
+    async fn try_new_fails_when_reduction_lower_bound_exceeds_u16() {
         telemetry_subscribers::init_for_testing();
 
         let network_config =
@@ -1439,6 +1394,7 @@ mod tests {
         )
         .await;
 
-        assert!(randomness_manager.is_none());
+        let err = randomness_manager.err().expect("construction should fail");
+        assert!(err.to_string().contains("reduction lower bound"));
     }
 }

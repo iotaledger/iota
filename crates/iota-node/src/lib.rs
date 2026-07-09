@@ -1537,18 +1537,21 @@ impl IotaNode {
         // fails loudly at the real cause (startup or reconfiguration) instead
         // of leaving the node to panic later on the first consensus commit that
         // unconditionally expects one.
-        let Some(randomness_manager) = RandomnessManager::try_new(
+        let randomness_manager = match RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
             Box::new(consensus_adapter.clone()),
             randomness_handle,
             config.authority_key_pair(),
         )
         .await
-        else {
-            fatal!(
-                "validator cannot start epoch {} without a randomness manager",
-                epoch_store.epoch()
-            );
+        {
+            Ok(randomness_manager) => randomness_manager,
+            Err(err) => {
+                fatal!(
+                    "validator cannot start epoch {} without a randomness manager: {err}",
+                    epoch_store.epoch()
+                );
+            }
         };
         epoch_store
             .set_randomness_manager(randomness_manager)
