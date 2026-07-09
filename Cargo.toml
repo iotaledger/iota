@@ -273,10 +273,11 @@ either = "1.8.0"
 enum_dispatch = "^0.3"
 expect-test = "1.4.0"
 eyre = "0.6.8"
-fastcrypto = "0.1.10"
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", tag = "fastcrypto-v0.1.10" }
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", tag = "fastcrypto-v0.1.10", features = ["experimental"] }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", tag = "fastcrypto-v0.1.10", package = "fastcrypto-zkp" }
+fastcrypto = "=0.1.11"
+# Pinned by revision (a tag can be moved); keep in sync with the fastcrypto version above.
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", features = ["experimental"] }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", package = "fastcrypto-zkp" }
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
 futures = "0.3.28"
@@ -505,4 +506,4 @@ typed-store-error = { path = "crates/typed-store-error" }
 # pull fastcrypto via an in-repo path dep. Redirect it to the crates.io release
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
-fastcrypto = "0.1.10"
+fastcrypto = "=0.1.11"
