@@ -11,7 +11,7 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    RandomnessRound,
+    CheckpointContentsV1, RandomnessRound,
     checkpoint::CheckpointTransactionInfo,
     crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
@@ -419,7 +419,7 @@ impl CheckpointContentsExt for CheckpointContents {
     ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         assert_eq!(transactions.len(), user_signatures.len());
-        Self::new(
+        Self::new_v1(CheckpointContentsV1::new(
             transactions
                 .into_iter()
                 .zip(user_signatures)
@@ -429,13 +429,13 @@ impl CheckpointContentsExt for CheckpointContents {
                     signatures: to_user_signatures(signatures),
                 })
                 .collect(),
-        )
+        ))
     }
 
     fn new_with_causally_ordered_execution_data<'a>(
         contents: impl IntoIterator<Item = &'a VerifiedExecutionData>,
     ) -> Self {
-        Self::new(
+        Self::new_v1(CheckpointContentsV1::new(
             contents
                 .into_iter()
                 .map(|data| {
@@ -449,13 +449,13 @@ impl CheckpointContentsExt for CheckpointContents {
                     }
                 })
                 .collect(),
-        )
+        ))
     }
 
     fn new_with_digests_only_for_tests(
         contents: impl IntoIterator<Item = ExecutionDigests>,
     ) -> Self {
-        Self::new(
+        Self::new_v1(CheckpointContentsV1::new(
             contents
                 .into_iter()
                 .map(|digests| CheckpointTransactionInfo {
@@ -464,7 +464,7 @@ impl CheckpointContentsExt for CheckpointContents {
                     signatures: Vec::new(),
                 })
                 .collect(),
-        )
+        ))
     }
 
     fn iter(&self) -> impl DoubleEndedIterator<Item = ExecutionDigests> + ExactSizeIterator + '_ {
@@ -474,10 +474,15 @@ impl CheckpointContentsExt for CheckpointContents {
     fn into_iter_with_signatures(
         self,
     ) -> impl Iterator<Item = (ExecutionDigests, Vec<GenericSignature>)> {
-        self.into_v1().into_iter().map(|info| {
-            let digests = execution_digests(&info);
-            (digests, from_user_signatures(info.signatures))
-        })
+        match self {
+            CheckpointContents::V1(v1) => {
+                return v1.into_transactions().into_iter().map(|info| {
+                    let digests = execution_digests(&info);
+                    (digests, from_user_signatures(info.signatures))
+                });
+            }
+            _ => unimplemented!("a new CheckpointContents variant was added and must be handled"),
+        }
     }
 
     fn enumerate_transactions(
