@@ -1349,6 +1349,7 @@
                 "track_non_committee_eligible_validators": false,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": false,
+                "validator_metadata_verify_v2": false,
                 "variant_nodes": false
               },
               "attributes": {
