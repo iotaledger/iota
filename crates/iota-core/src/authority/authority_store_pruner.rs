@@ -117,7 +117,6 @@ pub struct PruningCoordinator {
     /// Executor -> pruner: latest executed checkpoint sequence number. Updating
     /// it both records progress and wakes the pruner to drain.
     executed: watch::Sender<CheckpointSequenceNumber>,
-    executed_rx: watch::Receiver<CheckpointSequenceNumber>,
     /// Pruner -> executor: the executed-checkpoint timestamp the pruner has
     /// caught up to (the `highest_executed` it observed on its last completed
     /// drain). The leash throttles execution while it runs more than
@@ -126,18 +125,13 @@ pub struct PruningCoordinator {
     /// executor is never leashed before the pruner has published a real
     /// value.
     frontier_ms: watch::Sender<CheckpointTimestamp>,
-    frontier_ms_rx: watch::Receiver<CheckpointTimestamp>,
 }
 
 impl PruningCoordinator {
     pub fn new() -> Arc<Self> {
-        let (executed, executed_rx) = watch::channel(0);
-        let (frontier_ms, frontier_ms_rx) = watch::channel(u64::MAX);
         Arc::new(Self {
-            executed,
-            executed_rx,
-            frontier_ms,
-            frontier_ms_rx,
+            executed: watch::channel(0).0,
+            frontier_ms: watch::channel(u64::MAX).0,
         })
     }
 
@@ -152,22 +146,18 @@ impl PruningCoordinator {
     /// chain-time of the pruner's last completed drain, throttling execution
     /// otherwise.
     pub async fn await_leash(&self, executed_timestamp_ms: CheckpointTimestamp) {
-        let mut rx = self.frontier_ms_rx.clone();
-        loop {
-            let frontier = *rx.borrow_and_update();
-            if executed_timestamp_ms.saturating_sub(frontier) <= PRUNING_LEASH_SLACK_MS {
-                return;
-            }
-            // If the pruner is gone, do not block execution.
-            if rx.changed().await.is_err() {
-                return;
-            }
+        let mut rx = self.frontier_ms.subscribe();
+        while executed_timestamp_ms.saturating_sub(*rx.borrow_and_update()) > PRUNING_LEASH_SLACK_MS
+        {
+            // `changed()` cannot error: the sender lives in `self`, which is
+            // borrowed for the duration of this call.
+            let _ = rx.changed().await;
         }
     }
 
     /// Pruner-side: a receiver that wakes on each executor nudge.
     fn subscribe_executed(&self) -> watch::Receiver<CheckpointSequenceNumber> {
-        self.executed_rx.clone()
+        self.executed.subscribe()
     }
 
     /// Pruner-side: publish the current pruning frontier for the leash.
@@ -932,11 +922,9 @@ impl AuthorityStorePruner {
 
                 tokio::select! {
                     _ = &mut recv => break,
-                    res = executed_rx.changed() => {
-                        if res.is_err() {
-                            break;
-                        }
-                    }
+                    // `changed()` cannot error: the sender lives in `coordinator`,
+                    // which is owned by this task.
+                    _ = executed_rx.changed() => {}
                 }
 
                 // Debounce only while catching up: let more executed checkpoints
