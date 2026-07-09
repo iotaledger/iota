@@ -1026,9 +1026,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         latency: Duration,
     ) {
         if matched_requested == 0 {
-            context
-                .peer_responsiveness
-                .record_failure(DataSource::HeaderSynchronizer, peer);
+            context.peer_responsiveness.record_failure_with_timeout(
+                DataSource::HeaderSynchronizer,
+                peer,
+                FETCH_REQUEST_TIMEOUT,
+            );
         } else {
             let shortfall_factor = (requested as f64 / matched_requested as f64).max(1.0);
             context.peer_responsiveness.record_success(

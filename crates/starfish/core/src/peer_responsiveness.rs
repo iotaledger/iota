@@ -29,7 +29,7 @@
 //! stalls or returns nothing after looking fast is quickly demoted and rotated
 //! past.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use parking_lot::Mutex;
 use rand::{Rng, seq::SliceRandom as _};
@@ -38,31 +38,14 @@ use starfish_config::{AuthorityIndex, Committee};
 use crate::{dag_state::DataSource, metrics::Metrics};
 
 impl DataSource {
-    /// Number of distinct fetch sources tracked for peer responsiveness.
-    pub(crate) const RESPONSIVENESS_COUNT: usize = 4;
-
-    /// Fetch sources tracked for peer-responsiveness ranking, in index order.
-    /// Only outbound, peer-selecting fetches; other sources have no peer to
-    /// rank.
-    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; Self::RESPONSIVENESS_COUNT] = [
+    /// Fetch sources tracked for peer-responsiveness ranking. Only outbound,
+    /// peer-selecting fetches appear here; other sources have no peer to rank.
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 4] = [
         DataSource::TransactionSynchronizer,
         DataSource::CommitSyncer,
         DataSource::FastCommitSyncer,
         DataSource::HeaderSynchronizer,
     ];
-
-    /// Dense index into the per-peer responsiveness tracker, defined only for
-    /// the sources in [`Self::RESPONSIVENESS_SOURCES`]; `None` for sources with
-    /// no peer to rank (own block, recovery, streaming, shard reconstruction).
-    pub(crate) fn responsiveness_index(&self) -> Option<usize> {
-        Some(match self {
-            DataSource::TransactionSynchronizer => 0,
-            DataSource::CommitSyncer => 1,
-            DataSource::FastCommitSyncer => 2,
-            DataSource::HeaderSynchronizer => 3,
-            _ => return None,
-        })
-    }
 }
 
 /// Probability that a `prioritize` call ignores ranking and returns a uniform
@@ -88,16 +71,6 @@ const MIN_LATENCY_MS: f64 = 1.0;
 /// known-slow peers but do not outrank peers with a proven-fast track record.
 const NEUTRAL_LATENCY_MS: f64 = 250.0;
 
-/// Minimum effective latency (ms) assigned to a failure when the caller does
-/// not have a request timeout to use. Moderate (a few multiples of neutral) on
-/// purpose: large enough to demote a failing peer below the responsive ones,
-/// small enough that a peer recovering at the network layer climbs back within
-/// a bounded number of successful fetches rather than being stuck in a penalty
-/// box. Large enough that a single failure gives a peer a much smaller
-/// selection weight than a responsive one, even when every other candidate is
-/// untried (neutral).
-const FAILURE_PENALTY_MS: f64 = 1_500.0;
-
 /// EWMA weight for a successful sample. Small, so the score is "slow to
 /// trust".
 const ALPHA_SUCCESS: f64 = 0.3;
@@ -116,11 +89,12 @@ enum SampleOrigin {
     Observed,
 }
 
-/// Per-fetch-source per-peer statistics. Each inner vector is indexed by
-/// [`AuthorityIndex`] and sized to the committee, so the slot for `own_index`
-/// simply stays unused.
+/// Per-fetch-source per-peer statistics, keyed by the fetch source. Each vector
+/// is indexed by [`AuthorityIndex`] and sized to the committee, so the slot for
+/// `own_index` simply stays unused. Only the sources in
+/// [`DataSource::RESPONSIVENESS_SOURCES`] are present.
 struct Tracks {
-    per_kind: [Vec<PeerStat>; DataSource::RESPONSIVENESS_COUNT],
+    per_kind: HashMap<DataSource, Vec<PeerStat>>,
 }
 
 /// Tracks per-peer responsiveness and ranks candidates for synchronizer peer
@@ -136,7 +110,10 @@ impl PeerResponsiveness {
         Arc::new(Self {
             metrics,
             inner: Mutex::new(Tracks {
-                per_kind: std::array::from_fn(|_| vec![PeerStat::default(); size]),
+                per_kind: DataSource::RESPONSIVENESS_SOURCES
+                    .into_iter()
+                    .map(|source| (source, vec![PeerStat::default(); size]))
+                    .collect(),
             }),
         })
     }
@@ -145,9 +122,9 @@ impl PeerResponsiveness {
     ///
     /// Callers must only report latency for fetches that delivered useful data;
     /// a response that returned nothing (or a small fraction of what was
-    /// requested) should be reported via [`Self::record_failure`] (or with a
-    /// latency scaled up by the shortfall), so a peer cannot look fast by
-    /// replying quickly with little.
+    /// requested) should be reported via [`Self::record_failure_with_timeout`]
+    /// (or with a latency scaled up by the shortfall), so a peer cannot look
+    /// fast by replying quickly with little.
     pub(crate) fn record_success(
         &self,
         source: DataSource,
@@ -158,23 +135,16 @@ impl PeerResponsiveness {
         self.update(source, peer, sample, ALPHA_SUCCESS);
     }
 
-    /// Records a failed fetch from `peer` for `source`, demoting it to at least
-    /// the default failure penalty.
-    pub(crate) fn record_failure(&self, source: DataSource, peer: AuthorityIndex) {
-        self.update_failure(source, peer, FAILURE_PENALTY_MS);
-    }
-
     /// Records a failed or timed-out fetch from `peer` for `source`, demoting
-    /// it to at least the operation's timeout.
+    /// it to at least the operation's timeout. Floored at the neutral prior so
+    /// a failure never ranks better than an untried peer.
     pub(crate) fn record_failure_with_timeout(
         &self,
         source: DataSource,
         peer: AuthorityIndex,
         timeout: Duration,
     ) {
-        let sample = (timeout.as_secs_f64() * 1_000.0)
-            .max(MIN_LATENCY_MS)
-            .max(FAILURE_PENALTY_MS);
+        let sample = (timeout.as_secs_f64() * 1_000.0).max(NEUTRAL_LATENCY_MS);
         self.update_failure(source, peer, sample);
     }
 
@@ -198,19 +168,17 @@ impl PeerResponsiveness {
         peer: AuthorityIndex,
         timeout: Duration,
     ) {
-        let sample = (timeout.as_secs_f64() * 1_000.0)
-            .max(MIN_LATENCY_MS)
-            .max(FAILURE_PENALTY_MS);
+        let sample = (timeout.as_secs_f64() * 1_000.0).max(NEUTRAL_LATENCY_MS);
         self.update_bootstrap(source, peer, sample);
     }
 
     fn update(&self, source: DataSource, peer: AuthorityIndex, sample: f64, alpha: f64) {
-        let Some(kind_index) = source.responsiveness_index() else {
-            return;
-        };
         let snapshot = {
             let mut tracks = self.inner.lock();
-            let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
+            let Some(track) = tracks.per_kind.get_mut(&source) else {
+                return;
+            };
+            let Some(stat) = track.get_mut(peer.value()) else {
                 return;
             };
             let new = match stat.effective_latency_ms {
@@ -220,19 +188,19 @@ impl PeerResponsiveness {
             };
             stat.effective_latency_ms = Some(new);
             stat.sample_origin = Some(SampleOrigin::Observed);
-            Self::latency_snapshot(&tracks.per_kind[kind_index])
+            Self::latency_snapshot(track)
         };
 
         self.publish_expected_latencies(source, &snapshot);
     }
 
     fn update_failure(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
-        let Some(kind_index) = source.responsiveness_index() else {
-            return;
-        };
         let snapshot = {
             let mut tracks = self.inner.lock();
-            let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
+            let Some(track) = tracks.per_kind.get_mut(&source) else {
+                return;
+            };
+            let Some(stat) = track.get_mut(peer.value()) else {
                 return;
             };
             let new = match stat.effective_latency_ms {
@@ -241,19 +209,19 @@ impl PeerResponsiveness {
             };
             stat.effective_latency_ms = Some(new);
             stat.sample_origin = Some(SampleOrigin::Observed);
-            Self::latency_snapshot(&tracks.per_kind[kind_index])
+            Self::latency_snapshot(track)
         };
 
         self.publish_expected_latencies(source, &snapshot);
     }
 
     fn update_bootstrap(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
-        let Some(kind_index) = source.responsiveness_index() else {
-            return;
-        };
         let snapshot = {
             let mut tracks = self.inner.lock();
-            let Some(stat) = tracks.per_kind[kind_index].get_mut(peer.value()) else {
+            let Some(track) = tracks.per_kind.get_mut(&source) else {
+                return;
+            };
+            let Some(stat) = track.get_mut(peer.value()) else {
                 return;
             };
             if stat.sample_origin == Some(SampleOrigin::Observed) {
@@ -261,7 +229,7 @@ impl PeerResponsiveness {
             }
             stat.effective_latency_ms = Some(sample);
             stat.sample_origin = Some(SampleOrigin::Bootstrap);
-            Self::latency_snapshot(&tracks.per_kind[kind_index])
+            Self::latency_snapshot(track)
         };
 
         self.publish_expected_latencies(source, &snapshot);
@@ -296,16 +264,14 @@ impl PeerResponsiveness {
             return;
         }
 
-        let Some(kind_index) = source.responsiveness_index() else {
-            return;
-        };
-
         // Snapshot each candidate's selection weight under the lock, then
         // release it before drawing (parking_lot::Mutex must not be held across
         // the work). Untried peers use the neutral prior.
         let weights: Vec<f64> = {
             let tracks = self.inner.lock();
-            let track = &tracks.per_kind[kind_index];
+            let Some(track) = tracks.per_kind.get(&source) else {
+                return;
+            };
             candidates
                 .iter()
                 .map(|peer| {
@@ -396,8 +362,10 @@ impl PeerResponsiveness {
         source: DataSource,
         peer: AuthorityIndex,
     ) -> Option<f64> {
-        let kind_index = source.responsiveness_index()?;
-        self.inner.lock().per_kind[kind_index]
+        self.inner
+            .lock()
+            .per_kind
+            .get(&source)?
             .get(peer.value())
             .and_then(|stat| stat.effective_latency_ms)
     }
@@ -462,7 +430,7 @@ mod tests {
         // Give peers a spread of scores, including a failure and untried peers.
         pr.record_success(DataSource::CommitSyncer, idx(1), ms(10));
         pr.record_success(DataSource::CommitSyncer, idx(2), ms(900));
-        pr.record_failure(DataSource::CommitSyncer, idx(3));
+        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(3), ms(2_000));
         // idx(4), idx(5), idx(6) remain untried.
 
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5), idx(6)];
@@ -520,12 +488,12 @@ mod tests {
         let before = pr
             .effective_latency_ms(DataSource::CommitSyncer, idx(1))
             .unwrap();
-        pr.record_failure(DataSource::CommitSyncer, idx(1));
+        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
         let after = pr
             .effective_latency_ms(DataSource::CommitSyncer, idx(1))
             .unwrap();
         assert!(after > before);
-        assert_eq!(after, FAILURE_PENALTY_MS);
+        assert_eq!(after, 2_000.0);
     }
 
     #[test]
@@ -543,7 +511,7 @@ mod tests {
     fn failure_never_improves_a_slow_peer() {
         let pr = responsiveness(4);
         pr.record_success(DataSource::CommitSyncer, idx(1), ms(10_000));
-        pr.record_failure(DataSource::CommitSyncer, idx(1));
+        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
         assert_eq!(
             pr.effective_latency_ms(DataSource::CommitSyncer, idx(1)),
             Some(10_000.0)
@@ -793,7 +761,7 @@ mod tests {
     fn transient_failure_recovers_within_bounded_successes() {
         let pr = responsiveness(4);
         pr.record_success(DataSource::CommitSyncer, idx(1), ms(20));
-        pr.record_failure(DataSource::CommitSyncer, idx(1));
+        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
         let penalized = pr
             .effective_latency_ms(DataSource::CommitSyncer, idx(1))
             .unwrap();
