@@ -23,7 +23,8 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber,
     },
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},

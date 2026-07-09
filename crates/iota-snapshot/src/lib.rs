@@ -48,7 +48,9 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
+    messages_checkpoint::{
+        CheckpointContentsExt, CheckpointSequenceNumber, ECMHLiveObjectSetDigest,
+    },
     object::Object,
     storage::{EpochInfoV1Entry, EpochInfoV2},
 };
@@ -477,7 +479,7 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
 
     // 1. Contents hash to the signed summary.
     anyhow::ensure!(
-        *entry.last_checkpoint_contents.digest() == summary.content_digest,
+        entry.last_checkpoint_contents.digest() == summary.content_digest,
         "last_checkpoint_contents does not hash to the signed content_digest",
     );
 
@@ -486,10 +488,11 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
         .last_checkpoint_contents
         .inner()
         .last()
+        .copied()
         .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
     let effects = &entry.end_of_epoch_tx_effects;
     anyhow::ensure!(
-        effects.execution_digests() == *expected_execution_digest,
+        effects.execution_digests() == expected_execution_digest,
         "end_of_epoch_tx_effects digest pair does not match the closing checkpoint's last transaction",
     );
 

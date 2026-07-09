@@ -112,7 +112,7 @@ impl CommitteeFixture {
             );
         }
 
-        let content_digest = *contents
+        let content_digest = contents
             .clone()
             .into_inner()
             .into_checkpoint_contents()
@@ -192,7 +192,7 @@ impl CommitteeFixture {
         let (ordered_checkpoints, contents): (Vec<_>, Vec<_>) =
             std::iter::successors(Some(first), |prev| {
                 let contents = content_generator();
-                let contents_digest = *contents
+                let contents_digest = contents
                     .clone()
                     .into_inner()
                     .into_checkpoint_contents()
@@ -252,7 +252,7 @@ impl CommitteeFixture {
             epoch: self.epoch,
             sequence_number: previous_checkpoint.sequence_number + 1,
             network_total_transactions: 0,
-            content_digest: *empty_contents()
+            content_digest: empty_contents()
                 .into_inner()
                 .into_checkpoint_contents()
                 .digest(),

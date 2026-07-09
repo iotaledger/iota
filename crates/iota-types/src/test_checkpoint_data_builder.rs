@@ -23,8 +23,8 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, CheckpointSummaryExt,
-        EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
+        CheckpointSummaryExt, EndOfEpochData,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,

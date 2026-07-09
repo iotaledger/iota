@@ -35,7 +35,8 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, VerifiedCheckpoint,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
+        VerifiedCheckpoint,
     },
     transaction::{TransactionDataAPI, TransactionKey, VerifiedTransaction},
 };

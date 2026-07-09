@@ -12,8 +12,9 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest,
+        CheckpointSequenceNumber, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     object::Object,
     storage::{

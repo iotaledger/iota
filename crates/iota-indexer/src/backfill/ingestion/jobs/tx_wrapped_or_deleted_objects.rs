@@ -4,7 +4,10 @@
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;
-use iota_types::{effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData};
+use iota_types::{
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
+};
 
 use crate::{
     backfill::ingestion::IngestionBackfill,

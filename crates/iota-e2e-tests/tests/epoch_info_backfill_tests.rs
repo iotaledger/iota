@@ -10,7 +10,7 @@ use iota_types::{
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    messages_checkpoint::CheckpointContents,
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt},
     storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;

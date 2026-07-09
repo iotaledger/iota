@@ -5,7 +5,10 @@ use std::{sync::Arc, time::Duration};
 
 use diesel::{ExpressionMethods, RunQueryDsl};
 use downcast::Any;
-use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
+use iota_types::{
+    effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
+};
 
 use crate::{
     IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,

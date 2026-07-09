@@ -12,8 +12,9 @@ use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
     },
     object::Object,
     transaction::{

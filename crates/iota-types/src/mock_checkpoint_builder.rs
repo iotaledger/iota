@@ -13,7 +13,7 @@ use crate::{
     crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
         VerifiedCheckpointContents,
     },
@@ -169,7 +169,7 @@ impl MockCheckpointBuilder {
                 .expect("checkpoint sequence number overflow"),
             network_total_transactions: self.previous_checkpoint.network_total_transactions
                 + contents.size() as u64,
-            content_digest: *contents.digest(),
+            content_digest: contents.digest(),
             previous_digest: Some(*self.previous_checkpoint.digest()),
             epoch_rolling_gas_cost_summary,
             end_of_epoch_data,

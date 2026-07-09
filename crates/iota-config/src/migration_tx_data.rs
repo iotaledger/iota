@@ -17,7 +17,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     gas_coin::GasCoin,
     message_envelope::Message,
-    messages_checkpoint::{CheckpointContents, CheckpointSummary},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSummary},
     object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{TimeLock, is_timelocked_gas_balance},
@@ -95,17 +95,19 @@ impl MigrationTxData {
         genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
-            checkpoint.content_digest == *contents.digest(),
+            checkpoint.content_digest == contents.digest(),
             "checkpoint's content digest is corrupted"
         );
         let mut validation_digests_queue: HashSet<TransactionDigest> =
             self.inner.keys().copied().collect();
         // We skip the genesis transaction to process only migration transactions from
         // the migration.blob.
-        for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
-            (exec_digest.transaction != genesis_tx_digest)
-                .then_some((&exec_digest.transaction, &exec_digest.effects))
-        }) {
+        for exec_digest in contents.iter() {
+            if exec_digest.transaction == genesis_tx_digest {
+                continue;
+            }
+            let valid_tx_digest = &exec_digest.transaction;
+            let valid_effects_digest = &exec_digest.effects;
             let (tx, effects, events) = self
                 .inner
                 .get(valid_tx_digest)

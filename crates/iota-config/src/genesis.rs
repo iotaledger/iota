@@ -27,7 +27,8 @@ use iota_types::{
         get_iota_system_state, get_iota_system_state_wrapper,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
+        VerifiedCheckpoint,
     },
     object::Object,
     storage::ObjectStore,

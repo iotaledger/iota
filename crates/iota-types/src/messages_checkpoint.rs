@@ -12,10 +12,10 @@ use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     RandomnessRound,
-    crypto::{Intent, IntentScope},
+    checkpoint::CheckpointTransactionInfo,
+    crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
 };
-use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus_filtered::Histogram;
 use serde::{Deserialize, Serialize};
@@ -166,7 +166,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
     ) -> Self {
-        let content_digest = *transactions.digest();
+        let content_digest = transactions.digest();
 
         let version_specific_data =
             match protocol_config.checkpoint_summary_version_specific_data_as_option() {
@@ -277,7 +277,7 @@ impl CertifiedCheckpointSummary {
         self.verify_authority_signatures(committee)?;
 
         if let Some(contents) = contents {
-            let content_digest = *contents.digest();
+            let content_digest = contents.digest();
             fp_ensure!(
                 content_digest == self.data().content_digest,
                 IotaError::GenericAuthority {
@@ -343,109 +343,148 @@ impl CheckpointSignatureMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CheckpointContents {
-    V1(CheckpointContentsV1),
+pub use iota_sdk_types::checkpoint::CheckpointContents;
+
+/// The two signature encodings are BCS-identical, so the round-trip through the
+/// `GenericSignature`/`UserSignature` conversion cannot fail for signatures
+/// that originate from valid transactions.
+fn to_user_signatures(signatures: Vec<GenericSignature>) -> Vec<UserSignature> {
+    signatures
+        .into_iter()
+        .map(|signature| {
+            UserSignature::try_from(signature)
+                .expect("GenericSignature is BCS-compatible with UserSignature")
+        })
+        .collect()
 }
 
-/// CheckpointContents are the transactions included in an upcoming checkpoint.
-/// They must have already been causally ordered. Since the causal order
-/// algorithm is the same among validators, we expect all honest validators to
-/// come up with the same order for each checkpoint content.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CheckpointContentsV1 {
-    #[serde(skip)]
-    digest: OnceCell<CheckpointContentsDigest>,
-
-    transactions: Vec<ExecutionDigests>,
-    /// This field 'pins' user signatures for the checkpoint
-    /// The length of this vector is same as length of transactions vector
-    /// System transactions has empty signatures
-    user_signatures: Vec<Vec<GenericSignature>>,
+fn from_user_signatures(signatures: Vec<UserSignature>) -> Vec<GenericSignature> {
+    signatures
+        .into_iter()
+        .map(|signature| {
+            GenericSignature::try_from(signature)
+                .expect("UserSignature is BCS-compatible with GenericSignature")
+        })
+        .collect()
 }
 
-impl CheckpointContents {
-    pub fn new_with_digests_and_signatures(
+fn execution_digests(info: &CheckpointTransactionInfo) -> ExecutionDigests {
+    ExecutionDigests {
+        transaction: info.transaction,
+        effects: info.effects,
+    }
+}
+
+/// Node-only helpers for [`CheckpointContents`], which is defined in
+/// `iota_sdk_types`. They bridge the node's `ExecutionDigests` /
+/// [`GenericSignature`] representation to the SDK type's parallel
+/// [`CheckpointTransactionInfo`] / [`UserSignature`] form.
+pub trait CheckpointContentsExt: Sized {
+    fn new_with_digests_and_signatures(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
+        user_signatures: Vec<Vec<GenericSignature>>,
+    ) -> Self;
+
+    fn new_with_causally_ordered_execution_data<'a>(
+        contents: impl IntoIterator<Item = &'a VerifiedExecutionData>,
+    ) -> Self;
+
+    fn new_with_digests_only_for_tests(
+        contents: impl IntoIterator<Item = ExecutionDigests>,
+    ) -> Self;
+
+    fn iter(&self) -> impl DoubleEndedIterator<Item = ExecutionDigests> + ExactSizeIterator + '_;
+
+    fn into_iter_with_signatures(
+        self,
+    ) -> impl Iterator<Item = (ExecutionDigests, Vec<GenericSignature>)>;
+
+    /// Enumerate the transactions in the contents, pairing each with its index
+    /// in the global ordering of executed transactions since genesis.
+    fn enumerate_transactions(
+        &self,
+        ckpt: &CheckpointSummary,
+    ) -> impl Iterator<Item = (u64, ExecutionDigests)> + '_;
+
+    fn into_inner(self) -> Vec<ExecutionDigests>;
+
+    fn inner(&self) -> Vec<ExecutionDigests>;
+
+    fn size(&self) -> usize;
+}
+
+impl CheckpointContentsExt for CheckpointContents {
+    fn new_with_digests_and_signatures(
         contents: impl IntoIterator<Item = ExecutionDigests>,
         user_signatures: Vec<Vec<GenericSignature>>,
     ) -> Self {
         let transactions: Vec<_> = contents.into_iter().collect();
         assert_eq!(transactions.len(), user_signatures.len());
-        Self::V1(CheckpointContentsV1 {
-            digest: Default::default(),
-            transactions,
-            user_signatures,
-        })
+        Self::new(
+            transactions
+                .into_iter()
+                .zip(user_signatures)
+                .map(|(digests, signatures)| CheckpointTransactionInfo {
+                    transaction: digests.transaction,
+                    effects: digests.effects,
+                    signatures: to_user_signatures(signatures),
+                })
+                .collect(),
+        )
     }
 
-    pub fn new_with_causally_ordered_execution_data<'a>(
+    fn new_with_causally_ordered_execution_data<'a>(
         contents: impl IntoIterator<Item = &'a VerifiedExecutionData>,
     ) -> Self {
-        let (transactions, user_signatures): (Vec<_>, Vec<_>) = contents
-            .into_iter()
-            .map(|data| {
-                (
-                    data.digests(),
-                    data.transaction.inner().data().tx_signatures().to_owned(),
-                )
-            })
-            .unzip();
-        assert_eq!(transactions.len(), user_signatures.len());
-        Self::V1(CheckpointContentsV1 {
-            digest: Default::default(),
-            transactions,
-            user_signatures,
-        })
+        Self::new(
+            contents
+                .into_iter()
+                .map(|data| {
+                    let digests = data.digests();
+                    CheckpointTransactionInfo {
+                        transaction: digests.transaction,
+                        effects: digests.effects,
+                        signatures: to_user_signatures(
+                            data.transaction.inner().data().tx_signatures().to_owned(),
+                        ),
+                    }
+                })
+                .collect(),
+        )
     }
 
-    pub fn new_with_digests_only_for_tests(
+    fn new_with_digests_only_for_tests(
         contents: impl IntoIterator<Item = ExecutionDigests>,
     ) -> Self {
-        let transactions: Vec<_> = contents.into_iter().collect();
-        let user_signatures = transactions.iter().map(|_| vec![]).collect();
-        Self::V1(CheckpointContentsV1 {
-            digest: Default::default(),
-            transactions,
-            user_signatures,
+        Self::new(
+            contents
+                .into_iter()
+                .map(|digests| CheckpointTransactionInfo {
+                    transaction: digests.transaction,
+                    effects: digests.effects,
+                    signatures: Vec::new(),
+                })
+                .collect(),
+        )
+    }
+
+    fn iter(&self) -> impl DoubleEndedIterator<Item = ExecutionDigests> + ExactSizeIterator + '_ {
+        self.transactions().iter().map(execution_digests)
+    }
+
+    fn into_iter_with_signatures(
+        self,
+    ) -> impl Iterator<Item = (ExecutionDigests, Vec<GenericSignature>)> {
+        self.into_v1().into_iter().map(|info| {
+            let digests = execution_digests(&info);
+            (digests, from_user_signatures(info.signatures))
         })
     }
 
-    fn as_v1(&self) -> &CheckpointContentsV1 {
-        match self {
-            Self::V1(v) => v,
-        }
-    }
-
-    fn into_v1(self) -> CheckpointContentsV1 {
-        match self {
-            Self::V1(v) => v,
-        }
-    }
-
-    pub fn iter(&self) -> Iter<'_, ExecutionDigests> {
-        self.as_v1().transactions.iter()
-    }
-
-    pub fn into_iter_with_signatures(
-        self,
-    ) -> impl Iterator<Item = (ExecutionDigests, Vec<GenericSignature>)> {
-        let CheckpointContentsV1 {
-            transactions,
-            user_signatures,
-            ..
-        } = self.into_v1();
-
-        transactions.into_iter().zip(user_signatures)
-    }
-
-    /// Return an iterator that enumerates the transactions in the contents.
-    /// The iterator item is a tuple of (sequence_number, &ExecutionDigests),
-    /// where the sequence_number indicates the index of the transaction in the
-    /// global ordering of executed transactions since genesis.
-    pub fn enumerate_transactions(
+    fn enumerate_transactions(
         &self,
         ckpt: &CheckpointSummary,
-    ) -> impl Iterator<Item = (u64, &ExecutionDigests)> {
+    ) -> impl Iterator<Item = (u64, ExecutionDigests)> + '_ {
         let start = ckpt.network_total_transactions - self.size() as u64;
 
         (0u64..)
@@ -453,22 +492,16 @@ impl CheckpointContents {
             .map(move |(i, digests)| (i + start, digests))
     }
 
-    pub fn into_inner(self) -> Vec<ExecutionDigests> {
-        self.into_v1().transactions
+    fn into_inner(self) -> Vec<ExecutionDigests> {
+        self.into_v1().iter().map(execution_digests).collect()
     }
 
-    pub fn inner(&self) -> &[ExecutionDigests] {
-        &self.as_v1().transactions
+    fn inner(&self) -> Vec<ExecutionDigests> {
+        self.iter().collect()
     }
 
-    pub fn size(&self) -> usize {
-        self.as_v1().transactions.len()
-    }
-
-    pub fn digest(&self) -> &CheckpointContentsDigest {
-        self.as_v1()
-            .digest
-            .get_or_init(|| CheckpointContentsDigest::new(default_hash(self)))
+    fn size(&self) -> usize {
+        self.transactions().len()
     }
 }
 
@@ -511,9 +544,13 @@ impl FullCheckpointContents {
         execution_data: impl Iterator<Item = ExecutionData>,
     ) -> Self {
         let transactions: Vec<_> = execution_data.collect();
+        let user_signatures = contents
+            .into_iter_with_signatures()
+            .map(|(_, signatures)| signatures)
+            .collect();
         Self {
             transactions,
-            user_signatures: contents.into_v1().user_signatures,
+            user_signatures,
         }
     }
 
@@ -524,8 +561,10 @@ impl FullCheckpointContents {
     where
         S: ReadStore,
     {
-        let mut transactions = Vec::with_capacity(contents.size());
-        for tx in contents.iter() {
+        let (digests, user_signatures): (Vec<_>, Vec<_>) =
+            contents.into_iter_with_signatures().unzip();
+        let mut transactions = Vec::with_capacity(digests.len());
+        for tx in &digests {
             if let (Some(t), Some(e)) = (
                 store.try_get_transaction(&tx.transaction)?,
                 store.try_get_transaction_effects(&tx.transaction)?,
@@ -537,7 +576,7 @@ impl FullCheckpointContents {
         }
         Ok(Some(Self {
             transactions,
-            user_signatures: contents.into_v1().user_signatures,
+            user_signatures,
         }))
     }
 
@@ -549,7 +588,7 @@ impl FullCheckpointContents {
     /// that all internal Transaction and TransactionEffects digests are
     /// consistent.
     pub fn verify_digests(&self, digest: CheckpointContentsDigest) -> Result<()> {
-        let self_digest = *self.checkpoint_contents().digest();
+        let self_digest = self.checkpoint_contents().digest();
         fp_ensure!(
             digest == self_digest,
             anyhow::anyhow!(
@@ -570,23 +609,15 @@ impl FullCheckpointContents {
     }
 
     pub fn checkpoint_contents(&self) -> CheckpointContents {
-        CheckpointContents::V1(CheckpointContentsV1 {
-            digest: Default::default(),
-            transactions: self.transactions.iter().map(|tx| tx.digests()).collect(),
-            user_signatures: self.user_signatures.clone(),
-        })
+        CheckpointContents::new_with_digests_and_signatures(
+            self.transactions.iter().map(|tx| tx.digests()),
+            self.user_signatures.clone(),
+        )
     }
 
     pub fn into_checkpoint_contents(self) -> CheckpointContents {
-        CheckpointContents::V1(CheckpointContentsV1 {
-            digest: Default::default(),
-            transactions: self
-                .transactions
-                .into_iter()
-                .map(|tx| tx.digests())
-                .collect(),
-            user_signatures: self.user_signatures,
-        })
+        let digests: Vec<_> = self.transactions.iter().map(|tx| tx.digests()).collect();
+        CheckpointContents::new_with_digests_and_signatures(digests, self.user_signatures)
     }
 
     pub fn size(&self) -> usize {
@@ -669,7 +700,7 @@ impl VerifiedCheckpointContents {
     }
 
     pub fn into_checkpoint_contents_digest(self) -> CheckpointContentsDigest {
-        *self.into_inner().into_checkpoint_contents().digest()
+        self.into_inner().into_checkpoint_contents().digest()
     }
 
     pub fn num_of_transactions(&self) -> usize {

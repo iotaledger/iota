@@ -39,11 +39,11 @@ use iota_types::{
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
-        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryExt, CheckpointSummaryResponse, CheckpointTimestamp,
-        EndOfEpochData, FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint,
-        VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
+        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
+        CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData, FullCheckpointContents,
+        SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
@@ -784,7 +784,7 @@ impl CheckpointStore {
         );
         self.tables
             .checkpoint_content
-            .insert(contents.digest(), &contents)
+            .insert(&contents.digest(), &contents)
     }
 
     /// Inserts the full checkpoint contents along with the mapping from
@@ -810,7 +810,7 @@ impl CheckpointStore {
         )?;
 
         let contents = full_contents.into_checkpoint_contents();
-        assert_eq!(&checkpoint.content_digest, contents.digest());
+        assert_eq!(checkpoint.content_digest, contents.digest());
 
         batch.insert_batch(
             &self.tables.checkpoint_content,

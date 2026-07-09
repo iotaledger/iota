@@ -13,7 +13,8 @@ use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_stream::wrappers::ReceiverStream;

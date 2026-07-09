@@ -13,7 +13,8 @@ use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
     },
     transaction::CertifiedTransaction,
 };

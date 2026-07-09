@@ -9,8 +9,9 @@ use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };
