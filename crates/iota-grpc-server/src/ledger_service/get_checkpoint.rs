@@ -69,6 +69,12 @@
 //!       - `transactions.output_objects.reference.digest` - the digest of the
 //!         output object contents
 //!     - `transactions.output_objects.bcs` - the full BCS-encoded object
+//!   - `transactions.balance_changes` - per-owner, per-coin-type balance deltas
+//!     derived from the transaction's effects and input/output objects. For a
+//!     failed transaction this contains only the gas charge.
+//!   - `transactions.object_changes` - structured object changes (created,
+//!     mutated, deleted, wrapped, unwrapped, published) derived from the
+//!     transaction's effects and input/output objects.
 //!
 //! ## Event Fields
 //! - `events` - includes all event fields (all events of all transactions in
