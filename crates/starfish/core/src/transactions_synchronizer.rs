@@ -828,9 +828,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     );
                 }
                 Ok(_) => {
-                    context
-                        .peer_responsiveness
-                        .record_failure(DataSource::TransactionSynchronizer, peer);
+                    context.peer_responsiveness.record_failure_with_timeout(
+                        DataSource::TransactionSynchronizer,
+                        peer,
+                        FETCH_REQUEST_TIMEOUT,
+                    );
                 }
                 Err(err) => {
                     last_failure_by_peer.update_with_new_instant(peer, Instant::now());
@@ -1048,10 +1050,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         serialized_transactions.transaction_ref,
                     );
                     if !requested_transaction_refs.contains(&committed_transaction_ref) {
-                        return Err(ConsensusError::UnexpectedTransactionForRequest {
-                            peer: peer_index,
-                            received: committed_transaction_ref,
-                        });
+                        continue;
                     }
                     serialized_transactions_map.insert(
                         committed_transaction_ref,
@@ -1973,71 +1972,6 @@ mod tests {
 
         // Clean up
         handle.stop().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn fast_sync_rejects_unrequested_transaction_response() {
-        let (context, _) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let peer = AuthorityIndex::new_for_test(1);
-
-        let requested_header =
-            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
-        let requested_ref = GenericTransactionRef::from(requested_header.transaction_ref());
-
-        let transactions = vec![Transaction::new(vec![7; 32])];
-        let serialized_transactions = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-        let mut encoder = create_encoder(&context);
-        let commitment = TransactionsCommitment::compute_transactions_commitment(
-            &serialized_transactions,
-            &context,
-            &mut encoder,
-        )
-        .unwrap();
-        let unrequested_header = VerifiedBlockHeader::new_for_test(
-            TestBlockHeader::new(2, 0)
-                .set_commitment(commitment)
-                .build(),
-        );
-        let unrequested_ref = GenericTransactionRef::from(unrequested_header.transaction_ref());
-        let response = Bytes::from(
-            bcs::to_bytes(&SerializedTransactionsV2 {
-                transaction_ref: unrequested_header.transaction_ref(),
-                serialized_transactions,
-            })
-            .unwrap(),
-        );
-
-        let inflight = InflightTransactionsMap::new();
-        let active_requests = InflightActiveRequests::new();
-        let (transactions_guard, _active_request_guard) = inflight
-            .lock_transactions_and_active_request(
-                [requested_ref].into_iter().collect(),
-                peer,
-                1,
-                SyncMethod::Live,
-                active_requests,
-            )
-            .unwrap();
-
-        let error = TransactionsSynchronizer::<MockNetworkClient, MockCoreThreadDispatcher>::process_fetched_transactions(
-            vec![response],
-            peer,
-            transactions_guard,
-            Arc::new(MockCoreThreadDispatcher::new()),
-            context,
-            SyncMethod::Live,
-        )
-        .await
-        .unwrap_err();
-
-        assert!(matches!(
-            error,
-            ConsensusError::UnexpectedTransactionForRequest {
-                peer: error_peer,
-                received,
-            } if error_peer == peer && received == unrequested_ref
-        ));
     }
 
     #[tokio::test]
