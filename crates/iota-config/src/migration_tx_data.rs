@@ -100,9 +100,9 @@ impl MigrationTxData {
         );
         let mut validation_digests_queue: HashSet<TransactionDigest> =
             self.inner.keys().copied().collect();
-        // We skip the genesis transaction to process only migration transactions from
-        // the migration.blob.
         for exec_digest in contents.iter() {
+            // We skip the genesis transaction to process only migration transactions from
+            // the migration.blob.
             if exec_digest.transaction == genesis_tx_digest {
                 continue;
             }
