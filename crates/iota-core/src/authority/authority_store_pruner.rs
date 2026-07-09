@@ -17,10 +17,10 @@ use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
-    committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
+        CheckpointTimestamp,
     },
     storage::ObjectKey,
 };
@@ -346,23 +346,21 @@ impl AuthorityStorePruner {
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
-        let (mut max_eligible_checkpoint_number, epoch_id) = checkpoint_store
+        let (max_eligible_checkpoint_number, cutoff_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
-            .map(|c| (c.sequence_number(), c.epoch))
+            .map(|c| {
+                let window_ms = config
+                    .num_epochs_to_retain
+                    .saturating_mul(epoch_duration_ms);
+                (
+                    c.sequence_number(),
+                    c.timestamp_ms.saturating_sub(window_ms),
+                )
+            })
             .unwrap_or_default();
         let pruned_checkpoint_number = perpetual_db
             .get_highest_pruned_checkpoint()?
             .unwrap_or_default();
-        if config.smooth && config.num_epochs_to_retain > 0 {
-            max_eligible_checkpoint_number = Self::smoothed_max_eligible_checkpoint_number(
-                checkpoint_store,
-                max_eligible_checkpoint_number,
-                pruned_checkpoint_number,
-                epoch_id,
-                epoch_duration_ms,
-                config.num_epochs_to_retain,
-            )?;
-        }
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
@@ -372,6 +370,7 @@ impl AuthorityStorePruner {
             config.num_epochs_to_retain,
             pruned_checkpoint_number,
             max_eligible_checkpoint_number,
+            cutoff_timestamp_ms,
             config,
             metrics.clone(),
             progress_tracker,
@@ -382,8 +381,8 @@ impl AuthorityStorePruner {
     /// Asynchronously prunes checkpoint data for eligible epochs based on the
     /// configuration and current state of the `AuthorityStore`. This
     /// function determines the range of checkpoints that can be pruned,
-    /// taking into account retention policies, archival watermarks, and
-    /// smoothing options. It then delegates the pruning to the
+    /// taking into account retention policies, archival watermarks, and the
+    /// chain-time retention cutoff. It then delegates the pruning to the
     /// `prune_for_eligible_epochs` method.
     /// The function also updates pruning metrics and ensures proper handling of
     /// indirect objects.
@@ -402,9 +401,9 @@ impl AuthorityStorePruner {
         let pruned_checkpoint_number = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .unwrap_or(0);
-        let (last_executed_checkpoint, epoch_id) = checkpoint_store
+        let (last_executed_checkpoint, last_executed_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
-            .map(|c| (c.sequence_number(), c.epoch))
+            .map(|c| (c.sequence_number(), c.timestamp_ms))
             .unwrap_or_default();
         let latest_archived_checkpoint = archive_readers
             .get_archive_watermark()
@@ -419,18 +418,11 @@ impl AuthorityStorePruner {
                     .unwrap_or_default(),
             );
         }
-        if config.smooth {
-            if let Some(num_epochs_to_retain) = config.num_epochs_to_retain_for_checkpoints {
-                max_eligible_checkpoint = Self::smoothed_max_eligible_checkpoint_number(
-                    checkpoint_store,
-                    max_eligible_checkpoint,
-                    pruned_checkpoint_number,
-                    epoch_id,
-                    epoch_duration_ms,
-                    num_epochs_to_retain,
-                )?;
-            }
-        }
+        let num_epochs_to_retain = config
+            .num_epochs_to_retain_for_checkpoints()
+            .ok_or_else(|| anyhow!("config value not set"))?;
+        let cutoff_timestamp_ms = last_executed_timestamp_ms
+            .saturating_sub(num_epochs_to_retain.saturating_mul(epoch_duration_ms));
         debug!("Max eligible checkpoint {}", max_eligible_checkpoint);
         Self::prune_for_eligible_epochs(
             perpetual_db,
@@ -438,11 +430,10 @@ impl AuthorityStorePruner {
             grpc_indexes_store,
             pruner_db,
             PruningMode::Checkpoints,
-            config
-                .num_epochs_to_retain_for_checkpoints()
-                .ok_or_else(|| anyhow!("config value not set"))?,
+            num_epochs_to_retain,
             pruned_checkpoint_number,
             max_eligible_checkpoint,
+            cutoff_timestamp_ms,
             config,
             metrics.clone(),
             progress_tracker,
@@ -461,6 +452,7 @@ impl AuthorityStorePruner {
         num_epochs_to_retain: u64,
         starting_checkpoint_number: CheckpointSequenceNumber,
         max_eligible_checkpoint: CheckpointSequenceNumber,
+        cutoff_timestamp_ms: CheckpointTimestamp,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
@@ -485,13 +477,19 @@ impl AuthorityStorePruner {
             .get(&(checkpoint_number + 1))?
         {
             let checkpoint = ckpt.into_inner();
-            // Skipping because checkpoint's epoch or checkpoint number is too new.
-            // We have to respect the highest executed checkpoint watermark (including the
-            // watermark itself) because there might be parts of the system that
-            // still require access to old object versions (i.e. state
-            // accumulator).
+            // Stop pruning at this checkpoint if any of the following holds:
+            // - Its epoch is within the retention window. This is the hard correctness
+            //   bound: parts of the system (e.g. the state accumulator) still require
+            //   access to old object versions of recently retained epochs.
+            // - It reaches the highest eligible checkpoint watermark (including the
+            //   watermark itself).
+            // - Its timestamp is newer than the retention cutoff. This paces pruning
+            //   against the chain's own (consensus-agreed, monotonic) time rather than
+            //   wall-clock, so the retained span is bounded to one retention window whether
+            //   the node is catching up or at tip.
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
                 || (checkpoint.sequence_number() >= max_eligible_checkpoint)
+                || (checkpoint.timestamp_ms > cutoff_timestamp_ms)
             {
                 break;
             }
@@ -683,37 +681,6 @@ impl AuthorityStorePruner {
     /// epoch duration or 60 seconds.
     fn pruning_tick_duration_ms(epoch_duration_ms: u64) -> u64 {
         min(epoch_duration_ms / 2, MIN_PRUNING_TICK_DURATION_MS)
-    }
-
-    /// Calculates a smoothed maximum eligible checkpoint number for pruning,
-    /// balancing the pruning operation over the epoch's duration.
-    fn smoothed_max_eligible_checkpoint_number(
-        checkpoint_store: &Arc<CheckpointStore>,
-        mut max_eligible_checkpoint: CheckpointSequenceNumber,
-        pruned_checkpoint: CheckpointSequenceNumber,
-        epoch_id: EpochId,
-        epoch_duration_ms: u64,
-        num_epochs_to_retain: u64,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
-        if epoch_id < num_epochs_to_retain {
-            return Ok(0);
-        }
-        let last_checkpoint_in_epoch = checkpoint_store
-            .get_epoch_last_checkpoint(epoch_id - num_epochs_to_retain)?
-            .map(|checkpoint| checkpoint.sequence_number)
-            .unwrap_or_default();
-        max_eligible_checkpoint = max_eligible_checkpoint.min(last_checkpoint_in_epoch);
-        if max_eligible_checkpoint == 0 {
-            return Ok(max_eligible_checkpoint);
-        }
-        let num_intervals = epoch_duration_ms
-            .checked_div(Self::pruning_tick_duration_ms(epoch_duration_ms))
-            .unwrap_or(1);
-        let delta = max_eligible_checkpoint
-            .saturating_sub(pruned_checkpoint)
-            .checked_div(num_intervals)
-            .unwrap_or(1);
-        Ok(pruned_checkpoint + delta)
     }
 
     fn setup_pruning(
@@ -935,13 +902,16 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
+    use iota_config::node::AuthorityStorePruningConfig;
     use iota_sdk_types::{ObjectId, ObjectReference};
+    use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
         base_types::{ObjectDigest, SequenceNumber},
         digests::TransactionDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
         },
+        messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
         object::Object,
         storage::ObjectKey,
     };
@@ -953,11 +923,14 @@ mod tests {
         rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options},
     };
 
-    use super::AuthorityStorePruner;
-    use crate::authority::{
-        authority_store_pruner::AuthorityStorePruningMetrics,
-        authority_store_tables::AuthorityPerpetualTables,
-        authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+    use super::{AuthorityStorePruner, PruningMode};
+    use crate::{
+        authority::{
+            authority_store_pruner::AuthorityStorePruningMetrics,
+            authority_store_tables::AuthorityPerpetualTables,
+            authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+        },
+        checkpoints::CheckpointStore,
     };
 
     fn get_keys_after_pruning(path: &Path) -> anyhow::Result<HashSet<ObjectKey>> {
@@ -1244,5 +1217,105 @@ mod tests {
             .filter(&key_bytes, &value_bytes)
             .expect("legacy V1 row must not panic");
         assert!(matches!(decision, Decision::Remove));
+    }
+
+    /// Builds a single-epoch chain of checkpoints with the given timestamps,
+    /// runs checkpoint pruning with the provided ceiling / retention window /
+    /// cutoff, and returns the resulting `HighestPruned` watermark.
+    async fn run_checkpoint_pruning(
+        timestamps_ms: &[CheckpointTimestamp],
+        max_eligible_checkpoint: CheckpointSequenceNumber,
+        cutoff_timestamp_ms: CheckpointTimestamp,
+        num_epochs_to_retain: u64,
+    ) -> Option<CheckpointSequenceNumber> {
+        let perpetual_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
+        let checkpoint_store = CheckpointStore::new_for_tests();
+
+        let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+        let checkpoints = committee.make_checkpoints_with_timestamps(timestamps_ms, None);
+
+        // All empty checkpoints share the same content digest, so a single
+        // insert covers every checkpoint's content lookup during pruning.
+        checkpoint_store
+            .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+            .unwrap();
+        for checkpoint in &checkpoints {
+            checkpoint_store
+                .insert_certified_checkpoint(checkpoint)
+                .unwrap();
+        }
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoints.last().unwrap())
+            .unwrap();
+
+        let registry = Registry::default();
+        let metrics = AuthorityStorePruningMetrics::new(&registry);
+        AuthorityStorePruner::prune_for_eligible_epochs(
+            &perpetual_db,
+            &checkpoint_store,
+            None,
+            None,
+            PruningMode::Checkpoints,
+            num_epochs_to_retain,
+            0,
+            max_eligible_checkpoint,
+            cutoff_timestamp_ms,
+            AuthorityStorePruningConfig::default(),
+            metrics,
+            None,
+        )
+        .await
+        .unwrap();
+
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap()
+    }
+
+    // Checkpoints 1..=9 with timestamps 1000..=9000. The cutoff at 5000 prunes
+    // through checkpoint 5 and stops at 6 (timestamp 6000 > 5000).
+    #[tokio::test]
+    async fn test_checkpoint_pruning_stops_at_timestamp_cutoff() {
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let pruned = run_checkpoint_pruning(&timestamps, u64::MAX, 5000, 0).await;
+        assert_eq!(pruned, Some(5));
+    }
+
+    // A cutoff below every checkpoint's timestamp prunes nothing: the first
+    // checkpoint (timestamp 1000 > 0) already exceeds the cutoff.
+    #[tokio::test]
+    async fn test_checkpoint_pruning_cutoff_before_all() {
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let pruned = run_checkpoint_pruning(&timestamps, u64::MAX, 0, 0).await;
+        assert_eq!(pruned, None);
+    }
+
+    // With a cutoff past every timestamp, pruning is instead bounded by the hard
+    // ceiling: it stops at max_eligible_checkpoint (7), pruning through 6.
+    #[tokio::test]
+    async fn test_checkpoint_pruning_bounded_by_max_eligible() {
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let pruned = run_checkpoint_pruning(&timestamps, 7, u64::MAX, 0).await;
+        assert_eq!(pruned, Some(6));
+    }
+
+    // Duplicate timestamps at the boundary: every checkpoint with timestamp
+    // <= cutoff prunes; the first one strictly greater stops the run.
+    #[tokio::test]
+    async fn test_checkpoint_pruning_duplicate_boundary_timestamps() {
+        let timestamps = [1000, 2000, 2000, 2000, 3000, 4000];
+        let pruned = run_checkpoint_pruning(&timestamps, u64::MAX, 2000, 0).await;
+        assert_eq!(pruned, Some(4));
+    }
+
+    // The epoch-count guard is the hard floor: with a retention window of one
+    // epoch and all checkpoints in the current epoch, nothing prunes regardless
+    // of how permissive the timestamp cutoff and ceiling are.
+    #[tokio::test]
+    async fn test_checkpoint_pruning_epoch_guard_takes_precedence() {
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let pruned = run_checkpoint_pruning(&timestamps, u64::MAX, u64::MAX, 1).await;
+        assert_eq!(pruned, None);
     }
 }

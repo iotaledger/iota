@@ -685,10 +685,6 @@ pub fn bool_true() -> bool {
     true
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
-}
-
 impl Config for NodeConfig {}
 
 impl NodeConfig {
@@ -1043,8 +1039,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
-    pub smooth: bool,
     /// Enables the compaction filter for pruning the objects table.
     /// If disabled, a range deletion approach is used instead.
     /// While it is generally safe to switch between the two modes,
@@ -1068,10 +1062,6 @@ fn default_max_checkpoints_in_batch() -> usize {
     10
 }
 
-fn default_smoothing() -> bool {
-    cfg!(not(test))
-}
-
 fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
 }
@@ -1086,7 +1076,6 @@ impl Default for AuthorityStorePruningConfig {
             max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }

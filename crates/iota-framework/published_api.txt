@@ -460,9 +460,6 @@ request_add_stake
 request_withdraw_stake
 	public(package) fun
 	0x3::validator_set
-request_set_commission_rate
-	public(package) fun
-	0x3::validator_set
 advance_epoch
 	public(package) fun
 	0x3::validator_set
@@ -553,19 +550,31 @@ find_validator_from_table_vec
 get_validator_indices_set
 	fun
 	0x3::validator_set
-get_validator_mut
+any_validator
 	public(package) fun
 	0x3::validator_set
-get_active_or_pending_or_candidate_validator_mut
-	fun
-	0x3::validator_set
-get_validator_mut_with_verified_cap
+any_validator_mut
 	public(package) fun
 	0x3::validator_set
-get_validator_mut_with_ctx
+active_validator
 	public(package) fun
 	0x3::validator_set
-get_validator_mut_with_ctx_including_candidates
+active_validator_mut
+	public(package) fun
+	0x3::validator_set
+pending_validator
+	public(package) fun
+	0x3::validator_set
+pending_validator_mut
+	public(package) fun
+	0x3::validator_set
+candidate_validator
+	public(package) fun
+	0x3::validator_set
+candidate_validator_mut
+	public(package) fun
+	0x3::validator_set
+committee_validator
 	public(package) fun
 	0x3::validator_set
 get_validator_ref
@@ -579,15 +588,6 @@ get_active_validator_ref
 	0x3::validator_set
 get_pending_validator_ref
 	public fun
-	0x3::validator_set
-get_active_validator_ref_inner
-	public(package) fun
-	0x3::validator_set
-get_committee_validator_ref_inner
-	public(package) fun
-	0x3::validator_set
-get_pending_validator_ref_inner
-	public(package) fun
 	0x3::validator_set
 verify_cap
 	public(package) fun
@@ -614,6 +614,9 @@ calculate_total_active_stakes
 	fun
 	0x3::validator_set
 calculate_total_committee_stakes
+	fun
+	0x3::validator_set
+all_validator_indices
 	fun
 	0x3::validator_set
 validate_eligible_validators_voting_power

@@ -13,7 +13,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 #[derive(Clone, Debug)]
 pub struct ValidatorValidateMetadataBcsCostParams {
@@ -66,7 +66,9 @@ pub fn validate_metadata_bcs(
 
     let cost = context.gas_used();
 
-    if let Result::Err(err_code) = validator_metadata.verify() {
+    let obj_runtime: &ObjectRuntime = context.extensions().get()?;
+    let metadata_v2 = obj_runtime.protocol_config.validator_metadata_verify_v2();
+    if let Result::Err(err_code) = validator_metadata.verify(metadata_v2) {
         return Ok(NativeResult::err(cost, err_code));
     }
 
