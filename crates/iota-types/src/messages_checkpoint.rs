@@ -475,12 +475,10 @@ impl CheckpointContentsExt for CheckpointContents {
         self,
     ) -> impl Iterator<Item = (ExecutionDigests, Vec<GenericSignature>)> {
         match self {
-            CheckpointContents::V1(v1) => {
-                return v1.into_transactions().into_iter().map(|info| {
-                    let digests = execution_digests(&info);
-                    (digests, from_user_signatures(info.signatures))
-                });
-            }
+            CheckpointContents::V1(v1) => v1.into_transactions().into_iter().map(|info| {
+                let digests = execution_digests(&info);
+                (digests, from_user_signatures(info.signatures))
+            }),
             _ => unimplemented!("a new CheckpointContents variant was added and must be handled"),
         }
     }
