@@ -5,10 +5,10 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     object::OBJECT_START_VERSION,
     transaction::{CallArg, SharedObjectRef},
@@ -142,7 +142,7 @@ impl TestEnvironment {
             .await
     }
 
-    async fn create_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self.move_call("create_counter", vec![]).await.unwrap();
         assert!(fx.status().is_success());
 
@@ -152,7 +152,7 @@ impl TestEnvironment {
             .expect("Owned object created")
     }
 
-    async fn create_shared_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_shared_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call("create_shared_counter", vec![])
             .await
@@ -167,8 +167,8 @@ impl TestEnvironment {
 
     async fn share_counter(
         &self,
-        counter: ObjectRef,
-    ) -> Result<(ObjectRef, Owner), ExecutionError> {
+        counter: ObjectReference,
+    ) -> Result<(ObjectReference, Owner), ExecutionError> {
         let (fx, _) = self
             .move_call("share_counter", vec![CallArg::ImmutableOrOwned(counter)])
             .await
@@ -185,7 +185,7 @@ impl TestEnvironment {
             .expect("Counter mutated"))
     }
 
-    async fn increment_owned_counter(&self, counter: ObjectRef) -> (ObjectRef, Owner) {
+    async fn increment_owned_counter(&self, counter: ObjectReference) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -204,7 +204,7 @@ impl TestEnvironment {
         &self,
         counter: ObjectId,
         initial_shared_version: SequenceNumber,
-    ) -> anyhow::Result<(ObjectRef, Owner)> {
+    ) -> anyhow::Result<(ObjectReference, Owner)> {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -224,7 +224,7 @@ impl TestEnvironment {
     }
 }
 
-async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
+async fn publish_move_package(test_cluster: &TestCluster) -> ObjectReference {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/move_test_code");
     publish_package(&test_cluster.wallet, path).await

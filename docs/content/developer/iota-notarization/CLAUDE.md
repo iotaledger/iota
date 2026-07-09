@@ -8,13 +8,13 @@ Everything in the parent file applies here; this file adds product-specific conv
 
 The IOTA Notarization Toolkit, a set of IOTA ledger tools for verifiable on-chain data workflows and consists of the
 **Single Notarization** and **Audit Trails** components as been described in the
-[external source repository Main Readme](https://github.com/iotaledger/notarization/blob/audit-trails-dev/README.md)
+[external source repository Main Readme](https://github.com/iotaledger/notarization/blob/main/README.md)
 
 The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**.
 Use this when constructing `reference` code-block URLs.
 
 The external source repository also provides a `Naming Conventions` section in the
-[root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/audit-trails-dev/CLAUDE.md) which can be seen
+[root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/main/CLAUDE.md) which can be seen
 as the source of truth regarding wording, terminology, prose and capitalization rules.
 
 ### Object related phrasing
@@ -220,7 +220,7 @@ Do not manually author reference pages — they are generated from the source re
 - **Audience**: developers integrating Audit Trails into their applications. Assume familiarity with IOTA basics and blockchain concepts.
 - **Tone**: technical, precise, direct. Avoid marketing language in explanation and how-to pages. The index page may use more persuasive language for use-case descriptions.
 - Use `:::info`, `:::tip`, and `:::warning` admonitions sparingly and only when the information genuinely warrants callout treatment.
-- **Product naming** (the [`Naming Conventions` in the notarization repo `CLAUDE.md`](https://github.com/iotaledger/notarization/blob/audit-trails-dev/CLAUDE.md) is the source of truth):
+- **Product naming** (the [`Naming Conventions` in the notarization repo `CLAUDE.md`](https://github.com/iotaledger/notarization/blob/main/CLAUDE.md) is the source of truth):
   - Use **"Audit Trails"** (plural, title case) when referring to the **product / component / package / client** — e.g. "Audit Trails provides …", "the Audit Trails package", "IOTA Audit Trails".
   - For a **single on-chain object**: use **"Audit Trail"** (singular, title case) in titles, headings, and general descriptive prose; use **"`AuditTrail` object"** (the Move type in backticks) in normal paragraphs that describe creating, deleting, updating, configuring, or otherwise directly interacting with the object (e.g. "creating a new `AuditTrail` object", "remove an `AuditTrail` object from the network").
   - For **multiple instances**, use lowercase plural **"audit trails"** (except at the start of a sentence or in a heading).

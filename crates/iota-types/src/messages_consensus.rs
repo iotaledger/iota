@@ -13,13 +13,13 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_sdk_types::crypto::IntentScope;
+use iota_sdk_types::{ObjectReference, crypto::IntentScope};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, TransactionDigest},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     digests::{Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -153,7 +153,7 @@ pub struct AuthorityCapabilitiesV1 {
     /// The ObjectRefs of all versions of system packages that the validator
     /// possesses. Used to determine whether to do a framework/movestdlib
     /// upgrade.
-    pub available_system_packages: Vec<ObjectRef>,
+    pub available_system_packages: Vec<ObjectReference>,
 }
 
 impl Message for AuthorityCapabilitiesV1 {
@@ -188,7 +188,7 @@ impl AuthorityCapabilitiesV1 {
         authority: AuthorityName,
         chain: Chain,
         supported_protocol_versions: SupportedProtocolVersions,
-        available_system_packages: Vec<ObjectRef>,
+        available_system_packages: Vec<ObjectReference>,
     ) -> Self {
         let generation = SystemTime::now()
             .duration_since(UNIX_EPOCH)

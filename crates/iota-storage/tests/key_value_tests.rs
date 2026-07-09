@@ -19,7 +19,7 @@ use iota_types::{
     error::IotaResult,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,
@@ -86,7 +86,7 @@ impl MockTxStore {
         self.next_seq_number += 1;
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,

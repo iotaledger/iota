@@ -146,7 +146,7 @@ CheckpointContentsV1:
 CheckpointData:
   STRUCT:
     - checkpoint_summary:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
     - checkpoint_contents:
         TYPENAME: CheckpointContents
     - transactions:
@@ -174,8 +174,7 @@ CheckpointSummary:
     - end_of_epoch_data:
         OPTION:
           TYPENAME: EndOfEpochData
-    - version_specific_data:
-        SEQ: U8
+    - version_specific_data: BYTES
 CheckpointTransaction:
   STRUCT:
     - transaction:
@@ -1028,7 +1027,7 @@ VersionAssignment:
     - object_id:
         TYPENAME: ObjectId
     - version: U64
-"iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
+"iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:
         TYPENAME: CheckpointSummary

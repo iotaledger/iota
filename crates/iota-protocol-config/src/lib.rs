@@ -173,7 +173,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Expose `is_feature_enabled` and `get_attr<T>` natives to the
 //             iota_system package via a new iota_system::protocol_config
 //             module.
-// Version 31: Enable validator metadata verification v2.
+// Version 31: Rebuild the framework binaries for the latest iota_system
+//             validator set changes.
+//             Enable validator metadata verification v2.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 

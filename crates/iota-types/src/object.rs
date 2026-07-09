@@ -11,7 +11,7 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag,
+    Address, MoveObjectType, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
     move_package::MovePackage,
 };
 pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner};
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{
@@ -758,8 +758,8 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
 #[serde(tag = "status", content = "details")]
 pub enum ObjectRead {
     NotExists(ObjectId),
-    Exists(ObjectRef, Object, Option<MoveStructLayout>),
-    Deleted(ObjectRef),
+    Exists(ObjectReference, Object, Option<MoveStructLayout>),
+    Deleted(ObjectReference),
 }
 
 impl ObjectRead {
@@ -818,9 +818,9 @@ pub enum PastObjectRead {
     /// The object does not exist
     ObjectNotExists(ObjectId),
     /// The object is found to be deleted with this version
-    ObjectDeleted(ObjectRef),
+    ObjectDeleted(ObjectReference),
     /// The object exists and is found with this version
-    VersionFound(ObjectRef, Object, Option<MoveStructLayout>),
+    VersionFound(ObjectReference, Object, Option<MoveStructLayout>),
     /// The object exists but not found with this version
     VersionNotFound(ObjectId, SequenceNumber),
     /// The asked object version is higher than the latest

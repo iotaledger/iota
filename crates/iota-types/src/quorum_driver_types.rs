@@ -5,13 +5,14 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::ObjectReference;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, EpochId, TransactionDigest},
     committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
     effects::{
@@ -46,7 +47,8 @@ pub enum QuorumDriverError {
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
-        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        conflicting_txes:
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,

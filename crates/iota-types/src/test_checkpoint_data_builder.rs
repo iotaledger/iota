@@ -6,13 +6,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
-    TransactionKind, TypeTag,
+    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionKind, TypeTag,
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, dbg_addr, random_object_ref},
+    base_types::{ExecutionDigests, SequenceNumber, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
@@ -23,7 +23,8 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, CheckpointSummaryExt,
+        EndOfEpochData,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -77,14 +78,14 @@ struct CheckpointBuilder {
 
 struct TransactionBuilder {
     sender_idx: u8,
-    gas: ObjectRef,
+    gas: ObjectReference,
     move_calls: Vec<(ObjectId, &'static str, &'static str)>,
     created_objects: BTreeMap<ObjectId, Object>,
     mutated_objects: BTreeMap<ObjectId, Object>,
     unwrapped_objects: BTreeSet<ObjectId>,
     wrapped_objects: BTreeSet<ObjectId>,
     deleted_objects: BTreeSet<ObjectId>,
-    frozen_objects: BTreeSet<ObjectRef>,
+    frozen_objects: BTreeSet<ObjectReference>,
     shared_inputs: BTreeMap<ObjectId, Shared>,
     events: Option<Vec<Event>>,
 }
@@ -95,7 +96,7 @@ struct Shared {
 }
 
 impl TransactionBuilder {
-    pub fn new(sender_idx: u8, gas: ObjectRef) -> Self {
+    pub fn new(sender_idx: u8, gas: ObjectReference) -> Self {
         Self {
             sender_idx,
             gas,
@@ -633,7 +634,7 @@ impl TestCheckpointDataBuilder {
 
         self.checkpoint_builder.network_total_transactions += transactions.len() as u64;
 
-        let checkpoint_summary = CheckpointSummary::new(
+        let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             self.checkpoint_builder.epoch,
             self.checkpoint_builder.checkpoint,
@@ -715,7 +716,7 @@ mod tests {
             .finish_transaction()
             .build_checkpoint();
 
-        assert_eq!(*checkpoint.checkpoint_summary.sequence_number(), 1);
+        assert_eq!(checkpoint.checkpoint_summary.sequence_number(), 1);
         assert_eq!(checkpoint.checkpoint_summary.epoch, 5);
         assert_eq!(checkpoint.transactions.len(), 1);
         let tx = &checkpoint.transactions[0];

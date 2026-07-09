@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag, TransactionKind};
+use iota_sdk_types::{ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -28,7 +28,7 @@ use iota_types::{
         },
     },
     auth_context::AuthContextData,
-    base_types::{ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -1782,7 +1782,7 @@ impl LocalExec {
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
-        let shared_object_refs: Vec<ObjectRef> = effects
+        let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
@@ -1877,7 +1877,7 @@ impl LocalExec {
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
-        let shared_object_refs: Vec<ObjectRef> = effects
+        let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
@@ -1937,7 +1937,7 @@ impl LocalExec {
     async fn resolve_download_input_objects(
         &mut self,
         tx_info: &OnChainTransactionInfo,
-        deleted_shared_objects: Vec<ObjectRef>,
+        deleted_shared_objects: Vec<ObjectReference>,
     ) -> Result<InputObjects, ReplayEngineError> {
         // Download the input objects
         let mut package_inputs = vec![];
@@ -2089,10 +2089,11 @@ impl LocalExec {
         self.multi_download_and_store(&tx_info.modified_at_versions)
             .await?;
 
-        let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
-            .shared_object_refs
-            .iter()
-            .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
+        let (shared_refs, deleted_shared_refs): (Vec<ObjectReference>, Vec<ObjectReference>) =
+            tx_info
+                .shared_object_refs
+                .iter()
+                .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
         let shared_refs: Vec<_> = shared_refs

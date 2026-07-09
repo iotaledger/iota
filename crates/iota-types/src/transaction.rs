@@ -19,9 +19,10 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
-    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId,
+    ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
+    RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind, TransferObjects,
+    TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -569,7 +570,7 @@ mod programmable_transaction_ext {
 
 pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
@@ -599,7 +600,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             .collect())
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
@@ -734,7 +735,7 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     /// (package, module, function) tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     /// Returns the objects received by this transaction.
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
     /// Return the metadata of each of the input objects for the transaction.
     /// For a Move object, we attach the object reference;
     /// for a Move package, we provide the object id only since they never
@@ -813,7 +814,7 @@ impl TransactionKindExt for TransactionKind {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         match &self {
             #[allow(deprecated)]
             TransactionKind::Genesis(_)
@@ -978,7 +979,7 @@ pub trait TransactionDataAPI {
     fn gas_owner(&self) -> Address;
 
     /// Returns the gas payment object references.
-    fn gas(&self) -> &[ObjectRef];
+    fn gas(&self) -> &[ObjectReference];
 
     /// Returns the gas price for this transaction.
     fn gas_price(&self) -> u64;
@@ -1005,7 +1006,7 @@ pub trait TransactionDataAPI {
 
     /// Returns object references for all objects being received in this
     /// transaction.
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
 
     /// Validates the transaction data against the given protocol config,
     /// including gas checks.
@@ -1049,7 +1050,7 @@ pub trait TransactionDataAPI {
     fn new(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1059,7 +1060,7 @@ pub trait TransactionDataAPI {
     fn new_with_gas_coins(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1070,7 +1071,7 @@ pub trait TransactionDataAPI {
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1091,7 +1092,7 @@ pub trait TransactionDataAPI {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1105,7 +1106,7 @@ pub trait TransactionDataAPI {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1114,9 +1115,9 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that transfers an object to a recipient.
     fn new_transfer(
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1128,7 +1129,7 @@ pub trait TransactionDataAPI {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1140,7 +1141,7 @@ pub trait TransactionDataAPI {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1151,10 +1152,10 @@ pub trait TransactionDataAPI {
     /// specified amounts.
     fn new_pay(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
@@ -1164,10 +1165,10 @@ pub trait TransactionDataAPI {
     /// input coin.
     fn new_pay_iota(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
@@ -1176,9 +1177,9 @@ pub trait TransactionDataAPI {
     /// single recipient. The gas coin is included as an input coin.
     fn new_pay_all_iota(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipient: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1187,9 +1188,9 @@ pub trait TransactionDataAPI {
     /// specified amounts.
     fn new_split_coin(
         sender: Address,
-        coin: ObjectRef,
+        coin: ObjectReference,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1197,7 +1198,7 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that publishes new Move modules.
     fn new_module(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas_budget: u64,
@@ -1208,11 +1209,11 @@ pub trait TransactionDataAPI {
     /// Requires the upgrade capability object and the upgrade policy.
     fn new_upgrade(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         package_id: ObjectId,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-        upgrade_capability_and_owner: (ObjectRef, Owner),
+        upgrade_capability_and_owner: (ObjectReference, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
         gas_budget: u64,
@@ -1223,7 +1224,7 @@ pub trait TransactionDataAPI {
     /// The sender is also the gas owner.
     fn new_programmable(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1233,7 +1234,7 @@ pub trait TransactionDataAPI {
     /// and a separate gas sponsor.
     fn new_programmable_allow_sponsor(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1296,7 +1297,7 @@ impl TransactionDataAPI for TransactionData {
         self.gas_data().owner
     }
 
-    fn gas(&self) -> &[ObjectRef] {
+    fn gas(&self) -> &[ObjectReference] {
         &self.gas_data().objects
     }
 
@@ -1336,7 +1337,7 @@ impl TransactionDataAPI for TransactionData {
         Ok(inputs)
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         self.kind().receiving_objects()
     }
 
@@ -1414,7 +1415,7 @@ impl TransactionDataAPI for TransactionData {
             gas_payment: GasData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
-                objects: vec![ObjectRef::new(
+                objects: vec![ObjectReference::new(
                     ObjectId::ZERO,
                     SequenceNumber::default(),
                     ObjectDigest::MIN,
@@ -1428,7 +1429,7 @@ impl TransactionDataAPI for TransactionData {
     fn new(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1448,7 +1449,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_coins(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1465,7 +1466,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1502,7 +1503,7 @@ impl TransactionDataAPI for TransactionData {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1526,7 +1527,7 @@ impl TransactionDataAPI for TransactionData {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1547,9 +1548,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_transfer(
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1565,7 +1566,7 @@ impl TransactionDataAPI for TransactionData {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1584,7 +1585,7 @@ impl TransactionDataAPI for TransactionData {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1606,10 +1607,10 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -1629,10 +1630,10 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay_iota(
         sender: Address,
-        mut coins: Vec<ObjectRef>,
+        mut coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -1649,9 +1650,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay_all_iota(
         sender: Address,
-        mut coins: Vec<ObjectRef>,
+        mut coins: Vec<ObjectReference>,
         recipient: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1666,9 +1667,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_split_coin(
         sender: Address,
-        coin: ObjectRef,
+        coin: ObjectReference,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1682,7 +1683,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_module(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas_budget: u64,
@@ -1699,11 +1700,11 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_upgrade(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         package_id: ObjectId,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-        (upgrade_capability, capability_owner): (ObjectRef, Owner),
+        (upgrade_capability, capability_owner): (ObjectReference, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
         gas_budget: u64,
@@ -1759,7 +1760,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_programmable(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1776,7 +1777,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_programmable_allow_sponsor(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -2402,7 +2403,7 @@ impl<S> Envelope<SenderSignedData, S> {
         self.data().intent_message().value.sender()
     }
 
-    pub fn gas(&self) -> &[ObjectRef] {
+    pub fn gas(&self) -> &[ObjectReference] {
         self.data().intent_message().value.gas()
     }
 
@@ -2679,7 +2680,7 @@ pub enum InputObjectKind {
     // A Move package, must be immutable.
     MovePackage(ObjectId),
     // A Move object, either immutable, or owned mutable.
-    ImmOrOwnedMoveObject(ObjectRef),
+    ImmOrOwnedMoveObject(ObjectReference),
     // A Move object that's shared and mutable.
     SharedMoveObject {
         id: ObjectId,
@@ -2944,7 +2945,7 @@ impl ObjectReadResult {
 
     /// Return the object ref iff the object is an owned object (i.e. not
     /// shared, not immutable).
-    pub fn get_owned_objref(&self) -> Option<ObjectRef> {
+    pub fn get_owned_objref(&self) -> Option<ObjectReference> {
         match (&self.input_object_kind, &self.object) {
             (InputObjectKind::MovePackage(_), _) => None,
             (
@@ -3098,7 +3099,7 @@ impl InputObjects {
         }
     }
 
-    pub fn filter_owned_objects(&self) -> Vec<ObjectRef> {
+    pub fn filter_owned_objects(&self) -> Vec<ObjectReference> {
         let owned_objects: Vec<_> = self
             .objects
             .iter()
@@ -3192,7 +3193,7 @@ impl InputObjects {
     /// The version to set on objects created by the computation that `self` is
     /// input to. Guaranteed to be strictly greater than the versions of all
     /// input objects and objects received in the transaction.
-    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectRef]) -> SequenceNumber {
+    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectReference]) -> SequenceNumber {
         let input_versions = self
             .objects
             .iter()
@@ -3265,12 +3266,12 @@ impl ReceivingObjectReadResultKind {
 }
 
 pub struct ReceivingObjectReadResult {
-    pub object_ref: ObjectRef,
+    pub object_ref: ObjectReference,
     pub object: ReceivingObjectReadResultKind,
 }
 
 impl ReceivingObjectReadResult {
-    pub fn new(object_ref: ObjectRef, object: ReceivingObjectReadResultKind) -> Self {
+    pub fn new(object_ref: ObjectReference, object: ReceivingObjectReadResultKind) -> Self {
         Self { object_ref, object }
     }
 

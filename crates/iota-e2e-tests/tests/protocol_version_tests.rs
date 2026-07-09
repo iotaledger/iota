@@ -67,11 +67,11 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
-        Address, Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
-        TransactionKind,
+        Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
+        ProgrammableTransaction, TransactionKind,
     };
     use iota_types::{
-        base_types::{ConciseableName, ObjectRef, SequenceNumber},
+        base_types::{ConciseableName, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
@@ -486,7 +486,7 @@ mod sim_only_tests {
         .await
     }
 
-    async fn create_obj(cluster: &TestCluster) -> ObjectRef {
+    async fn create_obj(cluster: &TestCluster) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -507,7 +507,7 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn wrap_obj(cluster: &TestCluster, obj: ObjectRef) -> ObjectRef {
+    async fn wrap_obj(cluster: &TestCluster, obj: ObjectReference) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -527,7 +527,11 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn transfer_obj(cluster: &TestCluster, recipient: Address, obj: ObjectRef) -> ObjectRef {
+    async fn transfer_obj(
+        cluster: &TestCluster,
+        recipient: Address,
+        obj: ObjectReference,
+    ) -> ObjectReference {
         execute(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder.transfer_object(recipient, obj).unwrap();
@@ -575,7 +579,7 @@ mod sim_only_tests {
     async fn execute_creating(
         cluster: &TestCluster,
         ptb: ProgrammableTransaction,
-    ) -> Vec<ObjectRef> {
+    ) -> Vec<ObjectReference> {
         execute(cluster, ptb)
             .await
             .created()

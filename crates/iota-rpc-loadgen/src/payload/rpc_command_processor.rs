@@ -21,11 +21,10 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    Address, ObjectId,
+    Address, ObjectId, ObjectReference,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -53,7 +52,7 @@ pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
 pub struct RpcCommandProcessor {
     clients: Arc<RwLock<Vec<IotaClient>>>,
     // for equivocation prevention in `WaitForEffectsCert` mode
-    object_ref_cache: Arc<DashMap<ObjectId, ObjectRef>>,
+    object_ref_cache: Arc<DashMap<ObjectId, ObjectReference>>,
     transaction_digests: Arc<DashSet<TransactionDigest>>,
     addresses: Arc<DashSet<Address>>,
     data_dir: String,
@@ -138,7 +137,7 @@ impl RpcCommandProcessor {
         &self,
         client: &IotaClient,
         object_id: &ObjectId,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         let object_ref_cache = self.object_ref_cache.clone();
         let current = object_ref_cache.get_mut(object_id);
         match current {

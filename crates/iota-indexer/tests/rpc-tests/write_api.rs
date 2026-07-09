@@ -21,10 +21,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -57,8 +58,8 @@ async fn prepare_and_sign_object_transfer_tx(
     sender: Address,
     sender_key_pair: AccountKeyPair,
     receiver: Address,
-    object_to_transfer: ObjectRef,
-    gas: ObjectRef,
+    object_to_transfer: ObjectReference,
+    gas: ObjectReference,
 ) -> (TxBytes, Signatures) {
     let tx_builder = TestTransactionBuilder::new(sender, gas, 1000);
     let tx_data = tx_builder.transfer(object_to_transfer, receiver).build();
