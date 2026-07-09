@@ -41,15 +41,10 @@ use std::{
 use bytes::Bytes;
 use itertools::Itertools;
 use parking_lot::RwLock;
-use rand::thread_rng;
 #[cfg(not(test))]
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-    time::{Instant, sleep},
-};
+use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
 use tracing::{info, warn};
 
 use crate::{
@@ -63,7 +58,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, DataSource},
+    dag_state::DagState,
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -483,7 +478,6 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 ///   Vec<CommittedSubDag>) for fast)
 /// - `F`: Fetch function type
 /// - `Fut`: Future returned by fetch function
-/// - `G`: Delivered-commit-count extractor type
 ///
 /// # Parameters
 /// - `inner`: Shared context and dependencies
@@ -491,26 +485,21 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 /// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
 ///   regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
-/// - `delivered_commits_fn`: Number of commits delivered by a successful fetch,
-///   used to scale the recorded responsiveness latency by the delivery
-///   shortfall so a peer cannot look fast by returning only a prefix
 ///
 /// # Returns
 /// Tuple of (end_commit_index, fetched_data)
 #[cfg_attr(test, tracing::instrument(skip_all, fields(authority = %inner.context.own_index)))]
-pub(crate) async fn fetch_loop<C, T, F, Fut, G>(
+pub(crate) async fn fetch_loop<C, T, F, Fut>(
     inner: Arc<Inner<C>>,
     commit_range: CommitRange,
     fetch_timeout_multiplier: u32,
     fetch_once_fn: F,
-    delivered_commits_fn: G,
 ) -> (CommitIndex, T)
 where
     C: NetworkClient,
     T: Send,
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
-    G: Fn(&T) -> usize,
 {
     // Individual request base timeout.
     #[cfg(not(test))]
@@ -532,17 +521,10 @@ where
         .node_metrics
         .commit_sync_fetch_loop_latency
         .start_timer();
-    // Regular and fast commit sync transfer different amounts of data per fetch,
-    // so their per-peer responsiveness is tracked under distinct kinds.
-    let fetch_kind = match inner.sync_type {
-        CommitSyncType::Regular => DataSource::CommitSyncer,
-        CommitSyncType::Fast => DataSource::FastCommitSyncer,
-    };
     info!(
         "[{}] Starting to fetch commits in {commit_range:?} ...",
         inner.sync_type.as_str()
     );
-    let responsiveness = &inner.context.peer_responsiveness;
     loop {
         // Attempt to fetch commits and blocks through min(committee size,
         // MAX_NUM_TARGETS) peers.
@@ -558,19 +540,8 @@ where
                 }
             })
             .collect_vec();
-        // Order the targets so more responsive peers are tried first. Ranking is
-        // re-sampled every loop iteration (fresh `rng`) so a peer cannot lock the
-        // head of the list across retries, and is applied before truncation so
-        // the retained `MAX_NUM_TARGETS` reflect the ranking. When disabled we
-        // keep the previous behaviour: a uniform shuffle in production, a stable
-        // committee order under test.
-        if inner.context.parameters.enable_peer_responsiveness_ranking {
-            let mut rng = thread_rng();
-            responsiveness.prioritize(fetch_kind, &mut target_authorities, &mut rng);
-        } else {
-            #[cfg(not(test))]
-            target_authorities.shuffle(&mut ThreadRng::default());
-        }
+        #[cfg(not(test))]
+        target_authorities.shuffle(&mut ThreadRng::default());
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
@@ -579,7 +550,6 @@ where
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
         for authority in target_authorities {
-            let started = Instant::now();
             match tokio::time::timeout(
                 fetch_timeout,
                 fetch_once_fn(
@@ -592,25 +562,6 @@ where
             .await
             {
                 Ok(Ok(data)) => {
-                    // Scale the recorded latency up by the delivery shortfall so
-                    // a peer cannot look fast by returning only a prefix of the
-                    // requested commits. A response is capped at
-                    // `max_commits_per_response`, so the requested count is
-                    // clamped to that cap; the unreturned tail is requeued, not
-                    // a goodput failure. The delivered count is floored at 1: a
-                    // verified response always carries at least one commit, and
-                    // the floor keeps a degenerate empty response at the maximal
-                    // shortfall penalty rather than crediting it.
-                    let requested = commit_range
-                        .size()
-                        .min(inner.sync_type.max_commits_per_response(&inner.context));
-                    let delivered = delivered_commits_fn(&data).max(1);
-                    let shortfall_factor = (requested as f64 / delivered as f64).max(1.0);
-                    responsiveness.record_success(
-                        fetch_kind,
-                        authority,
-                        started.elapsed().mul_f64(shortfall_factor),
-                    );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
@@ -618,11 +569,6 @@ where
                     return (commit_range.end(), data);
                 }
                 Ok(Err(e)) => {
-                    responsiveness.record_failure_with_timeout(
-                        fetch_kind,
-                        authority,
-                        fetch_timeout,
-                    );
                     let hostname = inner
                         .context
                         .committee
@@ -644,11 +590,6 @@ where
                         .inc();
                 }
                 Err(_) => {
-                    responsiveness.record_failure_with_timeout(
-                        fetch_kind,
-                        authority,
-                        fetch_timeout,
-                    );
                     let hostname = inner
                         .context
                         .committee

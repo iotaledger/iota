@@ -541,10 +541,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once, |output| {
-            output.commits.len()
-        })
-        .await
+        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
     }
 
     // Fetches commits and transactions from a single authority.
@@ -1040,7 +1037,6 @@ mod tests {
                 fast_commit_sync_batch_size: 20,
                 enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
             let (authority, receiver, monitor) = make_authority_with_params(
@@ -1117,7 +1113,6 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
-            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1179,7 +1174,6 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
-            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
