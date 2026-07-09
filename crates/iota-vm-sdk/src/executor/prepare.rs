@@ -12,10 +12,7 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{
-    Address, Event, ObjectId, ObjectReference,
-    transaction::{Input, TransactionKind},
-};
+use iota_sdk_types::{Address, Event, ObjectId, ObjectReference};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution,
@@ -95,23 +92,6 @@ pub(super) fn prepare_transaction(
         }));
     }
     transaction.gas_data_mut().objects = updated_gas;
-
-    // Update receiving references in the PTB inputs the same way: execution
-    // resolves a receive at exactly the version its input declares, so the
-    // declared refs must match the store's versions.
-    if let TransactionKind::Programmable(pt) = transaction.kind_mut() {
-        for input in &mut pt.inputs {
-            if let Input::Receiving(objref) = input {
-                let obj = store
-                    .as_object_store()
-                    .try_get_object(&objref.object_id)
-                    .map_err(|e| StoreError::new("load receiving object", e))?;
-                if let Some(obj) = obj {
-                    *objref = obj.object_ref();
-                }
-            }
-        }
-    }
 
     let raw_input_object_kinds = transaction
         .input_objects()
@@ -677,8 +657,10 @@ fn load_receiving_objects(
                 id: objref.object_id,
                 version: Some(objref.version),
             })?;
-        let updated_ref = obj.object_ref();
-        receiving_objects.push(ReceivingObjectReadResult::new(updated_ref, obj.into()));
+        // Keep the declared reference, as the node does at signing: the
+        // sign-time checks compare it against the loaded object, so a stale
+        // version or digest is rejected instead of silently accepted.
+        receiving_objects.push(ReceivingObjectReadResult::new(*objref, obj.into()));
     }
     Ok(receiving_objects.into())
 }

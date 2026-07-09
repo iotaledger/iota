@@ -204,13 +204,21 @@ impl ChildObjectResolver for StoreBackend<'_> {
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
-        // A receiving object must be address-owned by `owner`; anything else
-        // reads as absent so the receive aborts like it does on-chain.
+        // Resolve the store's *current* version and require it to equal the
+        // declared one — never a pinned lookup, which a networked store could
+        // satisfy from historical chain state. The current-version check
+        // stands in for the node's received-object marker: once a receive
+        // bumps the object past the declared version, that version reads as
+        // absent and the receive aborts like it does on-chain. The object must
+        // also be address-owned by `owner`; anything else reads as absent too.
         Ok(self
             .inner
-            .get_object(receiving_object_id, Some(receive_object_at_version))
+            .get_object(receiving_object_id, None)
             .map_err(|e| IotaError::Storage(e.to_string()))?
-            .filter(|obj| obj.owner == iota_sdk_types::Owner::Address((*owner).into())))
+            .filter(|obj| {
+                obj.version() == receive_object_at_version
+                    && obj.owner == iota_sdk_types::Owner::Address((*owner).into())
+            }))
     }
 }
 
@@ -221,9 +229,10 @@ mod tests {
         base_types::SequenceNumber,
         digests::TransactionDigest,
         object::{MoveObject, MoveObjectExt, Object},
+        storage::ChildObjectResolver,
     };
 
-    use super::{InMemoryStore, Store};
+    use super::{InMemoryStore, Store, StoreBackend};
 
     #[test]
     fn get_child_object_requires_parent_ownership() {
@@ -258,6 +267,46 @@ mod tests {
         assert!(
             store
                 .get_child_object(&parent, &child_id, low)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn receiving_resolves_only_the_current_version_for_the_owner() {
+        let parent = ObjectId::random();
+        let stranger = ObjectId::random();
+        let current = SequenceNumber::from(5);
+        let child = Object::new_move(
+            MoveObject::new_gas_coin(current, ObjectId::random(), 1),
+            Owner::Address(parent.into()),
+            TransactionDigest::ZERO,
+        );
+        let child_id = child.id();
+
+        let mut store = InMemoryStore::new();
+        store.insert(child);
+        let backend = StoreBackend::new(&store);
+
+        // The current version, address-owned by the parent, is receivable.
+        assert!(
+            backend
+                .get_object_received_at_version(&parent, &child_id, current, 0)
+                .unwrap()
+                .is_some()
+        );
+        // An older declared version reads as absent: the object was received
+        // past it, so the receive must abort like it does on-chain.
+        assert!(
+            backend
+                .get_object_received_at_version(&parent, &child_id, SequenceNumber::from(4), 0)
+                .unwrap()
+                .is_none()
+        );
+        // A parent that does not own the object cannot receive it.
+        assert!(
+            backend
+                .get_object_received_at_version(&stranger, &child_id, current, 0)
                 .unwrap()
                 .is_none()
         );
