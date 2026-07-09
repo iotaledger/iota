@@ -798,15 +798,12 @@ impl CheckpointExecutor {
 
             // Landing here means the contents were not synced via state sync
             // but produced locally (or the cache entry was evicted). Cache the
-            // assembled contents so state-sync peers — e.g. a validator's
-            // SSFNs — are served the freshest checkpoints without
-            // reconstruction, speeding up checkpoint propagation.
+            // assembled contents so state-sync peers are served the freshest
+            // checkpoints without reconstruction, speeding up checkpoint
+            // propagation.
             //
             // The assembly clones every transaction and effect, so skip it
-            // when the cache wouldn't retain the entry: cache disabled, or
-            // deep catch-up, where the cache window rides the state-sync
-            // frontier far ahead of the executor and would evict this entry
-            // immediately.
+            // when the cache wouldn't retain the entry (see `should_cache`).
             if self
                 .checkpoint_store
                 .should_cache_full_checkpoint_contents(seq)

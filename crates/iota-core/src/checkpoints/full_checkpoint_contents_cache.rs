@@ -171,9 +171,8 @@ impl FullCheckpointContentsCache {
     }
 
     /// Whether contents for `seq` are worth assembling and inserting: false
-    /// when the cache is disabled, and false when the cache is at budget and
-    /// `seq` is older than everything cached — lowest-seq eviction would
-    /// remove the entry immediately.
+    /// when the cache is disabled, and false when `seq` is older than
+    /// everything cached — lowest-seq eviction would drop the entry again.
     ///
     /// Lets callers skip the expensive contents assembly that precedes
     /// [`Self::insert`], e.g. the checkpoint executor during deep catch-up,
@@ -183,12 +182,12 @@ impl FullCheckpointContentsCache {
         if self.max_bytes == 0 {
             return false;
         }
+
         let inner = self.inner.lock();
-        inner.total_bytes < self.max_bytes
-            || inner
-                .by_seq
-                .first_key_value()
-                .is_none_or(|(lowest, _)| seq >= *lowest)
+        inner
+            .by_seq
+            .first_key_value()
+            .is_none_or(|(lowest, _)| seq >= *lowest)
     }
 
     /// Inserts the contents for a checkpoint and evicts the lowest sequence
@@ -446,38 +445,36 @@ mod tests {
     }
 
     #[test]
-    fn skips_inserts_below_the_window_of_a_full_cache() {
+    fn skips_below_window_inserts_after_eviction_under_budget() {
         let cache = FullCheckpointContentsCache::new(
-            200,
+            250,
             FullCheckpointContentsCacheMetrics::new_for_tests(),
         );
-        let (digest_a, contents_a) = entry(1);
-        let (digest_b, contents_b) = entry(2);
-        cache.insert(10, digest_a, contents_a, 100);
-        cache.insert(11, digest_b, contents_b, 100);
+        // Overflow the budget so an eviction fires and total_bytes lands
+        // strictly under budget — the realistic steady state, not the
+        // exact-at-budget edge.
+        cache.insert(10, entry(1).0, entry(1).1, 100);
+        cache.insert(11, entry(2).0, entry(2).1, 100);
+        cache.insert(12, entry(3).0, entry(3).1, 100);
+        assert!(cache.get_by_seq(10).is_none());
+        assert_eq!(cache.metrics.evictions.get(), 1);
+        assert_eq!(cache.metrics.total_bytes.get(), 200); // under the 250 budget
 
-        // At budget: entries older than the cached window would be evicted
-        // immediately, newer ones displace the window.
+        // Below the window: skipped even with headroom, since eviction would
+        // drop it again.
         assert!(!cache.should_cache(5));
-        assert!(cache.should_cache(12));
+        // In or above the window: worth caching.
+        assert!(cache.should_cache(11));
+        assert!(cache.should_cache(13));
 
-        let (digest_c, contents_c) = entry(3);
-        cache.insert(5, digest_c, contents_c, 100);
+        // insert enforces the same guard: a below-window entry that would
+        // exceed the budget is dropped without disturbing the window.
+        let (digest_e, contents_e) = entry(4);
+        cache.insert(5, digest_e, contents_e, 100);
         assert!(cache.get_by_seq(5).is_none());
-        assert!(cache.get_by_digest(&digest_c).is_none());
-        assert!(cache.get_by_seq(10).is_some());
+        assert!(cache.get_by_digest(&digest_e).is_none());
         assert!(cache.get_by_seq(11).is_some());
-        assert_eq!(cache.metrics.evictions.get(), 0);
-
-        // With byte headroom, entries below the window are retained.
-        let (digest_d, contents_d) = entry(4);
-        let roomy = FullCheckpointContentsCache::new(
-            1000,
-            FullCheckpointContentsCacheMetrics::new_for_tests(),
-        );
-        roomy.insert(10, digest_a, entry(1).1, 100);
-        assert!(roomy.should_cache(5));
-        roomy.insert(5, digest_d, contents_d, 100);
-        assert!(roomy.get_by_seq(5).is_some());
+        assert!(cache.get_by_seq(12).is_some());
+        assert_eq!(cache.metrics.evictions.get(), 1);
     }
 }
