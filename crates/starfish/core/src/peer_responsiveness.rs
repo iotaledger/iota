@@ -1,24 +1,23 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Shared per-peer responsiveness tracking and ranking for synchronizer peer
-//! selection.
+//! Per-peer responsiveness tracking and ranking for transaction-synchronizer
+//! peer selection.
 //!
-//! The transactions synchronizer and the commit syncer both pick peers to
-//! fetch missing data from. Historically they shuffled candidates uniformly and
-//! never reused the per-fetch latency they already measure. On a node with slow
-//! or asymmetric inbound links this regularly draws slow-but-not-failing peers,
-//! adding avoidable latency to payload/commit retrieval.
+//! The transactions synchronizer picks peers to fetch missing transactions
+//! from. Historically it shuffled candidates uniformly and never reused the
+//! per-fetch latency it already measures. On a node with slow or asymmetric
+//! inbound links this regularly draws slow-but-not-failing peers, adding
+//! avoidable latency to payload retrieval.
 //!
-//! [`PeerResponsiveness`] tracks a per-peer, per-[`DataSource`] smoothed
-//! "effective latency" fed by those existing latency/outcome signals, and
-//! exposes [`PeerResponsiveness::prioritize`] which reorders an
-//! already-eligible candidate set to prefer responsive peers. It is a
-//! preference within the candidate set, never a change of membership: the
-//! caller's eligibility/safety bounds (quorum/acknowledger constraints, the
-//! f+1-stake failure exclusion) are unaffected, and every fetched response is
-//! still fully verified, so a peer that merely appears fast is never trusted to
-//! deliver.
+//! [`PeerResponsiveness`] tracks a per-peer smoothed "effective latency" fed by
+//! those existing latency/outcome signals, and exposes
+//! [`PeerResponsiveness::prioritize`] which reorders an already-eligible
+//! candidate set to prefer responsive peers. It is a preference within the
+//! candidate set, never a change of membership: the caller's eligibility/safety
+//! bounds (the f+1-stake failure exclusion) are unaffected, and every fetched
+//! response is still fully verified, so a peer that merely appears fast is
+//! never trusted to deliver.
 //!
 //! Selection is a weighted random permutation: a candidate's probability of
 //! being tried first is proportional to a power of its inverse effective
@@ -38,14 +37,10 @@ use starfish_config::{AuthorityIndex, Committee};
 use crate::{dag_state::DataSource, metrics::Metrics};
 
 impl DataSource {
-    /// Fetch sources tracked for peer-responsiveness ranking. Only outbound,
-    /// peer-selecting fetches appear here; other sources have no peer to rank.
-    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 4] = [
-        DataSource::TransactionSynchronizer,
-        DataSource::CommitSyncer,
-        DataSource::FastCommitSyncer,
-        DataSource::HeaderSynchronizer,
-    ];
+    /// Fetch sources ranked by peer responsiveness. Only the transactions
+    /// synchronizer selects peers this way; other sources are not ranked.
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 1] =
+        [DataSource::TransactionSynchronizer];
 }
 
 /// Probability that a `prioritize` call ignores ranking and returns a uniform
@@ -80,13 +75,6 @@ struct PeerStat {
     /// Smoothed effective latency in milliseconds; `None` until the first
     /// sample.
     effective_latency_ms: Option<f64>,
-    sample_origin: Option<SampleOrigin>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SampleOrigin {
-    Bootstrap,
-    Observed,
 }
 
 /// Per-fetch-source per-peer statistics, keyed by the fetch source. Each vector
@@ -148,30 +136,6 @@ impl PeerResponsiveness {
         self.update_failure(source, peer, sample);
     }
 
-    /// Seeds an initial prior from a startup peer probe. A later observed fetch
-    /// for the same source replaces this value rather than blending against it.
-    pub(crate) fn record_bootstrap_success(
-        &self,
-        source: DataSource,
-        peer: AuthorityIndex,
-        latency: Duration,
-    ) {
-        let sample = (latency.as_secs_f64() * 1_000.0).max(MIN_LATENCY_MS);
-        self.update_bootstrap(source, peer, sample);
-    }
-
-    /// Seeds an initial failure prior from a startup peer probe. Bootstrap
-    /// values may be overwritten by later bootstrap or observed fetches.
-    pub(crate) fn record_bootstrap_failure_with_timeout(
-        &self,
-        source: DataSource,
-        peer: AuthorityIndex,
-        timeout: Duration,
-    ) {
-        let sample = (timeout.as_secs_f64() * 1_000.0).max(NEUTRAL_LATENCY_MS);
-        self.update_bootstrap(source, peer, sample);
-    }
-
     fn update(&self, source: DataSource, peer: AuthorityIndex, sample: f64, alpha: f64) {
         let snapshot = {
             let mut tracks = self.inner.lock();
@@ -183,11 +147,9 @@ impl PeerResponsiveness {
             };
             let new = match stat.effective_latency_ms {
                 None => sample,
-                Some(_) if stat.sample_origin == Some(SampleOrigin::Bootstrap) => sample,
                 Some(prev) => (1.0 - alpha) * prev + alpha * sample,
             };
             stat.effective_latency_ms = Some(new);
-            stat.sample_origin = Some(SampleOrigin::Observed);
             Self::latency_snapshot(track)
         };
 
@@ -208,27 +170,6 @@ impl PeerResponsiveness {
                 Some(prev) => prev.max(sample),
             };
             stat.effective_latency_ms = Some(new);
-            stat.sample_origin = Some(SampleOrigin::Observed);
-            Self::latency_snapshot(track)
-        };
-
-        self.publish_expected_latencies(source, &snapshot);
-    }
-
-    fn update_bootstrap(&self, source: DataSource, peer: AuthorityIndex, sample: f64) {
-        let snapshot = {
-            let mut tracks = self.inner.lock();
-            let Some(track) = tracks.per_kind.get_mut(&source) else {
-                return;
-            };
-            let Some(stat) = track.get_mut(peer.value()) else {
-                return;
-            };
-            if stat.sample_origin == Some(SampleOrigin::Observed) {
-                return;
-            }
-            stat.effective_latency_ms = Some(sample);
-            stat.sample_origin = Some(SampleOrigin::Bootstrap);
             Self::latency_snapshot(track)
         };
 
@@ -428,16 +369,16 @@ mod tests {
     fn prioritize_preserves_membership() {
         let pr = responsiveness(7);
         // Give peers a spread of scores, including a failure and untried peers.
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(10));
-        pr.record_success(DataSource::CommitSyncer, idx(2), ms(900));
-        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(3), ms(2_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(900));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(3), ms(2_000));
         // idx(4), idx(5), idx(6) remain untried.
 
         let candidates = vec![idx(1), idx(2), idx(3), idx(4), idx(5), idx(6)];
         for seed in 0..200u64 {
             let mut c = candidates.clone();
             let mut rng = StdRng::seed_from_u64(seed);
-            pr.prioritize(DataSource::CommitSyncer, &mut c, &mut rng);
+            pr.prioritize(DataSource::TransactionSynchronizer, &mut c, &mut rng);
             let mut sorted = c.clone();
             sorted.sort();
             let mut expected = candidates.clone();
@@ -484,13 +425,13 @@ mod tests {
     #[test]
     fn failure_makes_a_fast_peer_slow() {
         let pr = responsiveness(4);
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(10));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
         let before = pr
-            .effective_latency_ms(DataSource::CommitSyncer, idx(1))
+            .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
-        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(1), ms(2_000));
         let after = pr
-            .effective_latency_ms(DataSource::CommitSyncer, idx(1))
+            .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
         assert!(after > before);
         assert_eq!(after, 2_000.0);
@@ -499,10 +440,10 @@ mod tests {
     #[test]
     fn timeout_failure_sets_timeout_penalty() {
         let pr = responsiveness(4);
-        pr.record_success(DataSource::HeaderSynchronizer, idx(1), ms(10));
-        pr.record_failure_with_timeout(DataSource::HeaderSynchronizer, idx(1), ms(2_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(1), ms(2_000));
         assert_eq!(
-            pr.effective_latency_ms(DataSource::HeaderSynchronizer, idx(1)),
+            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
             Some(2_000.0)
         );
     }
@@ -510,56 +451,11 @@ mod tests {
     #[test]
     fn failure_never_improves_a_slow_peer() {
         let pr = responsiveness(4);
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(10_000));
-        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10_000));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(1), ms(2_000));
         assert_eq!(
-            pr.effective_latency_ms(DataSource::CommitSyncer, idx(1)),
+            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
             Some(10_000.0)
-        );
-    }
-
-    #[test]
-    fn bootstrap_success_replaces_bootstrap_failure() {
-        let pr = responsiveness(4);
-        pr.record_bootstrap_failure_with_timeout(
-            DataSource::TransactionSynchronizer,
-            idx(1),
-            ms(5_000),
-        );
-        pr.record_bootstrap_success(DataSource::TransactionSynchronizer, idx(1), ms(150));
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
-            Some(150.0)
-        );
-    }
-
-    #[test]
-    fn observed_success_replaces_bootstrap_prior() {
-        let pr = responsiveness(4);
-        pr.record_bootstrap_failure_with_timeout(
-            DataSource::TransactionSynchronizer,
-            idx(1),
-            ms(5_000),
-        );
-        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(200));
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
-            Some(200.0)
-        );
-    }
-
-    #[test]
-    fn bootstrap_does_not_override_observed_sample() {
-        let pr = responsiveness(4);
-        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(200));
-        pr.record_bootstrap_failure_with_timeout(
-            DataSource::TransactionSynchronizer,
-            idx(1),
-            ms(5_000),
-        );
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
-            Some(200.0)
         );
     }
 
@@ -585,44 +481,22 @@ mod tests {
     }
 
     #[test]
-    fn per_kind_isolation() {
-        // Each call site tracks the same peer independently, so the
-        // millisecond-scale transaction track is never polluted by the
-        // second-scale commit tracks (regular vs fast are also distinct).
-        let pr = responsiveness(4);
-        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(5));
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(5_000));
-        pr.record_success(DataSource::FastCommitSyncer, idx(1), ms(9_000));
-        pr.record_success(DataSource::HeaderSynchronizer, idx(1), ms(50));
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
-            Some(5.0)
-        );
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::CommitSyncer, idx(1)),
-            Some(5_000.0)
-        );
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::FastCommitSyncer, idx(1)),
-            Some(9_000.0)
-        );
-        assert_eq!(
-            pr.effective_latency_ms(DataSource::HeaderSynchronizer, idx(1)),
-            Some(50.0)
-        );
-    }
-
-    #[test]
     fn fast_peer_leads_most_but_is_bounded() {
         let pr = responsiveness(5);
         // idx(1) clearly fastest; the rest are slow.
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(10));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
         for p in [2u8, 3, 4] {
-            pr.record_success(DataSource::CommitSyncer, idx(p), ms(1_000));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(p), ms(1_000));
         }
         let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
         let trials = 10_000;
-        let counts = lead_counts(&pr, DataSource::CommitSyncer, &candidates, trials, 42);
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            trials,
+            42,
+        );
         let fast_leads = *counts.get(&idx(1)).unwrap_or(&0);
         let fast_fraction = fast_leads as f64 / trials as f64;
         // The fast peer leads far more than uniform (0.25)...
@@ -760,17 +634,17 @@ mod tests {
     #[test]
     fn transient_failure_recovers_within_bounded_successes() {
         let pr = responsiveness(4);
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(20));
-        pr.record_failure_with_timeout(DataSource::CommitSyncer, idx(1), ms(2_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(20));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(1), ms(2_000));
         let penalized = pr
-            .effective_latency_ms(DataSource::CommitSyncer, idx(1))
+            .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
         // A bounded number of good samples brings it back near its fast latency.
         for _ in 0..10 {
-            pr.record_success(DataSource::CommitSyncer, idx(1), ms(20));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(20));
         }
         let recovered = pr
-            .effective_latency_ms(DataSource::CommitSyncer, idx(1))
+            .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
         assert!(recovered < penalized);
         assert!(recovered < NEUTRAL_LATENCY_MS, "recovered to {recovered}");
@@ -781,9 +655,9 @@ mod tests {
         let pr = responsiveness(5);
         // One fast peer among slow ones: the weighted expectation should sit well
         // below the uniform average, the latency the ranking saves.
-        pr.record_success(DataSource::CommitSyncer, idx(1), ms(50));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(50));
         for p in [2u8, 3, 4] {
-            pr.record_success(DataSource::CommitSyncer, idx(p), ms(800));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(p), ms(800));
         }
 
         let gauge = &pr
@@ -791,10 +665,10 @@ mod tests {
             .node_metrics
             .peer_responsiveness_expected_latency_ms;
         let uniform = gauge
-            .with_label_values(&[DataSource::CommitSyncer.as_str(), "uniform"])
+            .with_label_values(&[DataSource::TransactionSynchronizer.as_str(), "uniform"])
             .get();
         let weighted = gauge
-            .with_label_values(&[DataSource::CommitSyncer.as_str(), "weighted"])
+            .with_label_values(&[DataSource::TransactionSynchronizer.as_str(), "weighted"])
             .get();
 
         // Uniform is the plain average over measured peers.

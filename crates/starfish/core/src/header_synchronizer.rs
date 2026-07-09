@@ -20,7 +20,6 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
-use rand::thread_rng;
 #[cfg(not(test))]
 use rand::{
     SeedableRng,
@@ -641,15 +640,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     ))
 
                 },
-                Some((response, blocks_guard, retries, _peer, highest_rounds, latency)) = requests.next() => {
+                Some((response, blocks_guard, retries, _peer, highest_rounds)) = requests.next() => {
                     match response {
                         Ok(blocks) => {
-                            let requested = blocks_guard.block_refs.len();
-                            // Include processing/verification time so the
-                            // responsiveness latency spans fetch and verify,
-                            // consistent with the commit syncer.
-                            let process_started = Instant::now();
-                            match Self::process_fetched_headers_from_authority(blocks,
+                            if let Err(err) = Self::process_fetched_headers_from_authority(blocks,
                                 peer_index,
                                 blocks_guard,
                                 core_dispatcher.clone(),
@@ -663,26 +657,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 "live",
                                 misbehavior_store.clone(),
                             ).await {
-                                Ok(matched_requested) => {
-                                    Self::record_header_fetch_responsiveness(&context, peer_index, requested, matched_requested, latency + process_started.elapsed());
-                                }
-                                Err(err) => {
-                                    context.peer_responsiveness.record_failure_with_timeout(
-                                        DataSource::HeaderSynchronizer,
-                                        peer_index,
-                                        FETCH_REQUEST_TIMEOUT,
-                                    );
-                                    warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
-                                    context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
-                                }
+                                warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
+                                context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             }
                         },
                         Err(_) => {
-                            context.peer_responsiveness.record_failure_with_timeout(
-                                DataSource::HeaderSynchronizer,
-                                peer_index,
-                                FETCH_REQUEST_TIMEOUT,
-                            );
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             if retries <= MAX_RETRIES {
                                 requests.push(Self::fetch_block_headers_request(network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, retries))
@@ -719,9 +698,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         commands_sender: Sender<Command>,
         sync_method: &str,
         misbehavior_store: Arc<MisbehaviorStore>,
-    ) -> ConsensusResult<usize> {
+    ) -> ConsensusResult<()> {
         if serialized_headers.is_empty() {
-            return Ok(0);
+            return Ok(());
         }
         let _s = context
             .metrics
@@ -738,8 +717,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         // Verify all the fetched block headers
-        let requested_block_refs = requested_blocks_guard.block_refs.clone();
-        let (block_headers, matched_requested) = Handle::current()
+        let block_headers = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
                 let verified_cache = verified_cache.clone();
@@ -755,7 +733,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         peer_index,
                         &sync_method,
                         &misbehavior_store,
-                        requested_block_refs,
                     )
                 }
             })
@@ -801,6 +778,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             DataSource::HeaderSynchronizer,
             |header| header.round(),
         );
+
         // Now send them to core for processing. Ignore the returned missing blocks as
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
@@ -843,7 +821,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
         }
 
-        Ok(matched_requested)
+        Ok(())
     }
 
     fn get_highest_accepted_rounds(
@@ -869,21 +847,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer_index: AuthorityIndex,
         sync_method: &str,
         misbehavior_store: &MisbehaviorStore,
-        requested_block_refs: BTreeSet<BlockRef>,
-    ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, usize)> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut verified_block_headers = Vec::new();
         let mut skipped_count = 0u64;
-        let requested_digests: HashSet<_> = requested_block_refs
-            .into_iter()
-            .map(|block_ref| block_ref.digest)
-            .collect();
-        let mut matched_requested_digests = HashSet::new();
 
         for serialized_block_header in serialized_block_headers {
             let block_header_digest = VerifiedBlockHeader::compute_digest(&serialized_block_header);
-            if requested_digests.contains(&block_header_digest) {
-                matched_requested_digests.insert(block_header_digest);
-            }
             // Check if this block header has already been verified
             if verified_cache.lock().get(&block_header_digest).is_some() {
                 skipped_count += 1;
@@ -953,7 +922,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .inc_by(skipped_count);
         }
 
-        Ok((verified_block_headers, matched_requested_digests.len()))
+        Ok(verified_block_headers)
     }
 
     async fn fetch_block_headers_request(
@@ -969,7 +938,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         u32,
         AuthorityIndex,
         Vec<Round>,
-        Duration,
     ) {
         let start = Instant::now();
         let resp = timeout(
@@ -989,11 +957,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         fail_point_async!("consensus-delay");
 
-        // Network latency of this attempt, captured before the retry back-off
-        // sleep below. The caller adds processing/verification time before
-        // recording the responsiveness signal.
-        let latency = start.elapsed();
-
         let resp = match resp {
             Ok(Err(err)) => {
                 // Add a delay before retrying - if that is needed. If request has timed out
@@ -1010,61 +973,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
             Ok(result) => result,
         };
-        (resp, blocks_guard, retries, peer, highest_rounds, latency)
+        (resp, blocks_guard, retries, peer, highest_rounds)
     }
-
-    /// Feeds a header fetch outcome into the per-peer responsiveness signal.
-    /// `latency` spans fetch and verification. `matched_requested` counts
-    /// unique requested headers returned by the peer, including headers that
-    /// were already in the verified cache. Additional ancestors remain useful
-    /// to the synchronizer but do not improve the peer's responsiveness score.
-    fn record_header_fetch_responsiveness(
-        context: &Context,
-        peer: AuthorityIndex,
-        requested: usize,
-        matched_requested: usize,
-        latency: Duration,
-    ) {
-        if matched_requested == 0 {
-            context.peer_responsiveness.record_failure_with_timeout(
-                DataSource::HeaderSynchronizer,
-                peer,
-                FETCH_REQUEST_TIMEOUT,
-            );
-        } else {
-            let shortfall_factor = (requested as f64 / matched_requested as f64).max(1.0);
-            context.peer_responsiveness.record_success(
-                DataSource::HeaderSynchronizer,
-                peer,
-                latency.mul_f64(shortfall_factor),
-            );
-        }
-    }
-
-    fn record_startup_peer_probe_success(
-        context: &Context,
-        peer: AuthorityIndex,
-        latency: Duration,
-    ) {
-        for kind in DataSource::RESPONSIVENESS_SOURCES {
-            context
-                .peer_responsiveness
-                .record_bootstrap_success(kind, peer, latency);
-        }
-    }
-
-    fn record_startup_peer_probe_failure(
-        context: &Context,
-        peer: AuthorityIndex,
-        timeout: Duration,
-    ) {
-        for kind in DataSource::RESPONSIVENESS_SOURCES {
-            context
-                .peer_responsiveness
-                .record_bootstrap_failure_with_timeout(kind, peer, timeout);
-        }
-    }
-
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     fn start_fetch_own_last_block_header_task(&mut self) {
         const FETCH_OWN_BLOCK_HEADER_RETRY_DELAY: Duration = Duration::from_millis(1_000);
@@ -1086,9 +996,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     let own_index = context.own_index;
                     async move {
                         sleep(fetch_own_block_header_delay).await;
-                        let started = Instant::now();
                         let r = network_client_cloned.fetch_latest_block_headers(authority_index, vec![own_index], FETCH_REQUEST_TIMEOUT).await;
-                        (r, authority_index, started.elapsed())
+                        (r, authority_index)
                     }
                 };
 
@@ -1163,26 +1072,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     'inner: loop {
                         tokio::select! {
                             result = results.next() => {
-                                let Some((result, authority_index, latency)) = result else {
+                                let Some((result, authority_index)) = result else {
                                     break 'inner;
                                 };
                                 match result {
                                     Ok(result) => {
                                         match process_block_headers(result, authority_index) {
                                             Ok(block_headers) => {
-                                                if block_headers.is_empty() {
-                                                    Self::record_startup_peer_probe_failure(
-                                                        &context,
-                                                        authority_index,
-                                                        FETCH_REQUEST_TIMEOUT,
-                                                    );
-                                                } else {
-                                                    Self::record_startup_peer_probe_success(
-                                                        &context,
-                                                        authority_index,
-                                                        latency,
-                                                    );
-                                                }
                                                 received_response[authority_index] = true;
                                                 let max_round = block_headers.into_iter().map(|b|b.round()).max().unwrap_or(0);
                                                 highest_round = highest_round.max(max_round);
@@ -1190,36 +1086,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 total_stake += context.committee.stake(authority_index);
                                             },
                                             Err(err) => {
-                                                Self::record_startup_peer_probe_failure(
-                                                    &context,
-                                                    authority_index,
-                                                    FETCH_REQUEST_TIMEOUT,
-                                                );
                                                 warn!("Invalid result returned from {authority_index} while fetching last own block header: {err}");
                                             }
                                         }
                                     },
                                     Err(err) => {
-                                        Self::record_startup_peer_probe_failure(
-                                            &context,
-                                            authority_index,
-                                            FETCH_REQUEST_TIMEOUT,
-                                        );
                                         warn!("Error {err} while fetching our own block header from peer {authority_index}. Will retry.");
                                         results.push(fetch_own_block_header(authority_index, FETCH_OWN_BLOCK_HEADER_RETRY_DELAY));
                                     }
                                 }
                             },
                             () = &mut timer => {
-                                for (authority_index, _authority) in context.committee.authorities() {
-                                    if !received_response[authority_index] {
-                                        Self::record_startup_peer_probe_failure(
-                                            &context,
-                                            authority_index,
-                                            context.parameters.sync_last_known_own_block_timeout,
-                                        );
-                                    }
-                                }
                                 info!("Timeout while trying to sync our own last block header from peers");
                                 break 'inner;
                             }
@@ -1348,15 +1225,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
                 // Now process the returned results
                 let mut total_fetched = 0;
-                for (blocks_guard, serialized_fetched_block_headers, peer, latency) in results {
-                    let requested = blocks_guard.block_refs.len();
+                for (blocks_guard, serialized_fetched_block_headers, peer) in results {
                     total_fetched += serialized_fetched_block_headers.len();
 
-                    // Include processing/verification time so the responsiveness
-                    // latency spans fetch and verify, consistent with the commit
-                    // syncer.
-                    let process_started = Instant::now();
-                    match Self::process_fetched_headers_from_authority(
+                    if let Err(err) = Self::process_fetched_headers_from_authority(
                         serialized_fetched_block_headers,
                         peer,
                         blocks_guard,
@@ -1373,19 +1245,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     )
                     .await
                     {
-                        Ok(matched_requested) => {
-                            Self::record_header_fetch_responsiveness(&context, peer, requested, matched_requested, latency + process_started.elapsed());
-                        }
-                        Err(err) => {
-                            context.peer_responsiveness.record_failure_with_timeout(
-                                DataSource::HeaderSynchronizer,
-                                peer,
-                                FETCH_REQUEST_TIMEOUT,
-                            );
-                            warn!(
-                                "Error occurred while processing fetched block headers from peer {peer}: {err}"
-                            );
-                        }
+                        warn!(
+                            "Error occurred while processing fetched block headers from peer {peer}: {err}"
+                        );
                     }
                 }
 
@@ -1441,7 +1303,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         network_client: Arc<C>,
         missing_block_headers_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
-    ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex, Duration)> {
+    ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
         // Step 1: Map authorities to missing block headers refs that they are aware of
         let mut authority_to_block_headers_refs: HashMap<AuthorityIndex, Vec<BlockRef>> =
             HashMap::new();
@@ -1458,43 +1320,62 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
         }
 
-        // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who
-        // are aware of some missing block headers, preferring more responsive
-        // peers when ranking is enabled. Steps 3+ below still draw random and
-        // fallback peers, so exploration is preserved.
+        // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
+        // aware of some missing block headers
 
         #[cfg(not(test))]
         let mut rng = StdRng::from_entropy();
 
-        let mut aware_peers: Vec<AuthorityIndex> =
-            authority_to_block_headers_refs.keys().copied().collect();
-        if context.parameters.enable_peer_responsiveness_ranking {
-            let mut ranking_rng = thread_rng();
-            context.peer_responsiveness.prioritize(
-                DataSource::HeaderSynchronizer,
-                &mut aware_peers,
-                &mut ranking_rng,
-            );
-        } else {
-            // Without ranking: random order in production, stable order in tests.
-            #[cfg(not(test))]
-            aware_peers.shuffle(&mut rng);
-            #[cfg(test)]
-            aware_peers.sort();
-        }
-        let mut chosen_peers_with_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
-            aware_peers
+        // Randomly pick up MAX_PEERS - MAX_RANDOM_PEERS authorities that are aware of
+        // missing block headers
+        #[cfg(not(test))]
+        let mut chosen_peers_with_block_headers: Vec<(
+            AuthorityIndex,
+            Vec<BlockRef>,
+            &str,
+        )> = authority_to_block_headers_refs
+            .iter()
+            .choose_multiple(
+                &mut rng,
+                MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS,
+            )
+            .into_iter()
+            .map(|(&peer, block_refs)| {
+                let limited_block_refs = block_refs
+                    .iter()
+                    .copied()
+                    .take(context.parameters.max_headers_per_header_sync_fetch)
+                    .collect();
+                (peer, limited_block_refs, "periodic_known")
+            })
+            .collect();
+        #[cfg(test)]
+        // Deterministically pick the smallest (MAX_PEERS - MAX_RANDOM_PEERS) authority indices
+        let mut chosen_peers_with_block_headers: Vec<(
+            AuthorityIndex,
+            Vec<BlockRef>,
+            &str,
+        )> = {
+            let mut items: Vec<(AuthorityIndex, Vec<BlockRef>, &str)> =
+                authority_to_block_headers_refs
+                    .iter()
+                    .map(|(&peer, block_refs)| {
+                        let limited_block_refs = block_refs
+                            .iter()
+                            .copied()
+                            .take(context.parameters.max_headers_per_header_sync_fetch)
+                            .collect();
+                        (peer, limited_block_refs, "periodic_known")
+                    })
+                    .collect();
+            // Sort by AuthorityIndex (natural order), then take the first MAX_PEERS -
+            // MAX_RANDOM_PEERS
+            items.sort_by_key(|(peer, _, _)| *peer);
+            items
                 .into_iter()
                 .take(MAX_PERIODIC_SYNC_PEERS - MAX_PERIODIC_SYNC_RANDOM_PEERS)
-                .map(|peer| {
-                    let limited_block_refs = authority_to_block_headers_refs[&peer]
-                        .iter()
-                        .copied()
-                        .take(context.parameters.max_headers_per_header_sync_fetch)
-                        .collect();
-                    (peer, limited_block_refs, "periodic_known")
-                })
-                .collect();
+                .collect()
+        };
 
         // Step 3: Choose at most MAX_PERIODIC_SYNC_RANDOM_PEERS random peers not known
         // to be aware of the missing block headers
@@ -1643,12 +1524,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         loop {
             tokio::select! {
-                Some((response, blocks_guard, _retries, peer_index, highest_rounds, latency)) = request_futures.next() => {
+                Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_block_headers) => {
                             info!("Fetched {} block headers from peer {}", fetched_block_headers.len(), peer_hostname);
-                            results.push((blocks_guard, fetched_block_headers, peer_index, latency));
+                            results.push((blocks_guard, fetched_block_headers, peer_index));
 
                             // no more pending requests are left, just break the loop
                             if request_futures.is_empty() {
@@ -1656,11 +1537,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             }
                         },
                         Err(_) => {
-                            context.peer_responsiveness.record_failure_with_timeout(
-                                DataSource::HeaderSynchronizer,
-                                peer_index,
-                                FETCH_REQUEST_TIMEOUT,
-                            );
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "periodic"]).inc();
                             // try again if there is any peer left
                             if let Some(next_peer) = remaining_peers.next() {
@@ -2974,19 +2850,6 @@ mod tests {
             10
         );
 
-        for kind in DataSource::RESPONSIVENESS_SOURCES {
-            for peer in 1..=3 {
-                let latency = context
-                    .peer_responsiveness
-                    .effective_latency_ms(kind, AuthorityIndex::new_for_test(peer))
-                    .expect("startup latest-header probe should seed responsiveness prior");
-                assert!(
-                    latency < 100.0,
-                    "retry success should replace the startup timeout prior for {kind:?} peer {peer}, got {latency}"
-                );
-            }
-        }
-
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await {
             if err.is_panic() {
@@ -3166,7 +3029,7 @@ mod tests {
             assert_eq!(results.len(), 3);
 
             // 6) Results in order: peers 2 and 3 (known), then peer 1 (random)
-            let peers: Vec<_> = results.iter().map(|(_, _, peer, _)| *peer).collect();
+            let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
             assert_eq!(
                 peers,
                 vec![
@@ -3177,7 +3040,7 @@ mod tests {
             );
 
             // 7) Verify the returned bytes correspond to that block
-            for (_, bytes, _, _) in &results {
+            for (_, bytes, _) in &results {
                 let expected = missing_vbh.serialized().clone();
                 assert_eq!(bytes, &vec![expected]);
             }
@@ -3324,7 +3187,7 @@ mod tests {
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)
-        let (_guard3, bytes3, peer3, _) = &results[0];
+        let (_guard3, bytes3, peer3) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
         let expected2 = all_verified_block_headers
             [known_number_block_headers..2 * known_number_block_headers]
@@ -3334,7 +3197,7 @@ mod tests {
         assert_eq!(bytes3, &expected2);
 
         // 8) Second fetch from peer 1 (additional random)
-        let (_guard1, bytes1, peer1, _) = &results[1];
+        let (_guard1, bytes1, peer1) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
         let expected1 = all_verified_block_headers
             [0..context.parameters.max_headers_per_header_sync_fetch]
@@ -3344,7 +3207,7 @@ mod tests {
         assert_eq!(bytes1, &expected1);
 
         // 9) Third fetch from peer 4 (additional random)
-        let (_guard4, bytes4, peer4, _) = &results[2];
+        let (_guard4, bytes4, peer4) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
             all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
@@ -3355,7 +3218,7 @@ mod tests {
         assert_eq!(bytes4, &expected4);
 
         // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
-        let (_guard5, bytes5, peer5, _) = &results[3];
+        let (_guard5, bytes5, peer5) = &results[3];
         assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
         let expected5 = all_verified_block_headers[0..known_number_block_headers]
             .iter()
@@ -3449,7 +3312,7 @@ mod tests {
         .await;
 
         // THEN
-        assert_eq!(result.unwrap(), expected_block_refs.len());
+        assert!(result.is_ok());
 
         // Check blocks were sent to core
         let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
@@ -3491,7 +3354,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(result_second.unwrap(), expected_block_refs.len());
+        assert!(result_second.is_ok());
 
         // Verify NO block headers were sent to core on the second call
         // because they were already in the LruCache
@@ -3542,7 +3405,9 @@ mod tests {
             in_window.serialized().clone(),
             far_future.serialized().clone(),
         ];
-        let refs = [in_window.reference()].into_iter().collect::<BTreeSet<_>>();
+        let refs = [in_window.reference(), far_future.reference()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
 
         let peer_index = AuthorityIndex::new_for_test(2);
         let inflight_blocks_map = InflightBlockHeadersMap::new();
@@ -3574,7 +3439,7 @@ mod tests {
             misbehavior_store,
         )
         .await;
-        assert_eq!(result.unwrap(), 1);
+        assert!(result.is_ok());
 
         // Only the in-window header reaches core; the far-future one is dropped.
         let added = core_dispatcher.get_and_drain_block_headers().await;
