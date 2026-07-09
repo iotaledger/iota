@@ -40,6 +40,7 @@ use iota_storage::{
 };
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
+    base_types::ExecutionDigests,
     committee::{Committee, CommitteeChainVerifier},
     digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -48,9 +49,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    messages_checkpoint::{
-        CheckpointContentsExt, CheckpointSequenceNumber, ECMHLiveObjectSetDigest,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     object::Object,
     storage::{EpochInfoV1Entry, EpochInfoV2},
 };
@@ -486,9 +485,9 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
     // 2. The epoch-change effects are the last tx of the verified contents.
     let expected_execution_digest = entry
         .last_checkpoint_contents
-        .inner()
+        .transactions()
         .last()
-        .copied()
+        .map(|info| ExecutionDigests::new(info.transaction, info.effects))
         .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
     let effects = &entry.end_of_epoch_tx_effects;
     anyhow::ensure!(

@@ -770,7 +770,7 @@ impl CheckpointExecutor {
         } else {
             // load items one-by-one
 
-            let digests = checkpoint_contents.inner();
+            let digests = checkpoint_contents.transactions();
 
             let (tx_digests, fx_digests): (Vec<_>, Vec<_>) =
                 digests.iter().map(|d| (d.transaction, d.effects)).unzip();
@@ -1058,7 +1058,7 @@ impl CheckpointExecutor {
                     .min_checkpoint_interval_ms_as_option()
                     .unwrap_or_default(),
             );
-            if let Some(first_digest) = checkpoint_contents.inner().first() {
+            if let Some(first_digest) = checkpoint_contents.transactions().first() {
                 let maybe_randomness_tx = self.transaction_cache_reader.get_transaction_block(&first_digest.transaction)
                 .unwrap_or_else(||
                     fatal!(

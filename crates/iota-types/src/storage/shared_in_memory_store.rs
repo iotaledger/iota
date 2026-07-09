@@ -267,7 +267,7 @@ impl InMemoryStore {
 
         let contents = self.get_checkpoint_contents(digest)?;
 
-        let mut transactions = Vec::with_capacity(contents.size());
+        let mut transactions = Vec::with_capacity(contents.len());
 
         for tx in contents.iter() {
             if let (Some(t), Some(e)) = (

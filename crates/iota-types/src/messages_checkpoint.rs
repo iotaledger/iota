@@ -285,7 +285,7 @@ impl CertifiedCheckpointSummary {
                         "Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions",
                         self.data(),
                         content_digest,
-                        contents.size()
+                        contents.len()
                     )
                 }
             );
@@ -410,12 +410,6 @@ pub trait CheckpointContentsExt: Sized + checkpoint_contents_ext::Sealed {
         &self,
         ckpt: &CheckpointSummary,
     ) -> impl Iterator<Item = (u64, ExecutionDigests)> + '_;
-
-    fn into_inner(self) -> Vec<ExecutionDigests>;
-
-    fn inner(&self) -> Vec<ExecutionDigests>;
-
-    fn size(&self) -> usize;
 }
 
 impl CheckpointContentsExt for CheckpointContents {
@@ -490,23 +484,11 @@ impl CheckpointContentsExt for CheckpointContents {
         &self,
         ckpt: &CheckpointSummary,
     ) -> impl Iterator<Item = (u64, ExecutionDigests)> + '_ {
-        let start = ckpt.network_total_transactions - self.size() as u64;
+        let start = ckpt.network_total_transactions - self.len() as u64;
 
         (0u64..)
             .zip(self.iter())
             .map(move |(i, digests)| (i + start, digests))
-    }
-
-    fn into_inner(self) -> Vec<ExecutionDigests> {
-        self.into_v1().iter().map(execution_digests).collect()
-    }
-
-    fn inner(&self) -> Vec<ExecutionDigests> {
-        self.iter().collect()
-    }
-
-    fn size(&self) -> usize {
-        self.transactions().len()
     }
 }
 

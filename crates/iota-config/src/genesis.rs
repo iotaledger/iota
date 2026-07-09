@@ -27,8 +27,7 @@ use iota_types::{
         get_iota_system_state, get_iota_system_state_wrapper,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
     storage::ObjectStore,
@@ -162,7 +161,7 @@ impl Genesis {
     }
 
     pub fn contains_migrations(&self) -> bool {
-        self.checkpoint_contents.size() > 1
+        self.checkpoint_contents.len() > 1
     }
 
     pub fn iota_system_object(&self) -> IotaSystemState {

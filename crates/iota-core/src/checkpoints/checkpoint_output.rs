@@ -9,9 +9,8 @@ use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
-        SignedCheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };
@@ -204,7 +203,7 @@ impl CheckpointOutput for LogCheckpointOutput {
             summary.epoch,
             summary.sequence_number,
             summary.previous_digest,
-            contents.size(),
+            contents.len(),
             summary.content_digest,
             summary.end_of_epoch_data,
         );

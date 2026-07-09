@@ -168,7 +168,7 @@ impl MockCheckpointBuilder {
                 .checked_add(1)
                 .expect("checkpoint sequence number overflow"),
             network_total_transactions: self.previous_checkpoint.network_total_transactions
-                + contents.size() as u64,
+                + contents.len() as u64,
             content_digest: contents.digest(),
             previous_digest: Some(*self.previous_checkpoint.digest()),
             epoch_rolling_gas_cost_summary,

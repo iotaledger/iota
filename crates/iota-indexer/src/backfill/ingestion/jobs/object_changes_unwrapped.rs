@@ -33,10 +33,10 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
         let transactions = &checkpoint.transactions;
         let checkpoint_seq = checkpoint_summary.sequence_number;
 
-        if checkpoint_contents.size() != transactions.len() {
+        if checkpoint_contents.len() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
                 "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
-                checkpoint_contents.size(),
+                checkpoint_contents.len(),
                 transactions.len()
             )));
         }

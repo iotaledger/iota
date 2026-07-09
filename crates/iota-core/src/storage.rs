@@ -160,7 +160,7 @@ impl ReadStore for RocksDbStore {
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)?
             .map(|contents| {
-                let mut transactions = Vec::with_capacity(contents.size());
+                let mut transactions = Vec::with_capacity(contents.len());
                 for tx in contents.iter() {
                     if let (Some(t), Some(e)) = (
                         self.try_get_transaction(&tx.transaction)?,

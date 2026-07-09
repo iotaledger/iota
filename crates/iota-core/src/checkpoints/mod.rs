@@ -1354,7 +1354,7 @@ impl CheckpointBuilder {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
         let mut batch = self.store.tables.checkpoint_content.batch();
         let mut all_tx_digests =
-            Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.size()).sum());
+            Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.len()).sum());
 
         for (summary, contents) in &new_checkpoints {
             debug!(
@@ -1383,7 +1383,7 @@ impl CheckpointBuilder {
 
             self.metrics
                 .transactions_included_in_checkpoint
-                .inc_by(contents.size() as u64);
+                .inc_by(contents.len() as u64);
             let sequence_number = summary.sequence_number;
             self.metrics
                 .last_constructed_checkpoint
@@ -1739,7 +1739,7 @@ impl CheckpointBuilder {
                 signatures,
             );
 
-            let num_txns = contents.size() as u64;
+            let num_txns = contents.len() as u64;
 
             let network_total_transactions = last_checkpoint
                 .as_ref()
