@@ -154,7 +154,7 @@ const EMinJoiningStakeNotReached: u64 = 5;
 const EAlreadyValidatorCandidate: u64 = 6;
 const EValidatorNotCandidate: u64 = 7;
 const ENotValidatorCandidate: u64 = 8;
-const ENotActiveOrPendingValidator: u64 = 9;
+// Error code 9 is retired (was ENotActiveOrPendingValidator); kept to avoid reuse.
 const EStakingBelowThreshold: u64 = 10;
 const EValidatorAlreadyRemoved: u64 = 11;
 const ENotAPendingValidator: u64 = 12;
@@ -165,6 +165,7 @@ const EInvalidEligibleValidatorIndex: u64 = 16;
 const EInvalidRewardAdjustmentData: u64 = 17;
 const EInvalidScoresData: u64 = 18;
 const EIncompatibleVotingPowerDenominator: u64 = 19;
+const EInvalidValidatorSelector: u64 = 20;
 
 const EInvalidCap: u64 = 101;
 
@@ -229,7 +230,7 @@ public(package) fun new_v2(
 
     // Only assign new committee, no need to call `process_new_committee` which also emits events.
     // All validators are eligible during initialization
-    let all_eligible_indices = vector::tabulate!(validators.active_validators.length(), |i| i);
+    let all_eligible_indices = all_validator_indices(&validators.active_validators);
     validators.committee_members =
         validators.select_committee_members_from_eligible(committee_size, all_eligible_indices);
 
@@ -335,6 +336,8 @@ public(package) fun request_remove_validator_candidate(
 
 /// Called by `iota_system` to add a new validator to `pending_active_validators`, which will be
 /// processed at the end of epoch.
+///
+/// Aborts if the validator contains duplicate metadata values with an active or pending validator.
 public(package) fun request_add_validator(
     self: &mut ValidatorSetV2,
     min_joining_stake_amount: u64,
@@ -422,18 +425,6 @@ public(package) fun request_withdraw_stake(
         wrapper.load_validator_maybe_upgrade()
     };
     validator.request_withdraw_stake(staked_iota, ctx)
-}
-
-// ==== validator config setting functions ====
-
-public(package) fun request_set_commission_rate(
-    self: &mut ValidatorSetV2,
-    new_commission_rate: u64,
-    ctx: &TxContext,
-) {
-    let validator_address = ctx.sender();
-    let validator = get_validator_mut(&mut self.active_validators, validator_address);
-    validator.request_set_commission_rate(new_commission_rate);
 }
 
 // ==== epoch change functions ====
@@ -765,15 +756,15 @@ public(package) fun validator_address_by_pool_id_inner(
 
 public(package) fun pool_exchange_rates(
     self: &mut ValidatorSetV2,
-    pool_id: &ID,
+    pool_id: ID,
 ): &Table<u64, PoolTokenExchangeRate> {
     let validator // If the pool id is recorded in the mapping, then it must be either candidate or active.
-     = if (self.staking_pool_mappings.contains(*pool_id)) {
-        let validator_address = self.staking_pool_mappings[*pool_id];
+     = if (self.staking_pool_mappings.contains(pool_id)) {
+        let validator_address = self.staking_pool_mappings[pool_id];
         get_active_or_pending_or_candidate_validator_ref(self, validator_address, ANY_VALIDATOR)
     } else {
         // otherwise it's inactive
-        let wrapper = &mut self.inactive_validators[*pool_id];
+        let wrapper = &mut self.inactive_validators[pool_id];
         wrapper.load_validator_maybe_upgrade()
     };
     validator.get_staking_pool_ref().exchange_rates()
@@ -854,10 +845,10 @@ fun get_candidate_or_active_validator_mut(
     validator_address: address,
 ): &mut ValidatorV1 {
     if (self.validator_candidates.contains(validator_address)) {
-        let wrapper = &mut self.validator_candidates[validator_address];
-        return wrapper.load_validator_maybe_upgrade()
-    };
-    get_validator_mut(&mut self.active_validators, validator_address)
+        self.candidate_validator_mut(validator_address)
+    } else {
+        self.active_validator_mut(validator_address)
+    }
 }
 
 /// Find validator by `validator_address`, in `validators`.
@@ -901,70 +892,108 @@ fun get_validator_indices_set(
     res
 }
 
-public(package) fun get_validator_mut(
-    validators: &mut vector<ValidatorV1>,
-    validator_address: address,
-): &mut ValidatorV1 {
-    let mut validator_index_opt = find_validator(validators, validator_address);
-    assert!(validator_index_opt.is_some(), ENotAValidator);
-    let validator_index = validator_index_opt.extract();
-    &mut validators[validator_index]
-}
+// === Validator Accessors ===
 
-/// Get mutable reference to an active or (if active does not exist) pending or (if pending and
-/// active do not exist) or candidate validator by address.
-/// Note: this function should be called carefully, only after verifying the transaction
-/// sender has the ability to modify the `ValidatorV1`.
-fun get_active_or_pending_or_candidate_validator_mut(
-    self: &mut ValidatorSetV2,
-    validator_address: address,
-    include_candidate: bool,
-): &mut ValidatorV1 {
-    let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
-    if (validator_index_opt.is_some()) {
-        let validator_index = validator_index_opt.extract();
-        return &mut self.active_validators[validator_index]
+/// Get reference to validator in any state: active, pending, or candidate.
+public(package) fun any_validator(self: &mut ValidatorSetV2, validator: address): &ValidatorV1 {
+    let active_idx = find_validator(&self.active_validators, validator);
+    if (active_idx.is_some()) {
+        return &self.active_validators[active_idx.destroy_some()]
     };
-    let mut validator_index_opt = find_validator_from_table_vec(
+    let pending_idx = find_validator_from_table_vec(
         &self.pending_active_validators,
-        validator_address,
+        validator,
     );
-    // consider both pending validators and the candidate ones
-    if (validator_index_opt.is_some()) {
-        let validator_index = validator_index_opt.extract();
-        return &mut self.pending_active_validators[validator_index]
+    if (pending_idx.is_some()) {
+        return &self.pending_active_validators[pending_idx.destroy_some()]
     };
-    assert!(include_candidate, ENotActiveOrPendingValidator);
-    let wrapper = &mut self.validator_candidates[validator_address];
-    wrapper.load_validator_maybe_upgrade()
+
+    self.validator_candidates[validator].load_validator_maybe_upgrade()
 }
 
-public(package) fun get_validator_mut_with_verified_cap(
+/// Get mutable reference to validator in any state: active, pending, or candidate.
+public(package) fun any_validator_mut(
     self: &mut ValidatorSetV2,
-    verified_cap: &ValidatorOperationCap,
-    include_candidate: bool,
+    validator: address,
 ): &mut ValidatorV1 {
-    get_active_or_pending_or_candidate_validator_mut(
-        self,
-        *verified_cap.verified_operation_cap_address(),
-        include_candidate,
-    )
+    let active_idx = find_validator(&self.active_validators, validator);
+    if (active_idx.is_some()) {
+        return &mut self.active_validators[active_idx.destroy_some()]
+    };
+    let pending_idx = find_validator_from_table_vec(
+        &self.pending_active_validators,
+        validator,
+    );
+    if (pending_idx.is_some()) {
+        return &mut self.pending_active_validators[pending_idx.destroy_some()]
+    };
+
+    self.validator_candidates[validator].load_validator_maybe_upgrade()
 }
 
-public(package) fun get_validator_mut_with_ctx(
-    self: &mut ValidatorSetV2,
-    ctx: &TxContext,
-): &mut ValidatorV1 {
-    let validator_address = ctx.sender();
-    get_active_or_pending_or_candidate_validator_mut(self, validator_address, false)
+/// Get reference to an active validator by address.
+public(package) fun active_validator(self: &ValidatorSetV2, validator: address): &ValidatorV1 {
+    let idx = find_validator(&self.active_validators, validator).destroy_or!(abort ENotAValidator);
+    &self.active_validators[idx]
 }
 
-public(package) fun get_validator_mut_with_ctx_including_candidates(
+/// Get mutable reference to an active validator by address.
+public(package) fun active_validator_mut(
     self: &mut ValidatorSetV2,
-    ctx: &TxContext,
+    validator: address,
 ): &mut ValidatorV1 {
-    let validator_address = ctx.sender();
-    get_active_or_pending_or_candidate_validator_mut(self, validator_address, true)
+    let idx = find_validator(&self.active_validators, validator).destroy_or!(abort ENotAValidator);
+    &mut self.active_validators[idx]
+}
+
+/// Get reference to a pending validator by address.
+public(package) fun pending_validator(self: &ValidatorSetV2, validator: address): &ValidatorV1 {
+    let idx = find_validator_from_table_vec(&self.pending_active_validators, validator).destroy_or!(
+        abort ENotAPendingValidator,
+    );
+    &self.pending_active_validators[idx]
+}
+
+/// Get mutable reference to a pending validator by address.
+public(package) fun pending_validator_mut(
+    self: &mut ValidatorSetV2,
+    validator: address,
+): &mut ValidatorV1 {
+    let idx = find_validator_from_table_vec(
+        &self.pending_active_validators,
+        validator,
+    ).destroy_or!(abort ENotAPendingValidator);
+    &mut self.pending_active_validators[idx]
+}
+
+/// Get reference to a candidate validator by address.
+public(package) fun candidate_validator(
+    self: &mut ValidatorSetV2,
+    validator: address,
+): &ValidatorV1 {
+    assert!(self.validator_candidates.contains(validator), ENotValidatorCandidate);
+    self.validator_candidates[validator].load_validator_maybe_upgrade()
+}
+
+/// Get mutable reference to a candidate validator by address.
+public(package) fun candidate_validator_mut(
+    self: &mut ValidatorSetV2,
+    validator: address,
+): &mut ValidatorV1 {
+    assert!(self.validator_candidates.contains(validator), ENotValidatorCandidate);
+    self.validator_candidates[validator].load_validator_maybe_upgrade()
+}
+
+public(package) fun committee_validator(
+    self: &ValidatorSetV2,
+    validator_address: address,
+): &ValidatorV1 {
+    let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
+    assert!(validator_index_opt.is_some(), ENotAValidator);
+    assert!(self.committee_members.contains(validator_index_opt.borrow()), ENotACommitteeValidator);
+
+    let validator_index = validator_index_opt.extract();
+    &self.active_validators[validator_index]
 }
 
 fun get_validator_ref(validators: &vector<ValidatorV1>, validator_address: address): &ValidatorV1 {
@@ -1018,61 +1047,32 @@ public fun get_pending_validator_ref(
     &self.pending_active_validators[validator_index]
 }
 
-public(package) fun get_active_validator_ref_inner(
-    self: &ValidatorSetV2,
-    validator_address: address,
-): &ValidatorV1 {
-    let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
-    assert!(validator_index_opt.is_some(), ENotAValidator);
-    let validator_index = validator_index_opt.extract();
-    &self.active_validators[validator_index]
-}
-
-public(package) fun get_committee_validator_ref_inner(
-    self: &ValidatorSetV2,
-    validator_address: address,
-): &ValidatorV1 {
-    let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
-    assert!(validator_index_opt.is_some(), ENotAValidator);
-    assert!(self.committee_members.contains(validator_index_opt.borrow()), ENotACommitteeValidator);
-
-    let validator_index = validator_index_opt.extract();
-    &self.active_validators[validator_index]
-}
-
-public(package) fun get_pending_validator_ref_inner(
-    self: &ValidatorSetV2,
-    validator_address: address,
-): &ValidatorV1 {
-    let mut validator_index_opt = find_validator_from_table_vec(
-        &self.pending_active_validators,
-        validator_address,
-    );
-    assert!(validator_index_opt.is_some(), ENotAPendingValidator);
-    let validator_index = validator_index_opt.extract();
-    &self.pending_active_validators[validator_index]
-}
-
-#[test_only]
-public fun get_candidate_validator_ref(
-    self: &ValidatorSetV2,
-    validator_address: address,
-): &ValidatorV1 {
-    self.validator_candidates[validator_address].get_inner_validator_ref()
-}
-
 /// Verify the capability is valid for a Validator.
-/// If `which_validator == COMMITTEE_VALIDATOR_ONLY` is true, only verify the Cap for an committee validator.
-/// Otherwise, verify the Cap for an either active or pending validator.
+/// The `which_validator` selector determines which validators are considered:
+/// committee members only (`COMMITTEE_VALIDATOR_ONLY`), active or pending
+/// validators (`ACTIVE_OR_PENDING_VALIDATOR`), or additionally candidates
+/// (`ANY_VALIDATOR`). Aborts with `EInvalidValidatorSelector` for any other
+/// selector value.
 public(package) fun verify_cap(
     self: &mut ValidatorSetV2,
     cap: &UnverifiedValidatorOperationCap,
     which_validator: u8,
 ): ValidatorOperationCap {
-    let cap_address = *cap.unverified_operation_cap_address();
-    let validator = if (which_validator == COMMITTEE_VALIDATOR_ONLY)
-        get_committee_validator_ref_inner(self, cap_address)
-    else get_active_or_pending_or_candidate_validator_ref(self, cap_address, which_validator);
+    let cap_address = cap.unverified_operation_cap_address();
+    let validator = match (which_validator) {
+        COMMITTEE_VALIDATOR_ONLY => self.committee_validator(cap_address),
+        ACTIVE_OR_PENDING_VALIDATOR => {
+            let active_idx = find_validator(&self.active_validators, cap_address);
+            if (active_idx.is_some()) {
+                &self.active_validators[active_idx.destroy_some()]
+            } else {
+                self.pending_validator(cap_address)
+            }
+        },
+        ANY_VALIDATOR => self.any_validator(cap_address),
+        _ => abort EInvalidValidatorSelector,
+    };
+
     assert!(validator.operation_cap_id() == &object::id(cap), EInvalidCap);
     validator_cap::new_from_unverified(cap)
 }
@@ -1240,6 +1240,11 @@ fun calculate_total_committee_stakes(
     voting_power::total_committee_stake(validators, committee_members)
 }
 
+/// Returns the indices of all given validators.
+fun all_validator_indices(validators: &vector<ValidatorV1>): vector<u64> {
+    vector::tabulate!(validators.length(), |i| i)
+}
+
 /// Validates that eligible validators have sufficient voting power (at least quorum threshold).
 /// If they don't, returns indices of all validators as fallback.
 /// This ensures the committee selection process has enough voting power to meet consensus requirements.
@@ -1250,7 +1255,7 @@ fun validate_eligible_validators_voting_power(
     // If eligible_active_validators is empty, use all validators as fallback.
     // This can happen only if the protocol does not support selecting committee only from eligible validators or there is a bug in the caller.
     if (eligible_active_validators.is_empty()) {
-        return vector::tabulate!(active_validators.length(), |i| i)
+        return all_validator_indices(active_validators)
     };
 
     // Calculate total voting power of eligible validators
@@ -1266,7 +1271,7 @@ fun validate_eligible_validators_voting_power(
     // This should never happen under normal circumstances, but we include this
     // safeguard to ensure the committee selection can always proceed in a safe manner.
     if (eligible_total_voting_power < voting_power::quorum_threshold()) {
-        vector::tabulate!(active_validators.length(), |i| i)
+        all_validator_indices(active_validators)
     } else {
         eligible_active_validators
     }
@@ -1500,7 +1505,7 @@ public(package) fun sum_committee_voting_power_by_addresses(
 ): u64 {
     let mut sum = 0;
     addresses.do_ref!(|addr| {
-        let validator = get_committee_validator_ref_inner(vs, *addr);
+        let validator = vs.committee_validator(*addr);
         sum = sum + validator.voting_power();
     });
     sum
@@ -1597,6 +1602,14 @@ public(package) fun process_new_committee(
             };
         };
     });
+
+    // If all pre-validated eligible validators were removed during pending
+    // removals or low-stake departures, the remapped set is empty. Fall back
+    // to all current active validators (non-empty, as asserted by the caller)
+    // so committee selection produces a non-empty committee.
+    if (current_eligible_indices.is_empty()) {
+        current_eligible_indices = all_validator_indices(&self.active_validators);
+    };
 
     self.committee_members =
         self.select_committee_members_from_eligible(committee_size, current_eligible_indices);

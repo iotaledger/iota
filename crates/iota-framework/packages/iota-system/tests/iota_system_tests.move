@@ -504,6 +504,7 @@ fun update_metadata(
     pop: vector<u8>,
     network_address: vector<u8>,
     p2p_address: vector<u8>,
+    primary_address: vector<u8>,
     network_pubkey: vector<u8>,
     protocol_pubkey: vector<u8>,
 ) {
@@ -514,7 +515,7 @@ fun update_metadata(
     system_state.update_validator_project_url(b"new_project_url", ctx);
     system_state.update_validator_next_epoch_network_address(network_address, ctx);
     system_state.update_validator_next_epoch_p2p_address(p2p_address, ctx);
-    system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/udp/80", ctx);
+    system_state.update_validator_next_epoch_primary_address(primary_address, ctx);
     system_state.update_validator_next_epoch_authority_pubkey(
         authority_pub_key,
         pop,
@@ -531,12 +532,14 @@ fun verify_metadata(
     pop: vector<u8>,
     network_address: vector<u8>,
     p2p_address: vector<u8>,
+    primary_address: vector<u8>,
     network_pubkey: vector<u8>,
     protocol_pubkey: vector<u8>,
     new_authority_pub_key: vector<u8>,
     new_pop: vector<u8>,
     new_network_address: vector<u8>,
     new_p2p_address: vector<u8>,
+    new_primary_address: vector<u8>,
     new_network_pubkey: vector<u8>,
     new_protocol_pubkey: vector<u8>,
 ) {
@@ -546,7 +549,7 @@ fun verify_metadata(
         name,
         authority_pub_key,
         pop,
-        b"/ip4/127.0.0.1/udp/80",
+        primary_address,
         network_address,
         p2p_address,
         network_pubkey,
@@ -559,7 +562,7 @@ fun verify_metadata(
     );
     assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
     assert!(
-        validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()),
+        validator.next_epoch_primary_address() == &option::some(new_primary_address.to_string()),
     );
     assert!(
         validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
@@ -602,6 +605,7 @@ fun verify_metadata_after_advancing_epoch(
     pop: vector<u8>,
     network_address: vector<u8>,
     p2p_address: vector<u8>,
+    primary_address: vector<u8>,
     network_pubkey: vector<u8>,
     protocol_pubkey: vector<u8>,
 ) {
@@ -611,7 +615,7 @@ fun verify_metadata_after_advancing_epoch(
         name,
         authority_pub_key,
         pop,
-        b"/ip4/168.168.168.168/udp/80",
+        primary_address,
         network_address,
         p2p_address,
         network_pubkey,
@@ -766,6 +770,7 @@ fun test_active_validator_update_metadata() {
             pop1,
             b"/ip4/42.42.42.42/tcp/80",
             b"/ip4/43.43.43.43/udp/80",
+            b"/ip4/168.168.168.168/udp/80",
             vector[
                 148,
                 117,
@@ -846,6 +851,7 @@ fun test_active_validator_update_metadata() {
         pop,
         b"/ip4/127.0.0.1/tcp/80",
         b"/ip4/127.0.0.1/udp/80",
+        b"/ip4/127.0.0.1/udp/80",
         vector[
             32,
             219,
@@ -918,6 +924,7 @@ fun test_active_validator_update_metadata() {
         pop1,
         b"/ip4/42.42.42.42/tcp/80",
         b"/ip4/43.43.43.43/udp/80",
+        b"/ip4/168.168.168.168/udp/80",
         vector[
             148,
             117,
@@ -991,7 +998,7 @@ fun test_active_validator_update_metadata() {
     test_scenario::return_shared(system_state);
     scenario_val.end();
 
-    // Test pending validator metadata changes
+    // Test metadata changes of a newly joined validator
     let mut scenario_val = test_scenario::begin(new_validator_addr);
     let scenario = &mut scenario_val;
     let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -1075,7 +1082,7 @@ fun test_active_validator_update_metadata() {
             b"project_url2",
             b"/ip4/127.0.0.2/tcp/80",
             b"/ip4/127.0.0.2/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
+            b"/ip4/127.0.0.2/udp/80",
             1,
             0,
             ctx,
@@ -1083,7 +1090,14 @@ fun test_active_validator_update_metadata() {
         system_state.request_add_validator_for_testing(0, ctx);
     };
 
+    // Advance the epoch so the new validator becomes active; only active
+    // validators can update their next-epoch metadata.
+    test_scenario::return_shared(system_state);
     scenario.next_tx(new_validator_addr);
+    advance_epoch(scenario);
+
+    scenario.next_tx(new_validator_addr);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
     {
         update_metadata(
             scenario,
@@ -1093,6 +1107,7 @@ fun test_active_validator_update_metadata() {
             new_pop1,
             b"/ip4/66.66.66.66/tcp/80",
             b"/ip4/77.77.77.77/udp/80",
+            b"/ip4/169.169.169.169/udp/80",
             vector[
                 215,
                 65,
@@ -1165,13 +1180,14 @@ fun test_active_validator_update_metadata() {
     };
 
     scenario.next_tx(new_validator_addr);
-    let validator = system_state.pending_validator_by_address(new_validator_addr);
+    let validator = system_state.active_validator_by_address(new_validator_addr);
     verify_metadata(
         validator,
         b"new_validator_new_name",
         new_pubkey,
         new_pop,
         b"/ip4/127.0.0.2/tcp/80",
+        b"/ip4/127.0.0.2/udp/80",
         b"/ip4/127.0.0.2/udp/80",
         vector[
             33,
@@ -1245,6 +1261,7 @@ fun test_active_validator_update_metadata() {
         new_pop1,
         b"/ip4/66.66.66.66/tcp/80",
         b"/ip4/77.77.77.77/udp/80",
+        b"/ip4/169.169.169.169/udp/80",
         vector[
             215,
             65,
@@ -1332,6 +1349,7 @@ fun test_active_validator_update_metadata() {
         pop1,
         b"/ip4/42.42.42.42/tcp/80",
         b"/ip4/43.43.43.43/udp/80",
+        b"/ip4/168.168.168.168/udp/80",
         vector[
             148,
             117,
@@ -1410,6 +1428,7 @@ fun test_active_validator_update_metadata() {
         new_pop1,
         b"/ip4/66.66.66.66/tcp/80",
         b"/ip4/77.77.77.77/udp/80",
+        b"/ip4/169.169.169.169/udp/80",
         vector[
             215,
             65,
@@ -1681,7 +1700,7 @@ fun test_add_validator_candidate_failure_invalid_metadata() {
         b"project_url2",
         b"/ip4/127.0.0.2/tcp/80",
         b"/ip4/127.0.0.2/udp/80",
-        b"/ip4/127.0.0.1/udp/80",
+        b"/ip4/127.0.0.2/udp/80",
         1,
         0,
         scenario.ctx(),
@@ -1781,7 +1800,7 @@ fun test_add_validator_candidate_failure_double_register() {
         b"project_url2",
         b"/ip4/127.0.0.2/tcp/80",
         b"/ip4/127.0.0.2/udp/80",
-        b"/ip4/127.0.0.1/udp/80",
+        b"/ip4/127.0.0.2/udp/80",
         1,
         0,
         scenario.ctx(),
@@ -1865,7 +1884,7 @@ fun test_add_validator_candidate_failure_double_register() {
         b"project_url2",
         b"/ip4/127.0.0.2/tcp/80",
         b"/ip4/127.0.0.2/udp/80",
-        b"/ip4/127.0.0.1/udp/80",
+        b"/ip4/127.0.0.2/udp/80",
         1,
         0,
         scenario.ctx(),
@@ -2066,7 +2085,7 @@ fun test_add_validator_candidate_failure_duplicate_with_active() {
         b"project_url2",
         b"/ip4/127.0.0.2/tcp/80",
         b"/ip4/127.0.0.2/udp/80",
-        b"/ip4/127.0.0.1/udp/80",
+        b"/ip4/127.0.0.2/udp/80",
         1,
         0,
         scenario.ctx(),
