@@ -1016,16 +1016,6 @@ pub struct AuthorityStorePruningConfig {
     /// Use `u64::MAX` to disable the pruner for the objects.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
-    /// pruner's runtime interval used for aggressive mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pruning_run_delay_seconds: Option<u64>,
-    /// maximum number of checkpoints in the pruning batch. Can be adjusted to
-    /// increase performance
-    #[serde(default = "default_max_checkpoints_in_batch")]
-    pub max_checkpoints_in_batch: usize,
-    /// maximum number of transaction in the pruning batch
-    #[serde(default = "default_max_transactions_in_batch")]
-    pub max_transactions_in_batch: usize,
     /// enables periodic background compaction for old SST files whose last
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
@@ -1054,14 +1044,6 @@ fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
 }
 
-fn default_max_transactions_in_batch() -> usize {
-    1000
-}
-
-fn default_max_checkpoints_in_batch() -> usize {
-    10
-}
-
 fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
 }
@@ -1071,9 +1053,6 @@ impl Default for AuthorityStorePruningConfig {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
             num_epochs_to_retain: 0,
-            pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
-            max_checkpoints_in_batch: default_max_checkpoints_in_batch(),
-            max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             enable_compaction_filter: cfg!(test) || cfg!(msim),

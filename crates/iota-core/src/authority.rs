@@ -156,7 +156,9 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        authority_store_pruner::{
+            AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, PruningCoordinator,
+        },
         authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
@@ -867,6 +869,9 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     _pruner: AuthorityStorePruner,
+    /// Shared handle used by the checkpoint executor to nudge the pruner after
+    /// each checkpoint and to be leashed if pruning falls behind.
+    pruning_coordinator: Arc<PruningCoordinator>,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
@@ -3283,6 +3288,7 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
+        let pruning_coordinator = PruningCoordinator::new();
         let _pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
@@ -3295,6 +3301,7 @@ impl AuthorityState {
             archive_readers,
             pruner_db,
             checkpoint_progress_tracker.clone(),
+            pruning_coordinator.clone(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3330,6 +3337,7 @@ impl AuthorityState {
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
             _pruner,
+            pruning_coordinator,
             authority_per_epoch_pruner,
             checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
@@ -4345,6 +4353,12 @@ impl AuthorityState {
 
     pub fn get_checkpoint_store(&self) -> &Arc<CheckpointStore> {
         &self.checkpoint_store
+    }
+
+    /// Shared handle the checkpoint executor uses to nudge the store pruner
+    /// after each checkpoint and to be leashed when pruning falls behind.
+    pub fn pruning_coordinator(&self) -> &Arc<PruningCoordinator> {
+        &self.pruning_coordinator
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
