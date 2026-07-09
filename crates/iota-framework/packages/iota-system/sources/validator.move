@@ -546,6 +546,7 @@ public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
             || self.metadata.name == other.metadata.name
             || self.metadata.net_address == other.metadata.net_address
             || self.metadata.p2p_address == other.metadata.p2p_address
+            || self.metadata.primary_address == other.metadata.primary_address
             || self.metadata.authority_pubkey_bytes == other.metadata.authority_pubkey_bytes
             || self.metadata.network_pubkey_bytes == other.metadata.network_pubkey_bytes
             || self.metadata.network_pubkey_bytes == other.metadata.protocol_pubkey_bytes
@@ -554,6 +555,7 @@ public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
             // All next epoch parameters.
             || is_equal_some(&self.metadata.next_epoch_net_address, &other.metadata.next_epoch_net_address)
             || is_equal_some(&self.metadata.next_epoch_p2p_address, &other.metadata.next_epoch_p2p_address)
+            || is_equal_some(&self.metadata.next_epoch_primary_address, &other.metadata.next_epoch_primary_address)
             || is_equal_some(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.next_epoch_authority_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_network_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_protocol_pubkey_bytes)
@@ -562,6 +564,7 @@ public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
             // My next epoch parameters with other current epoch parameters.
             || is_equal_some_and_value(&self.metadata.next_epoch_net_address, &other.metadata.net_address)
             || is_equal_some_and_value(&self.metadata.next_epoch_p2p_address, &other.metadata.p2p_address)
+            || is_equal_some_and_value(&self.metadata.next_epoch_primary_address, &other.metadata.primary_address)
             || is_equal_some_and_value(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.network_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
@@ -570,6 +573,7 @@ public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
             // Other next epoch parameters with my current epoch parameters.
             || is_equal_some_and_value(&other.metadata.next_epoch_net_address, &self.metadata.net_address)
             || is_equal_some_and_value(&other.metadata.next_epoch_p2p_address, &self.metadata.p2p_address)
+            || is_equal_some_and_value(&other.metadata.next_epoch_primary_address, &self.metadata.primary_address)
             || is_equal_some_and_value(&other.metadata.next_epoch_authority_pubkey_bytes, &self.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.network_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
@@ -797,7 +801,7 @@ public(package) fun update_candidate_protocol_pubkey(
     validate_metadata(&self.metadata);
 }
 
-/// Effectutate all staged next epoch metadata for this validator.
+/// Effectuate all staged next epoch metadata for this validator.
 /// NOTE: this function SHOULD ONLY be called by validator_set when
 /// advancing an epoch.
 public(package) fun effectuate_staged_metadata(self: &mut ValidatorV1) {
