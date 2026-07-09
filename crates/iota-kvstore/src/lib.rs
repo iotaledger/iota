@@ -23,9 +23,12 @@ use serde::{Deserialize, Serialize};
 /// BigTable Key Value store implementation.
 mod bigtable;
 
+#[cfg(feature = "emulator")]
+pub mod emulator;
+
 pub use bigtable::{
     client,
-    worker::{KvWorker, Table},
+    worker::{KvWorker, Table, affected_addresses},
 };
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 

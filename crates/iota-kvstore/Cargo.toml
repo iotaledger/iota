@@ -12,7 +12,8 @@ anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
-iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", tag = "v0.1.1" }
+futures = { workspace = true, optional = true }
+iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "7a0328a6e9e536f1c52b4d46b1629aa1683bf45f" }
 serde.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
@@ -23,6 +24,20 @@ iota-data-ingestion-core.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
+
+[features]
+emulator = ["dep:futures", "tokio/process"]
+integration_tests = ["emulator"]
+
+[dev-dependencies]
+# Self-dependency that enables the `emulator` feature for all dev targets,
+# so the emulator helpers and the tests importing them compile under plain
+# `cargo test`, clippy, and IDE checks without extra flags.
+#
+# The helpers stay behind the feature gate so they are never compiled into
+# production binaries; the emulator-backed tests only run when the
+# `integration_tests` feature is explicitly enabled.
+iota-kvstore = { path = ".", features = ["emulator"] }
 
 [lints]
 workspace = true

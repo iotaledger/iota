@@ -88,3 +88,17 @@ $(gcloud beta emulators bigtable env-init)
 ```
 
 - Run `./init.sh` to configure the emulator
+
+### Testing
+
+The integration tests require the `gcloud` and `cbt` CLI tools to be installed.
+
+```shell
+cargo test --features integration_tests
+```
+
+nextest is also available for running tests:
+
+```shell
+cargo nextest run --features integration_tests
+```

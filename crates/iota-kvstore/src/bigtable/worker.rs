@@ -11,13 +11,16 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_types::{Address, Owner};
 use iota_types::{
-    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
+    digests::TransactionDigest, effects::TransactionEffectsExt,
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointContentsExt,
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
-use crate::{BigTableClient, KeyValueStoreWriter, TransactionData};
+use crate::{
+    BigTableClient, KeyValueStoreWriter, TransactionData, client::TransactionSequenceNumber,
+};
 
 /// Represents the BigTable tables used by the KvWorker.
 
@@ -71,17 +74,13 @@ impl KvWorker {
     /// ```rust
     /// # use iota_kvstore::KvWorker;
     /// # use iota_kvstore::{Table, BigTableClient};
-    ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # std::env::set_var("BIGTABLE_EMULATOR_HOST", "localhost");
-    /// let client = BigTableClient::new_local("instance_id", "column_family")
-    ///     .await
-    ///     .unwrap();
+    /// let client =
+    ///     BigTableClient::new_local("localhost", "local", "instance_id", "column_family").unwrap();
     ///
-    /// /// Write all available tables to BigTable.
+    /// // Write all available tables to BigTable.
     /// let worker = KvWorker::new(client);
-    ///
     /// # drop(worker);
     /// # }
     /// ```
@@ -104,17 +103,13 @@ impl KvWorker {
     /// ```rust
     /// # use iota_kvstore::KvWorker;
     /// # use iota_kvstore::{Table, BigTableClient};
-    ///
     /// # #[tokio::main]
     /// # async fn main() {
-    /// # std::env::set_var("BIGTABLE_EMULATOR_HOST", "localhost");
-    /// let client = BigTableClient::new_local("instance_id", "column_family")
-    ///     .await
-    ///     .unwrap();
+    /// let client =
+    ///     BigTableClient::new_local("localhost", "local", "instance_id", "column_family").unwrap();
     ///
-    /// /// Write only the `Objects` table to BigTable.
+    /// // Write only the `Objects` table to BigTable.
     /// let worker = KvWorker::new_selective(client, [Table::Objects]);
-    ///
     /// # drop(worker);
     /// # }
     /// ```
@@ -155,29 +150,7 @@ impl Worker for KvWorker {
                     client.save_transactions(&transactions).await?;
                 }
                 Table::TransactionsByAddress => {
-                    let entries_by_address = checkpoint
-                        .checkpoint_contents
-                        .enumerate_transactions(&checkpoint.checkpoint_summary)
-                        .zip(&checkpoint.transactions)
-                        .flat_map(|((seq, exec_digest), tx)| {
-                            let digest = exec_digest.transaction;
-                            let tx_data = tx.transaction.transaction_data();
-
-                            let affected = std::iter::once(tx_data.sender())
-                                .chain(std::iter::once(tx_data.gas_owner()))
-                                .chain(tx.effects.all_changed_objects().into_iter().filter_map(
-                                    |(_object_ref, owner, _write_kind)| match owner {
-                                        Owner::Address(a) => Some(a),
-                                        _ => None,
-                                    },
-                                ))
-                                .collect::<HashSet<Address>>();
-
-                            affected
-                                .into_iter()
-                                .map(move |address| (address, seq, digest))
-                        });
-
+                    let entries_by_address = affected_addresses(&checkpoint);
                     client
                         .save_transactions_by_address(entries_by_address)
                         .await?;
@@ -192,4 +165,30 @@ impl Worker for KvWorker {
         }
         Ok(())
     }
+}
+
+/// Extracts the information related to an address involved in a transaction as
+/// sender, gas owner, or object owner, from a [`CheckpointData`].
+pub fn affected_addresses<'a>(
+    checkpoint: &'a CheckpointData,
+) -> impl Iterator<Item = (Address, TransactionSequenceNumber, TransactionDigest)> + 'a {
+    checkpoint
+        .checkpoint_contents
+        .enumerate_transactions(&checkpoint.checkpoint_summary)
+        .zip(&checkpoint.transactions)
+        .flat_map(|((seq, exec_digest), tx)| {
+            let tx_data = tx.transaction.transaction_data();
+            let affected: HashSet<Address> =
+                std::iter::once(tx_data.sender())
+                    .chain(std::iter::once(tx_data.gas_owner()))
+                    .chain(tx.effects.all_changed_objects().into_iter().filter_map(
+                        |(_, owner, _)| match owner {
+                            Owner::Address(a) => Some(a),
+                            _ => None,
+                        },
+                    ))
+                    .collect();
+            let digest = exec_digest.transaction;
+            affected.into_iter().map(move |addr| (addr, seq, digest))
+        })
 }
