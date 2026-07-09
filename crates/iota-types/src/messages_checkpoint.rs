@@ -375,11 +375,16 @@ fn execution_digests(info: &CheckpointTransactionInfo) -> ExecutionDigests {
     }
 }
 
+mod checkpoint_contents_ext {
+    pub trait Sealed {}
+    impl Sealed for super::CheckpointContents {}
+}
+
 /// Node-only helpers for [`CheckpointContents`], which is defined in
 /// `iota_sdk_types`. They bridge the node's `ExecutionDigests` /
 /// [`GenericSignature`] representation to the SDK type's parallel
 /// [`CheckpointTransactionInfo`] / [`UserSignature`] form.
-pub trait CheckpointContentsExt: Sized {
+pub trait CheckpointContentsExt: Sized + checkpoint_contents_ext::Sealed {
     fn new_with_digests_and_signatures(
         contents: impl IntoIterator<Item = ExecutionDigests>,
         user_signatures: Vec<Vec<GenericSignature>>,
