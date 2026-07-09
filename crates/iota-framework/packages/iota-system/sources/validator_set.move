@@ -467,6 +467,11 @@ public(package) fun advance_epoch(
         total_validator_rewards.value(),
     );
 
+    // Report records persist across epochs, but committee membership can change while a
+    // validator stays active. Drop records referencing validators that left the committee
+    // so the tallying rule only considers current committee members.
+    clean_report_records_non_committee_validators(self, validator_report_records);
+
     // Use the tallying rule report records for the epoch to compute validators that will be
     // punished.
     let slashed_validators = compute_slashed_validators(self, *validator_report_records);
@@ -1147,6 +1152,42 @@ fun process_validator_departure(
             validator_pool_id,
             validator_wrapper::create_v1(validator, ctx),
         );
+}
+
+/// Remove report records that reference validators no longer in the committee.
+/// Reports are only accepted between committee members, but records persist across
+/// epochs while a reported or reporting validator can rotate out of the committee
+/// without leaving the active set. Dropping these stale entries keeps the tallying
+/// rule limited to current committee members and prevents `compute_slashed_validators`
+/// from aborting on them.
+fun clean_report_records_non_committee_validators(
+    self: &ValidatorSetV2,
+    validator_report_records: &mut VecMap<address, VecSet<address>>,
+) {
+    let reported_validators = validator_report_records.keys();
+    let length = reported_validators.length();
+    let mut i = 0;
+    while (i < length) {
+        let reportee = &reported_validators[i];
+        i = i + 1;
+        if (!is_committee_validator_by_iota_address(self, *reportee)) {
+            validator_report_records.remove(reportee);
+            continue
+        };
+        let reporters = *validator_report_records[reportee].keys();
+        let reporters_length = reporters.length();
+        let mut j = 0;
+        while (j < reporters_length) {
+            let reporter = &reporters[j];
+            j = j + 1;
+            if (!is_committee_validator_by_iota_address(self, *reporter)) {
+                validator_report_records[reportee].remove(reporter);
+            };
+        };
+        if (validator_report_records[reportee].is_empty()) {
+            validator_report_records.remove(reportee);
+        };
+    };
 }
 
 fun clean_report_records_leaving_validator(
