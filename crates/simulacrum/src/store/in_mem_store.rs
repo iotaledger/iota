@@ -202,9 +202,9 @@ impl InMemoryStore {
         }
 
         self.checkpoint_digest_to_sequence_number
-            .insert(*checkpoint.digest(), *checkpoint.sequence_number());
+            .insert(*checkpoint.digest(), checkpoint.sequence_number());
         self.checkpoints
-            .insert(*checkpoint.sequence_number(), checkpoint);
+            .insert(checkpoint.sequence_number(), checkpoint);
     }
 
     pub fn insert_checkpoint_contents(&mut self, contents: CheckpointContents) {

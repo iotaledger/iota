@@ -14,8 +14,8 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
     checkpoint::{
-        CheckpointContents, CheckpointData, CheckpointSummary, CheckpointTransaction,
-        CheckpointTransactionInfo, SignedCheckpointSummary,
+        CheckpointContents, CheckpointData, CheckpointTransaction, CheckpointTransactionInfo,
+        SignedCheckpointSummary,
     },
     crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
@@ -232,46 +232,6 @@ impl TryFrom<UserSignature> for crate::signature::GenericSignature {
     }
 }
 
-impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummary {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::messages_checkpoint::CheckpointSummary) -> Result<Self, Self::Error> {
-        Self {
-            epoch: value.epoch,
-            sequence_number: value.sequence_number,
-            network_total_transactions: value.network_total_transactions,
-            content_digest: value.content_digest,
-            previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
-            timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value.checkpoint_commitments,
-            end_of_epoch_data: value.end_of_epoch_data,
-            version_specific_data: value.version_specific_data,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummary {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: CheckpointSummary) -> Result<Self, Self::Error> {
-        Self {
-            epoch: value.epoch,
-            sequence_number: value.sequence_number,
-            network_total_transactions: value.network_total_transactions,
-            content_digest: value.content_digest,
-            previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
-            timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value.checkpoint_commitments,
-            end_of_epoch_data: value.end_of_epoch_data,
-            version_specific_data: value.version_specific_data,
-        }
-        .pipe(Ok)
-    }
-}
-
 impl TryFrom<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedCheckpointSummary {
     type Error = SdkTypeConversionError;
 
@@ -280,7 +240,7 @@ impl TryFrom<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedC
     ) -> Result<Self, Self::Error> {
         let (data, sig) = value.into_data_and_sig();
         Self {
-            checkpoint: data.try_into()?,
+            checkpoint: data,
             signature: sig.into(),
         }
         .pipe(Ok)
@@ -292,7 +252,7 @@ impl TryFrom<SignedCheckpointSummary> for crate::messages_checkpoint::CertifiedC
 
     fn try_from(value: SignedCheckpointSummary) -> Result<Self, Self::Error> {
         Self::new_from_data_and_sig(
-            crate::messages_checkpoint::CheckpointSummary::try_from(value.checkpoint)?,
+            value.checkpoint,
             crate::crypto::AuthorityQuorumSignInfo::<true>::from(value.signature),
         )
         .pipe(Ok)

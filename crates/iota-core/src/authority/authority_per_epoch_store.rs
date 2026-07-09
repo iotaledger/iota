@@ -1875,7 +1875,7 @@ impl AuthorityPerEpochStore {
         // we don't need to worry about equivocating.
         batch.delete_batch(&tables.signed_effects_digests, digests)?;
 
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
@@ -5117,7 +5117,7 @@ impl AuthorityPerEpochStore {
         };
         self.tables()?
             .builder_checkpoint_summary
-            .insert(summary.sequence_number(), &builder_summary)?;
+            .insert(&summary.sequence_number(), &builder_summary)?;
         Ok(())
     }
 
@@ -5143,7 +5143,7 @@ impl AuthorityPerEpochStore {
         if let Some(BuilderCheckpointSummary { summary, .. }) =
             self.consensus_quarantine.read().last_built_summary()
         {
-            let seq = *summary.sequence_number();
+            let seq = summary.sequence_number();
             debug!(
                 "returning last_built_summary from consensus quarantine: {:?}",
                 seq

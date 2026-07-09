@@ -83,9 +83,6 @@ authority-store-pruning-config:
   # Maximum transactions processed in a single pruning batch (advanced). Default: 1000.
   max-transactions-in-batch: 1000
 
-  # Spread pruning work evenly across the epoch to avoid I/O spikes. Default: true.
-  smooth: true
-
   # Use the RocksDB compaction filter for object-table pruning. When disabled,
   # a range-deletion approach is used. Do not toggle frequently — switching
   # back to range deletion may leave some old versions unpruned. Default: false.

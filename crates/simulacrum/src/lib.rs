@@ -348,7 +348,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             inner.store.insert_checkpoint_contents(contents.clone());
             inner
                 .store
-                .update_last_checkpoint_of_epoch(current_epoch, *checkpoint.sequence_number());
+                .update_last_checkpoint_of_epoch(current_epoch, checkpoint.sequence_number());
             (checkpoint, contents, new_epoch_state)
         };
 
@@ -786,7 +786,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         Ok(self.with_store(|store| {
             let highest_seq = store
                 .get_highest_checkpoint()
-                .map(|cp| *cp.sequence_number())?;
+                .map(|cp| cp.sequence_number())?;
 
             for seq in (0..=highest_seq).rev() {
                 if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
@@ -801,7 +801,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                             // populates this from input/output objects but that is
                             // not needed for the simulacrum test harness.
                             return Some(TransactionInfo {
-                                checkpoint: *checkpoint.sequence_number(),
+                                checkpoint: checkpoint.sequence_number(),
                                 object_types: HashMap::new(),
                             });
                         }

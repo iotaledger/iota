@@ -34,7 +34,9 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummaryExt, VerifiedCheckpoint,
+    },
     transaction::{TransactionDataAPI, TransactionKey, VerifiedTransaction},
 };
 use parking_lot::Mutex;
@@ -262,7 +264,7 @@ impl CheckpointExecutor {
         // Checkpoint loading and execution is parallelized
         .map(|checkpoint| {
             let this = this.clone();
-            let pipeline_handle = pipeline_stages.handle(*checkpoint.sequence_number());
+            let pipeline_handle = pipeline_stages.handle(checkpoint.sequence_number());
             async move {
                 let pipeline_handle = pipeline_handle.await;
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
@@ -337,7 +339,7 @@ impl CheckpointExecutor {
         self.metrics.checkpoint_exec_sync_tps.set(tps as i64);
 
         self.backpressure_manager
-            .update_highest_executed_checkpoint(*ckpt_state.data.checkpoint.sequence_number());
+            .update_highest_executed_checkpoint(ckpt_state.data.checkpoint.sequence_number());
 
         let is_final_checkpoint = ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch();
 
@@ -931,7 +933,7 @@ impl CheckpointExecutor {
     #[instrument(level = "debug", skip_all)]
     fn bump_highest_executed_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
         // Ensure that we are not skipping checkpoints at any point
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
         debug!("Bumping highest_executed_checkpoint watermark to {seq:?}");
         if let Some(prev_highest) = self
             .checkpoint_store
@@ -1037,7 +1039,7 @@ impl CheckpointExecutor {
         checkpoint_contents: &CheckpointContents,
     ) -> Vec<RandomnessRound> {
         if let Some(version_specific_data) = checkpoint
-            .version_specific_data(self.epoch_store.protocol_config())
+            .parse_version_specific_data(self.epoch_store.protocol_config())
             .expect("unable to get version_specific_data")
         {
             // With version-specific data, randomness rounds are stored in checkpoint

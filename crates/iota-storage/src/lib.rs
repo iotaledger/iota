@@ -165,7 +165,7 @@ pub fn verify_checkpoint_with_committee(
     checkpoint: CertifiedCheckpointSummary,
 ) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
     assert_eq!(
-        *checkpoint.sequence_number(),
+        checkpoint.sequence_number(),
         current.sequence_number().checked_add(1).unwrap()
     );
 

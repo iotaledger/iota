@@ -59,6 +59,7 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-replay = { path = ".", features = ["tracing"] }
 iota-simulator.workspace = true
+iota-test-transaction-builder.workspace = true
 move-vm-profiler.workspace = true
 test-cluster.workspace = true
 

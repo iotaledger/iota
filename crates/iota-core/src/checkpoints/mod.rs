@@ -38,13 +38,12 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
         CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
-        FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointSummary, CheckpointSummaryExt, CheckpointSummaryResponse, CheckpointTimestamp,
+        EndOfEpochData, FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
@@ -275,7 +274,7 @@ impl CheckpointStore {
             "can't call insert_genesis_checkpoint with a checkpoint not in epoch 0"
         );
         assert_eq!(
-            *checkpoint.sequence_number(),
+            checkpoint.sequence_number(),
             0,
             "can't call insert_genesis_checkpoint with a checkpoint that doesn't have a sequence number of 0"
         );
@@ -613,7 +612,7 @@ impl CheckpointStore {
         if let Some(local_checkpoint) = self
             .tables
             .locally_computed_checkpoints
-            .get(checkpoint.sequence_number())?
+            .get(&checkpoint.sequence_number())?
         {
             self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
         }
@@ -636,10 +635,10 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        if Some(*checkpoint.sequence_number())
+        if Some(checkpoint.sequence_number())
             > self
                 .get_highest_verified_checkpoint()?
-                .map(|x| *x.sequence_number())
+                .map(|x| x.sequence_number())
         {
             debug!(
                 checkpoint_seq = checkpoint.sequence_number(),
@@ -647,7 +646,7 @@ impl CheckpointStore {
             );
             self.tables.watermarks.insert(
                 &CheckpointWatermark::HighestVerified,
-                &(*checkpoint.sequence_number(), *checkpoint.digest()),
+                &(checkpoint.sequence_number(), *checkpoint.digest()),
             )?;
         }
 
@@ -658,7 +657,7 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
         debug!(checkpoint_seq = seq, "Updating highest synced checkpoint",);
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestSynced,
@@ -728,18 +727,18 @@ impl CheckpointStore {
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
         if let Some(seq_number) = self.get_highest_executed_checkpoint_seq_number()? {
-            if seq_number >= *checkpoint.sequence_number() {
+            if seq_number >= checkpoint.sequence_number() {
                 return Ok(());
             }
             assert_eq!(
                 seq_number + 1,
-                *checkpoint.sequence_number(),
+                checkpoint.sequence_number(),
                 "Cannot update highest executed checkpoint to {} when current highest executed checkpoint is {}",
                 checkpoint.sequence_number(),
                 seq_number
             );
         }
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
         debug!(checkpoint_seq = seq, "Updating highest executed checkpoint",);
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
@@ -756,7 +755,7 @@ impl CheckpointStore {
     ) -> Result<(), TypedStoreError> {
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestPruned,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
     }
 
@@ -771,7 +770,7 @@ impl CheckpointStore {
     ) -> Result<(), TypedStoreError> {
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
     }
 
@@ -857,7 +856,7 @@ impl CheckpointStore {
     ) -> IotaResult {
         self.tables
             .epoch_last_checkpoint_map
-            .insert(&epoch_id, checkpoint.sequence_number())?;
+            .insert(&epoch_id, &checkpoint.sequence_number())?;
         Ok(())
     }
 
@@ -1189,7 +1188,7 @@ impl CheckpointBuilder {
                 &all_roots,
             )
             .await?;
-        let highest_sequence = *new_checkpoints.last().0.sequence_number();
+        let highest_sequence = new_checkpoints.last().0.sequence_number();
         if highest_sequence <= highest_executed_sequence && poll_count > 1 {
             debug_fatal!(
                 "resolve_checkpoint_transactions should be instantaneous when executed checkpoint is ahead of checkpoint builder"
@@ -1416,7 +1415,7 @@ impl CheckpointBuilder {
                 .store
                 .tables
                 .certified_checkpoints
-                .get(local_checkpoint.sequence_number())?
+                .get(&local_checkpoint.sequence_number())?
             {
                 self.store
                     .check_for_checkpoint_fork(local_checkpoint, &certified_checkpoint.into());
@@ -1755,7 +1754,7 @@ impl CheckpointBuilder {
                 .copied()
                 .collect();
 
-            let summary = CheckpointSummary::new(
+            let summary = CheckpointSummary::new_with_protocol_config(
                 self.epoch_store.protocol_config(),
                 epoch,
                 sequence_number,
@@ -2673,7 +2672,7 @@ impl CheckpointServiceNotify for CheckpointService {
         if let Some(highest_verified_checkpoint) = self
             .tables
             .get_highest_verified_checkpoint()?
-            .map(|x| *x.sequence_number())
+            .map(|x| x.sequence_number())
         {
             if sequence <= highest_verified_checkpoint {
                 trace!(
