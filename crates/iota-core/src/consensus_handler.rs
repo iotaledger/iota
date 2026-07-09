@@ -1223,7 +1223,7 @@ mod tests {
         // UserTransactionV2 (attested) reports the same digest, so it is equally
         // eligible for load shedding.
         let attested = AttestedTransaction::new(
-            tx.clone(),
+            tx,
             Attestation::Validator {
                 payload: AttestationData::V1 {
                     computation_units: 0,
