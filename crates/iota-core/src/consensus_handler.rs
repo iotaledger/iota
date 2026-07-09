@@ -685,15 +685,16 @@ impl SequencedConsensusTransactionKind {
     }
 
     /// Returns the digest only for user-originated transaction kinds
-    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
-    /// load shedding to guarantee that no internal consensus messages
-    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
-    /// are eligible to be dropped.
+    /// (`CertifiedTransaction`, `UserTransactionV1`, and `UserTransactionV2`).
+    /// Used by post-consensus load shedding to guarantee that no internal
+    /// consensus messages (checkpoint signatures, capability notifications,
+    /// randomness DKG, etc.) are eligible to be dropped.
     pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
                 ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
                 ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV2(txn) => Some(*txn.digest()),
                 _ => None,
             },
             _ => None,
@@ -1180,6 +1181,65 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
+    }
+
+    /// Post-consensus load shedding uses `user_transaction_digest()` to decide
+    /// which consensus messages may be dropped: it must return a digest for
+    /// every user-originated kind (`CertifiedTransaction`, `UserTransactionV1`,
+    /// `UserTransactionV2`) and `None` for internal consensus messages, which
+    /// must never be shed. This pins `UserTransactionV2` (attested) as
+    /// eligible.
+    #[test]
+    fn test_user_transaction_digest_covers_user_kinds() {
+        use iota_types::attestation::{Attestation, AttestationData, AttestedTransaction};
+
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let rgp = 1000;
+        let tx_data = TransactionData::new_transfer(
+            recipient,
+            random_object_ref(),
+            sender,
+            random_object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let tx = to_sender_signed_transaction(tx_data, &sender_key);
+        let expected = *tx.digest();
+
+        let external = |kind| {
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind,
+                tracking_id: Default::default(),
+            })
+        };
+
+        // UserTransactionV1 reports the inner transaction digest.
+        let v1 = external(ConsensusTransactionKind::UserTransactionV1(Box::new(
+            tx.clone(),
+        )));
+        assert_eq!(v1.user_transaction_digest(), Some(expected));
+
+        // UserTransactionV2 (attested) reports the same digest, so it is equally
+        // eligible for load shedding.
+        let attested = AttestedTransaction::new(
+            tx.clone(),
+            Attestation::Validator {
+                payload: AttestationData::V1 {
+                    computation_units: 0,
+                    object_versions: vec![],
+                },
+                attestor_index: starfish_config::AuthorityIndex::new_for_test(0),
+            },
+        );
+        let v2 = external(ConsensusTransactionKind::UserTransactionV2(Box::new(
+            attested,
+        )));
+        assert_eq!(v2.user_transaction_digest(), Some(expected));
+
+        // Internal consensus messages must never be eligible for load shedding.
+        let eop = external(ConsensusTransactionKind::EndOfPublish(AuthorityName::ZERO));
+        assert_eq!(eop.user_transaction_digest(), None);
     }
 
     #[test]
