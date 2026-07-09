@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_sdk_types::{ObjectReference, Owner};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::effects::TransactionEffectsAPI;
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, TypeTag, grpc::GrpcStore};
@@ -24,7 +24,7 @@ use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
 
 /// Build a staking transaction, simulate it with both the node's dry-run and
-/// the local VM, and assert the two produce the same object changes.
+/// the local VM, and assert the two produce the same object changes and events.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn compare_local_vm_staking_against_test_cluster() {
     let test_cluster = TestClusterBuilder::new()
@@ -107,6 +107,22 @@ async fn compare_local_vm_staking_against_test_cluster() {
     let node_deleted: BTreeSet<ObjectReference> =
         dry_run.effects.deleted().iter().copied().collect();
 
+    // Reference events from the node's dry-run, compared by type, emitter, and
+    // full BCS payload in emission order.
+    let node_events: Vec<(StructTag, ObjectId, Address, Vec<u8>)> = dry_run
+        .events
+        .data
+        .iter()
+        .map(|e| {
+            (
+                e.type_.clone(),
+                e.package_id,
+                e.sender,
+                e.bcs.bytes().to_vec(),
+            )
+        })
+        .collect();
+
     // Local VM: every object the run reads — the transaction inputs and the
     // system-state dynamic fields staking walks — is resolved on demand over
     // gRPC during execution, against the same Move engine the node uses. Only
@@ -148,6 +164,21 @@ async fn compare_local_vm_staking_against_test_cluster() {
         assert_eq!(
             node_deleted, local_deleted,
             "{mode}: deleted objects must match"
+        );
+        let local_events: Vec<(StructTag, ObjectId, Address, Vec<u8>)> = result
+            .events
+            .as_ref()
+            .map(|events| {
+                events
+                    .0
+                    .iter()
+                    .map(|e| (e.type_.clone(), e.package_id, e.sender, e.contents.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert_eq!(
+            node_events, local_events,
+            "{mode}: emitted events must match"
         );
     };
 
