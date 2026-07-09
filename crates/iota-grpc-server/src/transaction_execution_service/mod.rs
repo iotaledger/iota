@@ -248,6 +248,13 @@ fn parse_transaction_proto(
 ///     - `output_objects.reference.digest` - the digest of the output object
 ///       contents
 ///   - `output_objects.bcs` - the full BCS-encoded object
+///
+/// ## Derived Change Fields
+/// Derived from the transaction's effects and input/output objects.
+/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
+///   transaction this contains only the gas charge.
+/// - `object_changes` - structured object changes (created, mutated, deleted,
+///   wrapped, unwrapped, published)
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transactions(
     reader: &Arc<GrpcReader>,
@@ -390,10 +397,18 @@ struct ReadFlags {
 
 impl ReadFlags {
     fn from_mask(mask: &FieldMaskTree) -> Self {
+        // Balance/object changes are derived from the input/output objects, so
+        // the executor must return them whenever the derived fields are
+        // requested.
+        let derives_changes = mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name)
+            || mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name);
+
         Self {
             include_events: mask.contains(ExecutedTransaction::EVENTS_FIELD.name),
-            include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name),
-            include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name),
+            include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
+                || derives_changes,
+            include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
+                || derives_changes,
             needs_checkpoint: mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name),
             needs_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
         }
@@ -582,6 +597,7 @@ async fn rebuild_from_cache(
         },
         input_objects: cached.input_objects,
         output_objects: cached.output_objects,
+        mocked_coin: None,
     };
 
     let executed = ExecutedTransaction::merge_from(&source, read_mask)
@@ -641,9 +657,15 @@ async fn execute_single_transaction(
         })?;
 
     // Determine what to include in the request based on read mask.
+    // Balance/object changes are derived from the input/output objects, so the
+    // executor must return them whenever the derived fields are requested.
+    let derives_changes = read_mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name)
+        || read_mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name);
     let include_events = read_mask.contains(ExecutedTransaction::EVENTS_FIELD.name);
-    let include_input_objects = read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name);
-    let include_output_objects = read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name);
+    let include_input_objects =
+        read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name) || derives_changes;
+    let include_output_objects =
+        read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name) || derives_changes;
 
     // Create execution request
     let exec_request = ExecuteTransactionRequestV1 {
@@ -700,6 +722,7 @@ async fn execute_single_transaction(
         timestamp_ms: None,
         input_objects,
         output_objects,
+        mocked_coin: None,
     };
 
     let executed = ExecutedTransaction::merge_from(&source, read_mask)
