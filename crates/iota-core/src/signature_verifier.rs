@@ -16,7 +16,7 @@ use iota_types::{
     digests::{CertificateDigest, SenderSignedDataDigest},
     error::{IotaError, IotaResult},
     message_envelope::Message,
-    messages_checkpoint::SignedCheckpointSummary,
+    messages_checkpoint::{CheckpointSummaryExt, SignedCheckpointSummary},
     messages_consensus::{AuthorityCapabilitiesDigest, SignedAuthorityCapabilitiesV1},
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},

@@ -131,8 +131,9 @@ impl WriteAheadLog {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectReference;
     use iota_types::{
-        base_types::{ObjectRef, random_object_ref},
+        base_types::random_object_ref,
         transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
     };
 
@@ -251,7 +252,7 @@ mod tests {
         wal.reserve(uuid, coin.object_id, recv1, tx1).unwrap();
     }
 
-    fn random_request(coin: ObjectRef) -> (Address, TransactionData) {
+    fn random_request(coin: ObjectReference) -> (Address, TransactionData) {
         let gas_price = 1;
         let send = Address::random();
         let recv = Address::random();

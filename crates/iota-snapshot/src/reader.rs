@@ -29,7 +29,7 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::authority_store_tables::{
     AuthorityPerpetualTables, LiveObject, SnapshotLiveObject,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -41,7 +41,7 @@ use iota_storage::{
     },
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, SequenceNumber},
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
 };
@@ -771,7 +771,7 @@ impl ObjectRefIter {
         }
     }
 
-    fn next_ref(&mut self) -> Result<ObjectRef> {
+    fn next_ref(&mut self) -> Result<ObjectReference> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         self.reader.read_exact(&mut buf)?;
         let object_id = &buf[0..OBJECT_ID_BYTES];
@@ -779,7 +779,7 @@ impl ObjectRefIter {
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
-        let object_ref = ObjectRef::new(
+        let object_ref = ObjectReference::new(
             ObjectId::from_bytes(object_id)?,
             SequenceNumber::from_u64(*sequence_number),
             ObjectDigest::from_bytes(sha3_digest)?,
@@ -789,7 +789,7 @@ impl ObjectRefIter {
 }
 
 impl Iterator for ObjectRefIter {
-    type Item = ObjectRef;
+    type Item = ObjectReference;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_ref().ok()
     }

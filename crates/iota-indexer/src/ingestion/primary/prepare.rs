@@ -137,7 +137,7 @@ impl PrimaryWorker {
         } = data;
 
         // Genesis epoch
-        if *checkpoint_summary.sequence_number() == 0 {
+        if checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
             let system_state =
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
@@ -354,7 +354,7 @@ impl PrimaryWorker {
                 Self::index_transaction_components(
                     tx,
                     tx_sequence_number,
-                    *checkpoint_seq,
+                    checkpoint_seq,
                     checkpoint_summary.timestamp_ms,
                     metrics,
                 )

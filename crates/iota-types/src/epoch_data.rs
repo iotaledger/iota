@@ -4,7 +4,6 @@
 
 use crate::{
     base_types::EpochId,
-    message_envelope::Message,
     messages_checkpoint::{CheckpointDigest, CheckpointSummary, CheckpointTimestamp},
 };
 

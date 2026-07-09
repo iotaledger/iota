@@ -5,9 +5,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_account_key_pair},
     object::Object,
 };
@@ -16,7 +15,7 @@ use iota_types::{
 pub struct Account {
     pub sender: Address,
     pub keypair: Arc<AccountKeyPair>,
-    pub gas_objects: Arc<Vec<ObjectRef>>,
+    pub gas_objects: Arc<Vec<ObjectReference>>,
 }
 
 /// Generate \num_accounts accounts and for each account generate

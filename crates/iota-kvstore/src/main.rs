@@ -73,7 +73,8 @@ async fn run_fetch(instance_id: String, column_family: String, entry: Entry) -> 
         column_family,
         None,
     )
-    .await?;
+    .await?
+    .with_backoff(BigTableClient::default_backoff());
 
     let result = match entry {
         Entry::Object { id, version } => {

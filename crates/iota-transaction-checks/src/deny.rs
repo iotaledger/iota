@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::Command;
+use iota_sdk_types::{Command, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
@@ -31,7 +30,7 @@ pub fn check_transaction_for_validation(
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
     input_object_kinds: &[InputObjectKind],
-    receiving_objects: &[ObjectRef],
+    receiving_objects: &[ObjectReference],
     filter_config: &TransactionDenyConfig,
     package_store: &dyn BackingPackageStore,
 ) -> IotaResult {
@@ -51,7 +50,7 @@ pub fn check_transaction_for_validation(
 #[instrument(level = "trace", skip_all)]
 fn check_receiving_objects(
     filter_config: &TransactionDenyConfig,
-    receiving_objects: &[ObjectRef],
+    receiving_objects: &[ObjectReference],
 ) -> IotaResult {
     deny_if_true!(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
