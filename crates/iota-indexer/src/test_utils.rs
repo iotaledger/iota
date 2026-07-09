@@ -13,7 +13,10 @@ use url::Url;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig},
+    config::{
+        DEFAULT_PRUNING_BATCH_SIZE, IngestionConfig, IotaNamesOptions, PruningOptions,
+        RetentionConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -88,6 +91,16 @@ impl IndexerTypeConfig {
                 .expect("failed to load the indexer retention configuration"),
             pruning_delay_ms: TEST_PRUNING_DELAY_MS,
             pruning_batch_size: opts.pruning_batch_size,
+        }
+    }
+
+    /// Writer mode with the retention config given directly, instead of loaded
+    /// from a TOML file via [`PruningOptions`].
+    pub fn writer_mode_with_retention(retention_config: Option<RetentionConfig>) -> Self {
+        Self::Writer {
+            retention_config,
+            pruning_delay_ms: TEST_PRUNING_DELAY_MS,
+            pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
         }
     }
 }
