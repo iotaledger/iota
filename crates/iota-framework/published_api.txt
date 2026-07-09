@@ -616,6 +616,9 @@ calculate_total_active_stakes
 calculate_total_committee_stakes
 	fun
 	0x3::validator_set
+all_validator_indices
+	fun
+	0x3::validator_set
 validate_eligible_validators_voting_power
 	fun
 	0x3::validator_set

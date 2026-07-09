@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 30;
+pub const MAX_PROTOCOL_VERSION: u64 = 31;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -173,6 +173,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Expose `is_feature_enabled` and `get_attr<T>` natives to the
 //             iota_system package via a new iota_system::protocol_config
 //             module.
+// Version 31: Rebuild the framework binaries for the latest iota_system
+//             validator set changes.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2964,6 +2966,8 @@ impl ProtocolConfig {
                     // iota_system via a new iota_system::protocol_config
                     // module.
                 }
+                // version 31 is a new framework version but with no config changes
+                31 => {}
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
