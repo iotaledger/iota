@@ -21,7 +21,7 @@ authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 1
 
-# Set the verbosity level for each Prometheus metric group.
+# Set the exposure level for each Prometheus metric group.
 # metrics:
 #   groups:
 #     consensus: warn
@@ -34,4 +34,4 @@ authority-store-pruning-config:
 #     storage: warn
 #     rpc: warn
 #     epoch: warn
-#     hardware: true # supports on/off only
+#     hardware: warn # startup-only: `off` skips the group, other levels register it

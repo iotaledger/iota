@@ -11,19 +11,23 @@
 //! Each filter-based group is set to a [`MetricLevel`], a verbosity threshold.
 //! Individual metrics declare their own level where they are registered
 //! (defaulting to [`MetricLevel::Debug`]); metrics used by the fullnode Grafana
-//! dashboard are tagged [`MetricLevel::Warn`]. A group registers a metric in
-//! its modules when the group's level is at least as verbose as the metric's:
+//! dashboard are tagged [`MetricLevel::Warn`]. A group's level decides which
+//! of its metrics are **exposed** on the metrics endpoint — a metric is
+//! exposed when the group's level is at least as verbose as the metric's:
 //!
-//! - `off` registers nothing;
-//! - `warn` (the group default) registers only the `warn`-tagged (dashboard)
+//! - `off` exposes nothing;
+//! - `warn` (the group default) exposes only the `warn`-tagged (dashboard)
 //!   metrics;
-//! - `info` registers `warn` and `info` metrics;
-//! - `debug` registers everything except `trace`-tagged metrics;
-//! - `trace` registers everything.
+//! - `info` exposes `warn` and `info` metrics;
+//! - `debug` exposes everything except `trace`-tagged metrics;
+//! - `trace` exposes everything.
 //!
-//! Note the two defaults differ: an untagged metric is registered at level
+//! The levels never affect collection: a filter-based group's metrics are
+//! registered and keep collecting regardless of the configured level.
+//!
+//! Note the two defaults differ: an untagged metric is exposed from level
 //! `debug`, while a group defaults to the `warn` threshold, so the default
-//! config keeps only the dashboard metrics.
+//! config exposes only the dashboard metrics.
 //!
 //! The `hw` hardware metrics are registered as a prometheus collector and
 //! so bypass the filtering macros entirely. They cannot be level-filtered
@@ -119,76 +123,80 @@ impl Default for MetricGroups {
 }
 
 impl MetricGroups {
+    /// Returns the module paths a filter-based group covers, keyed by the
+    /// group's config. `None` for unknown groups and for `hardware`, which is
+    /// not filter-based.
+    pub fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
+        Some(match group {
+            "consensus" => &[
+                "starfish_core",
+                "iota_core::consensus_adapter",
+                "iota_core::consensus_manager",
+                "iota_core::consensus_validator",
+                "iota_core::epoch::consensus_store_pruner",
+            ],
+            "execution" => &[
+                "iota_core::execution_cache",
+                "iota_core::global_state_hasher",
+                "iota_core::module_cache_metrics",
+            ],
+            "checkpoints" => &["iota_core::checkpoints"],
+            "transactions" => &[
+                "iota_core::quorum_driver",
+                "iota_core::transaction_driver",
+                "iota_core::transaction_orchestrator",
+                "iota_core::validator_tx_finalizer",
+            ],
+            "authority" => &[
+                "iota_core::authority",
+                "iota_core::safe_client",
+                "iota_core::signature_verifier",
+                "iota_core::validator_client_monitor",
+            ],
+            "traffic-control" => &["iota_core::traffic_controller"],
+            "network" => &[
+                "iota_network::discovery",
+                "iota_network::randomness",
+                "iota_network::state_sync",
+            ],
+            "storage" => &[
+                "typed_store",
+                "iota_storage",
+                "iota_core::db_checkpoint_handler",
+            ],
+            "rpc" => &[
+                "iota_json_rpc",
+                "iota_grpc_server",
+                "iota_graphql_rpc",
+                "iota_core::jsonrpc_index",
+                "iota_core::subscription_handler",
+            ],
+            "epoch" => &["iota_core::epoch::epoch_metrics"],
+            _ => return None,
+        })
+    }
+
     /// Maps each filter-based group's configured level to the module paths it
     /// covers.
     fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 10] {
         [
-            (
-                self.consensus,
-                &[
-                    "starfish_core",
-                    "iota_core::consensus_adapter",
-                    "iota_core::consensus_manager",
-                    "iota_core::consensus_validator",
-                    "iota_core::epoch::consensus_store_pruner",
-                ],
-            ),
-            (
-                self.execution,
-                &[
-                    "iota_core::execution_cache",
-                    "iota_core::global_state_hasher",
-                    "iota_core::module_cache_metrics",
-                ],
-            ),
-            (self.checkpoints, &["iota_core::checkpoints"]),
-            (
-                self.transactions,
-                &[
-                    "iota_core::quorum_driver",
-                    "iota_core::transaction_driver",
-                    "iota_core::transaction_orchestrator",
-                    "iota_core::validator_tx_finalizer",
-                ],
-            ),
-            (
-                self.authority,
-                &[
-                    "iota_core::authority",
-                    "iota_core::safe_client",
-                    "iota_core::signature_verifier",
-                    "iota_core::validator_client_monitor",
-                ],
-            ),
-            (self.traffic_control, &["iota_core::traffic_controller"]),
-            (
-                self.network,
-                &[
-                    "iota_network::discovery",
-                    "iota_network::randomness",
-                    "iota_network::state_sync",
-                ],
-            ),
-            (
-                self.storage,
-                &[
-                    "typed_store",
-                    "iota_storage",
-                    "iota_core::db_checkpoint_handler",
-                ],
-            ),
-            (
-                self.rpc,
-                &[
-                    "iota_json_rpc",
-                    "iota_grpc_server",
-                    "iota_graphql_rpc",
-                    "iota_core::jsonrpc_index",
-                    "iota_core::subscription_handler",
-                ],
-            ),
-            (self.epoch, &["iota_core::epoch::epoch_metrics"]),
+            ("consensus", self.consensus),
+            ("execution", self.execution),
+            ("checkpoints", self.checkpoints),
+            ("transactions", self.transactions),
+            ("authority", self.authority),
+            ("traffic-control", self.traffic_control),
+            ("network", self.network),
+            ("storage", self.storage),
+            ("rpc", self.rpc),
+            ("epoch", self.epoch),
         ]
+        .map(|(group, level)| {
+            (
+                level,
+                Self::modules_for_group(group).expect("filter-based group has modules"),
+            )
+        })
     }
 
     /// Renders each group's level into a `METRICS_FILTER`-style directive
@@ -234,7 +242,7 @@ mod tests {
 
     #[test]
     fn metric_groups_all_trace_is_noop() {
-        // `trace` groups are skipped, so an all-`trace` config registers
+        // `trace` groups are skipped, so an all-`trace` config exposes
         // everything and renders an empty filter.
         assert_eq!(all_trace().to_filter_string(), "");
     }
@@ -243,7 +251,7 @@ mod tests {
     fn metric_groups_default_trims_to_dashboard() {
         // The default (all groups `warn`) renders `{module}=warn` for every
         // group's modules, so only the `warn`-tagged (dashboard) metrics
-        // survive.
+        // are exposed.
         let filter = MetricGroups::default().to_filter_string();
         assert!(!filter.is_empty());
         assert!(filter.contains("starfish_core=warn"));
@@ -276,6 +284,35 @@ mod tests {
             ..all_trace()
         };
         assert_eq!(groups.to_filter_string(), "");
+    }
+
+    #[test]
+    fn modules_for_group_covers_filter_based_groups_only() {
+        // Every filter-based group resolves to a non-empty module list; the
+        // rendered filter contains exactly those modules.
+        let filter = MetricGroups::default().to_filter_string();
+        for group in [
+            "consensus",
+            "execution",
+            "checkpoints",
+            "transactions",
+            "authority",
+            "traffic-control",
+            "network",
+            "storage",
+            "rpc",
+            "epoch",
+        ] {
+            let modules = MetricGroups::modules_for_group(group)
+                .unwrap_or_else(|| panic!("group {group} has no modules"));
+            assert!(!modules.is_empty());
+            for module in modules {
+                assert!(filter.contains(&format!("{module}=warn")));
+            }
+        }
+        // `hardware` is not filter-based; unknown names resolve to nothing.
+        assert_eq!(MetricGroups::modules_for_group("hardware"), None);
+        assert_eq!(MetricGroups::modules_for_group("bogus"), None);
     }
 
     #[test]
