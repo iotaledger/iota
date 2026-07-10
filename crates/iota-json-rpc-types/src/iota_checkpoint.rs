@@ -11,8 +11,8 @@ use iota_types::{
     digests::{CheckpointDigest, Digest},
     iota_serde::BigInt,
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
+        CheckpointCommitment, CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSummary, CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
     },
 };
 use schemars::JsonSchema;

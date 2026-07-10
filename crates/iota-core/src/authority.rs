@@ -99,8 +99,8 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
         CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,

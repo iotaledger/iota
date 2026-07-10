@@ -21,7 +21,8 @@ use iota_types::{
     event::EventID,
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber,
     },
     object::Object,
 };

@@ -130,19 +130,14 @@ CheckpointContents:
     0:
       V1:
         NEWTYPE:
-          TYPENAME: CheckpointContentsV1
+          TUPLE:
+            - SEQ:
+                TYPENAME: Digests
+            - SEQ:
+                SEQ: BYTES
 CheckpointContentsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-CheckpointContentsV1:
-  STRUCT:
-    - transactions:
-        SEQ:
-          TYPENAME: ExecutionDigests
-    - user_signatures:
-        SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
 CheckpointData:
   STRUCT:
     - checkpoint_summary:
@@ -287,6 +282,12 @@ DeleteKind:
       Wrap: UNIT
 Digest:
   NEWTYPESTRUCT: BYTES
+Digests:
+  STRUCT:
+    - transaction:
+        TYPENAME: TransactionDigest
+    - effects:
+        TYPENAME: TransactionEffectsDigest
 EffectsAuxDataDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -336,12 +337,6 @@ ExecutionData:
         TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
-ExecutionDigests:
-  STRUCT:
-    - transaction:
-        TYPENAME: TransactionDigest
-    - effects:
-        TYPENAME: TransactionEffectsDigest
 ExecutionError:
   ENUM:
     0:
