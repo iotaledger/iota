@@ -938,6 +938,11 @@ impl RuntimeModuleMetadata {
     /// The attribute's version must match the metadata's version: a
     /// [`IotaAttribute::V1`] belongs in [`RuntimeModuleMetadata::V1`] and a
     /// [`IotaAttribute::V2`] in [`RuntimeModuleMetadata::V2`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the attribute's version does not match the metadata's
+    /// version.
     pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
         match (self, attribute) {
             (RuntimeModuleMetadata::V1(metadata), IotaAttribute::V1(attribute)) => {
@@ -958,8 +963,11 @@ impl RuntimeModuleMetadata {
     }
 }
 
-/// IOTA specific attribute types recognized by the compiler.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Version-agnostic wrapper over the IOTA attribute types, for passing an
+/// attribute of either version to [`RuntimeModuleMetadata`].
+///
+/// This wrapper is an in-memory convenience only and is never serialized.
+#[derive(Debug, Clone)]
 pub enum IotaAttribute {
     V1(IotaAttributeV1),
     V2(IotaAttributeV2),
@@ -1051,7 +1059,7 @@ impl RuntimeModuleMetadataV2 {
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
+        // Safe unwrap as the RuntimeModuleMetadataV2 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }
