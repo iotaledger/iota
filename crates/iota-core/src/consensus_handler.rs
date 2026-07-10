@@ -335,11 +335,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                         .consensus_handler_transaction_sizes
                         .with_label_values(&[kind])
                         .observe(serialized_len as f64);
-                    if matches!(
-                        &transaction.kind,
-                        ConsensusTransactionKind::CertifiedTransaction(_)
-                            | ConsensusTransactionKind::UserTransactionV1(_)
-                    ) {
+                    if transaction.is_user_certificate() || transaction.kind.is_user_transaction() {
                         self.last_consensus_stats
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
@@ -729,12 +725,29 @@ impl SequencedConsensusTransactionKind {
         }
     }
 
+    /// Returns the digest for transactions that get executed -- user-originated
+    /// (`CertifiedTransaction` and `UserTransactionV1`) and system transactions
+    /// -- and `None` for internal consensus messages (checkpoint signatures,
+    /// capability notifications, randomness DKG, etc.). Used to build
+    /// checkpoint roots and to schedule transactions for execution.
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
+            // Listed exhaustively (no `_` arm) so a new user-transaction kind must
+            // be classified here rather than silently defaulting to non-executable.
             SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
                 ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
                 ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
-                _ => None,
+                // internal consensus messages - not executable
+                ConsensusTransactionKind::CheckpointSignature(_)
+                | ConsensusTransactionKind::EndOfPublish(_)
+                | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                | ConsensusTransactionKind::MisbehaviorReport(_)
+                | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
             },
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
         }
@@ -744,23 +757,35 @@ impl SequencedConsensusTransactionKind {
     /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
     /// load shedding to guarantee that no internal consensus messages
     /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
-    /// are eligible to be dropped.
+    /// and system transactions are eligible to be dropped.
     pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
+            // Listed exhaustively (no `_` arm) so a new user-transaction kind must
+            // be classified here rather than silently defaulting to non-sheddable.
             SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
                 ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
                 ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
-                _ => None,
+                // internal consensus messages - never shed
+                ConsensusTransactionKind::CheckpointSignature(_)
+                | ConsensusTransactionKind::EndOfPublish(_)
+                | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                | ConsensusTransactionKind::MisbehaviorReport(_)
+                | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
             },
-            _ => None,
+            SequencedConsensusTransactionKind::System(_) => None,
         }
     }
 
     pub fn is_end_of_publish(&self) -> bool {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => {
-                matches!(ext.kind, ConsensusTransactionKind::EndOfPublish(..))
-            }
+            // Delegate to the `ConsensusTransaction` helper so the kind check
+            // stays in one place.
+            SequencedConsensusTransactionKind::External(ext) => ext.is_end_of_publish(),
             SequencedConsensusTransactionKind::System(_) => false,
         }
     }
@@ -776,10 +801,11 @@ impl SequencedConsensusTransaction {
     }
 
     pub fn is_end_of_publish(&self) -> bool {
-        if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
-            matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..))
-        } else {
-            false
+        // Delegate to the `ConsensusTransaction` helper so the kind check
+        // stays in one place.
+        match &self.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext.is_end_of_publish(),
+            SequencedConsensusTransactionKind::System(_) => false,
         }
     }
 
@@ -790,45 +816,78 @@ impl SequencedConsensusTransaction {
         )
     }
 
+    /// Returns `true` if this is a user-originated transaction
+    /// (`CertifiedTransaction` or `UserTransactionV1`) that uses randomness.
+    /// Non-user kinds (internal consensus messages, system transactions) are
+    /// always `false`, since only user transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-                ..
-            }) => certificate.uses_randomness(),
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-                ..
-            }) => transaction.uses_randomness(),
-            _ => false,
+            // Listed exhaustively (no `_` arm) so a new user-transaction kind that
+            // may use randomness must be classified here rather than silently treated
+            // as non-randomness and misrouted.
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(cert) => cert.uses_randomness(),
+                ConsensusTransactionKind::UserTransactionV1(txn) => txn.uses_randomness(),
+                // internal consensus messages - not user transactions
+                ConsensusTransactionKind::CheckpointSignature(_)
+                | ConsensusTransactionKind::EndOfPublish(_)
+                | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                | ConsensusTransactionKind::MisbehaviorReport(_)
+                | ConsensusTransactionKind::OverloadNotificationV1(..) => false,
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => false,
+            },
+            SequencedConsensusTransactionKind::System(_) => false,
         }
     }
 
+    /// Returns the transaction data if this is a user-originated
+    /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
+    /// that touches at least one shared object, and `None` otherwise (internal
+    /// consensus messages, or a transaction with only owned objects).
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-                ..
-            }) if certificate.contains_shared_object() => Some(certificate.data()),
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-                ..
-            }) if transaction.contains_shared_object() => Some(transaction.data()),
-            SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
-                Some(txn.data())
+            // Listed exhaustively (no `_` arm) so a new user-transaction kind must
+            // be classified here rather than silently treated as having no shared
+            // objects.
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(cert) => {
+                    cert.contains_shared_object().then(|| cert.data())
+                }
+                ConsensusTransactionKind::UserTransactionV1(txn) => {
+                    txn.contains_shared_object().then(|| txn.data())
+                }
+                // internal consensus messages - not shared-object transactions
+                ConsensusTransactionKind::CheckpointSignature(_)
+                | ConsensusTransactionKind::EndOfPublish(_)
+                | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                | ConsensusTransactionKind::MisbehaviorReport(_)
+                | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
+            },
+            SequencedConsensusTransactionKind::System(txn) => {
+                txn.contains_shared_object().then(|| txn.data())
             }
-            _ => None,
         }
     }
 
+    /// Returns `true` only for a raw, uncertified user transaction
+    /// (`UserTransactionV1`). Certified user transactions and system
+    /// transactions are not included.
     pub fn is_user_transaction(&self) -> bool {
-        matches!(
-            &self.transaction,
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(_),
-                ..
-            })
-        )
+        match &self.transaction {
+            // Classification of user-transaction kinds lives on the enum helper,
+            // so a new kind only has to be handled in one place there.
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.is_user_transaction(),
+            SequencedConsensusTransactionKind::System(_) => false,
+        }
     }
 }
 
