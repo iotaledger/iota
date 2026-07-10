@@ -28,7 +28,7 @@ pub mod emulator;
 
 pub use bigtable::{
     client,
-    worker::{KvWorker, Table, affected_addresses},
+    worker::{KvWorker, Table, transactions_by_address},
 };
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 

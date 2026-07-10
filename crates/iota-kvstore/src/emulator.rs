@@ -8,30 +8,23 @@
 //! Requires `gcloud`, `cbt`, and the BigTable emulator on PATH.
 
 use std::{
-    net::Ipv4Addr,
+    net::{Ipv4Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::OnceLock,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
 use futures::future::try_join_all;
 use iota_bigtable::BigTableClient;
+use strum::IntoEnumIterator;
 use tokio::process::Command as TokioCommand;
 
-use crate::client;
+use crate::Table;
 
 pub const INSTANCE_ID: &str = "bigtable_test_instance";
 pub const COLUMN_FAMILY: &str = "iota";
-
-/// New tables must be added here when introduced.
-pub const TABLES: &[&str] = &[
-    client::OBJECTS_TABLE,
-    client::TRANSACTIONS_TABLE,
-    client::CHECKPOINTS_TABLE,
-    client::CHECKPOINTS_BY_DIGEST_TABLE,
-    client::TRANSACTIONS_BY_ADDRESS_TABLE,
-];
 
 /// A self-contained BigTable emulator process that is spawned on a random port.
 ///
@@ -55,7 +48,31 @@ impl BigTableEmulator {
             .context("Failed to spawn BigTable emulator")?;
 
         let host = format!("localhost:{port}");
-        Ok(Self { child, host })
+        // Construct first so Drop kills the child if the readiness wait fails.
+        let mut emulator = Self { child, host };
+        emulator.wait_until_ready(port)?;
+        Ok(emulator)
+    }
+
+    /// Waits until the emulator accepts TCP connections on `port`.
+    ///
+    /// Fails if the process exits during startup or the timeout elapses.
+    fn wait_until_ready(&mut self, port: u16) -> Result<()> {
+        const TIMEOUT: Duration = Duration::from_secs(10);
+        let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+        let deadline = Instant::now() + TIMEOUT;
+        loop {
+            if let Some(status) = self.child.try_wait()? {
+                bail!("BigTable emulator exited during startup: {status}");
+            }
+            if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                bail!("BigTable emulator not ready on port {port} after {TIMEOUT:?}");
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 
     /// Spawns a new BigTable emulator as a child process on a random port and
@@ -143,8 +160,12 @@ pub fn cbtemulator_path() -> Result<&'static Path> {
 pub fn require_bigtable_emulator() -> Result<()> {
     static IS_CBT_AVAILABLE: OnceLock<bool> = OnceLock::new();
     cbtemulator_path()?;
-    let available =
-        *IS_CBT_AVAILABLE.get_or_init(|| Command::new("cbt").arg("-version").output().is_ok());
+    let available = *IS_CBT_AVAILABLE.get_or_init(|| {
+        Command::new("cbt")
+            .arg("version")
+            .output()
+            .is_ok_and(|output| output.status.success())
+    });
     if !available {
         bail!("cbt not found on PATH — run: gcloud components install cbt");
     }
@@ -153,11 +174,11 @@ pub fn require_bigtable_emulator() -> Result<()> {
 
 /// Creates all required BigTable tables in parallel using async subprocesses.
 pub async fn create_tables(host: &str, instance_id: &str) -> Result<()> {
-    try_join_all(TABLES.iter().map(|&table| async move {
+    try_join_all(Table::iter().map(|table| async move {
         let output = TokioCommand::new("cbt")
             .args(["-instance", instance_id, "-project", "emulator"])
             .arg("createtable")
-            .arg(table)
+            .arg(table.as_ref())
             .env("BIGTABLE_EMULATOR_HOST", host)
             .output()
             .await
@@ -171,7 +192,7 @@ pub async fn create_tables(host: &str, instance_id: &str) -> Result<()> {
 
         let output = TokioCommand::new("cbt")
             .args(["-instance", instance_id, "-project", "emulator"])
-            .args(["createfamily", table, COLUMN_FAMILY])
+            .args(["createfamily", table.as_ref(), COLUMN_FAMILY])
             .env("BIGTABLE_EMULATOR_HOST", host)
             .output()
             .await

@@ -15,14 +15,14 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointContentsExt,
     transaction::TransactionDataAPI,
 };
-use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use crate::{
     BigTableClient, KeyValueStoreWriter, TransactionData, client::TransactionSequenceNumber,
 };
 
-/// Represents the BigTable tables used by the KvWorker.
+/// Represents the available BigTable tables the Client and the KvWorker can
+/// interact with.
 
 // Variants are declared in write order; the BTreeSet<Table> field
 // iterates by derived Ord, which follows declaration order.
@@ -41,17 +41,34 @@ use crate::{
     Hash,
     PartialOrd,
     Ord,
-    Serialize,
-    Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::AsRefStr,
     strum::EnumIter,
 )]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Table {
+    /// Stores a mapping of [`ObjectKey`] to [`Object`] for every object.
     Objects,
+    /// Stores a mapping of [`TransactionDigest`] to
+    /// [`Transaction`], [`TransactionEffects`], [`TransactionEvents`] and
+    /// [`CheckpointSequenceNumber`] for every transaction.
     Transactions,
+    /// Stores a mapping of ( [`Address`], [`TransactionSequenceNumber`] ) to
+    /// [`TransactionDigest`] for every affected address.
+    ///
+    /// An address is considered "affected" if it appears as the sender, a
+    /// recipient, or the gas payer.
     TransactionsByAddress,
+    /// Stores a mapping of [`CheckpointSequenceNumber`] to
+    /// [`CheckpointContents`] and [`CertifiedCheckpointSummary`] for every
+    /// checkpoint.
     Checkpoints,
+    /// Stores a mapping of [`CheckpointDigest`] to [`CheckpointSequenceNumber`]
+    /// for every checkpoint.
     CheckpointsByDigest,
 }
 
@@ -150,7 +167,7 @@ impl Worker for KvWorker {
                     client.save_transactions(&transactions).await?;
                 }
                 Table::TransactionsByAddress => {
-                    let entries_by_address = affected_addresses(&checkpoint);
+                    let entries_by_address = transactions_by_address(&checkpoint);
                     client
                         .save_transactions_by_address(entries_by_address)
                         .await?;
@@ -169,7 +186,7 @@ impl Worker for KvWorker {
 
 /// Extracts the information related to an address involved in a transaction as
 /// sender, gas owner, or object owner, from a [`CheckpointData`].
-pub fn affected_addresses<'a>(
+pub fn transactions_by_address<'a>(
     checkpoint: &'a CheckpointData,
 ) -> impl Iterator<Item = (Address, TransactionSequenceNumber, TransactionDigest)> + 'a {
     checkpoint

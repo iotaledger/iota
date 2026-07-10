@@ -5,9 +5,10 @@ use std::collections::{HashMap, HashSet};
 
 use iota_data_ingestion_core::Worker;
 use iota_kvstore::{
-    KeyValueStoreReader, KeyValueStoreWriter, KvWorker, affected_addresses,
+    KeyValueStoreReader, KeyValueStoreWriter, KvWorker,
     client::{TransactionSequenceNumber, TransactionsOrder},
     emulator::BigTableEmulator,
+    transactions_by_address,
 };
 use iota_sdk_types::Address;
 use iota_types::{
@@ -46,36 +47,30 @@ fn affected_addresses_per_transaction() {
     let checkpoint = build_test_checkpoint();
     let addr = TestCheckpointDataBuilder::derive_address;
 
-    let by_tx = affected_addresses(&checkpoint)
-        .map(|(a, seq, _)| (seq, a))
-        .collect::<HashSet<(u64, Address)>>();
+    let first_seq = checkpoint
+        .checkpoint_contents
+        .enumerate_transactions(&checkpoint.checkpoint_summary)
+        .next()
+        .unwrap()
+        .0;
+    let tx_seq_to_digest = |i: usize| *checkpoint.transactions[i].transaction.digest();
 
-    let first_seq = affected_addresses(&checkpoint)
-        .map(|(_, s, _)| s)
-        .min()
-        .unwrap();
-    let s0 = first_seq;
-    let s1 = first_seq + 1;
-    let s2 = first_seq + 2;
-    let s3 = first_seq + 3;
+    let expected = HashSet::from([
+        // tx 0: only sender 0 (sender == payer == sole recipient)
+        (addr(0), first_seq, tx_seq_to_digest(0)),
+        // tx 1: sender 0 (also payer) + recipient 1
+        (addr(0), first_seq + 1, tx_seq_to_digest(1)),
+        (addr(1), first_seq + 1, tx_seq_to_digest(1)),
+        // tx 2: only sender 2
+        (addr(2), first_seq + 2, tx_seq_to_digest(2)),
+        // tx 3: sender 2 (also payer) + recipient 3
+        (addr(2), first_seq + 3, tx_seq_to_digest(3)),
+        (addr(3), first_seq + 3, tx_seq_to_digest(3)),
+    ]);
 
-    // tx 0: only sender 0 (sender == payer == sole recipient)
-    assert!(by_tx.contains(&(s0, addr(0))));
-    assert_eq!(by_tx.iter().filter(|(s, _)| *s == s0).count(), 1);
-
-    // tx 1: sender 0 (also payer) + recipient 1
-    assert!(by_tx.contains(&(s1, addr(0))));
-    assert!(by_tx.contains(&(s1, addr(1))));
-    assert_eq!(by_tx.iter().filter(|(s, _)| *s == s1).count(), 2);
-
-    // tx 2: only sender 2
-    assert!(by_tx.contains(&(s2, addr(2))));
-    assert_eq!(by_tx.iter().filter(|(s, _)| *s == s2).count(), 1);
-
-    // tx 3: sender 2 (also payer) + recipient 3
-    assert!(by_tx.contains(&(s3, addr(2))));
-    assert!(by_tx.contains(&(s3, addr(3))));
-    assert_eq!(by_tx.iter().filter(|(s, _)| *s == s3).count(), 2);
+    let actual: HashSet<(Address, TransactionSequenceNumber, TransactionDigest)> =
+        transactions_by_address(&checkpoint).collect();
+    assert_eq!(actual, expected);
 }
 
 #[tokio::test]
@@ -89,7 +84,7 @@ async fn process_checkpoint() {
     let checkpoint = build_test_checkpoint();
 
     // capture expected (address -> set of digests) BEFORE the checkpoint is moved.
-    let expected_rows = affected_addresses(&checkpoint);
+    let expected_rows = transactions_by_address(&checkpoint);
     let mut expected_by_address: HashMap<
         Address,
         HashMap<TransactionSequenceNumber, TransactionDigest>,
