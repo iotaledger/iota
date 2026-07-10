@@ -4,7 +4,7 @@
 
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ConsensusTransactionOrdering;
-use iota_types::messages_consensus::ConsensusTransactionKind;
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::consensus_handler::{
     SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
@@ -30,31 +30,19 @@ impl PostConsensusTxReorder {
     fn order_by_gas_price(transactions: &mut [VerifiedSequencedConsensusTransaction]) {
         let _scope = monitored_scope("HandleConsensusOutput::order_by_gas_price");
         transactions.sort_by_key(|txn| {
-            // Reverse order, so that transactions with higher gas price are put to the
-            // beginning.
-            std::cmp::Reverse({
-                match &txn.0.transaction {
-                    // Listed exhaustively (no `_` arm) so a new user-transaction kind must
-                    // be classified here rather than silently sorting to the front.
-                    SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-                        ConsensusTransactionKind::CertifiedTransaction(cert) => cert.gas_price(),
-                        ConsensusTransactionKind::UserTransactionV1(tx) => tx.gas_price(),
-                        // Non-user messages carry no gas price and sort to the front.
-                        ConsensusTransactionKind::CheckpointSignature(_)
-                        | ConsensusTransactionKind::EndOfPublish(_)
-                        | ConsensusTransactionKind::CapabilityNotificationV1(_)
-                        | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                        | ConsensusTransactionKind::RandomnessDkgMessage(..)
-                        | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
-                        | ConsensusTransactionKind::MisbehaviorReport(_)
-                        | ConsensusTransactionKind::OverloadNotificationV1(..) => u64::MAX,
-                        #[allow(deprecated)]
-                        ConsensusTransactionKind::NewJWKFetchedDeprecated => u64::MAX,
-                    },
-                    // System transactions carry no gas price and sort to the front.
-                    SequencedConsensusTransactionKind::System(_) => u64::MAX,
+            // Reverse order, so transactions with higher gas price sort to the front.
+            // Internal messages and system transactions carry no gas price and sort
+            // to the front via `u64::MAX`.
+            let gas_price = match &txn.0.transaction {
+                SequencedConsensusTransactionKind::External(ext) => {
+                    ext.kind.as_sender_signed_data()
                 }
-            })
+                SequencedConsensusTransactionKind::System(_) => None,
+            }
+            .map(|data| data.transaction_data().gas_price())
+            .unwrap_or(u64::MAX);
+
+            std::cmp::Reverse(gas_price)
         })
     }
 }
