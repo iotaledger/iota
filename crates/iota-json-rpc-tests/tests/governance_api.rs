@@ -381,7 +381,11 @@ async fn test_staking() -> Result<(), anyhow::Error> {
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/5085"]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
-    let cluster = TestClusterBuilder::new().build().await;
+    // disable pruning so that we can query the unstaked object after it is deleted
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
 
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -693,7 +697,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         storage_rebate: 0,
     };
 
+    // disable pruning so that we can query the unstaked object after it is deleted
     let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
         .with_accounts(
             [AccountConfig {
                 address: Some(address),
