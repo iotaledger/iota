@@ -179,26 +179,72 @@ pub fn get_attr(
 }
 
 /// ****************************************************************************
-/// ********************* native fun set_protocol_config_value_for_testing
+/// ********************* native fun set_feature_enabled_for_testing
 ///
 /// Implementation of the test-only Move native function
-/// `protocol_config::set_protocol_config_value_for_testing<T: copy + drop +
-/// store>(name: vector<u8>, value: T)`
+/// `protocol_config::set_feature_enabled_for_testing(feature_flag_name:
+/// vector<u8>, value: bool)`
 ///
-/// Sets a per-test override for a feature flag or a config parameter, read back
-/// by [`is_feature_enabled`] and [`get_attr`]. `name` resolves to a feature
-/// flag first (which must be a `bool`), otherwise to a config parameter (whose
-/// type must match `T`). The override lives for the whole unit test and is
+/// Sets a per-test override for a feature flag, read back by
+/// [`is_feature_enabled`]. The override lives for the whole unit test and is
 /// reset between tests, as the [`ProtocolConfigTestOverrides`] extension is
 /// created fresh per test.
 ///
-/// Aborts with `E_INVALID_UTF8_PARAM_NAME` if `name` is not valid UTF-8, with
-/// `E_PARAM_NOT_FOUND` if it names neither a flag nor a parameter present in
-/// the current protocol config, and with `E_TYPE_MISMATCH` if `T` does not
-/// match the target's type — so a mistyped name or wrong type fails loudly.
+/// Aborts with `E_INVALID_UTF8_PARAM_NAME` if `feature_flag_name` is not valid
+/// UTF-8, and with `E_PARAM_NOT_FOUND` if the flag does not exist in the
+/// current protocol config, so a mistyped flag name fails loudly.
 /// ****************************************************************************
 /// *******************
-pub fn set_protocol_config_value_for_testing(
+pub fn set_feature_enabled_for_testing(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.len() == 2);
+
+    let value = pop_arg!(args, bool);
+    let name_bytes = pop_arg!(args, Vector).to_vec_u8()?;
+    let name = match String::from_utf8(name_bytes) {
+        Ok(name) => name,
+        Err(_) => {
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_INVALID_UTF8_PARAM_NAME,
+            ));
+        }
+    };
+
+    let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
+    if protocol_config.lookup_feature(name.clone()).is_none() {
+        return Ok(NativeResult::err(context.gas_used(), E_PARAM_NOT_FOUND));
+    }
+
+    get_extension_mut!(context, ProtocolConfigTestOverrides)?
+        .feature_flags
+        .insert(name, value);
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
+/// ****************************************************************************
+/// ********************* native fun set_attr_for_testing
+///
+/// Implementation of the test-only Move native function
+/// `protocol_config::set_attr_for_testing<T: copy + drop + store>(param_name:
+/// vector<u8>, value: T)`
+///
+/// Sets a per-test override for a config parameter, read back by [`get_attr`].
+/// The override lives for the whole unit test and is reset between tests, as
+/// the [`ProtocolConfigTestOverrides`] extension is created fresh per test.
+///
+/// Aborts with `E_INVALID_UTF8_PARAM_NAME` if `param_name` is not valid UTF-8,
+/// with `E_PARAM_NOT_FOUND` if the parameter is absent in the current protocol
+/// version, and with `E_TYPE_MISMATCH` if `T` does not match the parameter's
+/// actual type, so a mistyped name or wrong type fails loudly.
+/// ****************************************************************************
+/// *******************
+pub fn set_attr_for_testing(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
@@ -229,18 +275,7 @@ pub fn set_protocol_config_value_for_testing(
 
     let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
 
-    // A feature flag takes precedence and must be a bool.
-    if protocol_config.lookup_feature(name.clone()).is_some() {
-        let ProtocolConfigValue::bool(flag_value) = value else {
-            return Ok(NativeResult::err(context.gas_used(), E_TYPE_MISMATCH));
-        };
-        get_extension_mut!(context, ProtocolConfigTestOverrides)?
-            .feature_flags
-            .insert(name, flag_value);
-        return Ok(NativeResult::ok(context.gas_used(), smallvec![]));
-    }
-
-    // Otherwise a config parameter: `T` must match its type in this version.
+    // The parameter must exist and `T` must match its type in this version.
     match protocol_config.lookup_attr(name.clone()) {
         Some(existing) if std::mem::discriminant(&existing) == std::mem::discriminant(&value) => {
             get_extension_mut!(context, ProtocolConfigTestOverrides)?

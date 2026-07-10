@@ -1329,8 +1329,13 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "protocol_config",
-            "set_protocol_config_value_for_testing",
-            make_native!(protocol_config::set_protocol_config_value_for_testing),
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
         ),
         (
             "vdf",
@@ -1383,8 +1388,13 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "protocol_config",
-            "set_protocol_config_value_for_testing",
-            make_native!(protocol_config::set_protocol_config_value_for_testing),
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
         ),
     ];
     iota_system_natives
