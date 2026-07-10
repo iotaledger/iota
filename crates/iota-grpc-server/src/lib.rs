@@ -5,6 +5,7 @@
 mod macros;
 
 // Modules
+pub(crate) mod changes;
 pub mod constants;
 mod error;
 pub mod event_filter;
