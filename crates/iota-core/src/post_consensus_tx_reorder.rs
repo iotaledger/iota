@@ -4,7 +4,7 @@
 
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ConsensusTransactionOrdering;
-use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
+use iota_types::messages_consensus::ConsensusTransactionKind;
 
 use crate::consensus_handler::{
     SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
@@ -34,17 +34,25 @@ impl PostConsensusTxReorder {
             // beginning.
             std::cmp::Reverse({
                 match &txn.0.transaction {
-                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        tracking_id: _,
-                        kind: ConsensusTransactionKind::CertifiedTransaction(cert),
-                    }) => cert.gas_price(),
-                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        kind: ConsensusTransactionKind::UserTransactionV1(tx),
-                        ..
-                    }) => tx.gas_price(),
-                    // Non-user transactions are considered to have gas price of MAX u64 and are
-                    // put to the beginning.
-                    _ => u64::MAX,
+                    // Listed exhaustively (no `_` arm) so a new user-transaction kind must
+                    // be classified here rather than silently sorting to the front.
+                    SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                        ConsensusTransactionKind::CertifiedTransaction(cert) => cert.gas_price(),
+                        ConsensusTransactionKind::UserTransactionV1(tx) => tx.gas_price(),
+                        // Non-user messages carry no gas price and sort to the front.
+                        ConsensusTransactionKind::CheckpointSignature(_)
+                        | ConsensusTransactionKind::EndOfPublish(_)
+                        | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                        | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                        | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                        | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                        | ConsensusTransactionKind::MisbehaviorReport(_)
+                        | ConsensusTransactionKind::OverloadNotificationV1(..) => u64::MAX,
+                        #[allow(deprecated)]
+                        ConsensusTransactionKind::NewJWKFetchedDeprecated => u64::MAX,
+                    },
+                    // System transactions carry no gas price and sort to the front.
+                    SequencedConsensusTransactionKind::System(_) => u64::MAX,
                 }
             })
         })
