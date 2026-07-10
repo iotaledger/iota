@@ -6325,6 +6325,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
+ "move-binary-format",
  "move-core-types",
  "paste",
  "pin-project-lite",
