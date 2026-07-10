@@ -1777,4 +1777,133 @@ mod tests {
             );
         }
     }
+
+    /// After recovery, every transaction the solidifier is still blocked on
+    /// must carry a non-empty acknowledger set, so the transaction
+    /// synchronizer has authorities to fetch it from. Recovery must
+    /// therefore seed the ack tracker over the whole range fed to the
+    /// solidifier, not just the last `2 * gc_depth` commits; otherwise a
+    /// backlog larger than `2 * gc_depth` leaves its transactions with no
+    /// acknowledgers and stalls commit output permanently.
+    #[rstest::rstest]
+    #[case::standard(false)]
+    #[case::optimistic(true)]
+    #[tokio::test]
+    async fn test_recovery_seeds_backlog_acks(#[case] starfish_speed: bool) {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+
+        let mut protocol_config =
+            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
+        // Small gc_depth so the backlog only needs to exceed 2 * gc_depth = 10 commits.
+        protocol_config.set_gc_depth_for_testing(5);
+
+        let (committee, _keypairs) =
+            starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
+        let metrics = crate::metrics::test_metrics();
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let clock = Arc::new(crate::context::Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            committee,
+            starfish_config::Parameters {
+                db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
+                ..Default::default()
+            },
+            protocol_config,
+            metrics,
+            clock,
+        ));
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        // Build a backlog that exceeds 2 * gc_depth commits, but withhold all
+        // transaction data. The solidifier can then never advance, so the whole
+        // backlog stays pending (which also keeps the ack tracker from being
+        // evicted, exactly as when honest data holders are transiently
+        // unreachable in production).
+        let num_rounds: u32 = 20;
+        let mut builder = DagBuilder::new(context.clone());
+        builder.layers(1..=num_rounds).build();
+        dag_state.write().accept_block_headers(
+            builder.block_headers.values().cloned().collect(),
+            DataSource::Test,
+        );
+
+        let leaders = builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+
+        let committed_leaders = if starfish_speed {
+            let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+                .map(AuthorityIndex::new_for_test)
+                .collect();
+            leaders
+                .into_iter()
+                .map(|leader| {
+                    (
+                        leader,
+                        Some(CommitMetastate::Optimistic),
+                        strong_voters.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        } else {
+            with_no_metastate(leaders)
+        };
+        observer
+            .handle_committed_leaders(committed_leaders, CommittedSubDagSource::Consensus)
+            .unwrap();
+        while receiver.try_recv().is_ok() {}
+
+        // Restart with the solid cursor lagging at 0 while the store holds the full
+        // backlog, so the un-delivered range is deeper than 2 * gc_depth — the
+        // regime this test exercises.
+        drop(observer);
+        let observer = CommitObserver::new(
+            context,
+            CommitConsumer::new(sender, 0),
+            dag_state,
+            mem_store,
+            leader_schedule,
+        )
+        .await;
+
+        let raw_missing = observer.commit_solidifier.get_missing_transaction_data();
+        let with_acks = observer.get_missing_transaction_data();
+        assert!(
+            !raw_missing.is_empty(),
+            "test must actually stall on missing backlog transaction data"
+        );
+        for missing_ref in &raw_missing {
+            let acknowledgers = with_acks.get(missing_ref);
+            assert!(
+                acknowledgers.is_some_and(|authors| !authors.is_empty()),
+                "recovery must seed acknowledgers for backlog transaction {missing_ref:?}"
+            );
+        }
+    }
 }
