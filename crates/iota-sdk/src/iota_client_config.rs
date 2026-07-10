@@ -253,6 +253,8 @@ impl IotaEnv {
     }
 
     /// Create a [`iota_grpc_client::Client`] for this env's gRPC endpoint.
+    ///
+    /// Errors if the env has no `grpc` URL configured.
     pub fn create_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
         let grpc_url = self
             .grpc
