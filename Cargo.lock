@@ -6012,6 +6012,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-tool",
  "iota-types",
+ "iota-vm-sdk",
  "jsonrpsee",
  "move-binary-format",
  "move-command-line-common",
@@ -8240,6 +8241,36 @@ version = "1.28.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
+]
+
+[[package]]
+name = "iota-vm-sdk"
+version = "1.28.0-alpha"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "chrono",
+ "fastcrypto",
+ "iota-config",
+ "iota-execution",
+ "iota-framework",
+ "iota-protocol-config",
+ "iota-sdk-graphql-client",
+ "iota-sdk-grpc-client",
+ "iota-sdk-transaction-builder",
+ "iota-sdk-types",
+ "iota-transaction-checks",
+ "iota-types",
+ "move-binary-format",
+ "move-bytecode-utils",
+ "move-core-types",
+ "move-trace-format",
+ "prometheus-filtered",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.64",
+ "tokio",
+ "tonic 0.14.2",
 ]
 
 [[package]]

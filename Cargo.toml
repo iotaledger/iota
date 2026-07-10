@@ -151,6 +151,7 @@ members = [
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
+  "crates/iota-vm-sdk",
   "crates/prometheus-closure-metric",
   "crates/prometheus-filtered",
   "crates/simulacrum",
@@ -444,6 +445,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "aee56356ba7ded4ed79f934cb47c9afc0be79c9e", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "aee56356ba7ded4ed79f934cb47c9afc0be79c9e", default-features = false }
 iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "aee56356ba7ded4ed79f934cb47c9afc0be79c9e", default-features = false }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "aee56356ba7ded4ed79f934cb47c9afc0be79c9e", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
@@ -464,6 +466,7 @@ iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
+iota-vm-sdk = { path = "crates/iota-vm-sdk" }
 move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
