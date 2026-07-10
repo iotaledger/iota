@@ -548,10 +548,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
     tracer.trace_type::<TransactionEffects>(&samples).unwrap();
-
-    // `CheckpointContents` (SDK type) is registered via its value sample above:
-    // its `UserSignature`s serialize as opaque bytes, which the tracer cannot
-    // synthesize a scheme flag for, so `trace_type` cannot be used here.
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
     tracer
