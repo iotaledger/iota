@@ -253,17 +253,12 @@ impl IotaEnv {
     }
 
     /// Create a [`iota_grpc_client::Client`] for this env's gRPC endpoint.
-    ///
-    /// Errors if the env has no `grpc` URL configured. The gRPC URL is not
-    /// derived from the RPC URL: the two use different hosts and ports, so a
-    /// missing value is a configuration gap rather than something to guess.
     pub fn create_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
         let grpc_url = self
             .grpc
-            .as_ref()
+            .as_deref()
             .ok_or_else(|| anyhow!("gRPC is not configured for environment [{}]", self.alias))?;
-        iota_grpc_client::Client::new(grpc_url.as_str())
-            .map_err(|e| anyhow!("failed to create a gRPC client for [{grpc_url}]: {e}"))
+        Ok(iota_grpc_client::Client::new(grpc_url)?)
     }
 
     /// Create the env with the default mainnet configuration.
