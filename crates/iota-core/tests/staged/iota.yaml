@@ -129,11 +129,12 @@ CheckpointContents:
   ENUM:
     0:
       V1:
-        TUPLE:
-          - SEQ:
-              TYPENAME: Digests
-          - SEQ:
-              SEQ: BYTES
+        NEWTYPE:
+          TUPLE:
+            - SEQ:
+                TYPENAME: Digests
+            - SEQ:
+                SEQ: BYTES
 CheckpointContentsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
