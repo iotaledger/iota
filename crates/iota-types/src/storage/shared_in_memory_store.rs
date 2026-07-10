@@ -14,8 +14,8 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,
@@ -267,7 +267,7 @@ impl InMemoryStore {
 
         let contents = self.get_checkpoint_contents(digest)?;
 
-        let mut transactions = Vec::with_capacity(contents.size());
+        let mut transactions = Vec::with_capacity(contents.len());
 
         for tx in contents.iter() {
             if let (Some(t), Some(e)) = (
@@ -341,8 +341,7 @@ impl InMemoryStore {
         self.full_checkpoint_contents
             .insert(checkpoint.sequence_number(), contents.clone());
         let contents = contents.into_checkpoint_contents();
-        self.checkpoint_contents
-            .insert(*contents.digest(), contents);
+        self.checkpoint_contents.insert(contents.digest(), contents);
     }
 
     pub fn insert_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
@@ -384,7 +383,7 @@ impl InMemoryStore {
             .get(&sequence_number)
             .unwrap()
             .clone();
-        let contents_digest = *contents.checkpoint_contents().digest();
+        let contents_digest = contents.checkpoint_contents().digest();
         for content in contents.iter() {
             let tx_digest = content.transaction.digest();
             self.effects.remove(tx_digest);

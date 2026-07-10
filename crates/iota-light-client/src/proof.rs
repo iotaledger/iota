@@ -10,7 +10,9 @@ use iota_types::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     event::EventID,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, EndOfEpochData,
+    },
     object::Object,
     transaction::Transaction,
 };
@@ -163,7 +165,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         if !contents_proof
             .checkpoint_contents
             .enumerate_transactions(summary)
-            .any(|x| x.1 == &digests)
+            .any(|x| x.1 == digests)
         {
             // Could not find the digest in the checkpoint contents
             bail!("Transaction digest not found in the checkpoint contents");

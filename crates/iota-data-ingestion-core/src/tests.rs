@@ -25,8 +25,8 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,

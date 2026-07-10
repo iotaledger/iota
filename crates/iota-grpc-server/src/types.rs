@@ -433,17 +433,12 @@ impl GrpcReader {
             let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
                 .with_sequence_number(sequence_number);
 
-            let sdk_contents: iota_sdk_types::CheckpointContents = checkpoint_contents
-                .clone()
-                .try_into()
-                .map_err(|e| Status::internal(format!("failed to convert checkpoint contents: {e}")))?;
-
             let sdk_signature = iota_sdk_types::ValidatorAggregatedSignature::from(checkpoint_summary.auth_sig().clone());
 
             // Use Merge to populate based on mask
             Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge summary"))?;
-            Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_contents, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge contents"))?;
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;

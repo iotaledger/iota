@@ -15,7 +15,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEvents,
     full_checkpoint_content::CheckpointTransaction,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt},
     object::Object,
 };
 use prometheus_filtered::Registry;

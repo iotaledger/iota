@@ -17,8 +17,8 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        FullCheckpointContents, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
