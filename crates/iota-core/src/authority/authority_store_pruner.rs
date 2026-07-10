@@ -467,7 +467,7 @@ impl AuthorityStorePruner {
         let pruned_checkpoint_number = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .unwrap_or(0);
-        let (prune_checkpoints_for_eligible_epochs, last_executed_timestamp_ms) = checkpoint_store
+        let (mut max_eligible_checkpoint, last_executed_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
             .map(|c| (c.sequence_number(), c.timestamp_ms))
             .unwrap_or_default();
@@ -897,7 +897,6 @@ impl AuthorityStorePruner {
                         pruner_db.as_ref(),
                         config.clone(),
                         metrics.clone(),
-                        archive_readers.clone(),
                         epoch_duration_ms,
                         progress_tracker.as_ref(),
                     )

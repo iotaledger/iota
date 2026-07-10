@@ -82,5 +82,5 @@ where
             store.update_highest_verified_checkpoint(&verified_checkpoint);
             Ok::<VerifiedCheckpoint, anyhow::Error>(verified_checkpoint)
         })
-        .map_err(|e| anyhow!("Failed to get verified checkpoint: {:?}", e))
+        .map_err(|e| anyhow!("Failed to get verified checkpoint: {e:?}"))
 }
