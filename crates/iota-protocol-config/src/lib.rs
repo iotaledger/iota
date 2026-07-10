@@ -176,6 +176,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 31: Rebuild the framework binaries for the latest iota_system
 //             validator set changes.
 //             Enable validator metadata verification v2.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthenticationError` execution error.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -547,6 +549,11 @@ struct FeatureFlags {
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthenticationError` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1805,6 +1812,15 @@ impl ProtocolConfig {
         self.feature_flags.validator_metadata_verify_v2
     }
 
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
+    }
+
     pub fn commits_per_schedule(&self) -> u32 {
         if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
@@ -2977,6 +2993,8 @@ impl ProtocolConfig {
                 }
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
+
+                    cfg.feature_flags.report_move_authentication_error = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3202,6 +3220,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {

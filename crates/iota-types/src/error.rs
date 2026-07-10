@@ -1048,6 +1048,22 @@ impl ExecutionError {
         self
     }
 
+    /// Rewrap this error, produced while executing a Move authenticator, as a
+    /// [`ExecutionFailureStatus::MoveAuthenticationError`]. The command index
+    /// is dropped: it referred to a command of the authenticator's own
+    /// programmable transaction and is meaningless in the transaction's
+    /// effects, where it would otherwise collide with the first command of the
+    /// programmable transaction.
+    pub fn into_move_authentication_error(self) -> Self {
+        let ExecutionErrorInner { kind, source, .. } = *self.inner;
+        Self::new(
+            ExecutionFailureStatus::MoveAuthenticationError {
+                error: Box::new(kind),
+            },
+            source,
+        )
+    }
+
     pub fn from_kind(kind: ExecutionErrorKind) -> Self {
         Self::new(kind, None)
     }
