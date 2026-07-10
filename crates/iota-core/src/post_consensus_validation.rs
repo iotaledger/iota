@@ -128,7 +128,7 @@ pub async fn validate_and_resolve_conflicts(
             SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
                 ConsensusTransactionKind::UserTransactionV1(t) => t,
                 // Certified transactions, system transactions, and internal consensus
-                // message pass through unchanged.
+                // messages pass through unchanged.
                 ConsensusTransactionKind::CertifiedTransaction(_)
                 | ConsensusTransactionKind::CheckpointSignature(_)
                 | ConsensusTransactionKind::EndOfPublish(_)
@@ -362,7 +362,7 @@ fn find_existing_lock(
 fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
 ) -> IotaResult<Vec<ObjectReference>> {
-    let transaction_data_opt = match &tx.0.transaction {
+    let Some(transaction_data) = (match &tx.0.transaction {
         // Listed exhaustively (no `_` arm) so a new user-transaction kind must
         // be classified here rather than silently returning the error below.
         SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
@@ -381,10 +381,7 @@ fn extract_owned_input_objects(
             ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
         },
         SequencedConsensusTransactionKind::System(_) => None,
-    };
-    let transaction_data = if let Some(transaction_data) = transaction_data_opt {
-        transaction_data
-    } else {
+    }) else {
         return Err(IotaError::GenericAuthority {
             error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
         });
