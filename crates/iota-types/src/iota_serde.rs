@@ -11,7 +11,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, StructTag, TypeTag};
+use iota_sdk_types::{Address, StructTag, TypeTag, Version};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -281,8 +281,8 @@ where
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct SequenceNumber(u64);
 
-impl SerializeAs<iota_sdk_types::Version> for SequenceNumber {
-    fn serialize_as<S>(value: &iota_sdk_types::Version, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<Version> for SequenceNumber {
+    fn serialize_as<S>(value: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -291,13 +291,13 @@ impl SerializeAs<iota_sdk_types::Version> for SequenceNumber {
     }
 }
 
-impl<'de> DeserializeAs<'de, iota_sdk_types::Version> for SequenceNumber {
-    fn deserialize_as<D>(deserializer: D) -> Result<iota_sdk_types::Version, D::Error>
+impl<'de> DeserializeAs<'de, Version> for SequenceNumber {
+    fn deserialize_as<D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let b = BigInt::deserialize(deserializer)?;
-        Ok(iota_sdk_types::Version::from_u64(*b))
+        Ok(Version::from_u64(*b))
     }
 }
 
