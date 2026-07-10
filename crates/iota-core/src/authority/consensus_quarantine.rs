@@ -1016,25 +1016,34 @@ impl ConsensusOutputQuarantine {
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
             .filter_map(|tx| match &tx.0.transaction {
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                _ => None,
+                // Listed exhaustively (no `_` arm) so a new user-transaction kind must be
+                // classified here rather than silently contributing no shared-object debt.
+                SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                    ConsensusTransactionKind::CertifiedTransaction(tx) => Some(
+                        tx.shared_input_objects()
+                            .into_iter()
+                            .map(|obj| obj.object_id)
+                            .collect::<Vec<_>>(),
+                    ),
+                    ConsensusTransactionKind::UserTransactionV1(tx) => Some(
+                        tx.shared_input_objects()
+                            .into_iter()
+                            .map(|obj| obj.object_id)
+                            .collect::<Vec<_>>(),
+                    ),
+                    // internal consensus messages have no shared input objects to preload
+                    ConsensusTransactionKind::CheckpointSignature(_)
+                    | ConsensusTransactionKind::EndOfPublish(_)
+                    | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                    | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                    | ConsensusTransactionKind::RandomnessDkgMessage(..)
+                    | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
+                    | ConsensusTransactionKind::MisbehaviorReport(_)
+                    | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
+                    #[allow(deprecated)]
+                    ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
+                },
+                SequencedConsensusTransactionKind::System(_) => None,
             })
             .flatten()
             .collect();
