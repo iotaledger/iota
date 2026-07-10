@@ -5,6 +5,7 @@
 //! [`simulate`](super::simulate::simulate) surface.
 
 use iota_sdk_types::Owner;
+use move_core_types::{annotated_value::MoveValue, identifier::Identifier};
 use serde::{Deserialize, Serialize};
 
 /// A BCS-encoded `Object`, base-64 encoded.
@@ -20,6 +21,10 @@ pub struct BcsObject {
 pub struct SimulateRequest {
     /// Base-64 BCS [`TransactionData`] to run.
     pub tx_b64: String,
+    /// Chain the transaction targets: `"mainnet"`, `"testnet"`, or absent for
+    /// an unknown chain. Selects the chain-specific protocol configuration.
+    #[serde(default)]
+    pub chain: Option<String>,
     /// Protocol version to configure the VM for.
     pub protocol_version: u64,
     /// Reference gas price for the epoch.
@@ -182,4 +187,39 @@ pub struct SimulateResult {
     /// `true` when signatures were supplied and verification (incl. any
     /// `MoveAuthenticator` function) succeeded.
     pub signature_verified: bool,
+    /// Why signature verification failed, when it did.
+    pub signature_error: Option<String>,
+}
+
+/// Render a decoded Move value as JSON. `u64`/`u128`/`u256` become strings —
+/// they exceed the 2^53 precision of a JS number (the result round-trips
+/// through `JSON.parse`) — matching the JSON-RPC convention; addresses render
+/// as `0x…` hex.
+pub(super) fn move_value_to_json(value: &MoveValue) -> serde_json::Value {
+    use serde_json::{Value, json};
+    match value {
+        MoveValue::Bool(v) => json!(v),
+        MoveValue::U8(v) => json!(v),
+        MoveValue::U16(v) => json!(v),
+        MoveValue::U32(v) => json!(v),
+        MoveValue::U64(v) => json!(v.to_string()),
+        MoveValue::U128(v) => json!(v.to_string()),
+        MoveValue::U256(v) => json!(v.to_string()),
+        MoveValue::Address(a) | MoveValue::Signer(a) => json!(a.to_canonical_string(true)),
+        MoveValue::Vector(items) => Value::Array(items.iter().map(move_value_to_json).collect()),
+        MoveValue::Struct(s) => fields_to_json(&s.fields),
+        MoveValue::Variant(v) => json!({
+            "variant": v.variant_name.to_string(),
+            "fields": fields_to_json(&v.fields),
+        }),
+    }
+}
+
+fn fields_to_json(fields: &[(Identifier, MoveValue)]) -> serde_json::Value {
+    serde_json::Value::Object(
+        fields
+            .iter()
+            .map(|(name, value)| (name.to_string(), move_value_to_json(value)))
+            .collect(),
+    )
 }

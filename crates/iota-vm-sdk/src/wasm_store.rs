@@ -30,13 +30,17 @@ use crate::{
 /// A [`Store`] that fetches missing objects on demand via a JS callback.
 ///
 /// Wraps an [`InMemoryStore`] cache (seeded with the framework packages) and a
-/// JS function `fetch_object(id_hex: string) -> string | null` returning the
-/// base-64 BCS of the full [`Object`]. The Move VM is synchronous, so the
-/// callback must return synchronously (e.g. a blocking `XMLHttpRequest`).
+/// JS function `fetch_object(id_hex: string, version: number | null) ->
+/// string | null` returning the base-64 BCS of the full [`Object`] at the given
+/// version (latest when `version` is null), or null when the object doesn't
+/// exist. The Move VM is synchronous, so the callback must return synchronously
+/// (e.g. a blocking `XMLHttpRequest`). A callback that throws, or returns
+/// anything other than a base-64 `Object` or null, fails the lookup with a
+/// [`StoreError`] — only null reads as "object doesn't exist".
 pub(crate) struct CallbackStore {
     cache: RefCell<InMemoryStore>,
-    /// IDs the callback returned null/garbage for; skip re-fetching them.
-    unresolved: RefCell<HashSet<ObjectId>>,
+    /// Lookups the callback returned null for; skip re-fetching them.
+    unresolved: RefCell<HashSet<(ObjectId, Option<u64>)>>,
     fetch_object: Function,
 }
 
@@ -59,30 +63,43 @@ impl CallbackStore {
         }
     }
 
-    /// Fetch `id` via the callback and insert it into the cache. No-op if the
-    /// callback already failed for this ID. Returns whether the object is now
-    /// cached.
-    fn fetch(&self, id: &ObjectId) -> bool {
-        if self.unresolved.borrow().contains(id) {
-            return false;
+    /// Fetch `id` (at `version`, or latest) via the callback and insert it
+    /// into the cache. No-op if the callback already returned null for this
+    /// lookup.
+    fn fetch(&self, id: &ObjectId, version: Option<Version>) -> Result<(), StoreError> {
+        let key = (*id, version.map(|v| v.as_u64()));
+        if self.unresolved.borrow().contains(&key) {
+            return Ok(());
         }
-        let fetched = self
+        let version_arg = match version {
+            Some(v) => JsValue::from_f64(v.as_u64() as f64),
+            None => JsValue::NULL,
+        };
+        let returned = self
             .fetch_object
-            .call1(&JsValue::NULL, &JsValue::from_str(&id.to_string()))
-            .ok()
-            .and_then(|v| v.as_string())
-            .and_then(|b64| BASE64.decode(b64.trim()).ok())
-            .and_then(|bytes| bcs::from_bytes::<Object>(&bytes).ok());
-        match fetched {
-            Some(obj) => {
-                self.cache.borrow_mut().insert(obj);
-                true
-            }
-            None => {
-                self.unresolved.borrow_mut().insert(*id);
-                false
-            }
+            .call2(
+                &JsValue::NULL,
+                &JsValue::from_str(&id.to_string()),
+                &version_arg,
+            )
+            .map_err(|e| StoreError::new(format!("fetch object {id}"), format!("{e:?}")))?;
+        if returned.is_null() || returned.is_undefined() {
+            self.unresolved.borrow_mut().insert(key);
+            return Ok(());
         }
+        let b64 = returned.as_string().ok_or_else(|| {
+            StoreError::new(
+                format!("fetch object {id}"),
+                "callback must return a base-64 string or null",
+            )
+        })?;
+        let bytes = BASE64
+            .decode(b64.trim())
+            .map_err(|e| StoreError::new(format!("decode object {id} base64"), e))?;
+        let obj: Object = bcs::from_bytes(&bytes)
+            .map_err(|e| StoreError::new(format!("decode object {id} bcs"), e))?;
+        self.cache.borrow_mut().insert(obj);
+        Ok(())
     }
 }
 
@@ -95,7 +112,7 @@ impl Store for CallbackStore {
         if let Some(obj) = self.cache.borrow().get_object(id, version)? {
             return Ok(Some(obj));
         }
-        self.fetch(id);
+        self.fetch(id, version)?;
         self.cache.borrow().get_object(id, version)
     }
 
@@ -112,7 +129,8 @@ impl Store for CallbackStore {
         {
             return Ok(Some(obj));
         }
-        self.fetch(child);
+        // The bound is a ceiling, not an exact version, so fetch the latest.
+        self.fetch(child, None)?;
         self.cache
             .borrow()
             .get_child_object(parent, child, version_upper_bound)

@@ -25,7 +25,6 @@ wasm-bindgen = [
   "dep:serde",
   "dep:serde-wasm-bindgen",
   "dep:wasm-bindgen",
-  "dep:web-sys",
 ]
 
 [dependencies]
@@ -60,13 +59,15 @@ prometheus-filtered.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = { version = "0.1", optional = true }
+# `getrandom` and `instant` are not imported by this crate: they pin the `js` /
+# `wasm-bindgen` features on so transitive users of randomness and time get a
+# browser-compatible source.
 getrandom.workspace = true
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 js-sys = { version = "0.3", optional = true }
 serde = { workspace = true, optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["console"] }
 
 [dev-dependencies]
 # external dependencies

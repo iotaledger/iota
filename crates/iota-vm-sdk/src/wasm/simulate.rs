@@ -6,9 +6,8 @@
 
 use base64::Engine;
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::Owner;
+use iota_sdk_types::{ObjectReference, Owner};
 use iota_types::{
-    base_types::ObjectRef,
     effects::TransactionEffectsAPI,
     object::Object,
     signature::GenericSignature,
@@ -20,19 +19,21 @@ use super::{
     b64_decode, err_to_js,
     types::{
         ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, OwnerInfo,
-        SimulateRequest, SimulateResult,
+        SimulateRequest, SimulateResult, move_value_to_json,
     },
 };
-use crate::{ChainContext, ExecuteOptions, LocalVm, wasm_store::CallbackStore};
+use crate::{ChainContext, ExecuteOptions, LocalVm, SignatureStatus, wasm_store::CallbackStore};
 
 /// Run a [`SimulateRequest`] through the local Move VM and return a
 /// [`SimulateResult`].
 ///
-/// Objects are resolved on demand: `fetch_object(id_hex: string) -> string |
-/// null` is called for any object the VM needs that isn't already cached, and
-/// must return the object's base-64 BCS (synchronously, since the VM is
-/// synchronous). `req.objects` may pre-seed the cache but can be empty. The
-/// transaction is run in dry-run or dev-inspect mode, verifying any signatures.
+/// Objects are resolved on demand: `fetch_object(id_hex: string, version:
+/// number | null) -> string | null` is called for any object the VM needs that
+/// isn't already cached, and must return the object's base-64 BCS
+/// (synchronously, since the VM is synchronous) at the given version — latest
+/// when `version` is null — or null when the object doesn't exist.
+/// `req.objects` may pre-seed the cache but can be empty. The transaction is
+/// run in dry-run or dev-inspect mode, verifying any signatures.
 #[wasm_bindgen]
 pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue, JsError> {
     let req: SimulateRequest =
@@ -53,12 +54,22 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     }
     store.seed(seed);
 
+    let chain = match req.chain.as_deref() {
+        None => Chain::Unknown,
+        Some("mainnet") => Chain::Mainnet,
+        Some("testnet") => Chain::Testnet,
+        Some(other) => {
+            return Err(JsError::new(&format!(
+                "unknown chain \"{other}\": expected \"mainnet\" or \"testnet\", or omit it"
+            )));
+        }
+    };
     let ctx = ChainContext {
         protocol_version: ProtocolVersion::new(req.protocol_version),
         reference_gas_price: req.reference_gas_price,
         epoch_id: req.epoch_id,
         epoch_timestamp_ms: req.epoch_timestamp_ms,
-        chain: Chain::Unknown,
+        chain,
     };
     let mut vm = LocalVm::new(ctx, store).map_err(err_to_js)?;
 
@@ -87,10 +98,13 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     let status = result.effects.status();
     let success = status.is_success();
     let gas = &result.gas_summary;
-    let signature_verified =
-        signed && matches!(result.signature_status, crate::SignatureStatus::Verified);
+    let signature_verified = signed && matches!(result.signature_status, SignatureStatus::Verified);
+    let signature_error = match &result.signature_status {
+        SignatureStatus::Failed(e) => Some(e.to_string()),
+        _ => None,
+    };
 
-    fn changed((obj, owner): (ObjectRef, Owner)) -> ChangedObject {
+    fn changed((obj, owner): (ObjectReference, Owner)) -> ChangedObject {
         ChangedObject {
             object_id: obj.object_id().to_string(),
             version: obj.version().as_u64(),
@@ -117,26 +131,21 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         Some(evs) => evs
             .0
             .iter()
-            .map(
-                |ev| match vm.decode_value(&ev.contents, &ev.type_.clone().into()) {
-                    Ok(value) => EventOut {
-                        package_id: ev.package_id.to_string(),
-                        module: ev.module.to_string(),
-                        name: ev.type_.name().to_string(),
-                        type_tag: ev.type_.to_string(),
-                        value: serde_json::to_value(&value).ok(),
-                        decode_error: None,
-                    },
-                    Err(e) => EventOut {
-                        package_id: String::new(),
-                        module: String::new(),
-                        name: String::new(),
-                        type_tag: String::new(),
-                        value: None,
-                        decode_error: Some(e.to_string()),
-                    },
-                },
-            )
+            .map(|ev| {
+                let (value, decode_error) =
+                    match vm.decode_value(&ev.contents, &ev.type_.clone().into()) {
+                        Ok(value) => (Some(move_value_to_json(&value)), None),
+                        Err(e) => (None, Some(e.to_string())),
+                    };
+                EventOut {
+                    package_id: ev.package_id.to_string(),
+                    module: ev.module.to_string(),
+                    name: ev.type_.name().to_string(),
+                    type_tag: ev.type_.to_string(),
+                    value,
+                    decode_error,
+                }
+            })
             .collect(),
         None => Vec::new(),
     };
@@ -145,7 +154,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     // reference outputs), each a raw `(bytes, type)` pair, against the store.
     let decode_call_value = |bytes: &[u8], type_tag: &iota_sdk_types::TypeTag| {
         let (value, decode_error) = match vm.decode_value(bytes, type_tag) {
-            Ok(v) => (serde_json::to_value(&v).ok(), None),
+            Ok(v) => (Some(move_value_to_json(&v)), None),
             Err(e) => (None, Some(e.to_string())),
         };
         MoveCallValue {
@@ -185,13 +194,13 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         command_results,
         error: status.error().map(|e| format!("{e:?}")),
         signature_verified,
+        signature_error,
     };
     // Round-trip through a JSON string rather than `serde_wasm_bindgen`: the
-    // decoded event payloads are `serde_json::Value`s, and `serde_json` renders
-    // its own maps and (arbitrary-precision) numbers faithfully, whereas
-    // `serde_wasm_bindgen` would turn maps into JS `Map`s (stringifying to
-    // `{}`) and leak serde_json's number token. `JSON.parse` then yields a
-    // plain JS object.
+    // decoded payloads are `serde_json::Value`s, and `serde_wasm_bindgen`
+    // would turn their maps into JS `Map`s (stringifying to `{}`). `JSON.parse`
+    // yields a plain JS object instead; it is lossless here because
+    // `move_value_to_json` renders every 64-bit-plus integer as a string.
     let json = serde_json::to_string(&out).map_err(|e| JsError::new(&e.to_string()))?;
     js_sys::JSON::parse(&json).map_err(|e| JsError::new(&format!("{e:?}")))
 }

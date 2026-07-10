@@ -47,9 +47,6 @@ fn b64_decode(s: &str) -> Result<Vec<u8>, JsError> {
 /// Map a [`VmSdkError`] to a JS exception. The variant name is prefixed so the
 /// JS side can branch on the failure phase without parsing the message body.
 fn err_to_js(e: VmSdkError) -> JsError {
-    // `VmSdkError` is `#[non_exhaustive]`; the wildcard keeps this mapping
-    // compiling (and degrading to "Unknown") if a variant is added later.
-    #[allow(unreachable_patterns)]
     let tag = match &e {
         VmSdkError::Validation(_) => "Validation",
         VmSdkError::SignatureVerification(_) => "SignatureVerification",
@@ -58,7 +55,6 @@ fn err_to_js(e: VmSdkError) -> JsError {
         VmSdkError::Execution(_) => "Execution",
         VmSdkError::Vm(_) => "Vm",
         VmSdkError::UnsupportedProtocolVersion { .. } => "UnsupportedProtocolVersion",
-        _ => "Unknown",
     };
     JsError::new(&format!("{tag}: {e}"))
 }

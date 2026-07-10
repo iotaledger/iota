@@ -18,8 +18,9 @@ stored inside `IotaSystemState`, none of which are inputs, and an object can
 have thousands of dynamic fields. So the JS side fetches nothing up front.
 Instead the wasm store ([`CallbackStore`](../../src/wasm_store.rs)) resolves
 objects **on demand**: whenever the VM reads an object it doesn't have, it calls
-the JS `fetchObject(id)` callback, which fetches that object's BCS from testnet
-GraphQL and returns it. The "Objects fetched on demand" panel logs each fetch.
+the JS `fetchObject(id, version)` callback, which fetches that object's BCS
+from testnet GraphQL (at the exact version when given, else latest) and returns
+it. The "Objects fetched on demand" panel logs each fetch.
 
 Because the Move VM is synchronous, `fetchObject` uses a **synchronous**
 `XMLHttpRequest`. That blocks the thread for the duration of the fetches; for a

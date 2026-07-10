@@ -48,12 +48,14 @@ const els = {
 
 // --- The on-demand object resolver handed to the wasm Store -----------------
 
-// Synchronously fetch an object's full BCS from testnet GraphQL. The Move VM is
-// synchronous, so this blocks (sync XMLHttpRequest) until the response — that's
-// the price of resolving objects mid-execution without a node. Returns the
-// base-64 `Object` BCS, or null if the object doesn't exist.
-function fetchObject(idHex: string): string | null {
-  const query = `{ object(address: "${idHex}") { bcs } }`;
+// Synchronously fetch an object's full BCS from testnet GraphQL, at the exact
+// version when given, else latest. The Move VM is synchronous, so this blocks
+// (sync XMLHttpRequest) until the response — that's the price of resolving
+// objects mid-execution without a node. Returns the base-64 `Object` BCS, or
+// null if the object doesn't exist.
+function fetchObject(idHex: string, version: number | null): string | null {
+  const at = version === null ? "" : `, version: ${version}`;
+  const query = `{ object(address: "${idHex}"${at}) { bcs } }`;
   const xhr = new XMLHttpRequest();
   xhr.open("POST", GRAPHQL_URL, /* async */ false);
   xhr.setRequestHeader("content-type", "application/json");
@@ -99,6 +101,7 @@ async function chainParams() {
     client.getReferenceGasPrice(),
   ]);
   return {
+    chain: "testnet",
     protocol_version: Number(sys.protocolVersion),
     reference_gas_price: Number(gasPrice),
     epoch_id: Number(sys.epoch),
@@ -192,7 +195,11 @@ async function doSimulate(
   renderTiming(fetchMs, fetchCount, Math.max(0, wall - fetchMs), wall);
 
   const sig = signatures.length
-    ? ` · signature ${result.signature_verified ? "verified" : "rejected"}`
+    ? ` · signature ${
+      result.signature_verified
+        ? "verified"
+        : `rejected${result.signature_error ? ` (${result.signature_error})` : ""}`
+    }`
     : "";
   setStatus(
     result.success ? "ok" : "bad",

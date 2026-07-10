@@ -8288,7 +8288,6 @@ dependencies = [
  "tokio",
  "tonic 0.14.2",
  "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
