@@ -323,11 +323,17 @@ impl CommitObserver {
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
-        let linearizer_recovery_start = last_commit_index
+        let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
+        // Seed the ack tracker from 2 * gc_depth commits before the last delivered
+        // (solid) commit — the lookback live eviction preserves — so seeding covers
+        // the whole [solidifier_recovery_start, last_commit] range handed to the
+        // solidifier below. Anchoring to the commit tip instead would skip a backlog
+        // deeper than 2 * gc_depth, leaving those transactions with no acknowledgers
+        // to fetch from and stalling commit output permanently.
+        let recovery_start = self
+            .last_sent_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
-        let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
-        let recovery_start = linearizer_recovery_start.min(solidifier_recovery_start);
 
         info!(
             "Recovering linearizer/solidifier state from commits {recovery_start}..={last_commit_index}"
@@ -363,43 +369,41 @@ impl CommitObserver {
                 let pending_sub_dag =
                     load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
 
-                if commit_index >= linearizer_recovery_start {
-                    // Rebuild traversed headers tracker
-                    self.linearizer
-                        .record_traversed_headers(pending_sub_dag.headers.iter());
+                // Rebuild traversed headers tracker
+                self.linearizer
+                    .record_traversed_headers(pending_sub_dag.headers.iter());
 
-                    // Recover transaction acknowledgments tracker state
-                    for ((round, authority_idx), transaction_acknowledgments) in
-                        pending_sub_dag.transaction_acknowledgments().into_iter()
-                    {
-                        self.linearizer.add_committed_transaction_acks(
-                            round,
+                // Recover transaction acknowledgments tracker state
+                for ((round, authority_idx), transaction_acknowledgments) in
+                    pending_sub_dag.transaction_acknowledgments().into_iter()
+                {
+                    self.linearizer.add_committed_transaction_acks(
+                        round,
+                        authority_idx,
+                        transaction_acknowledgments,
+                    );
+                }
+
+                // Repopulate the ack tracker for transactions optimistically committed
+                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                // The full committee is used as a conservative over-approximation of
+                // the actual acknowledging set.
+                if is_optimistic {
+                    let leader_ref = pending_sub_dag.leader;
+                    let leader_header = pending_sub_dag
+                        .headers
+                        .iter()
+                        .find(|h| h.reference() == leader_ref)
+                        .expect("leader header must be present in pending sub-dag");
+                    let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                        .chain(leader_header.acknowledgments().iter().copied())
+                        .collect();
+                    for (authority_idx, _) in self.context.committee.authorities() {
+                        let _ = self.linearizer.add_committed_transaction_acks(
+                            leader_header.round() + 1,
                             authority_idx,
-                            transaction_acknowledgments,
+                            refs.clone(),
                         );
-                    }
-
-                    // Repopulate the ack tracker for transactions optimistically committed
-                    // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
-                    // The full committee is used as a conservative over-approximation of
-                    // the actual acknowledging set.
-                    if is_optimistic {
-                        let leader_ref = pending_sub_dag.leader;
-                        let leader_header = pending_sub_dag
-                            .headers
-                            .iter()
-                            .find(|h| h.reference() == leader_ref)
-                            .expect("leader header must be present in pending sub-dag");
-                        let refs: Vec<BlockRef> = std::iter::once(leader_ref)
-                            .chain(leader_header.acknowledgments().iter().copied())
-                            .collect();
-                        for (authority_idx, _) in self.context.committee.authorities() {
-                            let _ = self.linearizer.add_committed_transaction_acks(
-                                leader_header.round() + 1,
-                                authority_idx,
-                                refs.clone(),
-                            );
-                        }
                     }
                 }
 
