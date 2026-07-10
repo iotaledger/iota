@@ -16,7 +16,7 @@ use iota_types::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
 };
 use tracing::info;
@@ -46,7 +46,7 @@ pub fn extract_verified_effects_and_events(
         // Note that we get the digest of the effects to ensure this is
         // indeed the correct effects that are authenticated in the contents.
         .find(|(tx, digest)| {
-            tx.effects.execution_digests() == **digest && digest.transaction == transaction_digest
+            tx.effects.execution_digests() == *digest && digest.transaction == transaction_digest
         })
         .ok_or_else(|| anyhow!("Transaction not found in checkpoint contents"))?;
 

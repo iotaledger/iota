@@ -12,7 +12,7 @@ use iota_data_ingestion_core::Worker;
 use iota_sdk_types::{Address, Owner};
 use iota_types::{
     effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
-    transaction::TransactionDataAPI,
+    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;

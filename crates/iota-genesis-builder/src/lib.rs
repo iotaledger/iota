@@ -52,7 +52,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
@@ -1271,8 +1271,8 @@ fn create_genesis_checkpoint(
     let checkpoint = CheckpointSummary {
         epoch: 0,
         sequence_number: 0,
-        network_total_transactions: contents.size().try_into().unwrap(),
-        content_digest: *contents.digest(),
+        network_total_transactions: contents.len().try_into().unwrap(),
+        content_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         end_of_epoch_data: None,

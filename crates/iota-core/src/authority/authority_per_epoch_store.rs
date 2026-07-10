@@ -53,7 +53,8 @@ use iota_types::{
     },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,

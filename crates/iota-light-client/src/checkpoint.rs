@@ -516,7 +516,9 @@ mod tests {
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{CheckpointContents, CheckpointSummary, CheckpointSummaryExt},
+        messages_checkpoint::{
+            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        },
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
