@@ -379,7 +379,6 @@ async fn test_staking() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-#[ignore = "https://github.com/iotaledger/iota/issues/5085"]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
     // disable pruning so that we can query the unstaked object after it is deleted
     let cluster = TestClusterBuilder::new()
