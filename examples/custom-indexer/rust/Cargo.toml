@@ -30,3 +30,9 @@ path = "hybrid_reader.rs"
 [[bin]]
 name = "remote_reader_with_filters"
 path = "remote_reader_with_filters.rs"
+
+# fastcrypto-tbls/-vdf/-zkp (pulled transitively via the monorepo crates) fetch
+# fastcrypto through an in-repo path dep. Redirect it to the crates.io release
+# so this workspace shares a single fastcrypto instead of two conflicting copies.
+[patch."https://github.com/MystenLabs/fastcrypto"]
+fastcrypto = "=0.1.11"

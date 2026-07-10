@@ -327,6 +327,17 @@ async fn get_checkpoint_readmask_scenarios() {
             vec!["transactions.transaction.digest", "transactions.timestamp"],
         ),
         (
+            "transactions derived changes (balance_changes + object_changes)",
+            Some(FieldMask::from_paths([
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ])),
+            vec![
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ],
+        ),
+        (
             "full readmask",
             Some(FieldMask::from_paths([
                 "checkpoint",
@@ -512,6 +523,17 @@ async fn stream_checkpoints_readmask_scenarios() {
                 "transactions.timestamp",
             ])),
             vec!["transactions.effects.digest", "transactions.timestamp"],
+        ),
+        (
+            "stream transactions derived changes (balance_changes + object_changes)",
+            Some(FieldMask::from_paths([
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ])),
+            vec![
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ],
         ),
         (
             "stream full readmask",

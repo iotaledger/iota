@@ -175,6 +175,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             module.
 // Version 31: Rebuild the framework binaries for the latest iota_system
 //             validator set changes.
+//             Enable validator metadata verification v2.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -542,6 +543,10 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true perform consistent verification of metadata
+    #[serde(skip_serializing_if = "is_false")]
+    validator_metadata_verify_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1796,6 +1801,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
+    pub fn validator_metadata_verify_v2(&self) -> bool {
+        self.feature_flags.validator_metadata_verify_v2
+    }
+
     pub fn commits_per_schedule(&self) -> u32 {
         if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
@@ -2966,8 +2975,9 @@ impl ProtocolConfig {
                     // iota_system via a new iota_system::protocol_config
                     // module.
                 }
-                // version 31 is a new framework version but with no config changes
-                31 => {}
+                31 => {
+                    cfg.feature_flags.validator_metadata_verify_v2 = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.

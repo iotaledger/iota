@@ -65,6 +65,8 @@ const ENotCalledAtGenesis: u64 = 0;
 const EDuplicateValidator: u64 = 1;
 /// The `create` function was called with wrong pre-minted supply.
 const EWrongPreMintedSupply: u64 = 2;
+/// The validator address is not in the validator set.
+const ENotAValidator: u64 = 3;
 
 #[allow(unused_function)]
 /// This function will be explicitly called once at genesis.
@@ -197,10 +199,10 @@ fun allocate_tokens(
 
         if (staked_with_validator.is_some()) {
             let validator_address = staked_with_validator.destroy_some();
-            let validator = validator_set::get_validator_mut(
-                validators,
-                validator_address,
-            );
+            let validator_idx = validators
+                .find_index!(|v| v.iota_address() == validator_address)
+                .destroy_or!(abort ENotAValidator);
+            let validator = &mut validators[validator_idx];
             if (staked_with_timelock_expiration.is_some()) {
                 let timelock_expiration = staked_with_timelock_expiration.destroy_some();
                 timelocked_staking::request_add_stake_at_genesis(
