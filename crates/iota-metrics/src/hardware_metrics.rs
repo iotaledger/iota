@@ -32,13 +32,24 @@ pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
 ) -> Result<(), HardwareMetricsErr> {
-    let registry = Registry::new_custom(Some("hw".to_string()), None)
-        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
-    registry
-        .register(Box::new(HardwareMetrics::new(db_path)?))
-        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
-    registry_service.add(registry);
-    Ok(())
+    // In the simulator these metrics would describe the host, not the simulated
+    // node, and sysinfo's refreshes run on the test thread where the intercepted
+    // clock and rng make them a source of non-determinism. Skip them entirely.
+    #[cfg(msim)]
+    {
+        let _ = (registry_service, db_path);
+        return Ok(());
+    }
+    #[cfg(not(msim))]
+    {
+        let registry = Registry::new_custom(Some("hw".to_string()), None)
+            .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
+        registry
+            .register(Box::new(HardwareMetrics::new(db_path)?))
+            .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
+        registry_service.add(registry);
+        Ok(())
+    }
 }
 
 pub struct HardwareMetrics {
