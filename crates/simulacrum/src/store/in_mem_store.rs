@@ -208,8 +208,7 @@ impl InMemoryStore {
     }
 
     pub fn insert_checkpoint_contents(&mut self, contents: CheckpointContents) {
-        self.checkpoint_contents
-            .insert(*contents.digest(), contents);
+        self.checkpoint_contents.insert(contents.digest(), contents);
     }
 
     pub fn insert_committee(&mut self, committee: Committee) {

@@ -60,6 +60,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let digest = *txn.digest();
     orchestrator
         .quorum_driver()
+        .expect("quorum driver should be present when P-COOL is disabled")
         .submit_transaction_no_ticket(
             ExecuteTransactionRequestV1::new(txn),
             Some(make_socket_addr()),
@@ -197,6 +198,7 @@ async fn test_transaction_orchestrator_reconfig() {
         node.transaction_orchestrator()
             .unwrap()
             .quorum_driver()
+            .expect("quorum driver should be present when P-COOL is disabled")
             .current_epoch()
     });
     assert_eq!(epoch, 0);
@@ -213,6 +215,7 @@ async fn test_transaction_orchestrator_reconfig() {
                 node.transaction_orchestrator()
                     .unwrap()
                     .quorum_driver()
+                    .expect("quorum driver should be present when P-COOL is disabled")
                     .current_epoch()
             });
             if epoch == 1 {
@@ -602,6 +605,45 @@ async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Er
     }
 
     Ok(())
+}
+
+/// Under P-COOL the orchestrator has no quorum driver, so the authority
+/// aggregator must come from the transaction driver — and it must track
+/// reconfiguration, since test infra polls its committee epoch.
+#[sim_test]
+async fn test_authority_aggregator_accessor_under_pcool() {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.clone_authority_aggregator().unwrap().committee.epoch);
+    assert_eq!(epoch, 0);
+
+    test_cluster.force_new_epoch().await;
+
+    // The aggregator is swapped asynchronously after the reconfig message,
+    // so poll with a timeout.
+    timeout(Duration::from_secs(5), async {
+        loop {
+            let epoch = test_cluster
+                .fullnode_handle
+                .iota_node
+                .with(|node| node.clone_authority_aggregator().unwrap().committee.epoch);
+            if epoch == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("transaction driver's authority aggregator should reconfigure to epoch 1");
 }
 
 #[sim_test]

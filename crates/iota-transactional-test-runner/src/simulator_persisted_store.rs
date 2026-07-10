@@ -246,7 +246,7 @@ impl SimulatorStore for PersistedStore {
     fn insert_checkpoint_contents(&mut self, contents: CheckpointContents) {
         self.read_write
             .checkpoint_contents
-            .insert(contents.digest(), &contents)
+            .insert(&contents.digest(), &contents)
             .expect("Fatal: DB write failed");
     }
 

@@ -103,6 +103,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  fastcrypto-single-version:
+    if: (!cancelled() && inputs.isRust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check fastcrypto resolves to a single version
+        run: ./scripts/check_fastcrypto_single_version.sh
+
+  fastcrypto-single-version-cancel:
+    needs: [fastcrypto-single-version]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   examples:
     if: (!cancelled() && inputs.isRustExample)
     uses: ./.github/workflows/_rust_examples.yml

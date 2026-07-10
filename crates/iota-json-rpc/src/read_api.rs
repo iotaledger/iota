@@ -1482,8 +1482,8 @@ mod tests {
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
-            CheckpointSummaryExt,
+            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+            CheckpointDigest, CheckpointSummary, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,

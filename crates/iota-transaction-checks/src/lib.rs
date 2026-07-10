@@ -853,7 +853,7 @@ mod checked {
     /// In the case of shared objects, the mutability can differ, but the
     /// initial shared version must match. For other object kinds, they must
     /// match exactly.
-    fn checked_input_objects_union(
+    pub fn checked_input_objects_union(
         base_set: CheckedInputObjects,
         other_set: &CheckedInputObjects,
     ) -> IotaResult<CheckedInputObjects> {

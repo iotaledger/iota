@@ -11,7 +11,7 @@ use iota_sdk_types::{ObjectId, ObjectReference, RandomnessRound, Version, Versio
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     error::IotaResult,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
     signature::GenericSignature,
 };

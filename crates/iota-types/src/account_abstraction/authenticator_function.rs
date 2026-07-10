@@ -7,7 +7,11 @@ use iota_sdk_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::TransactionDigest, error::IotaError, execution::DynamicallyLoadedObjectMetadata,
+    account_abstraction::account::AuthenticatorFunctionRefV1Key,
+    base_types::TransactionDigest,
+    dynamic_field::{self, Field},
+    error::{IotaError, UserInputError, UserInputResult},
+    execution::DynamicallyLoadedObjectMetadata,
     object::Object,
 };
 
@@ -109,6 +113,47 @@ impl AuthenticatorFunctionRefForExecution {
             },
         }
     }
+}
+
+/// Derive the id of the dynamic field on the account object that holds its
+/// [`AuthenticatorFunctionRefV1`].
+pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
+    account_object_id: impl Into<ObjectId>,
+) -> UserInputResult<ObjectId> {
+    let account_object_id = account_object_id.into();
+    dynamic_field::derive_dynamic_field_id(
+        account_object_id,
+        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+    )
+    .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
+}
+
+/// Decode a loaded authenticator dynamic-field object (see
+/// [`derive_authenticator_function_ref_v1_dynamic_field_id`]) into an
+/// [`AuthenticatorFunctionRefForExecution`].
+pub fn authenticator_function_ref_v1_from_dynamic_field_object(
+    account_object_id: ObjectId,
+    field_obj: &Object,
+) -> UserInputResult<AuthenticatorFunctionRefForExecution> {
+    // A dynamic field is never a package object, so a non-struct here means the
+    // object at the derived id is not the authenticator field.
+    let field_move_object = field_obj
+        .data
+        .as_opt_struct()
+        .ok_or(UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id })?;
+
+    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
+        .to_rust()
+        .map_err(|_| UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id })?;
+
+    Ok(AuthenticatorFunctionRefForExecution::new_v1(
+        field.value,
+        field_obj.object_ref(),
+        field_obj.owner,
+        field_obj.storage_rebate,
+        field_obj.previous_transaction,
+    ))
 }
 
 /// Extracts the sender's and sponsor's [`AuthenticatorFunctionRef`] by calling

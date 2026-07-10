@@ -23,6 +23,7 @@ use iota_types::{
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
+    messages_checkpoint::CheckpointContentsExt,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },

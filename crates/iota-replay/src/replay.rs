@@ -23,17 +23,15 @@ use iota_sdk_types::{
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::VersionNumber,
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::{self, Field},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
@@ -2139,12 +2137,9 @@ impl LocalExec {
                 .object_to_authenticate_components()
                 .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-            let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
-                account_object_id,
-                &AuthenticatorFunctionRefV1Key::tag().into(),
-                &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-            )
-            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+            let authenticator_function_ref_field_id =
+                derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+                    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
             // Get account object version from the already-downloaded objects
             let account_object_version = self
@@ -2178,12 +2173,8 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = dynamic_field::derive_dynamic_field_id(
-        account_object_id,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )
-    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
     let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
         err: format!(
@@ -2192,26 +2183,8 @@ fn load_authenticator_function_ref(
         ),
     })?;
 
-    let field_move_object = field_obj
-        .data
-        .as_opt_struct()
-        .expect("dynamic field should never be a package object");
-
-    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
-        .to_rust()
-        .map_err(|e| ReplayEngineError::GeneralError {
-            err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
-            ),
-        })?;
-
-    Ok(AuthenticatorFunctionRefForExecution::new_v1(
-        field.value,
-        field_obj.object_ref(),
-        field_obj.owner,
-        field_obj.storage_rebate,
-        field_obj.previous_transaction,
-    ))
+    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
+        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with

@@ -44,7 +44,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
-    gas_coin::GasCoin,
+    gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
@@ -75,7 +75,7 @@ use serde_json::json;
 pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore, SIMULATION_GAS_COIN_VALUE,
+        AuthorityState, AuthorityStore,
         authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,

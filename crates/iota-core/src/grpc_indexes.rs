@@ -16,7 +16,7 @@ use iota_types::{
     digests::TransactionDigest,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     move_package::MovePackageExt,
     object::Object,
     storage::{

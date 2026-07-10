@@ -18,7 +18,8 @@ use iota_types::{
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
+        CheckpointCommitment, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
+        EndOfEpochData,
     },
     object::Object,
     transaction::SenderSignedData,

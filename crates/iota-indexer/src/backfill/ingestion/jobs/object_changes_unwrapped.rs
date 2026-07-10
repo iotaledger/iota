@@ -5,7 +5,10 @@ use std::{sync::Arc, time::Duration};
 
 use diesel::{ExpressionMethods, RunQueryDsl};
 use downcast::Any;
-use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
+use iota_types::{
+    effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
+};
 
 use crate::{
     IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
@@ -30,10 +33,10 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
         let transactions = &checkpoint.transactions;
         let checkpoint_seq = checkpoint_summary.sequence_number;
 
-        if checkpoint_contents.size() != transactions.len() {
+        if checkpoint_contents.len() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
                 "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
-                checkpoint_contents.size(),
+                checkpoint_contents.len(),
                 transactions.len()
             )));
         }

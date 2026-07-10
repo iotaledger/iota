@@ -19,7 +19,8 @@ use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
-        CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointTimestamp,
+        CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
+        CheckpointTimestamp,
     },
     storage::ObjectKey,
 };
