@@ -252,7 +252,7 @@ impl IotaEnv {
         Ok(builder.build(&self.rpc).await?)
     }
 
-    /// Create an [`iota_grpc_client::Client`] for this env's gRPC endpoint.
+    /// Create a [`iota_grpc_client::Client`] for this env's gRPC endpoint.
     ///
     /// Errors if the env has no `grpc` URL configured. The gRPC URL is not
     /// derived from the RPC URL: the two use different hosts and ports, so a

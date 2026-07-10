@@ -5,8 +5,7 @@ use iota_macros::sim_test;
 use test_cluster::TestClusterBuilder;
 
 /// `WalletContext::get_grpc_client()` returns a working client for a
-/// gRPC-enabled cluster: the cluster's wallet env carries the gRPC URL, so no
-/// per-test wiring is needed.
+/// gRPC-enabled cluster.
 #[sim_test]
 async fn wallet_context_get_grpc_client() {
     let test_cluster = TestClusterBuilder::new()
