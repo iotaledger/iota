@@ -32,4 +32,4 @@ Contents: test::authenticate::AbstractAccount {
 
 task 4, lines 37-39:
 //# abstract --account immshared(2,1) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: AuthenticatorFunctionRef 0x2275f8211c8162da8ff013c2053d619728f44ffc16d87016904f5dbbce0a818b not found for account object(2,1) with version 3
+Error: Error checking transaction input objects: AuthenticatorFunctionRef 0x998bd9b0a43d220c587a9e46f0bce54dda940b2e3b0822ab4bb219f33a000c64 not found for account object(2,1) with version 3

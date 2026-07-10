@@ -5672,6 +5672,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            protocol_build_config_args: Default::default(),
         }),
     }
     .execute()
@@ -7213,4 +7214,91 @@ async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<
     assert_eq!(tx_block.data.gas_data().owner, Address::from(sponsor_aa));
 
     Ok(())
+}
+
+/// Parses `iota move build <extra_args>` through the real CLI and returns the
+/// resulting `Build` command, so the flattened `ProtocolBuildConfigArgs` is
+/// exercised exactly as it is on the command line.
+fn parse_move_build(extra_args: &[&str]) -> iota_move::build::Build {
+    use clap::Parser;
+
+    let argv = ["iota", "move", "build"]
+        .into_iter()
+        .chain(extra_args.iter().copied());
+    match IotaCommand::try_parse_from(argv).unwrap() {
+        IotaCommand::Move {
+            cmd: iota_move::Command::Build(build),
+            ..
+        } => build,
+        _ => panic!("expected `iota move build`"),
+    }
+}
+
+#[test]
+fn move_build_allow_view_function_flag_is_optional() {
+    assert_eq!(
+        parse_move_build(&[])
+            .protocol_build_config_args
+            .allow_view_function,
+        None,
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "true"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(true),
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "false"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(false),
+    );
+}
+
+#[test]
+fn protocol_build_config_args_resolve_to_protocol_build_config() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override resolves to `ProtocolBuildConfig::default()`.
+    assert_eq!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function,
+        ProtocolBuildConfig::default().allow_view_function,
+    );
+    // An explicit override wins over the default.
+    assert!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(true),
+        })
+        .allow_view_function
+    );
+    assert!(
+        !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(false),
+        })
+        .allow_view_function
+    );
+}
+
+#[test]
+fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override is populated from the provided defaults.
+    let mut args = ProtocolBuildConfigArgs::default();
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+    });
+    assert_eq!(args.allow_view_function, Some(true));
+
+    // A command-line override is preserved even when the default differs.
+    let mut args = ProtocolBuildConfigArgs {
+        allow_view_function: Some(false),
+    };
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+    });
+    assert_eq!(args.allow_view_function, Some(false));
 }

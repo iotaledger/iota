@@ -21,7 +21,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 31:
 //# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate_with_event" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
-events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "NGzgXd4O/kJpd1iIdb0WuBnf1ILoJGNWCGg6To6Ri6wybcuwOwyT9sRjGBXZG0Lzs4tEQCVeZuufhM/X/jqP7gxhdXRoZW50aWNhdGUXYXV0aGVudGljYXRlX3dpdGhfZXZlbnQ=" }
+events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "Foo5TqMMN+4KIiOD6LZX2CC6G3AixPrSgs/yXHA4MXwhgPZflJxVy+kfZCbdpt12vcrMBAO1tSmMX6FmsF5lvwxhdXRoZW50aWNhdGUXYXV0aGVudGljYXRlX3dpdGhfZXZlbnQ=" }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6931200, storage_rebate: 980400, non_refundable_storage_fee: 0

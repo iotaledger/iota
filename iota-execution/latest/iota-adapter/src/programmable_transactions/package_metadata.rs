@@ -27,7 +27,8 @@ mod checked {
         id::ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         move_package::{
-            IotaAttribute, PackageMetadata, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+            IotaAttributeV1, IotaAttributeV2, PackageMetadata, ProtocolBuildConfig,
+            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
         },
     };
     use move_binary_format::{
@@ -231,7 +232,9 @@ mod checked {
                                 ExecutionErrorKind::VmVerificationOrDeserializationError,
                             )
                         })?
-                        .try_into()
+                        .try_into_runtime_module_metadata(&ProtocolBuildConfig::from(
+                            context.protocol_config,
+                        ))
                         .map_err(|_| {
                             ExecutionError::from_kind(
                                 ExecutionErrorKind::VmVerificationOrDeserializationError,
@@ -241,29 +244,69 @@ mod checked {
                 // Process functions for each module in order to create package
                 // metadata.
                 let mut pending_module_metadata = PendingModuleMetadata::default();
-                for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
-                    // Check attributes
-                    for attribute in fn_attributes {
-                        match attribute {
-                            IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                let contains =
-                                    pending_module_metadata.authenticator_metadata.insert(
-                                        fn_name.to_string(),
-                                        get_authenticator_first_param_type_tag(module, &fn_name)?,
-                                    );
-                                debug_assert!(
-                                    contains.is_none(),
-                                    "Duplicate function metadata for authenticator"
-                                );
+
+                match runtime_module_metadata {
+                    RuntimeModuleMetadata::V1(runtime_module_metadata_v1) => {
+                        for (fn_name, fn_attributes) in
+                            runtime_module_metadata_v1.fun_attributes.iter()
+                        {
+                            // Check attributes
+                            for attribute in fn_attributes {
+                                match attribute {
+                                    IotaAttributeV1::Authenticator(attribute)
+                                        if attribute.version == 1 =>
+                                    {
+                                        let contains =
+                                            pending_module_metadata.authenticator_metadata.insert(
+                                                fn_name.to_string(),
+                                                get_authenticator_first_param_type_tag(
+                                                    module, &fn_name,
+                                                )?,
+                                            );
+                                        debug_assert!(
+                                            contains.is_none(),
+                                            "Duplicate function metadata for authenticator"
+                                        );
+                                    }
+
+                                    _ => { /* Other attributes are ignored. */ }
+                                }
                             }
-                            IotaAttribute::View
-                                if package_metadata_handler.supports_view_function_metadata() =>
-                            {
-                                pending_module_metadata
-                                    .view_function_metadata
-                                    .push(fn_name.to_string());
+                        }
+                    }
+                    RuntimeModuleMetadata::V2(runtime_module_metadata_v2) => {
+                        for (fn_name, fn_attributes) in
+                            runtime_module_metadata_v2.fun_attributes.iter()
+                        {
+                            // Check attributes
+                            for attribute in fn_attributes {
+                                match attribute {
+                                    IotaAttributeV2::Authenticator(attribute)
+                                        if attribute.version == 1 =>
+                                    {
+                                        let contains =
+                                            pending_module_metadata.authenticator_metadata.insert(
+                                                fn_name.to_string(),
+                                                get_authenticator_first_param_type_tag(
+                                                    module, &fn_name,
+                                                )?,
+                                            );
+                                        debug_assert!(
+                                            contains.is_none(),
+                                            "Duplicate function metadata for authenticator"
+                                        );
+                                    }
+                                    IotaAttributeV2::View
+                                        if package_metadata_handler
+                                            .supports_view_function_metadata() =>
+                                    {
+                                        pending_module_metadata
+                                            .view_function_metadata
+                                            .push(fn_name.to_string());
+                                    }
+                                    _ => { /* Other attributes are ignored. */ }
+                                }
                             }
-                            _ => { /* Other attributes are ignored. */ }
                         }
                     }
                 }

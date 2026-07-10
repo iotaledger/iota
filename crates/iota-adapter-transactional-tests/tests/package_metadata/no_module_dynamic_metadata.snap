@@ -6,22 +6,22 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 11-40:
+task 1, lines 11-33:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12897200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12600800, storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 42:
+task 2, line 35:
 //# run test::no_module_dynamic_metadata::assert_inline_metadata --sender A --args object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 44:
+task 3, line 37:
 //# view-object 1,1
 1,1::no_module_dynamic_metadata
 
-task 4, line 46:
+task 4, line 39:
 //# view-object 1,0
 Owner: Immutable
 Version: 2
@@ -93,70 +93,70 @@ Contents: iota::package_metadata::PackageMetadataV1 {
                             account_type: std::type_name::TypeName {
                                 name: std::ascii::String {
                                     bytes: vector[
-                                        101u8,
-                                        50u8,
-                                        101u8,
-                                        55u8,
+                                        49u8,
                                         52u8,
-                                        99u8,
-                                        99u8,
-                                        57u8,
-                                        55u8,
+                                        102u8,
+                                        98u8,
                                         56u8,
-                                        100u8,
+                                        98u8,
+                                        102u8,
+                                        54u8,
+                                        49u8,
+                                        102u8,
                                         51u8,
-                                        52u8,
+                                        98u8,
                                         99u8,
-                                        97u8,
-                                        102u8,
-                                        50u8,
-                                        102u8,
-                                        97u8,
                                         101u8,
-                                        56u8,
-                                        54u8,
-                                        53u8,
-                                        56u8,
-                                        54u8,
-                                        55u8,
-                                        101u8,
-                                        97u8,
-                                        54u8,
-                                        98u8,
-                                        101u8,
-                                        98u8,
-                                        100u8,
-                                        52u8,
-                                        102u8,
+                                        99u8,
+                                        49u8,
                                         48u8,
-                                        52u8,
-                                        98u8,
-                                        50u8,
-                                        50u8,
-                                        49u8,
-                                        97u8,
-                                        57u8,
-                                        102u8,
-                                        102u8,
-                                        56u8,
                                         53u8,
-                                        100u8,
-                                        51u8,
+                                        54u8,
+                                        98u8,
                                         54u8,
                                         57u8,
-                                        98u8,
-                                        99u8,
+                                        51u8,
+                                        55u8,
+                                        102u8,
+                                        100u8,
+                                        54u8,
                                         97u8,
-                                        57u8,
-                                        49u8,
-                                        101u8,
-                                        98u8,
-                                        98u8,
-                                        98u8,
-                                        49u8,
-                                        50u8,
-                                        49u8,
+                                        51u8,
                                         99u8,
+                                        99u8,
+                                        54u8,
+                                        51u8,
+                                        55u8,
+                                        52u8,
+                                        55u8,
+                                        48u8,
+                                        55u8,
+                                        102u8,
+                                        51u8,
+                                        54u8,
+                                        97u8,
+                                        51u8,
+                                        99u8,
+                                        101u8,
+                                        56u8,
+                                        53u8,
+                                        49u8,
+                                        49u8,
+                                        100u8,
+                                        56u8,
+                                        51u8,
+                                        51u8,
+                                        50u8,
+                                        53u8,
+                                        53u8,
+                                        55u8,
+                                        51u8,
+                                        48u8,
+                                        50u8,
+                                        57u8,
+                                        52u8,
+                                        99u8,
+                                        51u8,
                                         58u8,
                                         58u8,
                                         110u8,
