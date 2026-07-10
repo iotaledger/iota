@@ -22,7 +22,7 @@ Unlike a simple log file, the IOTA Audit Trail is a first-class on-chain object 
 - **Role-Based Access Control**: Fine-grained permissions determine who can add, correct, or delete records, manage roles, or configure locking policies.
 - **Record tags**: Categorize records by type (e.g., `"finance"`, `"legal"`, `"maintenance"`) and restrict which roles can operate on tagged records.
 - **Flexible locking**: Time-based and count-based locking windows protect records from premature deletion, while write locks and trail deletion locks provide additional safeguards.
-- **Correction tracking**: (Planned Feature - Not MVP) Records can be marked as corrections of earlier entries, creating a bidirectional link that preserves the full history while highlighting the authoritative version.
+- **Correction tracking**: Records can be corrected by appending replacement records that link back to earlier entries, preserving the full history while highlighting the current version.
 
 ### Audit Trails for International Trade
 
@@ -105,7 +105,7 @@ The exact roles, permissions and tags depend on the use case, but Record Writer 
 
 **Key Responsibilities:**
 - Add new records to the trail with data, optional metadata, and optional tags
-- Correct existing records (Not MVP) by creating new records that reference the originals
+- Correct existing records by creating new records that reference the originals
 - Delete records when permitted by the locking configuration
 
 ### Auditor and Verifier Roles
@@ -127,4 +127,3 @@ Access to every write operation on an Audit Trail is governed by Role-Based Acce
 - **Record Tags**: User-defined labels that can be attached to records (e.g., `"finance"`, `"legal"`, `"maintenance"`). Roles can specify which tags they have permission to operate on, enabling fine-grained access control over different categories of records.
 
 This system enables multi-party collaboration on a single trail while maintaining strict access boundaries. For a detailed explanation of how roles, capabilities, and record tags work together, see [Role-Based Access Control for Audit Trails](./explanations/role-based-access-control.mdx).
-
