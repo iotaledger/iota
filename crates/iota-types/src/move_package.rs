@@ -568,6 +568,7 @@ pub fn normalize_modules_with_metadata<
     modules: I,
     binary_config: &BinaryConfig,
     include_code: bool,
+    protocol_config: Option<&ProtocolConfig>,
 ) -> IotaResult<BTreeMap<String, (normalized::Module<S>, RuntimeModuleMetadata)>>
 where
     I: Iterator<Item = &'a Vec<u8>>,
@@ -580,7 +581,7 @@ where
                     error: error.to_string(),
                 }
             })?;
-        let metadata = runtime_module_metadata(&module)?;
+        let metadata = runtime_module_metadata(&module, protocol_config)?;
         let normalized_module = normalized::Module::new(pool, &module, include_code);
         normalized_modules.insert(
             normalized_module.name().to_string(),
@@ -627,13 +628,14 @@ pub fn normalize_deserialized_modules_with_metadata<
     pool: &mut Pool,
     modules: I,
     include_code: bool,
+    protocol_config: Option<&ProtocolConfig>,
 ) -> IotaResult<BTreeMap<String, (normalized::Module<S>, RuntimeModuleMetadata)>>
 where
     I: Iterator<Item = &'a CompiledModule>,
 {
     let mut normalized_modules = BTreeMap::new();
     for module in modules {
-        let metadata = runtime_module_metadata(module)?;
+        let metadata = runtime_module_metadata(module, protocol_config)?;
         let normalized_module = normalized::Module::new(pool, module, include_code);
         normalized_modules.insert(
             normalized_module.name().to_string(),
@@ -643,13 +645,21 @@ where
     Ok(normalized_modules)
 }
 
-fn runtime_module_metadata(module: &CompiledModule) -> IotaResult<RuntimeModuleMetadata> {
+fn runtime_module_metadata(
+    module: &CompiledModule,
+    protocol_config: Option<&ProtocolConfig>,
+) -> IotaResult<RuntimeModuleMetadata> {
+    let build_config = ProtocolBuildConfig::from(protocol_config);
     let Some(metadata) = module
         .metadata
         .iter()
         .find(|metadata| metadata.key == IOTA_METADATA_KEY)
     else {
-        return Ok(RuntimeModuleMetadata::default());
+        if build_config.allow_view_function {
+            return Ok(RuntimeModuleMetadata::v2());
+        } else {
+            return Ok(RuntimeModuleMetadata::v1());
+        }
     };
 
     let metadata_wrapper: RuntimeModuleMetadataWrapper =
@@ -658,7 +668,7 @@ fn runtime_module_metadata(module: &CompiledModule) -> IotaResult<RuntimeModuleM
                 error: error.to_string(),
             }
         })?;
-    RuntimeModuleMetadata::try_from(metadata_wrapper)
+    metadata_wrapper.try_into_runtime_module_metadata(&build_config)
 }
 
 fn build_linkage_table<'p>(
@@ -805,6 +815,42 @@ fn build_upgraded_type_origin_table(
     }
 }
 
+/// Protocol-dependent switches that the low-level package build and
+/// verification routines need.
+///
+/// Derived from the network's [`ProtocolConfig`], it lets those routines depend
+/// on a small, explicit set of protocol-gated flags rather than the full
+/// [`ProtocolConfig`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProtocolBuildConfig {
+    /// Build the module metadata with view function information and enable the
+    /// verifier to check the correctness of the view function attribute.
+    pub allow_view_function: bool,
+}
+
+impl ProtocolBuildConfig {
+    /// Derives the build config from a network [`ProtocolConfig`].
+    pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
+        Self {
+            allow_view_function: protocol_config.package_metadata_with_dynamic_module_metadata(),
+        }
+    }
+}
+
+impl From<&ProtocolConfig> for ProtocolBuildConfig {
+    fn from(protocol_config: &ProtocolConfig) -> Self {
+        Self::from_protocol_config(protocol_config)
+    }
+}
+
+impl From<Option<&ProtocolConfig>> for ProtocolBuildConfig {
+    fn from(protocol_config: Option<&ProtocolConfig>) -> Self {
+        protocol_config
+            .map(Self::from_protocol_config)
+            .unwrap_or_default()
+    }
+}
+
 /// IOTA specific metadata attached to the metadata section of file_format.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -819,6 +865,36 @@ impl RuntimeModuleMetadataWrapper {
         // Safe unwrap as the RuntimeModuleMetadataWrapper struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
+
+    pub fn try_into_runtime_module_metadata(
+        &self,
+        protocol_build_config: &ProtocolBuildConfig,
+    ) -> Result<RuntimeModuleMetadata, IotaError> {
+        match self.version {
+            1 => {
+                let inner: RuntimeModuleMetadataV1 = bcs::from_bytes(&self.inner).map_err(|e| {
+                    IotaError::RuntimeModuleMetadataDeserialization {
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(RuntimeModuleMetadata::V1(inner))
+            }
+            2 if protocol_build_config.allow_view_function => {
+                let inner: RuntimeModuleMetadataV2 = bcs::from_bytes(&self.inner).map_err(|e| {
+                    IotaError::RuntimeModuleMetadataDeserialization {
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(RuntimeModuleMetadata::V2(inner))
+            }
+            _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
+                error: format!(
+                    "Unsupported runtime module metadata version: {}",
+                    self.version
+                ),
+            }),
+        }
+    }
 }
 
 impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
@@ -826,6 +902,10 @@ impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
         match metadata {
             RuntimeModuleMetadata::V1(inner) => RuntimeModuleMetadataWrapper {
                 version: 1,
+                inner: inner.to_bcs_bytes(),
+            },
+            RuntimeModuleMetadata::V2(inner) => RuntimeModuleMetadataWrapper {
+                version: 2,
                 inner: inner.to_bcs_bytes(),
             },
         }
@@ -836,65 +916,67 @@ impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RuntimeModuleMetadata {
     V1(RuntimeModuleMetadataV1),
+    V2(RuntimeModuleMetadataV2),
 }
 
 impl RuntimeModuleMetadata {
+    pub fn v1() -> Self {
+        RuntimeModuleMetadata::V1(RuntimeModuleMetadataV1::default())
+    }
+
+    pub fn v2() -> Self {
+        RuntimeModuleMetadata::V2(RuntimeModuleMetadataV2::default())
+    }
+
+    /// Records `attribute` for `function_name`.
+    ///
+    /// The attribute's version must match the metadata's version: a
+    /// [`IotaAttribute::V1`] belongs in [`RuntimeModuleMetadata::V1`] and a
+    /// [`IotaAttribute::V2`] in [`RuntimeModuleMetadata::V2`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the attribute's version does not match the metadata's
+    /// version.
     pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
-        match self {
-            RuntimeModuleMetadata::V1(metadata) => {
+        match (self, attribute) {
+            (RuntimeModuleMetadata::V1(metadata), IotaAttribute::V1(attribute)) => {
                 metadata.add_function_attribute(function_name, attribute)
             }
+            (RuntimeModuleMetadata::V2(metadata), IotaAttribute::V2(attribute)) => {
+                metadata.add_function_attribute(function_name, attribute)
+            }
+            _ => panic!("attribute version does not match runtime module metadata version"),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match self {
             RuntimeModuleMetadata::V1(metadata) => metadata.is_empty(),
-        }
-    }
-
-    pub fn fun_attributes_iter(
-        &self,
-    ) -> Box<dyn Iterator<Item = (&String, &Vec<IotaAttribute>)> + '_> {
-        match self {
-            RuntimeModuleMetadata::V1(metadata) => Box::new(metadata.fun_attributes.iter()),
+            RuntimeModuleMetadata::V2(metadata) => metadata.is_empty(),
         }
     }
 }
 
-impl Default for RuntimeModuleMetadata {
-    fn default() -> Self {
-        RuntimeModuleMetadata::V1(RuntimeModuleMetadataV1::default())
-    }
-}
-
-impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
-    type Error = IotaError;
-
-    fn try_from(wrapper: RuntimeModuleMetadataWrapper) -> Result<Self, Self::Error> {
-        match wrapper.version {
-            1 => {
-                let inner: RuntimeModuleMetadataV1 =
-                    bcs::from_bytes(&wrapper.inner).map_err(|e| {
-                        IotaError::RuntimeModuleMetadataDeserialization {
-                            error: e.to_string(),
-                        }
-                    })?;
-                Ok(RuntimeModuleMetadata::V1(inner))
-            }
-            _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
-                error: format!(
-                    "Unsupported runtime module metadata version: {}",
-                    wrapper.version
-                ),
-            }),
-        }
-    }
+/// Version-agnostic wrapper over the IOTA attribute types, for passing an
+/// attribute of either version to [`RuntimeModuleMetadata`].
+///
+/// This wrapper is an in-memory convenience only and is never serialized.
+#[derive(Debug, Clone)]
+pub enum IotaAttribute {
+    V1(IotaAttributeV1),
+    V2(IotaAttributeV2),
 }
 
 /// The list of iota attribute types recognized by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum IotaAttribute {
+pub enum IotaAttributeV1 {
+    Authenticator(AuthenticatorAttribute),
+}
+
+/// The list of iota attribute types recognized by the compiler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IotaAttributeV2 {
     Authenticator(AuthenticatorAttribute),
     View,
 }
@@ -904,13 +986,19 @@ pub struct AuthenticatorAttribute {
     pub version: u8,
 }
 
-impl IotaAttribute {
+impl IotaAttributeV1 {
     pub fn authenticator_attribute(version: u8) -> Self {
-        IotaAttribute::Authenticator(AuthenticatorAttribute { version })
+        IotaAttributeV1::Authenticator(AuthenticatorAttribute { version })
+    }
+}
+
+impl IotaAttributeV2 {
+    pub fn authenticator_attribute(version: u8) -> Self {
+        IotaAttributeV2::Authenticator(AuthenticatorAttribute { version })
     }
 
     pub fn view_attribute() -> Self {
-        IotaAttribute::View
+        IotaAttributeV2::View
     }
 }
 
@@ -918,11 +1006,18 @@ impl IotaAttribute {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeModuleMetadataV1 {
     /// Attributes attached to functions, by definition index.
-    pub fun_attributes: BTreeMap<String, Vec<IotaAttribute>>,
+    pub fun_attributes: BTreeMap<String, Vec<IotaAttributeV1>>,
+}
+
+/// V2 of IOTA specific metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeModuleMetadataV2 {
+    /// Attributes attached to functions, by definition index.
+    pub fun_attributes: BTreeMap<String, Vec<IotaAttributeV2>>,
 }
 
 impl RuntimeModuleMetadataV1 {
-    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttributeV1) {
         self.fun_attributes
             .entry(function_name)
             .or_default()
@@ -933,8 +1028,33 @@ impl RuntimeModuleMetadataV1 {
         self.fun_attributes.is_empty()
     }
 
+    pub fn fun_attributes_iter(&self) -> impl Iterator<Item = (&String, &Vec<IotaAttributeV1>)> {
+        self.fun_attributes.iter()
+    }
+
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+impl RuntimeModuleMetadataV2 {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttributeV2) {
+        self.fun_attributes
+            .entry(function_name)
+            .or_default()
+            .push(attribute);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fun_attributes.is_empty()
+    }
+    pub fn fun_attributes_iter(&self) -> impl Iterator<Item = (&String, &Vec<IotaAttributeV2>)> {
+        self.fun_attributes.iter()
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataV2 struct is always serializable
         bcs::to_bytes(&self).unwrap()
     }
 }

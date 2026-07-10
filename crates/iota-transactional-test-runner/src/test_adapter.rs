@@ -51,7 +51,10 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
-    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
+    move_package::{
+        IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -168,6 +171,10 @@ pub struct IotaTestAdapter {
     digest_enumeration: BTreeMap<u64, TransactionDigest>,
     next_fake: (u64, u64),
     gas_price: u64,
+    /// Mirror of the active protocol config's
+    /// `package_metadata_with_dynamic_module_metadata` feature flag: when set,
+    /// published modules receive V2 (dynamic) runtime metadata, otherwise V1.
+    dynamic_module_metadata: bool,
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
     /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
@@ -426,6 +433,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             next_fake: (0, 0),
             // TODO: make this configurable
             gas_price: default_gas_price.unwrap_or(DEFAULT_GAS_PRICE),
+            dynamic_module_metadata: protocol_config
+                .package_metadata_with_dynamic_module_metadata(),
             staged_modules: BTreeMap::new(),
         };
 
@@ -469,7 +478,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             gas_price,
         } = extra;
 
-        fill_metadata(&mut modules, &view_functions)?;
+        fill_metadata(&mut modules, &view_functions, self.dynamic_module_metadata)?;
 
         let named_addr_opt = modules.first().unwrap().named_address;
 
@@ -952,7 +961,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
 
-                        fill_metadata(&mut modules, &[])?;
+                        fill_metadata(&mut modules, &[], adapter.dynamic_module_metadata)?;
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -2950,24 +2959,39 @@ fn find_iota_root_dir() -> PathBuf {
 fn fill_metadata(
     modules: &mut [MaybeNamedCompiledModule],
     view_functions: &[String],
+    dynamic_module_metadata: bool,
 ) -> anyhow::Result<()> {
+    // View functions are only representable in V2 (dynamic) runtime metadata, so
+    // they require the `package_metadata_with_dynamic_module_metadata` feature.
+    if !dynamic_module_metadata && !view_functions.is_empty() {
+        bail!(
+            "--view-functions requires the package_metadata_with_dynamic_module_metadata protocol feature"
+        );
+    }
+
     let mut unmatched_view_functions = view_functions.iter().cloned().collect::<BTreeSet<_>>();
 
     for m in modules.iter_mut() {
         let module: &mut CompiledModule = &mut m.module;
-        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        let mut runtime_metadata = if dynamic_module_metadata {
+            RuntimeModuleMetadata::v2()
+        } else {
+            RuntimeModuleMetadata::v1()
+        };
         let mut view_attributes = BTreeSet::new();
 
         if let Some(fn_infos) = &m.function_infos {
             for (_, name, info) in fn_infos.iter() {
                 // We only need authenticator version here
                 if let Some(version) = info.attributes.get_authenticator() {
-                    runtime_metadata.add_function_attribute(
-                        name.as_str().to_owned(),
-                        IotaAttribute::authenticator_attribute(version),
-                    );
+                    let attribute = if dynamic_module_metadata {
+                        IotaAttribute::V2(IotaAttributeV2::authenticator_attribute(version))
+                    } else {
+                        IotaAttribute::V1(IotaAttributeV1::authenticator_attribute(version))
+                    };
+                    runtime_metadata.add_function_attribute(name.as_str().to_owned(), attribute);
                 }
-                if info.attributes.is_view() {
+                if dynamic_module_metadata && info.attributes.is_view() {
                     view_attributes.insert(name.as_str().to_owned());
                 }
             }
@@ -2981,7 +3005,10 @@ fn fill_metadata(
         }
 
         for function_name in view_attributes {
-            runtime_metadata.add_function_attribute(function_name, IotaAttribute::view_attribute());
+            runtime_metadata.add_function_attribute(
+                function_name,
+                IotaAttribute::V2(IotaAttributeV2::view_attribute()),
+            );
         }
 
         if !runtime_metadata.is_empty() {

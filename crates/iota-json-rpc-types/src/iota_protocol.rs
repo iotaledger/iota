@@ -5,11 +5,19 @@
 use std::collections::BTreeMap;
 
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
+use iota_types::move_package::ProtocolBuildConfig;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::iota_primitives::ProtocolVersion as ProtocolVersionSchema;
+
+/// Feature-flag key mirroring
+/// [`ProtocolConfig::package_metadata_with_dynamic_module_metadata`]; the flag
+/// is exposed in [`ProtocolConfigResponse::feature_flags`] under its field
+/// name.
+const PACKAGE_METADATA_WITH_DYNAMIC_MODULE_METADATA: &str =
+    "package_metadata_with_dynamic_module_metadata";
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
@@ -68,6 +76,18 @@ pub struct ProtocolConfigResponse {
     pub protocol_version: ProtocolVersion,
     pub feature_flags: BTreeMap<String, bool>,
     pub attributes: BTreeMap<String, Option<IotaProtocolConfigValue>>,
+}
+
+impl From<&ProtocolConfigResponse> for ProtocolBuildConfig {
+    fn from(response: &ProtocolConfigResponse) -> Self {
+        Self {
+            allow_view_function: response
+                .feature_flags
+                .get(PACKAGE_METADATA_WITH_DYNAMIC_MODULE_METADATA)
+                .copied()
+                .unwrap_or(false),
+        }
+    }
 }
 
 impl From<ProtocolConfig> for ProtocolConfigResponse {

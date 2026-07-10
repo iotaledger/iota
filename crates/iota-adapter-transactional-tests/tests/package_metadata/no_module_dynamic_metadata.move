@@ -22,13 +22,6 @@ public struct Account has key {
 #[authenticator]
 public fun authenticate(_account: &Account, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-// In the inline V1 layout this `#[view]` function is ignored (view metadata is
-// only captured by the dynamic layout).
-#[view]
-public fun answer(): u64 {
-    42
-}
-
 #[allow(deprecated_usage)]
 public fun assert_inline_metadata(metadata: &PackageMetadataV1) {
     let module_name = ascii::string(b"no_module_dynamic_metadata");
