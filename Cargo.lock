@@ -76,6 +76,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes-gcm-siv"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae0784134ba9375416d469ec31e7c5f9fa94405049cf08c5ce5b4698be673e0d"
+dependencies = [
+ "aead",
+ "aes",
+ "cipher",
+ "ctr",
+ "polyval",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "ahash"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891477e0c6a8957309ee5c45a6368af3ae14bb510732d2684ffa19af310920f9"
+dependencies = [
+ "getrandom 0.2.15",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -164,7 +190,7 @@ dependencies = [
  "http 1.4.0",
  "matchit 0.5.0",
  "pin-project-lite",
- "pkcs8 0.10.2",
+ "pkcs8",
  "quinn",
  "quinn-proto",
  "rand 0.8.6",
@@ -452,6 +478,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-secp256k1"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c02e954eaeb4ddb29613fee20840c2bbc85ca4396d53e33837e11905363c5f2"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-secp256r1"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -560,7 +597,7 @@ version = "54.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a12fcdb3f1d03f69d3ec26ac67645a8fe3f878d77b5ebb0b15d64a116c212985"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "arrow-buffer",
  "arrow-data",
  "arrow-schema",
@@ -702,7 +739,7 @@ version = "54.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69efcd706420e52cd44f5c4358d279801993846d1c2a8e52111853d61d55a619"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "arrow-array",
  "arrow-buffer",
  "arrow-data",
@@ -2030,6 +2067,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "bulletproofs"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "012e2e5f88332083bd4235d445ae78081c00b2558443821a9ca5adfe1070073d"
+dependencies = [
+ "byteorder",
+ "clear_on_drop",
+ "curve25519-dalek",
+ "digest 0.10.7",
+ "group",
+ "merlin",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_derive",
+ "sha3 0.10.8",
+ "subtle",
+ "thiserror 1.0.64",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2364,6 +2422,15 @@ name = "clap_lex"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
+
+[[package]]
+name = "clear_on_drop"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38508a63f4979f0048febc9966fadbd48e5dab31fd0ec6a3f151bbf4a74f7423"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "cmov"
@@ -2914,7 +2981,10 @@ dependencies = [
  "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
+ "group",
+ "rand_core 0.6.4",
  "rustc_version",
+ "serde",
  "subtle",
  "zeroize",
 ]
@@ -3228,23 +3298,12 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1a467a65c5e759bce6e65eaf91cc29f466cdc57cb65777bd646872a8a1fd4de"
-dependencies = [
- "const-oid 0.9.6",
- "pem-rfc7468 0.6.0",
- "zeroize",
-]
-
-[[package]]
-name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f55bf8e7b65898637379c1b74eb1551107c8294ed26d855ceb9fd1a09cfc9bc0"
 dependencies = [
  "const-oid 0.9.6",
- "pem-rfc7468 0.7.0",
+ "pem-rfc7468",
  "zeroize",
 ]
 
@@ -3645,12 +3704,12 @@ version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
- "der 0.7.9",
+ "der",
  "digest 0.10.7",
  "elliptic-curve",
  "rfc6979",
  "signature 2.2.0",
- "spki 0.7.3",
+ "spki",
 ]
 
 [[package]]
@@ -3659,7 +3718,7 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
- "pkcs8 0.10.2",
+ "pkcs8",
  "signature 2.2.0",
  "zeroize",
 ]
@@ -3676,20 +3735,6 @@ dependencies = [
  "serde",
  "sha2 0.9.9",
  "thiserror 1.0.64",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
-dependencies = [
- "curve25519-dalek",
- "ed25519",
- "serde",
- "sha2 0.10.9",
- "subtle",
  "zeroize",
 ]
 
@@ -3726,8 +3771,8 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
- "pem-rfc7468 0.7.0",
- "pkcs8 0.10.2",
+ "pem-rfc7468",
+ "pkcs8",
  "rand_core 0.6.4",
  "sec1",
  "serde_json",
@@ -3894,25 +3939,31 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.8"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7ba8f556d75586dd5d9148df99ca02d8afbab9ba230a4f028de54eb0d3bfced"
 dependencies = [
  "aes",
  "aes-gcm",
+ "aes-gcm-siv",
  "ark-ec",
  "ark-ff",
+ "ark-secp256k1",
  "ark-secp256r1",
  "ark-serialize",
  "auto_ops",
  "base64ct",
+ "bcs",
  "bech32 0.9.1",
  "bincode",
  "blake2",
  "blst",
  "bs58 0.4.0",
+ "bulletproofs",
  "cbc",
+ "ciborium",
  "ctr",
- "curve25519-dalek-ng",
+ "curve25519-dalek",
  "derive_more 0.99.18",
  "digest 0.10.7",
  "ecdsa",
@@ -3920,17 +3971,22 @@ dependencies = [
  "elliptic-curve",
  "fastcrypto-derive",
  "generic-array",
+ "getrandom 0.2.15",
  "hex",
  "hex-literal",
  "hkdf",
+ "itertools 0.12.1",
  "lazy_static",
+ "merlin",
  "num-bigint 0.4.6",
  "once_cell",
  "p256",
+ "p384",
  "rand 0.8.6",
  "readonly",
  "rfc6979",
- "rsa 0.8.2",
+ "rsa",
+ "rustls-pki-types",
  "schemars",
  "secp256k1",
  "serde",
@@ -3942,14 +3998,17 @@ dependencies = [
  "static_assertions",
  "thiserror 1.0.64",
  "tokio",
+ "tracing",
  "typenum",
+ "x509-parser",
  "zeroize",
 ]
 
 [[package]]
 name = "fastcrypto-derive"
-version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea839b19e2241156eb78b1c33066df25266e893ba85a6b283ceb3bd8a1a6d21b"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -3958,7 +4017,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
 dependencies = [
  "bcs",
  "digest 0.10.7",
@@ -3966,6 +4025,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "rand 0.8.6",
+ "reed-solomon-erasure",
  "serde",
  "sha3 0.10.8",
  "tap",
@@ -3977,7 +4037,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-vdf"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
 dependencies = [
  "bcs",
  "fastcrypto",
@@ -3993,8 +4053,8 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-zkp"
-version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
+version = "0.1.4"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a#47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4635,6 +4695,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.8",
+]
 
 [[package]]
 name = "hashbrown"
@@ -4642,7 +4705,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
 ]
 
 [[package]]
@@ -4651,7 +4714,7 @@ version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "allocator-api2",
 ]
 
@@ -7464,30 +7527,32 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "bech32 0.11.1",
  "bip32",
  "bip39",
  "blst",
- "ed25519-dalek",
+ "ed25519",
+ "fastcrypto",
  "iota-sdk-types",
  "k256",
  "p256",
- "pem-rfc7468 0.7.0",
- "pkcs8 0.10.2",
+ "pem-rfc7468",
+ "pkcs8",
  "rand_core 0.6.4",
  "roaring",
  "sha2 0.10.9",
  "signature 2.2.0",
  "slip10_ed25519",
  "thiserror 2.0.18",
+ "zeroize",
 ]
 
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7516,7 +7581,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7524,7 +7589,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7543,7 +7608,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7559,7 +7624,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7578,7 +7643,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=559083b9e901e53008f15d85d50df7f007c681ba#559083b9e901e53008f15d85d50df7f007c681ba"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0135f905e0479728ef8c87cea324a882e50e1b5b#0135f905e0479728ef8c87cea324a882e50e1b5b"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7928,7 +7993,7 @@ dependencies = [
  "axum-server",
  "ed25519",
  "fastcrypto",
- "pkcs8 0.10.2",
+ "pkcs8",
  "rand 0.8.6",
  "rcgen",
  "reqwest",
@@ -8905,6 +8970,15 @@ dependencies = [
 
 [[package]]
 name = "lru"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e999beba7b6e8345721bd280141ed958096a2e4abdf74f67ff4ce49b4b54e47a"
+dependencies = [
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "lru"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ee39891760e7d94734f6f63fedc29a2e4a152f836120753a72503f09fcf904"
@@ -9031,6 +9105,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "merlin"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
+dependencies = [
+ "byteorder",
+ "keccak 0.1.6",
+ "rand_core 0.6.4",
+ "zeroize",
 ]
 
 [[package]]
@@ -9789,7 +9875,7 @@ name = "msim"
 version = "0.1.0"
 source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.52.2#2d1ddbb6e2d07f2d3541c4ee5710c725819ec917"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "async-task",
  "bytes",
  "cc",
@@ -10103,11 +10189,10 @@ dependencies = [
 
 [[package]]
 name = "num-bigint-dig"
-version = "0.8.4"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc84195820f291c7697304f3cbdadd1cb7199c0efc917ff5eafd71225c136151"
+checksum = "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7"
 dependencies = [
- "byteorder",
  "lazy_static",
  "libm",
  "num-integer",
@@ -10155,9 +10240,9 @@ dependencies = [
 
 [[package]]
 name = "num-modular"
-version = "0.5.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64a5fe11d4135c3bcdf3a95b18b194afa9608a5f6ff034f5d857bc9a27fb0119"
+checksum = "17bb261bf36fa7d83f4c294f834e91256769097b3cb505d44831e0a179ac647f"
 dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
@@ -10165,32 +10250,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-modular"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17bb261bf36fa7d83f4c294f834e91256769097b3cb505d44831e0a179ac647f"
-
-[[package]]
 name = "num-order"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "537b596b97c40fcf8056d153049eb22f481c17ebce72a513ec9286e4986d1bb6"
 dependencies = [
- "num-modular 0.6.1",
+ "num-modular",
 ]
 
 [[package]]
 name = "num-prime"
-version = "0.4.4"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e238432a7881ec7164503ccc516c014bf009be7984cde1ba56837862543bdec3"
+checksum = "b285c575532a33ef6fdd3a57640d0b1c70e6ca48644d6df7bbd4b7a0cfbbb12d"
 dependencies = [
  "bitvec 1.0.1",
  "either",
- "lru 0.12.4",
+ "lru 0.16.3",
  "num-bigint 0.4.6",
  "num-integer",
- "num-modular 0.5.1",
+ "num-modular",
  "num-traits",
  "rand 0.8.6",
 ]
@@ -10586,6 +10665,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "packable"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10760,7 +10851,7 @@ version = "54.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfb15796ac6f56b429fd99e33ba133783ad75b27c36b4b5ce06f1f82cc97754e"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "arrow-array",
  "arrow-buffer",
  "arrow-cast",
@@ -10891,15 +10982,6 @@ checksum = "8e459365e590736a54c3fa561947c84837534b8e9af6fc5bf781307e82658fae"
 dependencies = [
  "base64 0.22.1",
  "serde",
-]
-
-[[package]]
-name = "pem-rfc7468"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24d159833a9105500e0398934e205e0773f0b27529557134ecfc51c27646adac"
-dependencies = [
- "base64ct",
 ]
 
 [[package]]
@@ -11069,35 +11151,13 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pkcs1"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eff33bdbdfc54cc98a2eca766ebdec3e1b8fb7387523d5c9c9a2891da856f719"
-dependencies = [
- "der 0.6.1",
- "pkcs8 0.9.0",
- "spki 0.6.0",
- "zeroize",
-]
-
-[[package]]
-name = "pkcs1"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f"
 dependencies = [
- "der 0.7.9",
- "pkcs8 0.10.2",
- "spki 0.7.3",
-]
-
-[[package]]
-name = "pkcs8"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eca2c590a5f85da82668fa685c09ce2888b9430e83299debf1f34b65fd4a4ba"
-dependencies = [
- "der 0.6.1",
- "spki 0.6.0",
+ "der",
+ "pkcs8",
+ "spki",
 ]
 
 [[package]]
@@ -11106,8 +11166,8 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
 dependencies = [
- "der 0.7.9",
- "spki 0.7.3",
+ "der",
+ "spki",
 ]
 
 [[package]]
@@ -12041,6 +12101,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "reed-solomon-erasure"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7263373d500d4d4f505d43a2a662d475a894aa94503a1ee28e9188b5f3960d4f"
+dependencies = [
+ "libm",
+ "lru 0.7.8",
+ "parking_lot 0.11.2",
+ "smallvec",
+ "spin",
+]
+
+[[package]]
 name = "reed-solomon-simd"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12277,41 +12350,21 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.8.2"
+version = "0.9.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55a77d189da1fee555ad95b7e50e7457d91c0e089ec68ca69ad2989413bbdab4"
-dependencies = [
- "byteorder",
- "digest 0.10.7",
- "num-bigint-dig",
- "num-integer",
- "num-iter",
- "num-traits",
- "pkcs1 0.4.1",
- "pkcs8 0.9.0",
- "rand_core 0.6.4",
- "sha2 0.10.9",
- "signature 2.2.0",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "rsa"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d0e5124fcb30e76a7e79bfee683a2746db83784b86289f6251b54b7950a0dfc"
+checksum = "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d"
 dependencies = [
  "const-oid 0.9.6",
  "digest 0.10.7",
  "num-bigint-dig",
  "num-integer",
  "num-traits",
- "pkcs1 0.7.5",
- "pkcs8 0.10.2",
+ "pkcs1",
+ "pkcs8",
  "rand_core 0.6.4",
+ "sha2 0.10.9",
  "signature 2.2.0",
- "spki 0.7.3",
+ "spki",
  "subtle",
  "zeroize",
 ]
@@ -12599,9 +12652,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3e97a565f76233a6003f9f5c54be1d9c5bdfa3eccfb189469f11ec4901c47dc"
 dependencies = [
  "base16ct",
- "der 0.7.9",
+ "der",
  "generic-array",
- "pkcs8 0.10.2",
+ "pkcs8",
  "serdect",
  "subtle",
  "zeroize",
@@ -13257,7 +13310,7 @@ checksum = "2f1c0c8818bb7400e821b166075ec771c8e8a012af41a8982b34eefaad4739fd"
 dependencies = [
  "base64 0.22.1",
  "jsonwebtoken",
- "rsa 0.9.6",
+ "rsa",
  "serde",
  "sha2 0.10.9",
  "thiserror 1.0.64",
@@ -13317,22 +13370,12 @@ dependencies = [
 
 [[package]]
 name = "spki"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67cf02bbac7a337dc36e4f5a693db6c21e7863f45070f7064577eb4367a3212b"
-dependencies = [
- "base64ct",
- "der 0.6.1",
-]
-
-[[package]]
-name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
- "der 0.7.9",
+ "der",
 ]
 
 [[package]]
@@ -13374,7 +13417,7 @@ dependencies = [
 name = "starfish-core"
 version = "0.1.0"
 dependencies = [
- "ahash",
+ "ahash 0.8.11",
  "async-trait",
  "base64 0.21.7",
  "bcs",
@@ -15903,6 +15946,7 @@ dependencies = [
  "lazy_static",
  "nom",
  "oid-registry",
+ "ring",
  "rusticata-macros",
  "thiserror 2.0.18",
  "time",
