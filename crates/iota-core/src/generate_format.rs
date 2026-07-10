@@ -181,7 +181,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig).unwrap();
     // ... and the user signature which does
 
-    let sig: Signature = IotaKeyPair::from(s_kp.copy()).sign(b"hello world");
+    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
