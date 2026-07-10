@@ -42,9 +42,9 @@ fun test_poseidon_bn254_hash() {
     assert!(actual == expected);
 }
 
-#[test]
 // poseidon_bn254 accepts at most 16 inputs; more are rejected by the native and
 // surface as ENonCanonicalInput.
+#[test]
 #[expected_failure(abort_code = iota::poseidon::ENonCanonicalInput)]
 fun test_poseidon_bn254_too_many_inputs() {
     let msg = vector[
