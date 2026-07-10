@@ -20,3 +20,18 @@ migration-tx-data-path: "/opt/iota/config/migration.blob"
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 1
+
+# Switch on/off of Prometheus metric groups.
+# The default is that all groups are enabled.
+# metrics:
+#   groups:
+#     consensus: true
+#     execution: true
+#     checkpoints: true
+#     transactions: true
+#     authority: true
+#     traffic-control: true
+#     network: true
+#     storage: true
+#     rpc: true
+#     epoch: true

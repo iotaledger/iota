@@ -4,9 +4,13 @@
 //! Drop-in replacement for the `prometheus` crate with optional per-metric
 //! filtering.
 //!
-//! Replace `use prometheus::*` with `use prometheus_filtered::*` and set
-//! `METRICS_FILTER` (or call `Registry::with_filter`) to control which metrics
-//! are registered.
+//! Replace `use prometheus::*` with `use prometheus_filtered::*` to control
+//! which metrics are registered. The active filter is resolved, in order of
+//! precedence:
+//!
+//! 1. the `METRICS_FILTER` environment variable;
+//! 2. the node config;
+//! 3. the default (every metric enabled).
 //!
 //! Filter syntax: comma-separated `pattern=on|off` directives, last-match
 //! wins. A bare `off` or `on` sets the global default. A pattern matches if
@@ -18,7 +22,7 @@
 //! - `METRICS_FILTER=off,authority=on`
 //! - `METRICS_FILTER=authority=off`
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Re-exported under a hidden alias so `$crate::prometheus::xxx!` works
 /// inside `#[macro_export]` macros without requiring callers to depend
@@ -501,13 +505,6 @@ impl Filter {
         Self { directives }
     }
 
-    fn from_env() -> Self {
-        std::env::var("METRICS_FILTER")
-            .ok()
-            .map(|s| Self::parse(&s))
-            .unwrap_or_default()
-    }
-
     /// Returns `true` if the metric should be registered (default when no
     /// directives match: `true`).
     ///
@@ -530,6 +527,14 @@ impl Filter {
         }
         result
     }
+
+    /// Resolves the final filter following the precedence.
+    pub fn resolve(fallback: Option<&str>) -> Self {
+        if let Ok(s) = std::env::var("METRICS_FILTER") {
+            return Self::parse(&s);
+        }
+        fallback.map(Self::parse).unwrap_or_default()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -546,32 +551,32 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// Creates a registry whose filter is read from `METRICS_FILTER` env var.
+    /// Creates a registry whose filter is resolved from the `METRICS_FILTER`
+    /// env var (permissive when unset).
     pub fn new() -> Self {
         Self {
             inner: prometheus::Registry::new(),
-            filter: Arc::new(Filter::from_env()),
+            filter: Arc::new(Filter::resolve(None)),
         }
     }
 
-    /// Creates a custom-prefixed registry whose filter is read from the
-    /// `METRICS_FILTER` env var.
+    /// Creates a custom-prefixed registry.
     pub fn new_custom(
         prefix: Option<String>,
         labels: Option<std::collections::HashMap<String, String>>,
+        filter: Option<Arc<Filter>>,
     ) -> prometheus::Result<Self> {
         Ok(Self {
             inner: prometheus::Registry::new_custom(prefix, labels)?,
-            filter: Arc::new(Filter::from_env()),
+            filter: filter.unwrap_or_else(|| Arc::new(Filter::resolve(None))),
         })
     }
 
-    /// Creates a registry using the supplied filter string.
-    pub fn with_filter(filter_str: &str) -> Self {
-        Self {
-            inner: prometheus::Registry::new(),
-            filter: Arc::new(Filter::parse(filter_str)),
-        }
+    /// Returns the registry's filter, so related registries can be built to
+    /// share it via [`Registry::new_custom`].
+    #[inline]
+    pub fn filter(&self) -> Arc<Filter> {
+        self.filter.clone()
     }
 
     /// Used by wrapper macros to decide whether to register a metric.
@@ -612,15 +617,15 @@ impl std::fmt::Debug for Registry {
     }
 }
 
-/// Returns the process-wide `Filter` parsed once from `METRICS_FILTER`.
+/// Returns the process-wide `Filter`, resolved once from `METRICS_FILTER`
+/// (permissive when unset).
 ///
 /// Shared by [`default_registry`] and the global `register_*!` macros (via
 /// [`default_registry`]) so that metrics on the default registry honour the
 /// same filtering as those on explicit registries.
 pub fn default_filter() -> &'static Arc<Filter> {
-    use std::sync::OnceLock;
     static INSTANCE: OnceLock<Arc<Filter>> = OnceLock::new();
-    INSTANCE.get_or_init(|| Arc::new(Filter::from_env()))
+    INSTANCE.get_or_init(|| Arc::new(Filter::resolve(None)))
 }
 
 /// Returns a reference to the global default `Registry`, wrapping the
@@ -1029,5 +1034,30 @@ mod tests {
         let filter = super::Filter::parse("  authority = off ,  authority_aggregator = on  ");
         assert!(!filter.is_enabled("authority", "m"));
         assert!(filter.is_enabled("authority_aggregator", "m"));
+    }
+
+    #[test]
+    fn resolve_prefers_env_over_fallback() {
+        use super::{Arc, Filter, Registry};
+
+        // The env var takes precedence over the fallback, so the fallback
+        // assertions only hold when it is unset.
+        if std::env::var_os("METRICS_FILTER").is_some() {
+            return;
+        }
+
+        // No env, no fallback -> permissive.
+        assert!(Filter::resolve(None).is_enabled("anything", "m"));
+
+        // No env -> the fallback directives apply.
+        let filter = Arc::new(Filter::resolve(Some("off,authority=on")));
+        let registry = Registry::new_custom(None, None, Some(filter.clone())).unwrap();
+        assert!(registry.is_enabled("authority", "m"));
+        assert!(!registry.is_enabled("consensus", "m"));
+
+        // A registry built to share the filter sees the same decisions.
+        let shared = Registry::new_custom(None, None, Some(filter)).unwrap();
+        assert!(shared.is_enabled("authority", "m"));
+        assert!(!shared.is_enabled("consensus", "m"));
     }
 }

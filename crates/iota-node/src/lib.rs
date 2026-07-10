@@ -1239,7 +1239,7 @@ impl IotaNode {
             .consensus_config
             .as_mut()
             .ok_or_else(|| anyhow!("Validator is missing consensus config"))?;
-        let validator_registry = Registry::new();
+        let validator_registry = registry_service.new_registry_custom(None, None)?;
         let validator_registry_id = registry_service.add(validator_registry.clone());
 
         let client = Arc::new(UpdatableConsensusClient::new());

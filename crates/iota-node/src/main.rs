@@ -73,9 +73,19 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
+    // Load metrics filter from the config.
+    let config_filter = config
+        .metrics
+        .as_ref()
+        .and_then(|m| m.groups.as_ref())
+        .map(|groups| groups.to_filter_string());
+    // Resolve the metrics filter
+    let metrics_filter = prometheus_filtered::Filter::resolve(config_filter.as_deref());
+
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
-    let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
+    let registry_service =
+        iota_metrics::start_prometheus_server_with_filter(config.metrics_address, metrics_filter);
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
