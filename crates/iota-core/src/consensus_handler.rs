@@ -1185,10 +1185,9 @@ mod tests {
 
     /// Post-consensus load shedding uses `user_transaction_digest()` to decide
     /// which consensus messages may be dropped: it must return a digest for
-    /// every user-originated kind (`CertifiedTransaction`, `UserTransactionV1`,
-    /// `UserTransactionV2`) and `None` for internal consensus messages, which
-    /// must never be shed. This pins `UserTransactionV2` (attested) as
-    /// eligible.
+    /// user-originated transactions (`UserTransactionV1`, `UserTransactionV2`)
+    /// and `None` for internal consensus messages, which must never be shed.
+    /// This pins `UserTransactionV2` (attested) as eligible.
     #[test]
     fn test_user_transaction_digest_covers_user_kinds() {
         use iota_types::attestation::{Attestation, AttestationData, AttestedTransaction};
