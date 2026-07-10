@@ -148,8 +148,8 @@ impl JsonSchema for SequenceNumberString {
     }
 }
 
-impl SerializeAs<iota_sdk_types::Version> for SequenceNumberString {
-    fn serialize_as<S>(source: &iota_sdk_types::Version, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<Version> for SequenceNumberString {
+    fn serialize_as<S>(source: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -157,13 +157,13 @@ impl SerializeAs<iota_sdk_types::Version> for SequenceNumberString {
     }
 }
 
-impl<'de> DeserializeAs<'de, iota_sdk_types::Version> for SequenceNumberString {
-    fn deserialize_as<D>(deserializer: D) -> Result<iota_sdk_types::Version, D::Error>
+impl<'de> DeserializeAs<'de, Version> for SequenceNumberString {
+    fn deserialize_as<D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let schema = SequenceNumberString::deserialize(deserializer)?;
-        Ok(iota_sdk_types::Version::from_u64(schema.0))
+        Ok(Version::from_u64(schema.0))
     }
 }
 
