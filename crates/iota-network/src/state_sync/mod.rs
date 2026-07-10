@@ -64,7 +64,7 @@ use std::{
         Arc, RwLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
@@ -430,6 +430,13 @@ enum ContentSyncError {
     },
 }
 
+/// Synced watermark and wall clock recorded when the event loop starts, used
+/// to log a one-time summary when the node first catches up to its peers.
+struct SyncStartMark {
+    synced_at_startup: CheckpointSequenceNumber,
+    started_at: Instant,
+}
+
 struct StateSyncEventLoop<S> {
     config: StateSyncConfig,
 
@@ -468,6 +475,15 @@ where
         info!("State-Synchronizer started");
 
         self.config.pinned_checkpoints.sort();
+
+        let mut sync_start = Some(SyncStartMark {
+            synced_at_startup: self
+                .store
+                .try_get_highest_synced_checkpoint()
+                .expect("store operation should not fail")
+                .sequence_number(),
+            started_at: Instant::now(),
+        });
 
         let mut interval = tokio::time::interval(self.config.interval_period());
         let mut peer_events = {
@@ -581,6 +597,7 @@ where
             self.maybe_trigger_checkpoint_contents_sync_task(
                 &target_checkpoint_contents_sequence_sender,
             );
+            self.maybe_log_first_catch_up(&mut sync_start);
         }
 
         info!("State-Synchronizer ended");
@@ -922,6 +939,38 @@ where
                 true
             });
         }
+    }
+
+    /// Logs a one-time summary the first time the synced checkpoint watermark
+    /// reaches the highest checkpoint reported by any peer on the same chain.
+    fn maybe_log_first_catch_up(&self, sync_start: &mut Option<SyncStartMark>) {
+        let Some(mark) = sync_start.as_ref() else {
+            return;
+        };
+        let Some(highest_known) = self
+            .peer_heights
+            .read()
+            .unwrap()
+            .highest_known_checkpoint_sequence_number()
+        else {
+            return;
+        };
+        let highest_synced = self
+            .store
+            .try_get_highest_synced_checkpoint()
+            .expect("store operation should not fail")
+            .sequence_number();
+        if highest_synced < highest_known {
+            return;
+        }
+
+        let elapsed = Duration::from_secs(mark.started_at.elapsed().as_secs());
+        info!(
+            "state sync caught up to checkpoint {highest_synced}: synced {} checkpoints in {}",
+            highest_synced - mark.synced_at_startup,
+            humantime::format_duration(elapsed),
+        );
+        *sync_start = None;
     }
 
     fn spawn_notify_peers_of_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {

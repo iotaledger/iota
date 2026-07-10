@@ -1,0 +1,26 @@
+services:
+  sync-benchmark:
+    image: ${IOTA_NODE_IMAGE:?set to the iota-node image to benchmark, e.g. iotaledger/iota-node:branch-a}
+    ports:
+      - "9184:9184/tcp" # metrics, to watch progress from outside the container
+    volumes:
+      - ./data:/opt/iota/:rw
+    command: [
+      "/usr/local/bin/iota-tool",
+      "measure-sync-time",
+      "--node-binary",
+      "/usr/local/bin/iota-node",
+      "--config",
+      "/opt/iota/config/fullnode.yaml",
+      "--target-checkpoint",
+      "${TARGET_CHECKPOINT:?set to the checkpoint sequence number at which the run finishes}",
+      "--wipe-db",
+      "--stall-timeout",
+      "${STALL_TIMEOUT:-30m}",
+      "--label",
+      "${RUN_LABEL:?set to a name for this run, e.g. branch-a}",
+      "--json-output",
+      "/opt/iota/results/${RUN_LABEL}.json",
+      "--node-log-file",
+      "/opt/iota/results/${RUN_LABEL}-node.log",
+    ]

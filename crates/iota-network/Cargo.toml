@@ -19,6 +19,7 @@ fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
 governor = "0.6.0"
+humantime.workspace = true
 prost.workspace = true
 rand.workspace = true
 serde.workspace = true

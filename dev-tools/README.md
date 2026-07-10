@@ -7,3 +7,4 @@ the most important README files in the repository:
 - [observability guide](../crates/telemetry-subscribers/observability.md)
 - [`iota-metrics` crate](../crates/iota-metrics/README.md)
 - [`iota-proxy` crate](../crates/iota-proxy/README.md)
+- [sync benchmark](./sync-benchmark/README.md)

@@ -85,6 +85,7 @@ pub mod db_tool;
 pub mod fire_drill;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
+pub mod measure_sync_time;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,

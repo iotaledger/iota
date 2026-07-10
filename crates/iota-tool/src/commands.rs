@@ -445,6 +445,9 @@ pub enum ToolCommand {
         #[arg(long, default_value = "http://localhost:50051")]
         address: String,
     },
+
+    /// Measure how long a fullnode takes to sync to a target checkpoint.
+    MeasureSyncTime(crate::measure_sync_time::MeasureSyncTime),
 }
 
 async fn check_locked_object(
@@ -1055,6 +1058,9 @@ impl ToolCommand {
                 let client = iota_grpc_client::Client::new(address)?;
                 client.get_health(None).await?;
                 println!("OK");
+            }
+            ToolCommand::MeasureSyncTime(args) => {
+                crate::measure_sync_time::run(args).await?;
             }
         };
         Ok(())
