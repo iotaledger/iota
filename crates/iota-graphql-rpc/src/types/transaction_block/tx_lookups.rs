@@ -349,6 +349,9 @@ pub(crate) fn subqueries(filter: &TransactionBlockFilter, tx_bounds: TxBounds) -
     if let Some(recv) = &filter.recv_address {
         subqueries.push(("tx_recipients", select_recipient(recv, sender, tx_bounds)));
     }
+    if let Some(affected) = &filter.affected_address {
+        subqueries.push(("tx_affected", select_affected(affected, sender, tx_bounds)));
+    }
     if let Some(input) = &filter.input_object {
         subqueries.push(("tx_input_objects", select_input(input, sender, tx_bounds)));
     }
@@ -480,6 +483,26 @@ fn select_recipient(recv: &IotaAddress, sender: Option<IotaAddress>, bound: TxBo
     filter!(
         select_tx(sender, bound, "tx_recipients"),
         format!("recipient = {}", bytea_literal(recv.as_slice()))
+    )
+}
+
+fn select_affected(
+    affected: &IotaAddress,
+    sender: Option<IotaAddress>,
+    bound: TxBounds,
+) -> RawQuery {
+    let recipients = select_recipient(affected, sender, bound);
+    // A `sender` filter different from `affected` can only match transactions
+    // where `affected` is the recipient.
+    if sender.is_some_and(|sender| sender != *affected) {
+        return recipients;
+    }
+    // The UNION is wrapped in a select so that later filters and ordering
+    // apply to the whole result, not just the second select.
+    query!(
+        "SELECT tx_sequence_number FROM ({} UNION {}) AS affected",
+        select_sender(affected, bound),
+        recipients
     )
 }
 

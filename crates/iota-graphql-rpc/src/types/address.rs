@@ -29,13 +29,17 @@ pub(crate) struct Address {
     pub checkpoint_viewed_at: u64,
 }
 
-/// The possible relationship types for a transaction block: sent or received.
+/// The possible relationship types for a transaction block: sent, received,
+/// or affected.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum AddressTransactionBlockRelationship {
     /// Transactions this address has sent.
     Sent,
     /// Transactions that sent objects to this address.
     Recv,
+    /// Transactions that affected this address (the address is the sender or
+    /// a recipient).
+    Affected,
 }
 
 /// The 32-byte address that is an account address (corresponding to a public
@@ -197,6 +201,11 @@ impl Address {
 
             Some(R::Recv) => TransactionBlockFilter {
                 recv_address: Some(self.address),
+                ..Default::default()
+            },
+
+            Some(R::Affected) => TransactionBlockFilter {
+                affected_address: Some(self.address),
                 ..Default::default()
             },
         }) else {

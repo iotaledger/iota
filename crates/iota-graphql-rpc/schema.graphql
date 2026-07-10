@@ -110,7 +110,8 @@ type AddressOwner {
 }
 
 """
-The possible relationship types for a transaction block: sent or received.
+The possible relationship types for a transaction block: sent, received,
+or affected.
 """
 enum AddressTransactionBlockRelationship {
 	"""
@@ -121,6 +122,11 @@ enum AddressTransactionBlockRelationship {
 	Transactions that sent objects to this address.
 	"""
 	RECV
+	"""
+	Transactions that affected this address (the address is the sender or
+	a recipient).
+	"""
+	AFFECTED
 }
 
 """
@@ -4555,6 +4561,11 @@ input TransactionBlockFilter {
 	Limit to transactions that sent an object to the given address.
 	"""
 	recvAddress: IotaAddress
+	"""
+	Limit to transactions that affected the given address (the address is
+	the sender or a recipient).
+	"""
+	affectedAddress: IotaAddress
 	"""
 	Limit to transactions that accepted the given object as an input.
 	"""

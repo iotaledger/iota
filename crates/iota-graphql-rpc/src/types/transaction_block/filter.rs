@@ -34,6 +34,9 @@ pub(crate) struct TransactionBlockFilter {
     pub sent_address: Option<IotaAddress>,
     /// Limit to transactions that sent an object to the given address.
     pub recv_address: Option<IotaAddress>,
+    /// Limit to transactions that affected the given address (the address is
+    /// the sender or a recipient).
+    pub affected_address: Option<IotaAddress>,
     /// Limit to transactions that accepted the given object as an input.
     pub input_object: Option<IotaAddress>,
     /// Limit to transactions that output a version of this object.
@@ -67,6 +70,7 @@ impl TransactionBlockFilter {
 
             sent_address: intersect!(sent_address, intersect::by_eq)?,
             recv_address: intersect!(recv_address, intersect::by_eq)?,
+            affected_address: intersect!(affected_address, intersect::by_eq)?,
             input_object: intersect!(input_object, intersect::by_eq)?,
             changed_object: intersect!(changed_object, intersect::by_eq)?,
             wrapped_or_deleted_object: intersect!(wrapped_or_deleted_object, intersect::by_eq)?,
@@ -88,6 +92,7 @@ impl TransactionBlockFilter {
             self.function.is_some(),
             self.kind.is_some(),
             self.recv_address.is_some(),
+            self.affected_address.is_some(),
             self.input_object.is_some(),
             self.changed_object.is_some(),
             self.wrapped_or_deleted_object.is_some(),
@@ -107,6 +112,7 @@ impl TransactionBlockFilter {
         if self.function.is_none()
             && self.kind.is_none()
             && self.recv_address.is_none()
+            && self.affected_address.is_none()
             && self.input_object.is_none()
             && self.changed_object.is_none()
             && self.wrapped_or_deleted_object.is_none()
@@ -124,6 +130,7 @@ impl TransactionBlockFilter {
             || self.kind.is_some()
             || self.sent_address.is_some()
             || self.recv_address.is_some()
+            || self.affected_address.is_some()
             || self.input_object.is_some()
             || self.changed_object.is_some()
             || self.wrapped_or_deleted_object.is_some()
