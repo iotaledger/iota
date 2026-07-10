@@ -28,7 +28,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, Transaction},
+    transaction::{CertifiedTransaction, SenderSignedData, Transaction},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -258,6 +258,29 @@ pub enum ConsensusTransactionKind {
 }
 
 impl ConsensusTransactionKind {
+    /// The signed data of the underlying user transaction (certified or raw),
+    /// or `None` for internal consensus messages.
+    pub fn as_sender_signed_data(&self) -> Option<&SenderSignedData> {
+        // Listed exhaustively (no `_` arm) so a new user-transaction kind must be
+        // classified here. This is the single place the consensus-handling sites
+        // rely on to decide whether a transaction carries user-signed data, so a
+        // new variant is caught once here rather than silently missed at each site.
+        match self {
+            Self::CertifiedTransaction(c) => Some(c.data()),
+            Self::UserTransactionV1(t) => Some(t.data()),
+            Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..) => None,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => None,
+        }
+    }
+
     pub fn is_dkg(&self) -> bool {
         matches!(
             self,
