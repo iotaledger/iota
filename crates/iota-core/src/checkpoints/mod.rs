@@ -28,7 +28,7 @@ use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{GasCostSummary, TransactionKind};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData, TransactionDigest},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
@@ -49,7 +49,7 @@ use iota_types::{
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
     storage::EpochInfoV2,
-    transaction::{TransactionDataAPI, TransactionKey},
+    transaction::{Transaction, TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -820,7 +820,11 @@ impl CheckpointStore {
             .checkpoint_content
             .insert(&contents.digest(), &contents)?;
 
-        self.cache_full_checkpoint_contents(checkpoint, full_contents);
+        self.cache_full_checkpoint_contents(
+            checkpoint.sequence_number(),
+            checkpoint.content_digest,
+            full_contents,
+        );
         Ok(())
     }
 
@@ -834,33 +838,30 @@ impl CheckpointStore {
 
     /// Caches full checkpoint contents in memory without writing anything to
     /// disk, so state-sync peers can be served without reconstructing the
-    /// contents.
-    ///
-    /// Used by the checkpoint executor on nodes that execute transactions
-    /// without syncing contents via state sync (validators), where the
-    /// digest-form contents and the transactions are already durable.
+    /// contents. `content_digest` must be the digest of `full_contents`.
     ///
     /// Best-effort: a serialization failure is logged and the insert skipped;
     /// readers fall back to reconstructing the contents from the durable
     /// stores.
     pub fn cache_full_checkpoint_contents(
         &self,
-        checkpoint: &VerifiedCheckpoint,
+        sequence_number: CheckpointSequenceNumber,
+        content_digest: CheckpointContentsDigest,
         full_contents: FullCheckpointContents,
     ) {
         let size = match bcs::serialized_size(&full_contents) {
             Ok(size) => size,
             Err(e) => {
                 warn!(
-                    sequence_number = checkpoint.sequence_number(),
+                    sequence_number,
                     "failed to serialize full checkpoint contents for caching: {e}"
                 );
                 return;
             }
         };
         self.full_checkpoint_contents_cache.insert(
-            checkpoint.sequence_number(),
-            checkpoint.content_digest,
+            sequence_number,
+            content_digest,
             Arc::new(full_contents),
             size,
         );
@@ -1470,15 +1471,15 @@ impl CheckpointBuilder {
     #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
-        effects_and_transaction_sizes: Vec<(TransactionEffects, usize)>,
+        transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
         signatures: Vec<Vec<GenericSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(TransactionEffects, Vec<GenericSignature>)>>> {
+    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<GenericSignature>)>>> {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
         let mut chunk_size: usize = 0;
-        for ((effects, transaction_size), signatures) in
-            effects_and_transaction_sizes.into_iter().zip(signatures)
+        for ((transaction, effects, transaction_size), signatures) in
+            transactions_effects_and_sizes.into_iter().zip(signatures)
         {
             // Roll over to a new chunk after either max count or max size is reached.
             // The size calculation here is intended to estimate the size of the
@@ -1503,7 +1504,7 @@ impl CheckpointBuilder {
                 }
             }
 
-            chunk.push((effects, signatures));
+            chunk.push((transaction, effects, signatures));
             chunk_size += size;
         }
 
@@ -1648,7 +1649,12 @@ impl CheckpointBuilder {
             signatures.len()
         );
 
-        let chunks = self.split_checkpoint_chunks(all_effects_and_transaction_sizes, signatures)?;
+        let transactions_effects_and_sizes = transactions
+            .into_iter()
+            .zip(all_effects_and_transaction_sizes)
+            .map(|(transaction, (effects, size))| (transaction.into_inner(), effects, size))
+            .collect();
+        let chunks = self.split_checkpoint_chunks(transactions_effects_and_sizes, signatures)?;
         let chunks_count = chunks.len();
 
         let mut checkpoints = Vec::with_capacity(chunks_count);
@@ -1658,7 +1664,7 @@ impl CheckpointBuilder {
         );
 
         let epoch = self.epoch_store.epoch();
-        for (index, transactions) in chunks.into_iter().enumerate() {
+        for (index, chunk) in chunks.into_iter().enumerate() {
             let first_checkpoint_of_epoch = index == 0
                 && last_checkpoint
                     .as_ref()
@@ -1686,7 +1692,11 @@ impl CheckpointBuilder {
                 }
             }
 
-            let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
+            let (chunk_transactions, mut effects, mut signatures): (
+                Vec<Transaction>,
+                Vec<TransactionEffects>,
+                Vec<Vec<GenericSignature>>,
+            ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
@@ -1816,6 +1826,30 @@ impl CheckpointBuilder {
                         .report_epoch_metrics_at_last_checkpoint(stats);
                 }
             }
+
+            // Cache the full contents for faster checkpoint propagation to peers.
+            // End-of-epoch checkpoints carry an appended change-epoch transaction not
+            // tracked here; the executor caches those via its synced path.
+            if !last_checkpoint_of_epoch
+                && self
+                    .store
+                    .should_cache_full_checkpoint_contents(sequence_number)
+            {
+                let execution_data = chunk_transactions
+                    .into_iter()
+                    .zip(effects.iter().cloned())
+                    .map(|(transaction, effects)| ExecutionData::new(transaction, effects));
+                let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                    contents.clone(),
+                    execution_data,
+                );
+                self.store.cache_full_checkpoint_contents(
+                    sequence_number,
+                    summary.content_digest,
+                    full_contents,
+                );
+            }
+
             last_checkpoint = Some((sequence_number, summary.clone()));
             checkpoints.push((summary, contents));
         }
@@ -2968,7 +3002,11 @@ mod tests {
         let checkpoint = test_checkpoint_with_contents(0, &full_contents);
         let content_digest = checkpoint.content_digest;
 
-        store.cache_full_checkpoint_contents(&checkpoint, full_contents.clone());
+        store.cache_full_checkpoint_contents(
+            checkpoint.sequence_number(),
+            content_digest,
+            full_contents.clone(),
+        );
 
         assert_eq!(
             store

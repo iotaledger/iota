@@ -113,7 +113,11 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     let frontier_seq = 10_000;
     let frontier_contents = FullCheckpointContents::random_for_testing();
     let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
-    checkpoint_store.cache_full_checkpoint_contents(&frontier_checkpoint, frontier_contents);
+    checkpoint_store.cache_full_checkpoint_contents(
+        frontier_checkpoint.sequence_number(),
+        frontier_checkpoint.content_digest,
+        frontier_contents,
+    );
 
     let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
         .pop()

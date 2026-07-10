@@ -796,11 +796,11 @@ impl CheckpointExecutor {
                 })
                 .collect();
 
-            // Landing here means the contents were not synced via state sync
-            // but produced locally (or the cache entry was evicted). Cache the
-            // assembled contents so state-sync peers are served the freshest
-            // checkpoints without reconstruction, speeding up checkpoint
-            // propagation.
+            // Reached when the contents were not already cached: a fullnode
+            // syncing from a peer, or a node catching up. Cache the assembled
+            // contents so this node can in turn serve state-sync peers without
+            // reconstruction. (Validators' locally built checkpoints are cached
+            // by the checkpoint builder and take the bulk path above instead.)
             //
             // The assembly clones every transaction and effect, so skip it
             // when the cache wouldn't retain the entry (see `should_cache`).
@@ -816,8 +816,11 @@ impl CheckpointExecutor {
                     checkpoint_contents.clone(),
                     execution_data,
                 );
-                self.checkpoint_store
-                    .cache_full_checkpoint_contents(&checkpoint, full_contents);
+                self.checkpoint_store.cache_full_checkpoint_contents(
+                    seq,
+                    checkpoint.content_digest,
+                    full_contents,
+                );
             }
 
             let transactions = verified_transactions
