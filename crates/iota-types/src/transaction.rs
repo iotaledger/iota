@@ -1892,6 +1892,31 @@ impl SenderSignedTransaction {
     }
 }
 
+/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`.
+///
+/// Objects not yet present are appended; for an object that appears in both
+/// sets the kinds are checked for consistency and unioned via
+/// [`InputObjectKind::left_union_with_checks`] (in particular, a shared object
+/// may differ in mutability but not in initial shared version).
+pub fn merge_authenticator_input_objects<'a>(
+    move_authenticators: impl IntoIterator<Item = &'a MoveAuthenticator>,
+    input_objects: &mut Vec<InputObjectKind>,
+) -> UserInputResult<()> {
+    for move_authenticator in move_authenticators {
+        for auth_object in move_authenticator.input_objects() {
+            let entry = input_objects
+                .iter_mut()
+                .find(|o| o.object_id() == auth_object.object_id());
+
+            match entry {
+                None => input_objects.push(auth_object),
+                Some(existing) => existing.left_union_with_checks(&auth_object)?,
+            }
+        }
+    }
+    Ok(())
+}
+
 impl SenderSignedData {
     pub fn new(tx_data: TransactionData, tx_signatures: Vec<GenericSignature>) -> Self {
         Self(SizeOneVec::new(SenderSignedTransaction {
@@ -2277,21 +2302,7 @@ impl SenderSignedData {
         let mut input_objects = self.transaction_data().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
-        self.move_authenticators().into_iter().try_for_each(
-            |move_authenticator| -> IotaResult<()> {
-                for auth_object in move_authenticator.input_objects() {
-                    let entry = input_objects
-                        .iter_mut()
-                        .find(|o| o.object_id() == auth_object.object_id());
-
-                    match entry {
-                        None => input_objects.push(auth_object),
-                        Some(existing) => existing.left_union_with_checks(&auth_object)?,
-                    }
-                }
-                Ok(())
-            },
-        )?;
+        merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
 
         Ok(input_objects)
     }

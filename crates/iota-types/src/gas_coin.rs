@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::{ObjectData, ObjectId};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +15,9 @@ use crate::{
     balance::Supply,
     base_types::SequenceNumber,
     coin::{Coin, TreasuryCap},
+    digests::TransactionDigest,
     error::{ExecutionError, ExecutionErrorKind},
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
 };
 
 /// The number of Nanos per IOTA token
@@ -31,6 +32,25 @@ pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 /// Total supply at genesis denominated in Nanos, after the migration from a
 /// Stardust ledger, before any inflation mechanism
 pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
+
+/// Value of the mock gas coin minted for a gasless transaction in dev-inspect,
+/// dry-run, and offline simulation when no gas coin is provided.
+pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
+
+/// Mint the one-shot mock gas coin that simulation paths use for a transaction
+/// carrying no gas payment: a fresh coin at [`ObjectId::MAX`] owned by `owner`
+/// and funded with [`SIMULATION_GAS_COIN_VALUE`].
+pub fn mock_simulation_gas_coin(owner: Address) -> Object {
+    Object::new_move(
+        MoveObject::new_gas_coin(
+            OBJECT_START_VERSION,
+            ObjectId::MAX,
+            SIMULATION_GAS_COIN_VALUE,
+        ),
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
 
 pub use checked::*;
 
