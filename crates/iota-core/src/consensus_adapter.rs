@@ -118,7 +118,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(

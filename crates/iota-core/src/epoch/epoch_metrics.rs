@@ -130,7 +130,7 @@ impl EpochMetrics {
                 "current_epoch",
                 "Current epoch ID",
                 registry;
-                MetricLevel::Info,
+                MetricLevel::Warn,
             )
             .unwrap(),
             current_voting_right: register_int_gauge_with_registry!(
@@ -147,7 +147,8 @@ impl EpochMetrics {
             epoch_total_duration: register_int_gauge_with_registry!(
                 "epoch_total_duration",
                 "Total duration of the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_transaction_count: register_int_gauge_with_registry!(
                 "epoch_transaction_count",
@@ -157,7 +158,8 @@ impl EpochMetrics {
             epoch_total_gas_reward: register_int_gauge_with_registry!(
                 "epoch_total_gas_reward",
                 "Total amount of gas rewards (i.e. computation gas cost) in the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_pending_certs_processed_time_since_epoch_close_ms: register_int_gauge_with_registry!(
                 "epoch_pending_certs_processed_time_since_epoch_close_ms",

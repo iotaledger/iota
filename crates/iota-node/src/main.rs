@@ -74,14 +74,15 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    // Load metrics filter from the config.
-    let config_filter = config
+    // Apply the configured metric group levels; an omitted `metrics.groups`
+    // section behaves like the default config (dashboard metrics only).
+    let metric_groups = config
         .metrics
         .as_ref()
-        .and_then(|m| m.groups.as_ref())
-        .map(|groups| groups.to_filter_string());
-    // Resolve the metrics filter
-    let metrics_filter = prometheus_filtered::Filter::resolve(config_filter.as_deref());
+        .and_then(|m| m.groups.clone())
+        .unwrap_or_default();
+    let metrics_filter =
+        prometheus_filtered::Filter::resolve(Some(&metric_groups.to_filter_string()));
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
@@ -90,8 +91,7 @@ fn main() {
 
     // Hardware metrics default to enabled and can be switched off via the
     // `metrics.groups` config.
-    let metric_groups = config.metrics.as_ref().and_then(|m| m.groups.as_ref());
-    if metric_groups.is_none_or(|g| g.hardware != MetricLevel::Off) {
+    if metric_groups.hardware != MetricLevel::Off {
         register_hardware_metrics(&registry_service, &config.db_path)
             .expect("Failed registering hardware metrics");
     }

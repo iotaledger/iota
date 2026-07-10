@@ -101,14 +101,16 @@ impl Metrics {
                 "monitored_tasks",
                 "Number of running tasks per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             futures: register_int_gauge_vec_with_registry!(
                 "monitored_futures",
                 "Number of pending futures per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             channel_inflight: register_int_gauge_vec_with_registry!(

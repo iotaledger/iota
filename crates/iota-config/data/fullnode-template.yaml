@@ -24,6 +24,7 @@ authority-store-pruning-config:
 # Set the exposure level for each Prometheus metric group.
 # metrics:
 #   groups:
+#     default: info # metrics whose module belongs to no group
 #     consensus: warn
 #     execution: warn
 #     checkpoints: warn

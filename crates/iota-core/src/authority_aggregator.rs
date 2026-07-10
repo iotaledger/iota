@@ -47,9 +47,9 @@ use iota_types::{
     transaction::*,
 };
 use prometheus_filtered::{
-    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};
@@ -157,7 +157,8 @@ impl AuthAggMetrics {
                 "total_rpc_err",
                 "Total number of rpc errors returned from validators, grouped by validator short name and RPC error message",
                 &["name", "error_message"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_transactions: register_int_gauge_with_registry!(

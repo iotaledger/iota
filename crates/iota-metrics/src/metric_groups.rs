@@ -10,8 +10,8 @@
 //!
 //! Each filter-based group is set to a [`MetricLevel`], a verbosity threshold.
 //! Individual metrics declare their own level where they are registered
-//! (defaulting to [`MetricLevel::Debug`]); metrics used by the fullnode Grafana
-//! dashboard are tagged [`MetricLevel::Warn`]. A group's level decides which
+//! (defaulting to [`MetricLevel::Debug`]); metrics used by the shipped Grafana
+//! dashboards are tagged [`MetricLevel::Warn`]. A group's level decides which
 //! of its metrics are **exposed** on the metrics endpoint — a metric is
 //! exposed when the group's level is at least as verbose as the metric's:
 //!
@@ -22,12 +22,20 @@
 //! - `debug` exposes everything except `trace`-tagged metrics;
 //! - `trace` exposes everything.
 //!
+//! Metrics whose module belongs to no group are covered by the `default`
+//! threshold (`info` unless configured), rendered as the leading catch-all
+//! directive.
+//!
 //! The levels never affect collection: a filter-based group's metrics are
 //! registered and keep collecting regardless of the configured level.
 //!
 //! Note the two defaults differ: an untagged metric is exposed from level
 //! `debug`, while a group defaults to the `warn` threshold, so the default
 //! config exposes only the dashboard metrics.
+//!
+//! The node applies [`MetricGroups::default()`] when the config omits
+//! `metrics.groups` entirely, so an omitted and an empty section behave the
+//! same.
 //!
 //! The `hw` hardware metrics are registered as a prometheus collector and
 //! so bypass the filtering macros entirely. They cannot be level-filtered
@@ -41,8 +49,10 @@ use serde::{Deserialize, Serialize};
 /// Per-group verbosity levels for the node's predefined Prometheus metric
 /// groups.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", default)]
+#[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct MetricGroups {
+    /// Exposure threshold for metrics whose module belongs to no group.
+    pub default: MetricLevel,
     /// Consensus and block production.
     ///
     /// Modules: `starfish_core`, `iota_core::consensus_adapter`,
@@ -107,6 +117,7 @@ pub struct MetricGroups {
 impl Default for MetricGroups {
     fn default() -> Self {
         Self {
+            default: MetricLevel::Info,
             consensus: MetricLevel::Warn,
             execution: MetricLevel::Warn,
             checkpoints: MetricLevel::Warn,
@@ -199,21 +210,24 @@ impl MetricGroups {
         })
     }
 
-    /// Renders each group's level into a `METRICS_FILTER`-style directive
-    /// string. Groups at `trace` are skipped: `trace` covers every metric
-    /// level, so their directives would be no-ops.
+    /// Renders the levels into a `METRICS_FILTER`-style directive string: the
+    /// `default` threshold as the leading catch-all directive, then one
+    /// directive per group module. Later directives win, so the group levels
+    /// override the catch-all for their modules.
     pub fn to_filter_string(&self) -> String {
-        let mut directives = Vec::new();
-        for (level, modules) in self.group_modules() {
-            let token = match level {
+        fn token(level: MetricLevel) -> &'static str {
+            match level {
                 MetricLevel::Off => "off",
                 MetricLevel::Warn => "warn",
                 MetricLevel::Info => "info",
                 MetricLevel::Debug => "debug",
-                MetricLevel::Trace => continue,
-            };
+                MetricLevel::Trace => "trace",
+            }
+        }
+        let mut directives = vec![token(self.default).to_owned()];
+        for (level, modules) in self.group_modules() {
             for module in modules {
-                directives.push(format!("{module}={token}"));
+                directives.push(format!("{module}={}", token(level)));
             }
         }
         directives.join(",")
@@ -222,10 +236,13 @@ impl MetricGroups {
 
 #[cfg(test)]
 mod tests {
+    use prometheus_filtered::Filter;
+
     use super::{MetricGroups, MetricLevel};
 
     fn all_trace() -> MetricGroups {
         MetricGroups {
+            default: MetricLevel::Trace,
             consensus: MetricLevel::Trace,
             execution: MetricLevel::Trace,
             checkpoints: MetricLevel::Trace,
@@ -241,24 +258,31 @@ mod tests {
     }
 
     #[test]
-    fn metric_groups_all_trace_is_noop() {
-        // `trace` groups are skipped, so an all-`trace` config exposes
-        // everything and renders an empty filter.
-        assert_eq!(all_trace().to_filter_string(), "");
+    fn metric_groups_all_trace_exposes_everything() {
+        // An all-`trace` config exposes every metric, grouped or not.
+        let filter = Filter::parse(&all_trace().to_filter_string());
+        assert!(filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Trace));
+        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
     }
 
     #[test]
     fn metric_groups_default_trims_to_dashboard() {
         // The default (all groups `warn`) renders `{module}=warn` for every
         // group's modules, so only the `warn`-tagged (dashboard) metrics
-        // are exposed.
-        let filter = MetricGroups::default().to_filter_string();
-        assert!(!filter.is_empty());
-        assert!(filter.contains("starfish_core=warn"));
-        assert!(filter.contains("iota_core::execution_cache=warn"));
-        assert!(filter.contains("iota_grpc_server=warn"));
+        // are exposed; non-grouped modules fall to the `info` catch-all.
+        let filter_string = MetricGroups::default().to_filter_string();
+        assert!(filter_string.starts_with("info,"));
+        assert!(filter_string.contains("starfish_core=warn"));
+        assert!(filter_string.contains("iota_core::execution_cache=warn"));
+        assert!(filter_string.contains("iota_grpc_server=warn"));
         // No group renders a `debug` directive.
-        assert!(!filter.contains("=debug"));
+        assert!(!filter_string.contains("=debug"));
+
+        let filter = Filter::parse(&filter_string);
+        assert!(filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Warn));
+        assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
+        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Info));
+        assert!(!filter.is_exposed("x", "iota_node::some_module", MetricLevel::Debug));
     }
 
     #[test]
@@ -269,12 +293,21 @@ mod tests {
             epoch: MetricLevel::Off,
             ..all_trace()
         };
-        assert_eq!(
-            groups.to_filter_string(),
-            "iota_core::execution_cache=warn,iota_core::global_state_hasher=warn,\
-             iota_core::module_cache_metrics=warn,iota_core::checkpoints=debug,\
-             iota_core::epoch::epoch_metrics=off"
-        );
+        let filter_string = groups.to_filter_string();
+        assert!(filter_string.starts_with("trace,"));
+        assert!(filter_string.contains("iota_core::execution_cache=warn"));
+        assert!(filter_string.contains("iota_core::checkpoints=debug"));
+        assert!(filter_string.contains("iota_core::epoch::epoch_metrics=off"));
+
+        let filter = Filter::parse(&filter_string);
+        assert!(filter.is_exposed("x", "iota_core::execution_cache", MetricLevel::Warn));
+        assert!(!filter.is_exposed("x", "iota_core::execution_cache", MetricLevel::Info));
+        assert!(filter.is_exposed("x", "iota_core::checkpoints", MetricLevel::Debug));
+        assert!(!filter.is_exposed("x", "iota_core::checkpoints", MetricLevel::Trace));
+        assert!(!filter.is_exposed("x", "iota_core::epoch::epoch_metrics", MetricLevel::Warn));
+        // `trace` groups expose everything — their directives are rendered,
+        // not skipped, so they are not clipped by the catch-all.
+        assert!(filter.is_exposed("x", "iota_core::quorum_driver", MetricLevel::Trace));
     }
 
     #[test]
@@ -283,7 +316,8 @@ mod tests {
             hardware: MetricLevel::Off,
             ..all_trace()
         };
-        assert_eq!(groups.to_filter_string(), "");
+        // `hardware` is gated at registration, not via the filter.
+        assert!(!groups.to_filter_string().contains("hardware"));
     }
 
     #[test]
@@ -320,11 +354,20 @@ mod tests {
         // Omitted groups default to `warn`; the explicitly-set group keeps its
         // value.
         let groups: MetricGroups = serde_yaml::from_str("traffic-control: off").unwrap();
+        assert_eq!(groups.default, MetricLevel::Info);
         assert_eq!(groups.consensus, MetricLevel::Warn);
         assert_eq!(groups.traffic_control, MetricLevel::Off);
         assert_eq!(groups.hardware, MetricLevel::Warn);
         let filter = groups.to_filter_string();
         assert!(filter.contains("iota_core::traffic_controller=off"));
         assert!(filter.contains("starfish_core=warn"));
+    }
+
+    #[test]
+    fn metric_groups_rejects_unknown_group_names() {
+        // A typo'd group name must fail config load instead of silently
+        // leaving the intended group at its default.
+        assert!(serde_yaml::from_str::<MetricGroups>("traffic_control: off").is_err());
+        assert!(serde_yaml::from_str::<MetricGroups>("bogus: warn").is_err());
     }
 }

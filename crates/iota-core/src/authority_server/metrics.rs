@@ -83,7 +83,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             submit_certificate_consensus_latency: register_histogram_with_registry!(
@@ -97,7 +98,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(

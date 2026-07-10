@@ -22,7 +22,10 @@
 //!
 //! The directives act as **exposure**
 //! thresholds deciding which metrics [`Registry::gather`] includes in its
-//! output (`off` exposes none of the matched metrics).
+//! output (`off` exposes none of the matched metrics). Metrics matched by no
+//! directive are exposed unconditionally, so with no filter configured the
+//! crate behaves exactly like plain `prometheus`; use a bare `LEVEL` directive
+//! to set a stricter global default.
 
 use std::{
     collections::HashMap,
@@ -491,9 +494,9 @@ impl MetricLevel {
     }
 }
 
-/// Default threshold when no directive matches a metric: above every metric
-/// level, so unmatched metrics are always exposed regardless of level.
-const THRESHOLD_ALL: u8 = 5;
+/// Default threshold when no directive matches a metric: expose it. Filtering
+/// is opt-in, so an unfiltered registry behaves like plain `prometheus`.
+const DEFAULT_THRESHOLD: u8 = MetricLevel::Trace.verbosity();
 
 #[derive(Clone)]
 struct FilterDirective {
@@ -543,7 +546,7 @@ fn parse_directive(part: &str) -> Option<FilterDirective> {
 }
 
 /// Evaluates `directives` for a metric, returning the last matching
-/// directive's threshold, or [`THRESHOLD_ALL`] when none matches.
+/// directive's threshold, or [`DEFAULT_THRESHOLD`] when none matches.
 ///
 /// Matching order (last wins):
 /// 1. Empty pattern — global default.
@@ -551,7 +554,7 @@ fn parse_directive(part: &str) -> Option<FilterDirective> {
 /// 3. `module.starts_with(pattern)` — module path prefix.
 /// 4. `module` contains `"::{pattern}"` — exact module component.
 fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> u8 {
-    let mut threshold = THRESHOLD_ALL;
+    let mut threshold = DEFAULT_THRESHOLD;
     for dir in directives {
         if dir.pattern.is_empty()
             || name.starts_with(dir.pattern.as_str())
@@ -565,7 +568,9 @@ fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> u8
 }
 
 impl Filter {
-    fn parse(s: &str) -> Self {
+    /// Parses a directive string, ignoring the `METRICS_FILTER` env var; use
+    /// [`Filter::resolve`] to honour it.
+    pub fn parse(s: &str) -> Self {
         let directives = s.split(',').filter_map(parse_directive).collect();
         Self { directives }
     }
@@ -1044,7 +1049,8 @@ mod tests {
 
     #[test]
     fn filter_matches_metric_or_module_name_prefix() {
-        // filter matches all the metric names and module names having given prefix
+        // An `off` directive hides exactly the metrics its pattern matches;
+        // unmatched metrics stay exposed (the permissive default).
         let filter = super::Filter::parse("authority=off");
         assert!(filter.is_exposed("some_authority", "iota_core::checkpoints", Debug));
         assert!(!filter.is_exposed("authority", "iota_core::checkpoints", Debug));
@@ -1078,24 +1084,33 @@ mod tests {
     }
 
     #[test]
-    fn no_filter_enables_everything() {
-        // an unset/empty filter must leave every metric registered (backward
-        // compatibility: filtering is purely opt-in).
-        assert!(super::Filter::parse("").is_exposed("anything", "any::module", Debug));
-        assert!(super::Filter::default().is_exposed("anything", "any::module", Debug));
-        // empty segments are ignored rather than treated as directives.
-        assert!(super::Filter::parse(",,").is_exposed("anything", "any::module", Debug));
+    fn unmatched_metrics_are_exposed() {
+        use super::MetricLevel::{Info, Trace, Warn};
+        // Filtering is opt-in: with no matching directive every metric is
+        // exposed, matching plain `prometheus` behaviour.
+        for filter in [
+            super::Filter::parse(""),
+            super::Filter::default(),
+            // empty segments are ignored rather than treated as directives.
+            super::Filter::parse(",,"),
+        ] {
+            assert!(filter.is_exposed("anything", "any::module", Warn));
+            assert!(filter.is_exposed("anything", "any::module", Info));
+            assert!(filter.is_exposed("anything", "any::module", Debug));
+            assert!(filter.is_exposed("anything", "any::module", Trace));
+        }
     }
 
     #[test]
     fn rejects_boolean_and_numeric_aliases() {
+        use super::MetricLevel::Trace;
         // Only the RUST_LOG-style level names are accepted; the former
         // `on`/`true`/`1` and `false`/`0` aliases are now invalid, so they are
-        // dropped and the directive falls back to the default (enabled).
+        // dropped and the directive falls back to the permissive default.
         for alias in ["on", "true", "1", "false", "0"] {
             let filter = super::Filter::parse(&format!("authority={alias}"));
             assert!(
-                filter.is_exposed("authority", "m", Debug),
+                filter.is_exposed("authority", "m", Trace),
                 "{alias} should be dropped as invalid, leaving the default"
             );
         }
@@ -1108,12 +1123,13 @@ mod tests {
 
     #[test]
     fn invalid_directives_are_dropped() {
+        use super::MetricLevel::Trace;
         // an unrecognised value leaves the directive out, falling back to the
-        // default (enabled).
-        assert!(super::Filter::parse("authority=maybe").is_exposed("authority", "m", Debug));
+        // permissive default.
+        assert!(super::Filter::parse("authority=maybe").is_exposed("authority", "m", Trace));
         // a bare token without `=LEVEL` is parsed as a global value and, being
         // invalid, dropped — it does NOT enable/disable the `authority` subsystem.
-        assert!(super::Filter::parse("authority").is_exposed("authority", "m", Debug));
+        assert!(super::Filter::parse("authority").is_exposed("authority", "m", Trace));
         // a valid directive alongside an invalid one still takes effect.
         let filter = super::Filter::parse("authority=off,bogus=nope");
         assert!(!filter.is_exposed("authority", "m", Debug));
@@ -1155,7 +1171,8 @@ mod tests {
             return;
         }
 
-        // No env, no fallback -> permissive.
+        // No env, no fallback -> everything is exposed.
+        assert!(Filter::resolve(None).is_exposed("anything", "m", MetricLevel::Trace));
         assert!(Filter::resolve(None).is_exposed("anything", "m", Debug));
 
         // No env -> the fallback directives apply.
@@ -1195,7 +1212,8 @@ mod tests {
             "iota_core::authority",
             Warn
         ));
-        // No directive -> permissive (exposed regardless of level).
+        // No directive -> exposed at every level.
+        assert!(super::Filter::parse("").is_exposed("x", "m", Info));
         assert!(super::Filter::parse("").is_exposed("x", "m", Trace));
     }
 }
@@ -1252,7 +1270,7 @@ mod gather_filter_tests {
             Some(std::sync::Arc::new(Filter::parse(""))),
         )
         .unwrap();
-        crate::register_int_gauge_with_registry!("g", "h", &exposed).unwrap();
+        crate::register_int_gauge_with_registry!("g", "h", &exposed; MetricLevel::Warn).unwrap();
         assert_eq!(gathered_names(&exposed), ["consensus_g"]);
 
         // The filter keys on the module path, so the prefixed family is
@@ -1265,7 +1283,7 @@ mod gather_filter_tests {
             ))),
         )
         .unwrap();
-        crate::register_int_gauge_with_registry!("g", "h", &hidden).unwrap();
+        crate::register_int_gauge_with_registry!("g", "h", &hidden; MetricLevel::Warn).unwrap();
         assert_eq!(gathered_names(&hidden), Vec::<String>::new());
     }
 
@@ -1296,7 +1314,7 @@ mod level_macro_tests {
     }
 
     #[test]
-    fn no_threshold_prevents_registration() {
+    fn hidden_metrics_still_register_and_collect() {
         // At a `warn` threshold, a default (`debug`) metric still registers
         // and collects — it is only hidden from `gather` output.
         let reg = registry("g_default=warn");
