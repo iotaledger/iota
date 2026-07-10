@@ -51,10 +51,14 @@ GAP_LARGE = 1.8  # between (slow, qps) groups
 
 
 def parse_cfg(label):
+    """slow{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (n, slow, qps, path). The -n
+    suffix is the network size; labels without it are the old 4-validator runs."""
     slow = int(re.search(r"slow(\d+)", label).group(1))
     qps = int(re.search(r"qps(\d+)", label).group(1))
-    wl = re.search(r"owned-([a-z]+)", label).group(1)
-    return slow, qps, wl
+    wl = re.search(r"owned-([a-z0-9]+)", label).group(1)
+    m = re.search(r"-n(\d+)$", label)
+    n = int(m.group(1)) if m else 4
+    return n, slow, qps, wl
 
 
 def load(csv_path, metric):
@@ -131,8 +135,8 @@ def draw_metric(
     xticks, xlabels, centers, slow_separators = [], [], [], []
     prev_group, prev_slow = None, None
     for cfg in configs:
-        slow, qps, wl = parse_cfg(cfg)
-        group = (slow, qps)
+        n, slow, qps, wl = parse_cfg(cfg)
+        group = (n, slow, qps)
         if prev_group is not None:
             gap = GAP_SMALL if group == prev_group else GAP_LARGE
             if slow != prev_slow:
@@ -161,7 +165,8 @@ def draw_metric(
             )
             left += W
         xticks.append(x + nbars * W / 2)  # center of the config's bars
-        xlabels.append(f"s{slow}·q{qps}·{wl}")
+        # n is omitted from the tick label for the common 4-validator runs.
+        xlabels.append(f"s{slow}·q{qps}·{wl}" + (f"·n{n}" if n != 4 else ""))
         x += nbars * W
 
     for sx in slow_separators:

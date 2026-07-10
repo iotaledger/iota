@@ -9,19 +9,24 @@
 # what the V2 pre-consensus attestation dry-run cost scales with.
 #
 #   5 compute {0, 50, 100, 200, 500}  (slow::slow(n,n); 0 = no-op floor, ~gas_rounding_step)
-# × 2 paths   {fullnode (DIRECT=false), pinned (DIRECT=true, 1 target validator)}
-# × 3 qps     {200, 1000, 2000}                                      = 30 configs.
+# × 3 paths   {f1 fullnode (DIRECT=false), v1 pinned (1 target validator),
+#              v4 spread (direct to all 4 validators)}
+# × 3 qps     {200, 1000, 2000}                                      = 45 configs.
+#
+# Labels carry the network size as an -n<N> suffix and pass N to run.sh, so the
+# same grid can be re-run on a bigger network (e.g. -n48 rows with N=48) under
+# distinct labels without colliding with these results.
 #
 # Round-robin: each round runs 1 iteration (V1+V2) of every config; ITERS rounds
 # total, so each config ends with ITERS iters — interleaved, not config-major. So
-# an interrupted run leaves every config with ~equal iters. That's 30 * ITERS full
+# an interrupted run leaves every config with ~equal iters. That's 45 * ITERS full
 # experiments — HOURS of wall time at ITERS=5. Per-config console output goes to
 # logs/<LABEL>.log (truncated on round 1, appended thereafter); redirecting it also
 # makes run.sh non-interactive (no monitoring prompt) and strips ANSI colors, so
 # the matrix runs unattended.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 30 configs
+#   ITERS=5 ./matrix.sh             # run all 45 configs
 #   ITERS=3 ./matrix.sh slow100     # only labels containing "slow100" (substring filter)
 #
 # A config that fails (or is interrupted) does NOT abort the matrix — it's logged
@@ -47,40 +52,55 @@ fi
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
-  "slow0-owned-f-qps200  | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
-  "slow0-owned-v-qps200  | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-f-qps1000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
-  "slow0-owned-v-qps1000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-f-qps2000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
-  "slow0-owned-v-qps2000 | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-f1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=false"
+  "slow0-owned-v1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow0-owned-f1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=false"
+  "slow0-owned-v1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow0-owned-f1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=false"
+  "slow0-owned-v1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
   #
-  "slow50-owned-f-qps200  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
-  "slow50-owned-v-qps200  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-f-qps1000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
-  "slow50-owned-v-qps1000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-f-qps2000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
-  "slow50-owned-v-qps2000 | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-f1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=false"
+  "slow50-owned-v1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow50-owned-f1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=false"
+  "slow50-owned-v1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow50-owned-f1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=false"
+  "slow50-owned-v1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
   #
-  "slow100-owned-f-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
-  "slow100-owned-v-qps200  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-f-qps1000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
-  "slow100-owned-v-qps1000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-f-qps2000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
-  "slow100-owned-v-qps2000 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow100-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow100-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow100-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow100-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow100-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
   #
-  "slow200-owned-f-qps200  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
-  "slow200-owned-v-qps200  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-f-qps1000 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
-  "slow200-owned-v-qps1000 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-f-qps2000 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
-  "slow200-owned-v-qps2000 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow200-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow200-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow200-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow200-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow200-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
   #
-  "slow500-owned-f-qps200  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  DIRECT=false"
-  "slow500-owned-v-qps200  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-f-qps1000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=false"
-  "slow500-owned-v-qps1000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-f-qps2000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=false"
-  "slow500-owned-v-qps2000 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow500-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow500-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow500-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow500-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow500-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the

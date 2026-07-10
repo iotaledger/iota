@@ -442,12 +442,15 @@ def fmt_cell(center, disp_val, disp):
 
 
 def sort_key(label):
-    """slow{N}-owned-{f|v}-qps{Q} -> (N, Q, workload): group by slow, then qps, with
-    the f/v pair adjacent for each qps."""
+    """slow{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (network size, slow, qps, path):
+    group by network size first, then slow, then qps, with the paths adjacent
+    for each qps. Labels without an -n suffix are the old 4-validator runs."""
     slow = re.search(r"slow(\d+)", label)
     qps = re.search(r"qps(\d+)", label)
-    wl = re.search(r"owned-([a-z]+)", label)
+    wl = re.search(r"owned-([a-z0-9]+)", label)
+    n = re.search(r"-n(\d+)$", label)
     return (
+        int(n.group(1)) if n else 4,
         int(slow.group(1)) if slow else 0,
         int(qps.group(1)) if qps else 0,
         wl.group(1) if wl else "",
