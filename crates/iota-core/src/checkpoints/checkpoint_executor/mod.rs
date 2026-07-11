@@ -267,6 +267,20 @@ impl CheckpointExecutor {
             let this = this.clone();
             let pipeline_handle = pipeline_stages.handle(checkpoint.sequence_number());
             async move {
+                // Leash: apply backpressure so the executed watermark cannot
+                // outrun the pruner unboundedly. Blocks here (before entering the
+                // pipeline) while pruning has fallen more than the slack behind
+                // its retention target; self-throttles execution under overload.
+                let executed_timestamp_ms = this
+                    .checkpoint_store
+                    .get_highest_executed_checkpoint()
+                    .ok()
+                    .flatten()
+                    .map(|checkpoint| checkpoint.timestamp_ms)
+                    .unwrap_or(0);
+
+                this.state.pruner().await_leash(executed_timestamp_ms).await;
+
                 let pipeline_handle = pipeline_handle.await;
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await
@@ -453,6 +467,12 @@ impl CheckpointExecutor {
         self.bump_highest_executed_checkpoint(&ckpt_state.data.checkpoint);
 
         self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
+
+        // Nudge the pruner now that this checkpoint is executed and available;
+        // pruning of aged-out data runs off the propagation path.
+        self.state
+            .pruner()
+            .nudge(ckpt_state.data.checkpoint.sequence_number());
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
 
