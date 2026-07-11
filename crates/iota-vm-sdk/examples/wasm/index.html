@@ -14,6 +14,7 @@
         --text: #eef2f7;
         --muted: #98a4b3;
         --accent: #2dd4bf;
+        --accent-2: #818cf8;
         --ok: #3fb950;
         --bad: #f85149;
         --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -71,66 +72,188 @@
         margin: 0;
         max-width: 44rem;
       }
-      p.lead code {
+      p.lead code,
+      .tab-desc code {
         color: #c7d0db;
         font-size: 0.85em;
       }
-      .actions {
+
+      /* --- Labelled control groups (segmented controls, button) ----------- */
+      .field {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+      }
+      .field > .field-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      /* Segmented control */
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: rgba(9, 12, 18, 0.5);
+        padding: 3px;
+      }
+      .seg button {
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--muted);
+        background: none;
+        border: none;
+        border-radius: 6px;
+        padding: 0.4rem 0.85rem;
+        cursor: pointer;
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+      .seg button:hover:not(.active) {
+        color: var(--text);
+      }
+      .seg button.active {
+        color: #071013;
+        background: var(--accent);
+      }
+
+      /* Example presets */
+      .preset-row {
         display: flex;
         flex-wrap: wrap;
-        align-items: center;
-        gap: 0.6rem;
-        margin: 2.25rem 0 1.5rem;
+        gap: 0.5rem;
       }
-      button {
-        position: relative;
+      .chip {
         font: inherit;
-        font-weight: 500;
-        color: var(--text);
-        background: var(--panel);
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: rgba(9, 12, 18, 0.5);
         border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 0.6rem 1.1rem 0.6rem 1.9rem;
+        border-radius: 999px;
+        padding: 0.35rem 0.85rem;
         cursor: pointer;
-        backdrop-filter: blur(8px);
+        transition: color 0.15s ease, border-color 0.15s ease,
+          background 0.15s ease;
+      }
+      .chip:hover {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+      }
+      .chip.active {
+        color: #071013;
+        background: var(--accent);
+        border-color: transparent;
+      }
+      .preset-note {
+        margin: 0.6rem 0 0;
+        font-size: 0.82rem;
+        color: var(--muted);
+        min-height: 1.2em;
+      }
+      .preset-note:empty {
+        display: none;
+      }
+
+      /* Primary action button — height matches the segmented controls so the
+         whole controls row sits on one line. */
+      button.primary {
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1.3;
+        color: #0b1020;
+        background: var(--accent-2);
+        border: 1px solid transparent;
+        border-radius: 9px;
+        padding: 0.47rem 1.4rem;
+        cursor: pointer;
         box-shadow: var(--shadow);
-        transition: transform 0.12s ease, border-color 0.18s ease,
+        transition: filter 0.15s ease, transform 0.12s ease,
           box-shadow 0.18s ease;
       }
-      button::before {
-        content: "";
-        position: absolute;
-        left: 0.95rem;
-        top: 50%;
-        width: 0.5rem;
-        height: 0.5rem;
-        border-radius: 50%;
-        background: var(--dot, var(--accent));
-        box-shadow: 0 0 8px var(--dot, var(--accent));
-        transform: translateY(-50%);
-      }
-      button:hover:not(:disabled) {
-        border-color: color-mix(in srgb, var(--dot, var(--accent)) 60%, transparent);
-        box-shadow: var(--shadow),
-          0 0 0 1px color-mix(in srgb, var(--dot, var(--accent)) 25%, transparent),
-          0 8px 24px -10px color-mix(in srgb, var(--dot, var(--accent)) 70%, transparent);
+      button.primary:hover:not(:disabled) {
+        filter: brightness(1.08);
         transform: translateY(-1px);
+        box-shadow: var(--shadow),
+          0 8px 24px -10px color-mix(in srgb, var(--accent-2) 70%, transparent);
       }
-      button:active:not(:disabled) {
+      button.primary:active:not(:disabled) {
         transform: translateY(0);
       }
-      button:disabled {
-        opacity: 0.55;
+      button.primary:disabled {
+        opacity: 0.5;
         cursor: progress;
+      }
+
+      /* --- Tabs ----------------------------------------------------------- */
+      .topbar {
+        margin: 2.25rem 0 0;
+      }
+      .tabs {
+        display: flex;
+        gap: 0.4rem;
+        margin: 1.5rem 0 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .tab {
+        font: inherit;
+        font-weight: 600;
+        color: var(--muted);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        padding: 0.7rem 0.9rem;
+        cursor: pointer;
+        transition: color 0.15s ease, border-color 0.15s ease;
+      }
+      .tab:hover {
+        color: var(--text);
+      }
+      .tab[aria-selected="true"] {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+      .tabpanel {
+        margin-top: 1.5rem;
+      }
+      .tabpanel[hidden] {
+        display: none;
+      }
+      .tab-desc {
+        color: var(--muted);
+        margin: 0 0 1.25rem;
+        font-size: 0.9rem;
+        max-width: 44rem;
+      }
+
+      /* --- Controls row --------------------------------------------------- */
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.9rem 1.1rem;
+        margin: 1rem 0 0.4rem;
+      }
+      .controls .spacer {
+        flex: 1 1 auto;
       }
       .hint {
         font-size: 0.8rem;
         color: var(--muted);
+        align-self: center;
       }
-      label {
+      label.stack {
+        display: block;
         font-size: 0.78rem;
         font-weight: 600;
         color: var(--muted);
+        margin-bottom: 0.35rem;
       }
       textarea {
         width: 100%;
@@ -149,17 +272,16 @@
         border-color: var(--accent);
         box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
       }
-      .custom-body {
+      textarea:disabled {
+        opacity: 0.45;
+      }
+      .inputs {
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
-        padding: 1rem 1.25rem 1.2rem;
+        gap: 0.9rem;
       }
-      .custom-body button {
-        align-self: flex-start;
-        --dot: #818cf8;
-        margin-top: 0.5rem;
-      }
+
+      /* --- Result panels -------------------------------------------------- */
       .panel {
         border: 1px solid var(--border);
         border-radius: 14px;
@@ -175,26 +297,36 @@
       .panel + .panel {
         margin-top: 1rem;
       }
+      .results {
+        margin-top: 1.5rem;
+      }
       .panel[hidden] {
         display: none;
       }
-      #status {
+      .status {
         display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        font-size: 0.9rem;
-        font-weight: 600;
+        flex-direction: column;
+        gap: 0.4rem;
         margin: 0;
         padding: 0.85rem 1.2rem;
-        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: 600;
         border-bottom: 1px solid transparent;
       }
-      #status:not(:empty) {
+      .status:not(:empty) {
         border-bottom-color: var(--border);
       }
-      #status::before {
-        content: "";
-        display: inline-block;
+      .status:empty {
+        display: none;
+      }
+      .stat {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        color: var(--muted);
+      }
+      .stat .dot {
+        align-self: center;
         width: 0.6rem;
         height: 0.6rem;
         border-radius: 50%;
@@ -202,19 +334,26 @@
         box-shadow: 0 0 10px currentColor;
         flex: none;
       }
-      #status:empty {
-        display: none;
+      .stat .stat-label {
+        color: var(--muted);
+        min-width: 5rem;
       }
-      #status.ok {
+      .stat .stat-value {
+        color: inherit;
+      }
+      .stat.ok {
         color: var(--ok);
       }
-      #status.bad {
+      .stat.bad {
         color: var(--bad);
       }
-      #status.busy {
+      .stat.busy {
         color: var(--accent);
       }
-      #timing {
+      .stat.muted {
+        color: var(--muted);
+      }
+      .timing {
         display: flex;
         flex-wrap: wrap;
         gap: 0.4rem 1.4rem;
@@ -224,10 +363,10 @@
         border-bottom: 1px solid var(--border);
         font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
       }
-      #timing:empty {
+      .timing:empty {
         display: none;
       }
-      #timing b {
+      .timing b {
         color: var(--text);
         font-weight: 600;
       }
@@ -240,19 +379,19 @@
         padding: 0.7rem 1.2rem;
         border-bottom: 1px solid var(--border);
       }
-      #tx-desc {
+      .tx-desc {
         margin: 0;
         padding: 0.85rem 1.25rem;
         font-size: 0.85rem;
         color: var(--muted);
         border-bottom: 1px solid var(--border);
       }
-      #tx-desc:empty {
+      .tx-desc:empty {
         display: none;
       }
-      #tx,
-      #output,
-      #log {
+      .tx,
+      .output,
+      .log {
         margin: 0;
         padding: 1.1rem 1.25rem;
         white-space: pre-wrap;
@@ -262,19 +401,19 @@
         color: #c7d0db;
         font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
       }
-      #log {
+      .log {
         max-height: 18rem;
         overflow: auto;
         white-space: pre;
         word-break: normal;
       }
-      #log .obj {
+      .log .obj {
         color: #7dcfff;
       }
-      #log .miss {
+      .log .miss {
         color: var(--bad);
       }
-      #log .info {
+      .log .info {
         color: var(--muted);
       }
       /* Collapsible JSON tree (built in jsonNode; native <details>). */
@@ -334,52 +473,146 @@
     </style>
   </head>
   <body>
-    <p class="eyebrow">Move VM · WebAssembly · Testnet</p>
+    <p class="eyebrow">Move VM · WebAssembly · IOTA</p>
     <h1>iota-vm-sdk in the browser</h1>
     <p class="lead">
-      Builds a real <code>0x3::iota_system::request_add_stake</code> transaction
-      with the IOTA TypeScript SDK against testnet, then simulates it in the
-      local Move VM compiled to wasm. The VM resolves the objects it touches
-      <em>on demand</em>: every object it reads — inputs and the dynamic-field
-      children staking walks — is fetched from testnet GraphQL the moment the VM
-      asks for it. Nothing is executed on a node.
+      Runs transactions through the IOTA Move VM compiled to WebAssembly,
+      entirely in the page. The VM resolves the objects it touches
+      <em>on demand</em>: every object it reads is fetched from the selected
+      network's GraphQL the moment the VM asks for it. Nothing is executed on a
+      node — the node is only read from.
     </p>
 
-    <div class="actions">
-      <button id="run" disabled>Simulate stake on testnet</button>
-      <span class="hint" id="hint">Loading wasm…</span>
+    <div class="topbar">
+      <label class="field">
+        <span class="field-label">Network</span>
+        <span class="seg" id="network">
+          <button type="button" data-net="testnet" class="active">testnet</button>
+          <button type="button" data-net="mainnet">mainnet</button>
+          <button type="button" data-net="devnet">devnet</button>
+          <button type="button" data-net="localnet">localnet</button>
+        </span>
+      </label>
     </div>
 
-    <div class="panel" id="custom-card">
-      <div class="cap">Or simulate your own transaction · dev-inspect</div>
-      <div class="custom-body">
-        <label for="tx-bytes">Transaction bytes (base64)</label>
-        <textarea id="tx-bytes" rows="4" spellcheck="false">AAABAAkIaXQgd29ya3MAIiK0ZqJDmevPXsDwSCCBKuIP6hA3xzbP7GCHU6o4tSIBGa9Eqf1/6tvSdh+wiOzmncFvNbDVKhrwnG2+mod0if4TzX0gAAAAACARcIr3JBZ9MAK/Qi9/al1VcgIgRZTdeSNusJKWu30/2yIitGaiQ5nrz17A8EgggSriD+oQN8c2z+xgh1OqOLUi6AMAAAAAAAAwei0AAAAAAAA=</textarea>
-        <label for="sigs">
-          Signatures (base64, one per line — optional; e.g. sender + sponsor)
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-stake" role="tab" aria-selected="true">
+        Stake
+      </button>
+      <button class="tab" id="tab-custom" role="tab" aria-selected="false">
+        Your own transaction
+      </button>
+    </div>
+
+    <!-- ============================ Stake tab =========================== -->
+    <section class="tabpanel" id="panel-stake" role="tabpanel">
+      <p class="tab-desc">
+        Builds a real <code>0x3::iota_system::request_add_stake</code>
+        transaction with the IOTA TypeScript SDK, then simulates it here. It is
+        built <em>gasless</em>, so the VM mints a mock gas coin — exactly what a
+        node's <code>dev-inspect</code> does — which is why it runs in either
+        mode regardless of the sender's on-chain balance.
+      </p>
+
+      <div class="controls">
+        <label class="field">
+          <span class="field-label">Execution mode</span>
+          <span class="seg" id="stake-mode">
+            <button type="button" data-mode="dev-inspect" class="active">
+              dev-inspect
+            </button>
+            <button type="button" data-mode="dry-run">dry-run</button>
+          </span>
         </label>
-        <textarea id="sigs" rows="3" spellcheck="false">ALQ1xVlJf+35eDX3pbVAS1zC4g6yBJfEZVRN7vLoIjwEP9X1dOQad0Ll4QLyAzZ+hd9XNlf5XLx/qnC/g/fCYA1g1IR8PPJ7k5nBCTcxUC6JZ/5NvLj60T4Y+Yd4PO8vQg==</textarea>
-        <button id="run-custom" disabled>Simulate custom transaction</button>
+        <button id="run" class="primary" disabled>Simulate</button>
+        <span class="spacer"></span>
+        <span class="hint" id="hint">Loading wasm…</span>
       </div>
-    </div>
 
-    <div class="panel" id="tx-panel" hidden>
-      <div class="cap">Transaction</div>
-      <p id="tx-desc"></p>
-      <div id="tx"></div>
-    </div>
+      <div class="results">
+        <div class="panel" id="stake-tx-panel" hidden>
+          <div class="cap">Transaction</div>
+          <p class="tx-desc" id="stake-tx-desc"></p>
+          <div class="tx" id="stake-tx"></div>
+        </div>
+        <div class="panel" id="stake-result-panel" hidden>
+          <div class="cap">Result</div>
+          <div class="status" id="stake-status"></div>
+          <div class="timing" id="stake-timing"></div>
+          <div class="output" id="stake-output"></div>
+        </div>
+        <div class="panel" id="stake-log-panel" hidden>
+          <div class="cap">Objects fetched on demand</div>
+          <div class="log" id="stake-log"></div>
+        </div>
+      </div>
+    </section>
 
-    <div class="panel" id="result-panel" hidden>
-      <div class="cap">Result</div>
-      <p id="status"></p>
-      <div id="timing"></div>
-      <div id="output"></div>
-    </div>
+    <!-- ============================ Custom tab ========================== -->
+    <section class="tabpanel" id="panel-custom" role="tabpanel" hidden>
+      <p class="tab-desc">
+        Decode and simulate arbitrary BCS transaction bytes. Load an example
+        below, or paste your own. Set <em>Signatures</em> to <em>Verify</em> to
+        check the supplied signatures, or <em>Skip</em> to ignore them.
+      </p>
 
-    <div class="panel" id="log-panel" hidden>
-      <div class="cap">Objects fetched on demand</div>
-      <div id="log"></div>
-    </div>
+      <div class="field" style="align-items: stretch">
+        <span class="field-label">Examples</span>
+        <div class="preset-row" id="presets"></div>
+        <p class="preset-note" id="preset-note"></p>
+      </div>
+
+      <div class="inputs" style="margin-top: 1.25rem">
+        <div>
+          <label class="stack" for="tx-bytes">Transaction bytes (base64)</label>
+          <textarea id="tx-bytes" rows="4" spellcheck="false">AAAAAL40YgoqAdPMVltVQpUUtDfc6mlFZi+h96Zy84A3GLeLAL40YgoqAdPMVltVQpUUtDfc6mlFZi+h96Zy84A3GLeL6AMAAAAAAABAS0wAAAAAAAA=</textarea>
+        </div>
+        <div>
+          <label class="stack" for="sigs">
+            Signatures (base64, one per line — e.g. sender + sponsor)
+          </label>
+          <textarea id="sigs" rows="3" spellcheck="false">AKlEyoqMZq5A3vTtLwc8LKzuKEaQsY8VQLGurDFHSSHRVgx2CXZafFW19CsQWjOp4jTsjir1B9XWFG5Kt+klJgl1XEy5JWynzcSs/cbP7tqEkBfluflRTpkZG9Z+Cw1Cdg==</textarea>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="field">
+          <span class="field-label">Execution mode</span>
+          <span class="seg" id="custom-mode">
+            <button type="button" data-mode="dev-inspect" class="active">
+              dev-inspect
+            </button>
+            <button type="button" data-mode="dry-run">dry-run</button>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Signatures</span>
+          <span class="seg" id="custom-sig">
+            <button type="button" data-sig="verify" class="active">Verify</button>
+            <button type="button" data-sig="skip">Skip</button>
+          </span>
+        </label>
+        <button id="run-custom" class="primary" disabled>Simulate</button>
+      </div>
+
+      <div class="results">
+        <div class="panel" id="custom-tx-panel" hidden>
+          <div class="cap">Transaction</div>
+          <p class="tx-desc" id="custom-tx-desc"></p>
+          <div class="tx" id="custom-tx"></div>
+        </div>
+        <div class="panel" id="custom-result-panel" hidden>
+          <div class="cap">Result</div>
+          <div class="status" id="custom-status"></div>
+          <div class="timing" id="custom-timing"></div>
+          <div class="output" id="custom-output"></div>
+        </div>
+        <div class="panel" id="custom-log-panel" hidden>
+          <div class="cap">Objects fetched on demand</div>
+          <div class="log" id="custom-log"></div>
+        </div>
+      </div>
+    </section>
 
     <script type="module" src="./app.bundle.js"></script>
   </body>
