@@ -1,30 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Browser example for iota-vm-sdk's wasm Move VM. Two independent flows, one
-// per tab:
-//
-//   * "Stake" builds a real request_add_stake transaction with the IOTA
-//     TypeScript SDK, then simulates it here. It is built gasless — no gas
-//     payment — so the VM mints a mock gas coin (the same one a node mints on
-//     its dev-inspect / dry-run paths), which is what lets it succeed in both
-//     execution modes regardless of the sender's on-chain balance.
-//
-//   * "Your own transaction" decodes and simulates arbitrary BCS transaction
-//     bytes, optionally verifying supplied signatures.
-//
-// Either flow picks an execution mode: dev-inspect (relaxed checks, meters at
-// the protocol max gas) or dry-run (full validation at the transaction's own
-// gas budget). In both flows the wasm Store resolves every object the VM reads
-// on demand via `fetchObject`; nothing executes on a node.
+// Browser example for iota-vm-sdk's wasm Move VM. Two tabs: "Stake" builds a
+// real request_add_stake tx with the TS SDK; "Your own transaction" runs
+// arbitrary BCS bytes. Each picks dev-inspect or dry-run, and the VM resolves
+// objects on demand via `fetchObject`. Nothing executes on a node.
 
 import { getFullnodeUrl, IotaClient } from "@iota/iota-sdk/client";
 import { Transaction } from "@iota/iota-sdk/transactions";
 import PRESETS from "./presets.json";
 
-// The networks the example can target. `chain` is what the wasm VM understands
-// (mainnet / testnet); devnet and localnet have no dedicated variant, so they
-// run with the chain left unset.
+// `chain` is the wasm VM's chain id (mainnet / testnet); devnet and localnet
+// have no dedicated variant and run with it unset.
 type NetName = "testnet" | "mainnet" | "devnet" | "localnet";
 interface Network {
   rpc: string;
@@ -52,23 +39,19 @@ const NETWORKS: Record<NetName, Network> = {
   },
 };
 
-// The sender of record for the staking transaction. Because that transaction is
-// built gasless, this address needs no coins on any network — it is only the
-// declared sender.
+// Sender of record for the staking tx; it is built gasless, so this needs no
+// coins on any network.
 const SENDER =
   "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151";
 const SYSTEM_STATE =
   "0x0000000000000000000000000000000000000000000000000000000000000005";
 const STAKE_NANOS = 1_000_000_000n; // 1 IOTA
-// Declared budget for the staking transaction. dev-inspect ignores it (it
-// meters at the protocol max off the mock gas coin); dry-run charges real gas
-// against it, so it must comfortably cover the transaction's cost.
+// dev-inspect ignores this (it meters at the protocol max); dry-run charges
+// real gas against it, so it must cover the transaction's cost.
 const STAKE_GAS_BUDGET = 2_000_000_000n; // 2 IOTA
 
 type Mode = "dev-inspect" | "dry-run";
 
-// Chain parameters passed to simulate. Self-contained presets carry the four
-// numeric fields; live runs additionally set `chain` for known networks.
 interface Params {
   chain?: string;
   protocol_version: number;
@@ -77,9 +60,9 @@ interface Params {
   epoch_timestamp_ms: number;
 }
 
-// One "Your own transaction" example. `objects` + `params` are present only for
+// A "Your own transaction" example. `objects` + `params` are set only on
 // self-contained presets, which run offline against those exact objects; live
-// presets omit them and use the selected network's objects and chain params.
+// presets omit them and use the selected network.
 interface Preset {
   id: string;
   label: string;
@@ -93,17 +76,13 @@ interface Preset {
 }
 
 const presets = PRESETS as Preset[];
-// The preset currently loaded into the inputs, if the transaction box still
-// holds its bytes — its `objects` / `params` then drive the simulation.
+// The preset loaded in the inputs, while the tx box still holds its bytes.
 let loadedPreset: Preset | null = null;
 
-// The currently selected network and a client bound to it; both are updated by
-// the network selector.
 let netName: NetName = "testnet";
 let client = new IotaClient({ url: NETWORKS[netName].rpc });
 
-// The set of result elements for one tab. Both tabs render into their own copy
-// so switching tabs never mixes results.
+// Per-tab result elements, so the two tabs never mix results.
 interface Out {
   status: HTMLElement;
   timing: HTMLElement;
@@ -142,21 +121,18 @@ const els = {
   sigs: document.getElementById("sigs") as HTMLTextAreaElement,
 };
 
-// Wall-clock spent inside fetchObject across one simulation, and the number of
-// fetches. Reset before each run; the fetches happen synchronously inside the
-// simulate() call, so VM time = simulate wall-clock − this. `currentLog` is the
-// log element of the tab currently running, so fetchObject logs into it.
+// Object-fetch time and count for the current run (fetches are synchronous
+// inside simulate(), so VM time = wall-clock − fetchMs). `currentLog` is the
+// running tab's log element.
 let fetchMs = 0;
 let fetchCount = 0;
 let currentLog: HTMLElement | null = null;
 
 // --- The on-demand object resolver handed to the wasm Store -----------------
 
-// Synchronously fetch an object's full BCS from the selected network's GraphQL,
-// at the exact version when given, else latest. The Move VM is synchronous, so
-// this blocks (sync XMLHttpRequest) until the response — that's the price of
-// resolving objects mid-execution without a node. Returns the base-64 `Object`
-// BCS, or null if the object doesn't exist.
+// Fetch an object's base-64 BCS from the selected network's GraphQL (at the
+// given version, else latest), or null if absent. The Move VM is synchronous,
+// so this uses a blocking XMLHttpRequest.
 function fetchObject(idHex: string, version: number | null): string | null {
   const at = version === null ? "" : `, version: ${version}`;
   const query = `{ object(address: "${idHex}"${at}) { bcs } }`;
@@ -184,9 +160,8 @@ function fetchObject(idHex: string, version: number | null): string | null {
 
 // --- Flows ------------------------------------------------------------------
 
-// Build a gasless request_add_stake transaction: split 1 IOTA off the gas coin
-// and stake it. With no gas payment the wasm mints a mock gas coin, so the
-// split has funds to draw from in both execution modes.
+// Split 1 IOTA off the gas coin and stake it, built gasless so the VM mints a
+// mock gas coin the split can draw from in both execution modes.
 async function buildStakeTx(): Promise<{ bytes: Uint8Array; validator: string }> {
   const [sys, gasPrice] = await Promise.all([
     client.getLatestIotaSystemState(),
@@ -209,8 +184,6 @@ async function buildStakeTx(): Promise<{ bytes: Uint8Array; validator: string }>
   return { bytes, validator };
 }
 
-// Staking flow: the SDK builds a request_add_stake tx for the selected network,
-// then we simulate it locally in the selected mode.
 async function runStaking(wasm: any) {
   const mode = currentMode("stake-mode");
   setRunning(true);
@@ -238,9 +211,6 @@ async function runStaking(wasm: any) {
   }
 }
 
-// Custom flow: simulate user-supplied transaction bytes in the selected mode,
-// verifying the supplied signatures (one per line) when "Verify signatures" is
-// checked.
 async function runCustom(wasm: any) {
   const mode = currentMode("custom-mode");
   const verify = currentSig() === "verify";
@@ -255,9 +225,8 @@ async function runCustom(wasm: any) {
   try {
     if (!txB64) throw new Error("Provide transaction bytes (base64).");
     const data = Transaction.from(b64ToBytes(txB64)).getData();
-    // A self-contained preset (still loaded in the box) brings its own objects
-    // and chain params, so it runs offline; anything else uses the selected
-    // network's live params and fetches objects on demand.
+    // A still-loaded self-contained preset runs offline from its own objects /
+    // params; anything else uses the selected network and fetches on demand.
     const preset = loadedPreset?.txB64 === txB64 ? loadedPreset : null;
     const objects = preset?.objects ?? [];
     const params = preset?.params ?? await chainParams();
@@ -285,9 +254,7 @@ async function runCustom(wasm: any) {
   }
 }
 
-// Shared: fetch chain params, show the decoded tx (collapsed), run the VM
-// resolving objects on demand, and render the result. Signatures, when present,
-// are verified before execution.
+// Show the decoded tx, run the VM, and render the result.
 async function doSimulate(
   wasm: any,
   opts: {
@@ -309,10 +276,6 @@ async function doSimulate(
 
   setStatus(out, "busy", "Simulating in the local Move VM…");
   out.resultPanel.hidden = false;
-  // Any object not pre-seeded in `objects` is fetched on demand via
-  // fetchObject. The fetches run synchronously inside simulate(), so the
-  // wall-clock of this call is fetch time + VM time. `strict: true` selects
-  // dry-run, else dev-inspect.
   fetchMs = 0;
   fetchCount = 0;
   const wallStart = performance.now();
@@ -330,9 +293,8 @@ async function doSimulate(
     );
   } catch (e) {
     renderTiming(out, fetchMs, fetchCount, 0, performance.now() - wallStart);
-    // A standard (non-MoveAuthenticator) signature is verified before the
-    // transaction runs, so a bad one is a hard error rather than a result: the
-    // body never executes. Show that as a rejection instead of a raw error.
+    // A standard signature is verified before the tx runs, so a bad one throws
+    // rather than returning a result; show it as a rejection, not a raw error.
     const msg = String((e as any)?.message ?? e);
     if (msg.startsWith("SignatureVerification")) {
       out.status.textContent = "";
@@ -348,11 +310,8 @@ async function doSimulate(
   const wall = performance.now() - wallStart;
   renderTiming(out, fetchMs, fetchCount, Math.max(0, wall - fetchMs), wall);
 
-  // Two verdicts, coloured separately. A rejected signature dominates: whether
-  // it is a standard signature (a precondition) or a MoveAuthenticator (Move
-  // code that aborts mid-execution), the transaction is unauthorized and its
-  // body does not take effect — so the body's own success is moot and shown
-  // muted rather than as a failure of its logic.
+  // A rejected signature dominates: the tx is unauthorized, so its body does
+  // not take effect and is shown muted rather than as a failure of its logic.
   const sigRejected = opts.signatures.length > 0 && !result.signature_verified;
   const bodyRow = sigRejected
     ? statRow("muted", "Tx body", "not committed (unauthorized)")
@@ -389,7 +348,6 @@ async function chainParams() {
     epoch_id: Number(sys.epoch),
     epoch_timestamp_ms: Number(sys.epochStartTimestampMs),
   };
-  // Only mainnet / testnet map to a wasm `Chain`; devnet runs with it unset.
   const chain = NETWORKS[netName].chain;
   return chain ? { chain, ...params } : params;
 }
@@ -403,7 +361,7 @@ async function chainParams() {
   wireSignatureToggle();
   wirePresets();
   try {
-    // Loaded at runtime (not bundled) so the wasm-bindgen glue resolves the
+    // Imported at runtime (not bundled) so the wasm-bindgen glue resolves the
     // .wasm via import.meta.url. Build it first — see README.md.
     const wasm = await import("./pkg/iota_vm_sdk.js");
     await wasm.default();
@@ -437,8 +395,7 @@ function wireTabs() {
   }
 }
 
-// A segmented control: clicking a button makes it the only `.active` one among
-// its siblings.
+// Clicking a button in a segmented control makes it the only active one.
 function wireSegments() {
   for (const seg of document.querySelectorAll<HTMLElement>(".seg")) {
     seg.addEventListener("click", (e) => {
@@ -451,8 +408,6 @@ function wireSegments() {
   }
 }
 
-// The network selector rebuilds the client and repoints on-demand fetches at
-// the chosen network's GraphQL.
 function wireNetwork() {
   document.getElementById("network")!.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("button");
@@ -463,15 +418,15 @@ function wireNetwork() {
   });
 }
 
-// Grey out the signatures box when "Skip" is selected — the input is ignored.
+// Grey out the signatures box when "Skip" is selected.
 function wireSignatureToggle() {
   const sync = () => (els.sigs.disabled = currentSig() !== "verify");
   document.getElementById("custom-sig")!.addEventListener("click", sync);
   sync();
 }
 
-// Render one chip per example preset; loading one fills the inputs and sets the
-// recommended mode / signature toggles. The first preset is loaded on startup.
+// Render a chip per preset; loading one fills the inputs and toggles. The first
+// preset is loaded on startup.
 function wirePresets() {
   const row = document.getElementById("presets")!;
   const chips = presets.map((p) => {
@@ -520,7 +475,7 @@ function currentSig(): "verify" | "skip" {
 
 // --- Helpers ----------------------------------------------------------------
 
-// A single status line: a coloured dot, an optional label, and a value.
+// One status line: a coloured dot, an optional label, and a value.
 function statRow(
   kind: "ok" | "bad" | "busy" | "muted",
   label: string,
@@ -562,8 +517,6 @@ function resetPanels(out: Out) {
   out.logPanel.hidden = false;
 }
 
-// Show the timing breakdown: object-fetch time (and count), VM execution time,
-// and the combined total (the simulate() wall-clock).
 function renderTiming(
   out: Out,
   fetch: number,
@@ -626,10 +579,9 @@ const span = (cls: string, text: string) => {
   return el;
 };
 
-// Build a collapsible DOM tree for a JSON value using native <details>.
-// `key` labels this node (object key or array index), or null at the root.
-// `open` controls whether this node starts expanded; nested nodes always start
-// open, so expanding a collapsed root reveals the whole subtree.
+// Build a collapsible DOM tree for a JSON value using native <details>. `key`
+// labels the node (object key / array index), null at the root; `open` sets its
+// initial expand state.
 function jsonNode(value: any, key: string | number | null, open = true): Node {
   const label = key === null ? null : span("jkey", JSON.stringify(key));
   if (value === null || typeof value !== "object") {
