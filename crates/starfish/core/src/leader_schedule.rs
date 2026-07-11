@@ -428,12 +428,20 @@ impl LeaderSchedule {
 
     /// Rebuilds the sliding-window scorer (when enabled) by replaying the last
     /// `window_size` committed subdags from storage, so the running aggregate
-    /// is current after a restart or fast-sync. Does not recover the in-effect
-    /// swap table. Returns without effect on the V2 path (no scorer).
+    /// is current after a restart or fast-sync. No-op while fast sync is
+    /// ongoing; `reinitialize` rebuilds the window once fast sync completes.
+    /// Does not recover the in-effect swap table. Returns without effect on
+    /// the V2 path (no scorer).
     fn recover_sliding_window(&self, dag_state: &RwLock<DagState>) {
         let Some(sliding_window) = &self.sliding_window else {
             return;
         };
+        // Skip if fast sync is ongoing - committed block headers may not be
+        // available and the window is rebuilt on reinitialize anyway
+        if dag_state.read().fast_sync_ongoing() {
+            tracing::info!("Skipping sliding window recovery - fast sync ongoing");
+            return;
+        }
         let window_size = self.context.protocol_config.leader_schedule_window_size();
         let subdags = {
             let dag_state = dag_state.read();
@@ -936,6 +944,69 @@ mod tests {
         let leader_swap_table = leader_schedule.leader_swap_table.read();
         assert_eq!(leader_swap_table.good_nodes.len(), 0);
         assert_eq!(leader_swap_table.bad_nodes.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_leader_schedule_from_store_during_fast_sync() {
+        telemetry_subscribers::init_for_testing();
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=6).build();
+
+        let mut headers = vec![];
+        let mut commits = vec![];
+        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=6) {
+            headers.extend(sub_dag.headers.iter().cloned());
+            commits.push(commit);
+        }
+
+        // Persist the fast-sync intermediate state: commits and the fast-sync
+        // flag, but no committed block headers.
+        store
+            .write(
+                WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                }
+                .commits(commits),
+                context.clone(),
+            )
+            .unwrap();
+
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        // Recovery must not replay subdags (their headers are absent) and is
+        // deferred until fast sync completes.
+        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let sliding_window = leader_schedule.sliding_window.as_ref().unwrap();
+        assert_eq!(
+            sliding_window.lock().reputation_scores().commit_range,
+            CommitRange::default()
+        );
+
+        // Once fast sync completes (headers stored, flag cleared), reinitialize
+        // rebuilds the window.
+        store
+            .write(
+                WriteBatch {
+                    fast_commit_sync_flag: Some(false),
+                    ..Default::default()
+                }
+                .block_headers(headers),
+                context,
+            )
+            .unwrap();
+        leader_schedule.reinitialize(&dag_state);
+        assert_eq!(
+            sliding_window.lock().reputation_scores().commit_range,
+            (1..=3).into()
+        );
     }
 
     #[tokio::test]
