@@ -324,12 +324,12 @@ impl CommitObserver {
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
         let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
-        // Seed the ack tracker from 2 * gc_depth commits before the last delivered
-        // (solid) commit — the lookback live eviction preserves — so seeding covers
-        // the whole [solidifier_recovery_start, last_commit] range handed to the
-        // solidifier below. Anchoring to the commit tip instead would skip a backlog
-        // deeper than 2 * gc_depth, leaving those transactions with no acknowledgers
-        // to fetch from and stalling commit output permanently.
+        // Anchor the ack-tracker seeding to the last delivered (solid) commit, not the
+        // commit tip, so the seed range covers every commit fed to the solidifier below
+        // (which starts at solidifier_recovery_start). A tip-anchored window would skip
+        // a backlog deeper than 2 * gc_depth commits, leaving those transactions with
+        // no acknowledgers to fetch from and stalling commit output
+        // permanently.
         let recovery_start = self
             .last_sent_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
@@ -1800,8 +1800,9 @@ mod tests {
         let mut protocol_config =
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
-        // Small gc_depth so the backlog only needs to exceed 2 * gc_depth = 10 commits.
-        protocol_config.set_gc_depth_for_testing(5);
+        // Small gc_depth so the backlog only needs to exceed 2 * gc_depth commits.
+        let gc_depth = 5;
+        protocol_config.set_gc_depth_for_testing(gc_depth);
 
         let (committee, _keypairs) =
             starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
@@ -1901,6 +1902,14 @@ mod tests {
         assert!(
             !raw_missing.is_empty(),
             "test must actually stall on missing backlog transaction data"
+        );
+        // The stall must land inside the backlog that the old tip-anchored window
+        // (last_commit - 2 * gc_depth) would have skipped, or the test wouldn't
+        // distinguish the fix.
+        let earliest_missing_round = raw_missing.iter().map(|r| r.round()).min().unwrap();
+        assert!(
+            earliest_missing_round < num_rounds - 2 * gc_depth,
+            "stall must land below the pre-fix seeding window"
         );
         for missing_ref in &raw_missing {
             let acknowledgers = with_acks.get(missing_ref);
