@@ -355,6 +355,14 @@ const config = {
               from: '/developer/references/rust-sdk',
               to: '/developer/iota-sdk/getting-started/rust',
             },
+            {
+              from: '/developer/iota-sdk/how-tos/transactions/transactions-with-function',
+              to: '/developer/iota-sdk/how-tos/queries/query-transactions',
+            },
+            {
+              from: '/developer/iota-sdk/how-tos/transactions/prepare-send-iota',
+              to: '/developer/iota-sdk/how-tos/transactions/sign-send-iota',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {
