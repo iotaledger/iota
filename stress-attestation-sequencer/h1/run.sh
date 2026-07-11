@@ -195,10 +195,12 @@ banner() {
 }
 
 # Block until the fullnode JSON-RPC at :9000 accepts connections (start.sh
-# verifies validators, not the fullnode, so it can lag behind).
+# verifies validators, not the fullnode, so it can lag behind). Up to 10
+# minutes: on a large network (N=48) the fullnode processes a much bigger
+# genesis while every validator warms up on the same machine.
 wait_for_fullnode() {
   echo "${YELLOW}Waiting for fullnode RPC at 127.0.0.1:9000 ...${RESET}"
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 300); do
     if curl -s -o /dev/null --max-time 2 \
       -X POST -H 'Content-Type: application/json' \
       --data '{"jsonrpc":"2.0","id":1,"method":"iota_getChainIdentifier","params":[]}' \
