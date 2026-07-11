@@ -131,10 +131,16 @@ impl AuthorityStorePruner {
         self.executed.send_replace(executed_seq);
     }
 
-    /// Called by the executor before scheduling a checkpoint with the given
-    /// timestamp. Returns once execution is within `PRUNING_LEASH_SLACK_MS` of
-    /// chain-time of the pruner's last completed drain, throttling execution
-    /// otherwise.
+    /// Called by the executor before scheduling a checkpoint, passing the
+    /// timestamp of the current highest-executed checkpoint. Returns once the
+    /// pruner has caught up to within `PRUNING_LEASH_SLACK_MS` of chain-time of
+    /// that executed watermark, throttling execution otherwise.
+    ///
+    /// The argument is the *executed* watermark, never the candidate
+    /// checkpoint's timestamp: the pruner's frontier only ever advances to
+    /// timestamps that have already executed, so gating on a not-yet-executed
+    /// candidate could deadlock across a large chain-time gap between
+    /// checkpoints.
     pub async fn await_leash(&self, executed_timestamp_ms: CheckpointTimestamp) {
         let mut rx = self.frontier_ms.subscribe();
         while executed_timestamp_ms.saturating_sub(*rx.borrow_and_update()) > PRUNING_LEASH_SLACK_MS

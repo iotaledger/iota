@@ -271,10 +271,16 @@ impl CheckpointExecutor {
                 // outrun the pruner unboundedly. Blocks here (before entering the
                 // pipeline) while pruning has fallen more than the slack behind
                 // its retention target; self-throttles execution under overload.
-                this.state
-                    .pruner()
-                    .await_leash(checkpoint.timestamp_ms)
-                    .await;
+                let executed_timestamp_ms = this
+                    .checkpoint_store
+                    .get_highest_executed_checkpoint()
+                    .ok()
+                    .flatten()
+                    .map(|checkpoint| checkpoint.timestamp_ms)
+                    .unwrap_or(0);
+
+                this.state.pruner().await_leash(executed_timestamp_ms).await;
+
                 let pipeline_handle = pipeline_handle.await;
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await
