@@ -10,9 +10,6 @@ description = "Local IOTA Move VM SDK: execute transactions against the node's M
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
 [features]
 default = []
 grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
