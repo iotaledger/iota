@@ -281,6 +281,25 @@ impl ConsensusTransactionKind {
         }
     }
 
+    /// The (cached) transaction digest if this is a user transaction or
+    /// certificate, else `None`.
+    pub fn transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            Self::CertifiedTransaction(c) => Some(*c.digest()),
+            Self::UserTransactionV1(t) => Some(*t.digest()),
+            Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..) => None,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => None,
+        }
+    }
+
     pub fn is_dkg(&self) -> bool {
         matches!(
             self,
