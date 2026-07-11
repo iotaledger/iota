@@ -3043,42 +3043,60 @@ mod tests {
             .build()
             .await;
 
-        let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
-        let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
-            vec![GenesisObject::new(
-                ObjectData::Package(
-                    MovePackage::new(
-                        ObjectId::random(),
-                        SequenceNumber::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
-                        100_000,
-                        // no modules so empty type_origin_table as no types are defined in this
-                        // package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )
-                    .unwrap(),
-                ),
-                Owner::Immutable,
-            )],
-            vec![],
-        );
-        for i in 0..15 {
+        // Build distinct genesis transactions and assign their digests to
+        // indices so that, within any pending checkpoint, digest order matches
+        // index order: `CausalOrder` orders non-dependent transactions by
+        // digest, and the assertions below rely on that order. Transactions
+        // 15..20 carry a large payload to exercise size-based checkpoint
+        // splitting.
+        let make_tx = |seed: u8, payload_size: usize| {
+            let mut id = [0u8; 32];
+            id[0] = seed;
+            VerifiedTransaction::new_genesis_transaction(
+                vec![GenesisObject::new(
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            SequenceNumber::default(),
+                            BTreeMap::from([(
+                                Identifier::new_unchecked("m"),
+                                vec![0u8; payload_size],
+                            )]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
+                    Owner::Immutable,
+                )],
+                vec![],
+            )
+        };
+
+        let mut small: Vec<_> = (0..15).map(|seed| make_tx(seed, 1)).collect();
+        small.sort_by_key(|tx| *tx.digest());
+
+        let mut large: Vec<_> = (0..5).map(|seed| make_tx(100 + seed, 40000)).collect();
+        large.sort_by_key(|tx| *tx.digest());
+
+        let txns: Vec<_> = small.into_iter().chain(large).collect();
+        let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
+
+        // Digest for test index `i`; ascending within the small (0..15) and
+        // large (15..20) pools, so index order implies digest order per pool.
+        let d = |i: u8| digests[i as usize];
+
+        for (tx, digest) in txns.iter().zip(&digests) {
             state
                 .database_for_testing()
                 .perpetual_tables
                 .transactions
-                .insert(&d(i), dummy_tx.serializable_ref())
-                .unwrap();
-        }
-        for i in 15..20 {
-            state
-                .database_for_testing()
-                .perpetual_tables
-                .transactions
-                .insert(&d(i), dummy_tx_with_data.serializable_ref())
+                .insert(digest, tx.serializable_ref())
                 .unwrap();
         }
 
@@ -3152,7 +3170,7 @@ mod tests {
 
         let checkpoint_service = CheckpointService::build(
             state.clone(),
-            checkpoint_store,
+            checkpoint_store.clone(),
             epoch_store.clone(),
             store,
             Arc::downgrade(&global_state_hasher),
@@ -3165,22 +3183,28 @@ mod tests {
         let _tasks = checkpoint_service.spawn(None).await;
 
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![4], 0))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![d(4)], 0))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(1, vec![1, 3], 2000))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(1, vec![d(1), d(3)], 2000))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(2, vec![10, 11, 12, 13], 3000))
+            .write_and_notify_checkpoint_for_testing(
+                &epoch_store,
+                p(2, vec![d(10), d(11), d(12), d(13)], 3000),
+            )
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(3, vec![15, 16, 17], 4000))
+            .write_and_notify_checkpoint_for_testing(
+                &epoch_store,
+                p(3, vec![d(15), d(16), d(17)], 4000),
+            )
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![5], 4001))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![d(5)], 4001))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![6], 5000))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![d(6)], 5000))
             .unwrap();
 
         let (c1c, c1s) = result.recv().await.unwrap();
@@ -3203,6 +3227,20 @@ mod tests {
             c2s.epoch_rolling_gas_cost_summary,
             GasCostSummary::new(104, 104, 108, 104, 4)
         );
+
+        // The builder caches the full contents of each locally built checkpoint.
+        // The cached contents must match the checkpoint's transactions and hash
+        // to its content digest, so state-sync peers can be served from memory.
+        for (summary, digest_contents) in [(&c1s, &c1c), (&c2s, &c2c)] {
+            let cached = checkpoint_store
+                .get_full_checkpoint_contents_by_sequence_number(summary.sequence_number)
+                .expect("builder should cache full contents of a locally built checkpoint");
+            assert_eq!(&cached.checkpoint_contents(), digest_contents);
+            assert_eq!(
+                cached.checkpoint_contents().digest(),
+                summary.content_digest
+            );
+        }
 
         // Pending at index 2 had 4 transactions, and we configured 3 transactions max.
         // Verify that we split into 2 checkpoints.
@@ -3354,24 +3392,15 @@ mod tests {
         }
     }
 
-    fn p(i: u64, t: Vec<u8>, timestamp_ms: u64) -> PendingCheckpoint {
+    fn p(i: u64, roots: Vec<TransactionDigest>, timestamp_ms: u64) -> PendingCheckpoint {
         PendingCheckpoint::V1(PendingCheckpointContentsV1 {
-            roots: t
-                .into_iter()
-                .map(|t| TransactionKey::Digest(d(t)))
-                .collect(),
+            roots: roots.into_iter().map(TransactionKey::Digest).collect(),
             details: PendingCheckpointInfo {
                 timestamp_ms,
                 last_of_epoch: false,
                 checkpoint_height: i,
             },
         })
-    }
-
-    fn d(i: u8) -> TransactionDigest {
-        let mut bytes: [u8; 32] = Default::default();
-        bytes[0] = i;
-        TransactionDigest::new(bytes)
     }
 
     fn e(
