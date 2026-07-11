@@ -380,16 +380,34 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 };
                 let (db, rwopt_cfs) = {
                     let opt_cfs = match tables_db_options_override {
-                        None => [
+                        None => vec![
                             #(
                                 (stringify!(#active_cf_names).to_owned(), #active_default_options_override_fn_names()),
                             )*
                         ],
-                        Some(o) => [
-                            #(
-                                (stringify!(#active_cf_names).to_owned(), o.to_map().get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
-                            )*
-                        ]
+                        Some(o) => {
+                            let mut opt_cfs = vec![
+                                #(
+                                    (stringify!(#active_cf_names).to_owned(), o.to_map().get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
+                                )*
+                            ];
+                            // Config-map entries that do not correspond to a
+                            // struct field are opened as additional column
+                            // families with the given options; without this,
+                            // dynamically created column families would be
+                            // rediscovered with default options.
+                            let struct_fields: std::collections::HashSet<&'static str> = [
+                                #(
+                                    stringify!(#active_cf_names),
+                                )*
+                            ].into_iter().collect();
+                            for (name, options) in o.to_map() {
+                                if !struct_fields.contains(name.as_str()) {
+                                    opt_cfs.push((name, options));
+                                }
+                            }
+                            opt_cfs
+                        }
                     };
                     // Safe to call unwrap because we will have at least one field_name entry in the struct
                     let rwopt_cfs: std::collections::HashMap<String, typed_store::rocks::ReadWriteOptions> = opt_cfs.iter().map(|q| (q.0.as_str().to_string(), q.1.rw_options.clone())).collect();

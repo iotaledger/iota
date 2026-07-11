@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use iota_types::{
     base_types::SequenceNumber,
@@ -45,6 +45,10 @@ pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
     pub compaction_filter: Option<ObjectsCompactionFilter>,
+    /// Additional column families to open with the given options, e.g. the
+    /// historic epoch buckets rediscovered from disk. Column families left
+    /// to auto-discovery would silently get default options.
+    pub extra_column_families: Vec<(String, DBOptions)>,
 }
 
 impl AuthorityPerpetualTablesOptions {
@@ -198,7 +202,7 @@ impl AuthorityPerpetualTables {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
-        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+        let mut table_options_map = BTreeMap::from([
             (
                 "objects".to_string(),
                 objects_table_config(db_options.clone(), db_options_override.compaction_filter),
@@ -219,7 +223,11 @@ impl AuthorityPerpetualTables {
                 "events".to_string(),
                 events_table_config(db_options.clone()),
             ),
-        ]));
+        ]);
+        for (name, options) in &db_options_override.extra_column_families {
+            table_options_map.insert(name.clone(), options.clone());
+        }
+        let table_options = DBMapTableConfigMap::new(table_options_map);
         Self::open_tables_read_write(
             Self::path(parent_path),
             MetricConf::new("perpetual")
@@ -227,6 +235,12 @@ impl AuthorityPerpetualTables {
             Some(db_options.options),
             Some(table_options),
         )
+    }
+
+    /// Handle to the underlying database, shared by every table. Used to
+    /// attach the historic store's epoch buckets to the same database.
+    pub fn database(&self) -> Arc<typed_store::database::Database> {
+        self.objects.db.clone()
     }
 
     pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {

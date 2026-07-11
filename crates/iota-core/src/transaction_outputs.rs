@@ -13,6 +13,7 @@ use iota_types::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
+    object::Object,
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionDataAPI, VerifiedTransaction},
 };
@@ -29,6 +30,13 @@ pub struct TransactionOutputs {
     pub live_object_markers_to_delete: Vec<ObjectReference>,
     pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
+    /// Pre-images of the input versions this transaction superseded
+    /// (`effects.modified_at_versions()`), carried in memory so checkpoint
+    /// commit can relocate them into the historic epoch bucket in the same
+    /// atomic batch, without reading them back from the store. Best-effort
+    /// and only captured when the historic store is enabled: anything not
+    /// captured here is relocated by the pruner later.
+    pub superseded: Vec<(ObjectKey, Object)>,
 }
 
 impl TransactionOutputs {
@@ -38,6 +46,7 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
+        capture_superseded: bool,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -128,6 +137,24 @@ impl TransactionOutputs {
 
         let wrapped = effects.wrapped().into_iter().map(ObjectKey::from).collect();
 
+        // The pre-images of superseded versions are exactly the mutated,
+        // deleted, wrapped and received inputs — all present in
+        // `input_objects` at their input version. Anything absent (or at an
+        // unexpected version) is skipped; the pruner relocates it later.
+        let superseded = if capture_superseded {
+            modified_at
+                .iter()
+                .filter_map(|(id, version)| {
+                    input_objects
+                        .get(id)
+                        .filter(|object| object.version() == *version)
+                        .map(|object| (ObjectKey(*id, *version), object.clone()))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
         TransactionOutputs {
             transaction: Arc::new(transaction),
             effects,
@@ -138,6 +165,7 @@ impl TransactionOutputs {
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
             written,
+            superseded,
         }
     }
 }

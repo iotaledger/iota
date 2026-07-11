@@ -642,7 +642,7 @@ pub async fn backfill_checkpoint_summaries(
     ));
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
     let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
-    let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
+    let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default(), None)?;
     let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
     let state_sync_store = RocksDbStore::new(
         cache_traits,
@@ -1103,7 +1103,7 @@ pub async fn download_formal_snapshot(
         .await?;
 
     let authority_store =
-        AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
+        AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default(), None)?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
     // Finalize the gRPC live-state index store so the node opens it in place

@@ -1076,34 +1076,16 @@ pub struct HistoricStoreConfig {
     /// dropped once they fall out of this window.
     #[serde(default = "default_historic_epochs_to_retain")]
     pub num_epochs_to_retain: u64,
-    /// Byte budget for a single relocation write batch.
-    #[serde(default = "default_max_relocation_batch_bytes")]
-    pub max_relocation_batch_bytes: usize,
-    /// Skip the write-ahead log for relocation writes. Safe because
-    /// relocation is idempotent and flushed before the source rows are
-    /// deleted; disable only for debugging.
-    #[serde(default = "default_historic_disable_wal")]
-    pub disable_wal: bool,
 }
 
 fn default_historic_epochs_to_retain() -> u64 {
     100
 }
 
-fn default_max_relocation_batch_bytes() -> usize {
-    256 * 1024 * 1024
-}
-
-fn default_historic_disable_wal() -> bool {
-    true
-}
-
 impl Default for HistoricStoreConfig {
     fn default() -> Self {
         Self {
             num_epochs_to_retain: default_historic_epochs_to_retain(),
-            max_relocation_batch_bytes: default_max_relocation_batch_bytes(),
-            disable_wal: default_historic_disable_wal(),
         }
     }
 }

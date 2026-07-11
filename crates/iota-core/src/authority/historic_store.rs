@@ -25,9 +25,8 @@
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use iota_types::{
@@ -51,9 +50,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use typed_store::{
     Map,
     database::Database,
-    metrics::SamplingInterval,
     rocks::{
-        DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options, list_tables,
+        DBBatch, DBMap, DBOptions, ReadWriteOptions, default_db_options, list_tables,
         read_size_from_env,
     },
     rocksdb,
@@ -61,8 +59,7 @@ use typed_store::{
 
 use crate::authority::authority_store_types::{StoreObject, StoreObjectWrapper};
 
-const HISTORY_DIR_NAME: &str = "history";
-const META_CF_NAME: &str = "meta";
+const META_CF_NAME: &str = "hist_meta";
 const OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 const EXPIRY_CF_PREFIX: &str = "hist_exp_e";
 const TRANSACTIONS_CF_PREFIX: &str = "hist_tx_e";
@@ -245,10 +242,13 @@ impl HistoricStoreMetrics {
     }
 }
 
-/// Store of superseded object versions, bucketed by supersession epoch.
+/// Store of superseded object versions and checkpoint-keyed history,
+/// bucketed by epoch in column families of the *perpetual* database, so
+/// relocation participates in the same atomic write batches as the live
+/// tables.
 ///
-/// Writes come exclusively from the single pruner task; reads may come from
-/// any number of RPC threads concurrently.
+/// Writes come from the checkpoint commit path and the pruner; reads may
+/// come from any number of RPC threads concurrently.
 pub struct HistoricStore {
     db: Arc<Database>,
     /// Template options for per-epoch column families. All clones share one
@@ -256,62 +256,57 @@ pub struct HistoricStore {
     cf_options: rocksdb::Options,
     meta: DBMap<EpochId, EpochBucketInfo>,
     buckets: RwLock<BTreeMap<EpochId, EpochBucket>>,
-    disable_wal: bool,
     metrics: Arc<HistoricStoreMetrics>,
 }
 
 impl HistoricStore {
-    pub fn path(parent_path: &Path) -> PathBuf {
-        parent_path.join(HISTORY_DIR_NAME)
-    }
-
-    /// Opens (or creates) the store under `<parent_path>/history`,
-    /// rediscovering all per-epoch column families present on disk.
-    ///
-    /// Relocation batches are written without the WAL when `disable_wal` is
-    /// set: relocation is idempotent and re-runnable from the pruner
-    /// watermark, and the pruner flushes the bucket before deleting the
-    /// source rows, so durability is preserved.
-    pub fn open(
-        parent_path: &Path,
-        disable_wal: bool,
-        metrics: Arc<HistoricStoreMetrics>,
-    ) -> IotaResult<Self> {
-        let path = Self::path(parent_path);
-        let db_options = default_db_options().disable_write_throttling();
-        let cf_options = Self::epoch_cf_options(&db_options);
-        let meta_options = db_options.clone().optimize_for_point_lookup(8);
-
-        // Column families must be passed at open with their tuned options;
-        // any column family left for auto-discovery would silently get
-        // default options (and its own block cache).
-        let existing_cfs = list_tables(path.clone()).unwrap_or_default();
-        let mut opt_cfs: Vec<(&str, rocksdb::Options)> = vec![(META_CF_NAME, meta_options.options)];
-        for cf_name in &existing_cfs {
-            if cf_name != META_CF_NAME {
-                opt_cfs.push((cf_name, cf_options.clone()));
+    /// Tuned options for every historic column family present at
+    /// `perpetual_path`, plus the meta column family. Must be passed into the
+    /// perpetual store's open (as extra column families) so rediscovered
+    /// buckets keep their bloom filters and compaction style; column families
+    /// left to auto-discovery would silently get default options.
+    pub fn extra_column_family_options(perpetual_path: &Path) -> Vec<(String, DBOptions)> {
+        let cf_options = Self::epoch_cf_options(&default_db_options());
+        let meta_options = default_db_options().optimize_for_point_lookup(8);
+        let mut extras = vec![(META_CF_NAME.to_owned(), meta_options)];
+        for cf_name in list_tables(perpetual_path.to_path_buf()).unwrap_or_default() {
+            if EPOCH_CF_PREFIXES
+                .iter()
+                .any(|prefix| cf_name.strip_prefix(prefix).is_some())
+            {
+                extras.push((
+                    cf_name,
+                    DBOptions {
+                        options: cf_options.clone(),
+                        rw_options: ReadWriteOptions::default(),
+                    },
+                ));
             }
         }
+        extras
+    }
 
-        let db = typed_store::rocks::open_cf_opts(
-            &path,
-            Some(db_options.options),
-            MetricConf::new("history")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            &opt_cfs,
-        )?;
-
+    /// Attaches the historic store to the already-open perpetual database,
+    /// rediscovering all per-epoch column families. The database must have
+    /// been opened with [`Self::extra_column_family_options`].
+    pub fn new_shared(db: Arc<Database>, metrics: Arc<HistoricStoreMetrics>) -> IotaResult<Self> {
+        let cf_options = Self::epoch_cf_options(&default_db_options());
+        if db.cf_handle(META_CF_NAME).is_none() {
+            let meta_options = default_db_options().optimize_for_point_lookup(8);
+            db.create_cf(META_CF_NAME, &meta_options.options)
+                .map_err(|e| IotaError::Storage(e.to_string()))?;
+        }
         let meta = DBMap::reopen(&db, Some(META_CF_NAME), &ReadWriteOptions::default(), false)?;
 
-        // Column family names on disk are the ground truth for which buckets
-        // exist; `meta` may lag by one crash (bucket created, meta row not yet
+        // Column family names are the ground truth for which buckets exist;
+        // `meta` may lag by one crash (bucket created, meta row not yet
         // written) and is backfilled lazily on the next write. A bucket's
         // column families are created and dropped in separate operations, so
         // a crash can leave some of the set missing: recreate them (empty)
         // here. A bucket half-dropped this way simply resurfaces and is
         // dropped again by the next retention pass.
         let mut epochs = std::collections::BTreeSet::new();
-        for cf_name in &existing_cfs {
+        for cf_name in db.column_family_names() {
             let Some(epoch_str) = EPOCH_CF_PREFIXES
                 .iter()
                 .find_map(|prefix| cf_name.strip_prefix(prefix))
@@ -339,7 +334,6 @@ impl HistoricStore {
             cf_options,
             meta,
             buckets: RwLock::new(buckets),
-            disable_wal,
             metrics,
         };
         store.update_retention_metrics();
@@ -409,16 +403,23 @@ impl HistoricStore {
         }
     }
 
-    /// Durably persists relocated rows and the tombstone-head expiry list
-    /// into the bucket for `supersession_epoch`, creating the bucket on first
-    /// use. Idempotent: rewriting the same keys with the same bytes is
-    /// harmless.
+    /// Makes the bucket for `epoch` exist so that a subsequent write batch
+    /// can reference its column families. Column-family creation is not part
+    /// of a write batch, so callers must invoke this before building the
+    /// batch they stage into.
+    pub fn prepare_bucket(&self, epoch: EpochId) -> IotaResult<()> {
+        self.ensure_bucket(epoch)
+    }
+
+    /// Stages relocated rows and the tombstone-head expiry list for
+    /// `supersession_epoch` into `batch` — the same atomic batch that deletes
+    /// the rows from the live table, so relocation is crash-atomic.
+    /// Idempotent: rewriting the same keys with the same bytes is harmless.
     ///
-    /// Durability of the write is only guaranteed after a subsequent
-    /// [`Self::flush_epoch`]; callers must flush before deleting the source
-    /// rows from the live table.
-    pub fn put_objects(
+    /// [`Self::prepare_bucket`] must have been called for the epoch.
+    pub fn stage_objects(
         &self,
+        batch: &mut DBBatch,
         supersession_epoch: EpochId,
         objects: &[(ObjectKey, StoreObjectWrapper)],
         tombstone_heads: &[ObjectKey],
@@ -426,13 +427,11 @@ impl HistoricStore {
         if objects.is_empty() && tombstone_heads.is_empty() {
             return Ok(());
         }
-        self.ensure_bucket(supersession_epoch)?;
         let buckets = self.buckets.read().expect("lock should not be poisoned");
         let bucket = buckets
             .get(&supersession_epoch)
-            .expect("bucket was just created");
+            .expect("prepare_bucket must be called before staging");
 
-        let mut batch = bucket.objects.batch();
         batch.insert_batch(&bucket.objects, objects.iter().map(|(k, v)| (k, v)))?;
         batch.insert_batch(&bucket.expiry, tombstone_heads.iter().map(|k| (k, ())))?;
 
@@ -440,10 +439,6 @@ impl HistoricStore {
         info.object_count += objects.len() as u64;
         info.expiry_count += tombstone_heads.len() as u64;
         batch.insert_batch(&self.meta, [(supersession_epoch, info)])?;
-
-        let mut write_options = rocksdb::WriteOptions::default();
-        write_options.disable_wal(self.disable_wal);
-        batch.write_opt(&write_options)?;
 
         self.metrics.relocated_objects.inc_by(objects.len() as u64);
         let relocated_bytes: u64 = objects
@@ -454,27 +449,44 @@ impl HistoricStore {
         Ok(())
     }
 
-    /// Durably persists one epoch-homogeneous batch of checkpoint-keyed
-    /// history into the bucket for `epoch`, creating the bucket on first use.
-    /// Idempotent: rewriting the same keys with the same bytes is harmless.
-    ///
-    /// Durability of the write is only guaranteed after a subsequent
-    /// [`Self::flush_epoch`]; callers must flush before deleting the source
-    /// rows.
-    pub fn put_checkpoint_data(
+    /// Writes relocated rows in their own batch. See [`Self::stage_objects`].
+    pub fn put_objects(
         &self,
+        supersession_epoch: EpochId,
+        objects: &[(ObjectKey, StoreObjectWrapper)],
+        tombstone_heads: &[ObjectKey],
+    ) -> IotaResult<()> {
+        if objects.is_empty() && tombstone_heads.is_empty() {
+            return Ok(());
+        }
+        self.prepare_bucket(supersession_epoch)?;
+        let mut batch = self.meta.batch();
+        self.stage_objects(&mut batch, supersession_epoch, objects, tombstone_heads)?;
+        batch.write()?;
+        Ok(())
+    }
+
+    /// Stages one epoch-homogeneous batch of checkpoint-keyed history for
+    /// `epoch` into `batch` — the same atomic batch that deletes the source
+    /// rows. Idempotent: rewriting the same keys with the same bytes is
+    /// harmless.
+    ///
+    /// [`Self::prepare_bucket`] must have been called for the epoch.
+    pub fn stage_checkpoint_data(
+        &self,
+        batch: &mut DBBatch,
         epoch: EpochId,
         data: CheckpointHistoryBatch,
     ) -> IotaResult<()> {
         if data.is_empty() {
             return Ok(());
         }
-        self.ensure_bucket(epoch)?;
         let buckets = self.buckets.read().expect("lock should not be poisoned");
-        let bucket = buckets.get(&epoch).expect("bucket was just created");
+        let bucket = buckets
+            .get(&epoch)
+            .expect("prepare_bucket must be called before staging");
 
         let num_transactions = data.transactions.len() as u64;
-        let mut batch = bucket.transactions.batch();
         batch.insert_batch(&bucket.transactions, data.transactions)?;
         batch.insert_batch(&bucket.effects, data.effects)?;
         batch.insert_batch(&bucket.executed_effects, data.executed_effects)?;
@@ -493,23 +505,24 @@ impl HistoricStore {
         }
         batch.insert_batch(&self.meta, [(epoch, info)])?;
 
-        let mut write_options = rocksdb::WriteOptions::default();
-        write_options.disable_wal(self.disable_wal);
-        batch.write_opt(&write_options)?;
-
         self.metrics.relocated_transactions.inc_by(num_transactions);
         Ok(())
     }
 
-    /// Flushes the bucket's memtables to disk. This is the durability barrier
-    /// for WAL-less relocation writes: it must complete before the relocated
-    /// rows are deleted from the live table.
-    pub fn flush_epoch(&self, epoch: EpochId) -> IotaResult<()> {
-        let buckets = self.buckets.read().expect("lock should not be poisoned");
-        let Some(bucket) = buckets.get(&epoch) else {
+    /// Writes checkpoint-keyed history in its own batch. See
+    /// [`Self::stage_checkpoint_data`].
+    pub fn put_checkpoint_data(
+        &self,
+        epoch: EpochId,
+        data: CheckpointHistoryBatch,
+    ) -> IotaResult<()> {
+        if data.is_empty() {
             return Ok(());
-        };
-        bucket.flush_all()?;
+        }
+        self.prepare_bucket(epoch)?;
+        let mut batch = self.meta.batch();
+        self.stage_checkpoint_data(&mut batch, epoch, data)?;
+        batch.write()?;
         Ok(())
     }
 
@@ -702,19 +715,6 @@ impl HistoricStore {
         Ok(self.meta.get(&epoch)?.is_some_and(|info| info.sealed))
     }
 
-    /// Takes a RocksDB checkpoint of the whole history DB (all epoch column
-    /// families) at `path`.
-    ///
-    /// Callers snapshotting multiple stores must snapshot the *source*
-    /// stores (perpetual, checkpoints) before this one: relocation writes
-    /// history before deleting the source rows, so source-first ordering
-    /// can at worst capture a harmless duplicate, while history-first has a
-    /// window where a row relocated in between is in neither snapshot.
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult<()> {
-        // Checkpointing any map snapshots the whole database.
-        self.meta.checkpoint_db(path).map_err(Into::into)
-    }
-
     fn ensure_bucket(&self, epoch: EpochId) -> IotaResult<()> {
         {
             let buckets = self.buckets.read().expect("lock should not be poisoned");
@@ -751,7 +751,19 @@ mod tests {
     use crate::authority::authority_store_types::get_store_object;
 
     fn open_store(path: &Path) -> HistoricStore {
-        HistoricStore::open(path, true, HistoricStoreMetrics::new_for_test()).unwrap()
+        let extras = HistoricStore::extra_column_family_options(path);
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = extras
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.options.clone()))
+            .collect();
+        let db = typed_store::rocks::open_cf_opts(
+            path,
+            None,
+            typed_store::rocks::MetricConf::new("historic_test"),
+            &opt_cfs,
+        )
+        .unwrap();
+        HistoricStore::new_shared(db, HistoricStoreMetrics::new_for_test()).unwrap()
     }
 
     fn test_row(version: u64) -> (ObjectKey, StoreObjectWrapper) {
@@ -791,7 +803,6 @@ mod tests {
                     &[ObjectKey(key.0, SequenceNumber::from_u64(3))],
                 )
                 .unwrap();
-            store.flush_epoch(7).unwrap();
             store.seal_epoch(7).unwrap();
             assert!(store.is_sealed(7).unwrap());
         }
@@ -950,12 +961,19 @@ mod tests {
             .unwrap();
         store.seal_epoch(3).unwrap();
 
+        // A snapshot of the shared database covers every epoch column family.
         let copy_dir = iota_common::tempdir();
-        store
-            .checkpoint_db(&copy_dir.path().join(HISTORY_DIR_NAME))
-            .unwrap();
+        let meta_handle = DBMap::<EpochId, EpochBucketInfo>::reopen(
+            &store.db,
+            Some(META_CF_NAME),
+            &ReadWriteOptions::default(),
+            true,
+        )
+        .unwrap();
+        let copy_path = copy_dir.path().join("db");
+        meta_handle.checkpoint_db(&copy_path).unwrap();
 
-        let copy = open_store(copy_dir.path());
+        let copy = open_store(&copy_path);
         assert_eq!(copy.list_epochs(), vec![3]);
         assert!(copy.is_sealed(3).unwrap());
         assert!(copy.get_object(&object_key).unwrap().is_some());

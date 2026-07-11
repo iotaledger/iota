@@ -1731,6 +1731,7 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
+            self.historic_store.is_some(),
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -3857,16 +3858,9 @@ impl AuthorityState {
             }
         }
 
-        // The history DB must be snapshotted after its source stores
-        // (perpetual and checkpoints): relocation writes history before
-        // deleting the source rows, so this ordering can at worst capture a
-        // harmless duplicate, while the reverse has a window where a row
-        // relocated in between is in neither snapshot. The restored layout
-        // (`store/history`) must match the live layout because restore is a
-        // plain directory copy.
-        if let Some(historic_store) = self.historic_store.as_ref() {
-            historic_store.checkpoint_db(&store_checkpoint_path_tmp.join("history"))?;
-        }
+        // The historic epoch buckets are column families of the perpetual
+        // database, so the perpetual snapshot above already covers them
+        // consistently — no separate history snapshot is needed.
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;

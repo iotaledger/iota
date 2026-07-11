@@ -6,22 +6,73 @@ use std::{collections::HashMap, path::Path};
 
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    storage::ObjectStore,
+    object::Object,
+    storage::{ObjectKey, ObjectStore},
 };
 
 use crate::{
+    authority::historic_store::HistoricStore,
     checkpoints::checkpoint_executor::{CheckpointExecutionData, CheckpointTransactionData},
     execution_cache::TransactionCacheRead,
 };
+
+/// The input pre-images of `fx`, from the transaction's still-buffered
+/// in-memory outputs when available (the common case: checkpoint data is
+/// assembled before the outputs are committed), otherwise from the store,
+/// with a final fallback to the historic epoch buckets for replay after a
+/// restart, where the versions were already relocated.
+fn transaction_input_objects(
+    fx: &iota_types::effects::TransactionEffects,
+    outputs: Option<&crate::transaction_outputs::TransactionOutputs>,
+    object_store: &dyn ObjectStore,
+    historic_store: Option<&HistoricStore>,
+) -> IotaResult<Vec<Object>> {
+    let carried: HashMap<ObjectKey, &Object> = outputs
+        .map(|outputs| {
+            outputs
+                .superseded
+                .iter()
+                .map(|(key, object)| (*key, object))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    fx.modified_at_versions()
+        .into_iter()
+        .map(|(object_id, version)| {
+            let key = ObjectKey(object_id, version);
+            if let Some(object) = carried.get(&key) {
+                return Ok((*object).clone());
+            }
+            if let Some(object) = object_store
+                .try_get_object_by_key(&object_id, version)
+                .map_err(|e| IotaError::Unknown(e.to_string()))?
+            {
+                return Ok(object);
+            }
+            historic_store
+                .map(|store| store.get_object(&key))
+                .transpose()?
+                .flatten()
+                .ok_or(IotaError::UserInput {
+                    error: iota_types::error::UserInputError::ObjectNotFound {
+                        object_id,
+                        version: Some(version),
+                    },
+                })
+        })
+        .collect()
+}
 
 pub(crate) fn load_checkpoint_data(
     checkpoint_exec_data: &CheckpointExecutionData,
     checkpoint_tx_data: &CheckpointTransactionData,
     object_store: &dyn ObjectStore,
     transaction_cache_reader: &dyn TransactionCacheRead,
+    historic_store: Option<&HistoricStore>,
 ) -> IotaResult<CheckpointData> {
     let event_tx_digests = checkpoint_tx_data
         .effects
@@ -53,10 +104,33 @@ pub(crate) fn load_checkpoint_data(
                 .expect("event was already checked to be present")
         });
 
-        let input_objects = iota_types::storage::get_transaction_input_objects(object_store, fx)
-            .map_err(|e| IotaError::Unknown(e.to_string()))?;
-        let output_objects = iota_types::storage::get_transaction_output_objects(object_store, fx)
-            .map_err(|e| IotaError::Unknown(e.to_string()))?;
+        let outputs =
+            transaction_cache_reader.try_get_pending_transaction_outputs(fx.transaction_digest());
+        let input_objects =
+            transaction_input_objects(fx, outputs.as_deref(), object_store, historic_store)?;
+        let output_objects = match &outputs {
+            // Written objects are carried in the buffered outputs; no store
+            // lookups needed.
+            Some(outputs) => fx
+                .all_changed_objects()
+                .into_iter()
+                .map(|(object_ref, _, _)| {
+                    outputs
+                        .written
+                        .get(&object_ref.object_id)
+                        .filter(|object| object.version() == object_ref.version)
+                        .cloned()
+                        .ok_or(IotaError::UserInput {
+                            error: iota_types::error::UserInputError::ObjectNotFound {
+                                object_id: object_ref.object_id,
+                                version: Some(object_ref.version),
+                            },
+                        })
+                })
+                .collect::<IotaResult<Vec<_>>>()?,
+            None => iota_types::storage::get_transaction_output_objects(object_store, fx)
+                .map_err(|e| IotaError::Unknown(e.to_string()))?,
+        };
 
         let full_transaction = CheckpointTransaction {
             transaction: (*tx).clone().into_unsigned().into(),

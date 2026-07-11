@@ -1866,6 +1866,16 @@ impl ObjectCacheRead for WritebackCache {
 }
 
 impl TransactionCacheRead for WritebackCache {
+    fn try_get_pending_transaction_outputs(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Arc<TransactionOutputs>> {
+        self.dirty
+            .pending_transaction_writes
+            .get(digest)
+            .map(|entry| entry.value().clone())
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,

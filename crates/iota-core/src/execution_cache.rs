@@ -783,6 +783,18 @@ pub trait ObjectCacheRead: Send + Sync {
 }
 
 pub trait TransactionCacheRead: Send + Sync {
+    /// The in-memory outputs of an executed transaction that has not been
+    /// committed to disk yet, if still buffered. Lets checkpoint-data
+    /// assembly serve input pre-images and written objects from memory
+    /// instead of per-object store lookups; callers must handle `None` (e.g.
+    /// replay after a restart) with a store read.
+    fn try_get_pending_transaction_outputs(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Arc<TransactionOutputs>> {
+        None
+    }
+
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],

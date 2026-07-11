@@ -445,22 +445,11 @@ impl IotaNode {
                 historic_store_config = None;
             }
         }
-        let historic_store = historic_store_config
-            .map(|historic_config| {
-                HistoricStore::open(
-                    &config.db_path().join("store"),
-                    historic_config.disable_wal,
-                    HistoricStoreMetrics::new(&prometheus_registry),
-                )
-                .map(Arc::new)
-            })
-            .transpose()?;
-
         let mut pruner_db = None;
         if config
             .authority_store_pruning_config
             .enable_compaction_filter
-            && historic_store.is_none()
+            && historic_store_config.is_none()
         {
             pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
                 &config.db_path().join("store"),
@@ -472,14 +461,34 @@ impl IotaNode {
 
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
+        // The historic epoch buckets are column families of the perpetual
+        // database; buckets already on disk must be reopened with their tuned
+        // options.
+        let extra_column_families = if historic_store_config.is_some() {
+            HistoricStore::extra_column_family_options(&AuthorityPerpetualTables::path(
+                &config.db_path().join("store"),
+            ))
+        } else {
+            Vec::new()
+        };
         let perpetual_tables_options = AuthorityPerpetualTablesOptions {
             enable_write_stall,
             compaction_filter,
+            extra_column_families,
         };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
         ));
+        let historic_store = historic_store_config
+            .map(|_| {
+                HistoricStore::new_shared(
+                    perpetual_tables.database(),
+                    HistoricStoreMetrics::new(&prometheus_registry),
+                )
+                .map(Arc::new)
+            })
+            .transpose()?;
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
@@ -502,6 +511,7 @@ impl IotaNode {
             &config,
             &prometheus_registry,
             migration_tx_data.as_ref(),
+            historic_store.clone(),
         )
         .await?;
 

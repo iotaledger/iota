@@ -227,6 +227,19 @@ impl Database {
         }
     }
 
+    /// Names of all currently open column families, including ones created
+    /// at runtime.
+    pub fn column_family_names(&self) -> Vec<String> {
+        match &self.storage {
+            Storage::Rocks(db) => db
+                .cf_names
+                .read()
+                .expect("lock should not be poisoned")
+                .clone(),
+            Storage::InMemory(_) => Vec::new(),
+        }
+    }
+
     /// Creates a new column family at runtime. Fails if a column family with
     /// this name already exists.
     pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), rocksdb::Error> {
