@@ -272,7 +272,7 @@ impl CheckpointExecutor {
                 // pipeline) while pruning has fallen more than the slack behind
                 // its retention target; self-throttles execution under overload.
                 this.state
-                    .pruning_coordinator()
+                    .pruner()
                     .await_leash(checkpoint.timestamp_ms)
                     .await;
                 let pipeline_handle = pipeline_handle.await;
@@ -465,7 +465,7 @@ impl CheckpointExecutor {
         // Nudge the pruner now that this checkpoint is executed and available;
         // pruning of aged-out data runs off the propagation path.
         self.state
-            .pruning_coordinator()
+            .pruner()
             .nudge(ckpt_state.data.checkpoint.sequence_number());
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);

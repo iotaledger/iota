@@ -93,7 +93,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // The transaction must be successful
     assert!(confirmed_local_execution.unwrap());
-    assert!(errors.is_empty());
+    assert!(errors.is_empty(), "unexpected tx errors: {errors:?}");
     Ok(())
 }
 

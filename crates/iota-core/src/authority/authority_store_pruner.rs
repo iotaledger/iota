@@ -76,7 +76,8 @@ const MAX_CHECKPOINTS_IN_BATCH: usize = 10;
 const MAX_TRANSACTIONS_IN_BATCH: usize = 1000;
 
 /// Chain-time slack, in milliseconds, allowed on top of the retention window
-/// before the checkpoint executor is throttled by [`PruningCoordinator`]. It
+/// before the checkpoint executor is throttled by the pruner's leash
+/// (`AuthorityStorePruner::await_leash`). It
 /// absorbs transient bursts of high-contention checkpoints so execution runs at
 /// the average prune rate rather than the peak; under sustained overload the
 /// retained span stabilizes at `window + PRUNING_LEASH_SLACK_MS`, which is
@@ -99,42 +100,31 @@ const PRUNING_DEBOUNCE_MIN_LAG: u64 = 100;
 /// The `AuthorityStorePruner` manages the pruning process for object stores
 /// within the `AuthorityStore`. It includes a cancellation handle that can be
 /// used to stop the pruning task for objects.
+///
+/// It also owns the coordination channels between the checkpoint executor
+/// (producer of new state) and the pruner task (consumer of aged-out state):
+/// pruning is driven by execution progress rather than a timer — the executor
+/// nudges after each checkpoint is made available, and the pruner drains fully
+/// to its chain-time retention cutoff on every nudge. To keep on-disk state
+/// bounded without a per-run rate cap (which could silently let the database
+/// grow under sustained load), the executor is *leashed*: it stops scheduling
+/// checkpoints while the pruner has fallen more than `PRUNING_LEASH_SLACK_MS`
+/// behind its retention target.
 pub struct AuthorityStorePruner {
     _objects_pruner_cancel_handle: oneshot::Sender<()>,
-}
-
-/// Coordinates the checkpoint executor (producer of new state) and the store
-/// pruner (consumer of aged-out state).
-///
-/// Pruning is driven by execution progress rather than a timer: the executor
-/// nudges the pruner after each checkpoint is made available, and the pruner
-/// drains fully to its chain-time retention cutoff on every nudge. To keep
-/// on-disk state bounded without a per-run rate cap (which could silently let
-/// the database grow under sustained load), the executor is *leashed*: it stops
-/// scheduling checkpoints while the pruner has fallen more than
-/// `PRUNING_LEASH_SLACK_MS` behind its retention target.
-pub struct PruningCoordinator {
     /// Executor -> pruner: latest executed checkpoint sequence number. Updating
-    /// it both records progress and wakes the pruner to drain.
+    /// it both records progress and wakes the pruner task to drain.
     executed: watch::Sender<CheckpointSequenceNumber>,
     /// Pruner -> executor: the executed-checkpoint timestamp the pruner has
     /// caught up to (the `highest_executed` it observed on its last completed
     /// drain). The leash throttles execution while it runs more than
-    /// `PRUNING_LEASH_SLACK_MS` of chain-time ahead of this, i.e. ahead of
-    /// the pruner's last completed drain. Initialized to `u64::MAX` so the
-    /// executor is never leashed before the pruner has published a real
-    /// value.
+    /// `PRUNING_LEASH_SLACK_MS` of chain-time ahead of this, i.e. ahead of the
+    /// pruner's last completed drain. Initialized to `u64::MAX` so the executor
+    /// is never leashed before the pruner has published a real value.
     frontier_ms: watch::Sender<CheckpointTimestamp>,
 }
 
-impl PruningCoordinator {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            executed: watch::channel(0).0,
-            frontier_ms: watch::channel(u64::MAX).0,
-        })
-    }
-
+impl AuthorityStorePruner {
     /// Called by the executor after a checkpoint has been executed and made
     /// available (watermark bumped, subscribers notified). Wakes the pruner.
     pub fn nudge(&self, executed_seq: CheckpointSequenceNumber) {
@@ -153,16 +143,6 @@ impl PruningCoordinator {
             // borrowed for the duration of this call.
             let _ = rx.changed().await;
         }
-    }
-
-    /// Pruner-side: a receiver that wakes on each executor nudge.
-    fn subscribe_executed(&self) -> watch::Receiver<CheckpointSequenceNumber> {
-        self.executed.subscribe()
-    }
-
-    /// Pruner-side: publish the current pruning frontier for the leash.
-    fn set_frontier(&self, frontier_ms: CheckpointTimestamp) {
-        self.frontier_ms.send_replace(frontier_ms);
     }
 }
 
@@ -777,7 +757,8 @@ impl AuthorityStorePruner {
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-        coordinator: Arc<PruningCoordinator>,
+        mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
+        frontier_tx: watch::Sender<CheckpointTimestamp>,
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
@@ -838,7 +819,6 @@ impl AuthorityStorePruner {
         // first nudge handles any startup backlog. The `watch` nudge coalesces
         // many executed checkpoints into a single drain.
         tokio::task::spawn(async move {
-            let mut executed_rx = coordinator.subscribe_executed();
             loop {
                 // The executed position this pass prunes up to. Published as the
                 // frontier once draining completes, so the leash measures how far
@@ -917,13 +897,13 @@ impl AuthorityStorePruner {
                 }
 
                 if leash_enabled {
-                    coordinator.set_frontier(caught_up_to);
+                    frontier_tx.send_replace(caught_up_to);
                 }
 
                 tokio::select! {
                     _ = &mut recv => break,
-                    // `changed()` cannot error: the sender lives in `coordinator`,
-                    // which is owned by this task.
+                    // `changed()` cannot error: the paired sender lives in the
+                    // `AuthorityStorePruner` returned to the caller.
                     _ = executed_rx.changed() => {}
                 }
 
@@ -953,7 +933,6 @@ impl AuthorityStorePruner {
         archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-        coordinator: Arc<PruningCoordinator>,
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
         {
@@ -968,6 +947,12 @@ impl AuthorityStorePruner {
                 warn!("Consider using an aggressive pruner (num_epochs_to_retain = 0)");
             }
         }
+        // Coordination channels between the checkpoint executor and the pruner
+        // task. The pruner task receives nudges (`executed_rx`) and publishes the
+        // frontier (`frontier_tx`); the executor-facing ends are kept on the
+        // returned handle for `nudge` / `await_leash`.
+        let (executed, executed_rx) = watch::channel(0);
+        let (frontier_ms, _) = watch::channel(u64::MAX);
         AuthorityStorePruner {
             _objects_pruner_cancel_handle: Self::setup_pruning(
                 pruning_config,
@@ -980,8 +965,11 @@ impl AuthorityStorePruner {
                 AuthorityStorePruningMetrics::new(registry),
                 archive_readers,
                 progress_tracker,
-                coordinator,
+                executed_rx,
+                frontier_ms.clone(),
             ),
+            executed,
+            frontier_ms,
         }
     }
 
@@ -1083,13 +1071,14 @@ mod tests {
     };
     use more_asserts as ma;
     use prometheus_filtered::Registry;
+    use tokio::sync::{oneshot, watch};
     use tracing::info;
     use typed_store::{
         Map,
         rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options},
     };
 
-    use super::{AuthorityStorePruner, PRUNING_LEASH_SLACK_MS, PruningCoordinator, PruningMode};
+    use super::{AuthorityStorePruner, PRUNING_LEASH_SLACK_MS, PruningMode};
     use crate::{
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
@@ -1484,29 +1473,39 @@ mod tests {
         assert_eq!(pruned, None);
     }
 
+    // Builds a pruner handle with just the coordination channels (no pruning
+    // task), for exercising `nudge` / `await_leash` in isolation.
+    fn coordination_pruner() -> AuthorityStorePruner {
+        AuthorityStorePruner {
+            _objects_pruner_cancel_handle: oneshot::channel().0,
+            executed: watch::channel(0).0,
+            frontier_ms: watch::channel(u64::MAX).0,
+        }
+    }
+
     // The leash passes without blocking while the executed timestamp is within
     // the slack of the pruning frontier (and always before the pruner has run,
     // when the frontier is u64::MAX).
     #[tokio::test]
     async fn test_leash_passes_within_slack() {
-        let coordinator = PruningCoordinator::new();
+        let pruner = coordination_pruner();
         // Frontier starts at u64::MAX: never leashed before the pruner runs.
-        coordinator.await_leash(1_000_000).await;
+        pruner.await_leash(1_000_000).await;
 
-        coordinator.set_frontier(500);
+        pruner.frontier_ms.send_replace(500);
         // Gap exactly equals the slack -> still passes.
-        coordinator.await_leash(500 + PRUNING_LEASH_SLACK_MS).await;
+        pruner.await_leash(500 + PRUNING_LEASH_SLACK_MS).await;
     }
 
     // The leash blocks while the pruner is more than the slack behind, and
     // releases once the frontier advances.
     #[tokio::test]
     async fn test_leash_blocks_until_frontier_advances() {
-        let coordinator = PruningCoordinator::new();
-        coordinator.set_frontier(0);
+        let pruner = Arc::new(coordination_pruner());
+        pruner.frontier_ms.send_replace(0);
         let executed_ts = PRUNING_LEASH_SLACK_MS + 10_000;
 
-        let waiter = coordinator.clone();
+        let waiter = pruner.clone();
         let handle = tokio::spawn(async move { waiter.await_leash(executed_ts).await });
 
         // Let the spawned task run until it parks on the frontier watch.
@@ -1517,18 +1516,18 @@ mod tests {
         );
 
         // Once the pruner catches up, the leash releases.
-        coordinator.set_frontier(executed_ts);
+        pruner.frontier_ms.send_replace(executed_ts);
         handle
             .await
             .expect("leash should release after frontier advances");
     }
 
-    // A nudge wakes the pruner-side subscription.
+    // A nudge wakes the pruner task's subscription.
     #[tokio::test]
     async fn test_nudge_wakes_subscriber() {
-        let coordinator = PruningCoordinator::new();
-        let mut rx = coordinator.subscribe_executed();
-        coordinator.nudge(42);
+        let pruner = coordination_pruner();
+        let mut rx = pruner.executed.subscribe();
+        pruner.nudge(42);
         rx.changed().await.expect("nudge should notify subscriber");
         assert_eq!(*rx.borrow(), 42);
     }
