@@ -10,12 +10,13 @@
 #
 #   5 compute {0, 50, 100, 200, 500}  (slow::slow(n,n); 0 = no-op floor, ~gas_rounding_step)
 # × 3 paths   {f1 fullnode (DIRECT=false), v1 pinned (1 target validator),
-#              v4 spread (direct to all 4 validators)}
+#              v48 spread (direct to all 48 validators)}
 # × 3 qps     {200, 1000, 2000}                                      = 45 configs.
 #
-# Labels carry the network size as an -n<N> suffix and pass N to run.sh, so the
-# same grid can be re-run on a bigger network (e.g. -n48 rows with N=48) under
-# distinct labels without colliding with these results.
+# Labels carry the network size as an -n<N> suffix and pass N to run.sh; the
+# current grid runs on a 48-validator network (-n48 / N=48). The same grid can
+# be run on another size (e.g. -n4 / N=4) under distinct labels without
+# colliding with these results.
 #
 # Round-robin: each round runs 1 iteration (V1+V2) of every config; ITERS rounds
 # total, so each config ends with ITERS iters — interleaved, not config-major. So
@@ -52,55 +53,55 @@ fi
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
-  "slow0-owned-f1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=false"
-  "slow0-owned-v1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v4-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200      N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow0-owned-f1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=false"
-  "slow0-owned-v1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v4-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow0-owned-f1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=false"
-  "slow0-owned-v1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v4-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000     N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow0-owned-f1-qps200-n48     | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=false"
+  "slow0-owned-v1-qps200-n48     | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v48-qps200-n48    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow0-owned-f1-qps1000-n48    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=false"
+  "slow0-owned-v1-qps1000-n48    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v48-qps1000-n48   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow0-owned-f1-qps2000-n48    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=false"
+  "slow0-owned-v1-qps2000-n48    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v48-qps2000-n48   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
   #
-  "slow50-owned-f1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=false"
-  "slow50-owned-v1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v4-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200    N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow50-owned-f1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=false"
-  "slow50-owned-v1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v4-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow50-owned-f1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=false"
-  "slow50-owned-v1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v4-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000   N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow50-owned-f1-qps200-n48    | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=false"
+  "slow50-owned-v1-qps200-n48    | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v48-qps200-n48   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow50-owned-f1-qps1000-n48   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=false"
+  "slow50-owned-v1-qps1000-n48   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v48-qps1000-n48  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow50-owned-f1-qps2000-n48   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=false"
+  "slow50-owned-v1-qps2000-n48   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v48-qps2000-n48  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
   #
-  "slow100-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
-  "slow100-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow100-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
-  "slow100-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow100-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
-  "slow100-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow100-owned-f1-qps200-n48   | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=false"
+  "slow100-owned-v1-qps200-n48   | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v48-qps200-n48  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow100-owned-f1-qps1000-n48  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=false"
+  "slow100-owned-v1-qps1000-n48  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v48-qps1000-n48 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow100-owned-f1-qps2000-n48  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=false"
+  "slow100-owned-v1-qps2000-n48  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v48-qps2000-n48 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
   #
-  "slow200-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
-  "slow200-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow200-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
-  "slow200-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow200-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
-  "slow200-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow200-owned-f1-qps200-n48   | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=false"
+  "slow200-owned-v1-qps200-n48   | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v48-qps200-n48  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow200-owned-f1-qps1000-n48  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=false"
+  "slow200-owned-v1-qps1000-n48  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v48-qps1000-n48 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow200-owned-f1-qps2000-n48  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=false"
+  "slow200-owned-v1-qps2000-n48  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v48-qps2000-n48 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
   #
-  "slow500-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
-  "slow500-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow500-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
-  "slow500-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
-  "slow500-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
-  "slow500-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true  NUM_TARGET_VALIDATORS=4"
+  "slow500-owned-f1-qps200-n48   | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=false"
+  "slow500-owned-v1-qps200-n48   | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v48-qps200-n48  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow500-owned-f1-qps1000-n48  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=false"
+  "slow500-owned-v1-qps1000-n48  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v48-qps1000-n48 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
+  "slow500-owned-f1-qps2000-n48  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=false"
+  "slow500-owned-v1-qps2000-n48  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v48-qps2000-n48 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=48 DIRECT=true NUM_TARGET_VALIDATORS=48"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
@@ -156,6 +157,11 @@ for ((round = 1; round <= ITERS; round++)); do
       echo "    ✗ FAILED (exit $rc) — tail $log"
       fail=$((fail + 1))
     fi
+    # Compress the node logs this iteration captured (gzip ≈10:1) so a long
+    # campaign does not fill the disk. _state.log/_crash.log stay uncompressed —
+    # the crash scan reads them; the analysis tooling never reads node logs.
+    sudo find "$SCRIPT_DIR/results/$label" -path '*node-logs/*.log' \
+      ! -name '_state.log' ! -name '_crash.log' -exec gzip -f {} + 2>/dev/null
   done
 done
 
