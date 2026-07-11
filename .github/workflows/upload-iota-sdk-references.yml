@@ -56,6 +56,10 @@ jobs:
           key: iota-sdk-references-${{ matrix.language }}
           workspaces: iota-rust-sdk
 
+      # The toolchain steps below mirror the requirements of
+      # scripts/reference-docs/generate.sh in iota-rust-sdk (validated
+      # there by its Reference Docs workflow); keep them in sync when
+      # bumping the pinned revision.
       - name: Install pydoc-markdown
         if: matrix.language == 'python'
         run: pip install pydoc-markdown

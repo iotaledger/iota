@@ -27,11 +27,9 @@ process() {
     rm -rf docs
 }
 
-process "python"
-process "go"
-process "kotlin"
-process "csharp"
-process "swift"
+for language in python go kotlin csharp swift; do
+    process "$language"
+done
 
 # Return to root and cleanup
 cd - || exit

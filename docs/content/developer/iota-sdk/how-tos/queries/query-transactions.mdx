@@ -22,7 +22,7 @@ This how-to demonstrates how to query transactions filtered by a specific Move f
 
 ### 1. Initialize the GraphQL Client
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
@@ -78,7 +78,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/
 
 Pass a `TransactionsFilter` with the fully-qualified Move function identifier to fetch matching transactions.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
@@ -134,7 +134,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/
 
 Iterate over the results and print each transaction digest.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
@@ -200,7 +200,7 @@ The function identifier format is `<package>::<module>::<function>`.
 
 ## Full Example
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 ```rust reference
 https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/transactions_with_function.rs#L4-L27
