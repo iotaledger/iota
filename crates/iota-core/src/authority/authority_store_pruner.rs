@@ -381,10 +381,6 @@ impl AuthorityStorePruner {
             checkpoint_content_to_prune.iter().map(|ckpt| ckpt.digest());
         checkpoints_batch.delete_batch(
             &checkpoint_db.tables.checkpoint_content,
-            checkpoint_content_digests.clone(),
-        )?;
-        checkpoints_batch.delete_batch(
-            &checkpoint_db.tables.checkpoint_sequence_by_contents_digest,
             checkpoint_content_digests,
         )?;
 
