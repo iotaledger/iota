@@ -42,7 +42,6 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
-    messages_consensus::ConsensusTransactionKind,
     transaction::{InputObjectKind, VerifiedTransaction},
 };
 use tracing::{debug, warn};
@@ -120,28 +119,12 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Only validate UserTransactionV1; pass everything else through
-        // unchanged.
-        let transaction = match &tx.0.transaction {
-            // Listed exhaustively (no `_` arm) so a new user-transaction kind must
-            // be classified here rather than silently skipping validation.
-            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-                ConsensusTransactionKind::UserTransactionV1(t) => t,
-                // Certified transactions, system transactions, and internal consensus
-                // messages pass through unchanged.
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                | ConsensusTransactionKind::CheckpointSignature(_)
-                | ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::CapabilityNotificationV1(_)
-                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::RandomnessDkgMessage(..)
-                | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
-                | ConsensusTransactionKind::MisbehaviorReport(_)
-                | ConsensusTransactionKind::OverloadNotificationV1(..) => continue,
-                #[allow(deprecated)]
-                ConsensusTransactionKind::NewJWKFetchedDeprecated => continue,
-            },
-            SequencedConsensusTransactionKind::System(_) => continue,
+        // Only validate UserTransactionV1; pass everything else through unchanged.
+        let Some(transaction) = (match &tx.0.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
+            SequencedConsensusTransactionKind::System(_) => None,
+        }) else {
+            continue;
         };
 
         let digest = *transaction.digest();
@@ -277,7 +260,7 @@ pub async fn validate_and_resolve_conflicts(
         // (2f+1 Byzantine/buggy validators), not something we can recover from
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+        let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
         if let Err(e) = authority_state
             .handle_transaction_validation_checks(&verified_tx, epoch_store)
             .await
@@ -363,23 +346,9 @@ fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
 ) -> IotaResult<Vec<ObjectReference>> {
     let Some(transaction_data) = (match &tx.0.transaction {
-        // Listed exhaustively (no `_` arm) so a new user-transaction kind must
-        // be classified here rather than silently returning the error below.
-        SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-            ConsensusTransactionKind::UserTransactionV1(transaction) => Some(transaction.data()),
-            // Not a raw user transaction - no owned inputs to extract here.
-            ConsensusTransactionKind::CertifiedTransaction(_)
-            | ConsensusTransactionKind::CheckpointSignature(_)
-            | ConsensusTransactionKind::EndOfPublish(_)
-            | ConsensusTransactionKind::CapabilityNotificationV1(_)
-            | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-            | ConsensusTransactionKind::RandomnessDkgMessage(..)
-            | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
-            | ConsensusTransactionKind::MisbehaviorReport(_)
-            | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
-            #[allow(deprecated)]
-            ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
-        },
+        SequencedConsensusTransactionKind::External(ext) => {
+            ext.kind.as_user_transaction().map(|t| t.data())
+        }
         SequencedConsensusTransactionKind::System(_) => None,
     }) else {
         return Err(IotaError::GenericAuthority {
