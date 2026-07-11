@@ -308,14 +308,14 @@ impl ConsensusTransactionKind {
         )
     }
 
-    /// Returns `true` only for a raw, uncertified user transaction
-    /// (`UserTransactionV1`) submitted directly to consensus. Certified user
-    /// transactions are not included - check those with `is_user_certificate`.
-    pub fn is_user_transaction(&self) -> bool {
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
+    /// submitted directly to consensus, or `None` for any other kind. Certified
+    /// user transactions are not included.
+    pub fn as_user_transaction(&self) -> Option<&Transaction> {
         // Listed exhaustively (no `_` arm) so a new user-transaction kind must be
         // classified here rather than silently treated as a non-user transaction.
         match self {
-            ConsensusTransactionKind::UserTransactionV1(_) => true,
+            ConsensusTransactionKind::UserTransactionV1(tx) => Some(tx),
             ConsensusTransactionKind::CertifiedTransaction(_)
             | ConsensusTransactionKind::CheckpointSignature(_)
             | ConsensusTransactionKind::EndOfPublish(_)
@@ -324,10 +324,17 @@ impl ConsensusTransactionKind {
             | ConsensusTransactionKind::RandomnessDkgMessage(..)
             | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
             | ConsensusTransactionKind::MisbehaviorReport(_)
-            | ConsensusTransactionKind::OverloadNotificationV1(..) => false,
+            | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
             #[allow(deprecated)]
-            ConsensusTransactionKind::NewJWKFetchedDeprecated => false,
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
         }
+    }
+
+    /// Returns `true` only for a raw, uncertified user transaction
+    /// (`UserTransactionV1`) submitted directly to consensus. Certified user
+    /// transactions are not included - check those with `is_user_certificate`.
+    pub fn is_user_transaction(&self) -> bool {
+        self.as_user_transaction().is_some()
     }
 }
 
