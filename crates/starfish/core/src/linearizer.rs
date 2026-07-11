@@ -136,7 +136,7 @@ impl Linearizer {
                 self.add_committed_transaction_acks(
                     block_header.round(),
                     block_header.author(),
-                    block_header.acknowledgments().to_vec(),
+                    block_header.acknowledgments(),
                 )
             })
             .collect::<Vec<BlockRef>>();
@@ -153,7 +153,7 @@ impl Linearizer {
                 committed_transactions.extend(self.add_committed_transaction_acks(
                     leader_block.round() + 1,
                     *strong_voter,
-                    refs.clone(),
+                    &refs,
                 ));
             }
             // The order in which transactions are added to the committed_transactions
@@ -369,10 +369,10 @@ impl Linearizer {
         &mut self,
         round: Round,
         authority: AuthorityIndex,
-        acknowledgments: Vec<BlockRef>,
+        acknowledgments: &[BlockRef],
     ) -> Vec<BlockRef> {
         let mut transactions_to_commit = Vec::new();
-        for block_ref in acknowledgments {
+        for &block_ref in acknowledgments {
             if block_ref.round < round.saturating_sub(self.context.protocol_config.gc_depth()) {
                 continue; // Ignore acknowledgments for blocks that are too old
             }

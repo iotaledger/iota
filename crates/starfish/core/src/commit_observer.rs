@@ -380,7 +380,7 @@ impl CommitObserver {
                     self.linearizer.add_committed_transaction_acks(
                         round,
                         authority_idx,
-                        transaction_acknowledgments,
+                        &transaction_acknowledgments,
                     );
                 }
 
@@ -402,7 +402,7 @@ impl CommitObserver {
                         let _ = self.linearizer.add_committed_transaction_acks(
                             leader_header.round() + 1,
                             authority_idx,
-                            refs.clone(),
+                            &refs,
                         );
                     }
                 }
