@@ -702,6 +702,19 @@ impl HistoricStore {
         Ok(self.meta.get(&epoch)?.is_some_and(|info| info.sealed))
     }
 
+    /// Takes a RocksDB checkpoint of the whole history DB (all epoch column
+    /// families) at `path`.
+    ///
+    /// Callers snapshotting multiple stores must snapshot the *source*
+    /// stores (perpetual, checkpoints) before this one: relocation writes
+    /// history before deleting the source rows, so source-first ordering
+    /// can at worst capture a harmless duplicate, while history-first has a
+    /// window where a row relocated in between is in neither snapshot.
+    pub fn checkpoint_db(&self, path: &Path) -> IotaResult<()> {
+        // Checkpointing any map snapshots the whole database.
+        self.meta.checkpoint_db(path).map_err(Into::into)
+    }
+
     fn ensure_bucket(&self, epoch: EpochId) -> IotaResult<()> {
         {
             let buckets = self.buckets.read().expect("lock should not be poisoned");
@@ -907,6 +920,55 @@ mod tests {
         store.drop_epoch(4).unwrap();
         assert_eq!(store.lowest_available_checkpoint().unwrap(), None);
         assert!(store.get_effects(&fx_digest).unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn checkpoint_db_copy_serves_all_families() {
+        use iota_types::{
+            base_types::ExecutionDigests, messages_checkpoint::CheckpointContentsExt,
+        };
+
+        let tmp_dir = iota_common::tempdir();
+        let store = open_store(tmp_dir.path());
+
+        let (object_key, object_row) = test_row(2);
+        store
+            .put_objects(3, &[(object_key, object_row)], &[])
+            .unwrap();
+        let contents =
+            CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
+        let contents_digest = contents.digest();
+        store
+            .put_checkpoint_data(
+                3,
+                CheckpointHistoryBatch {
+                    checkpoint_contents: vec![(contents_digest, contents)],
+                    checkpoint_range: Some((7, 7)),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        store.seal_epoch(3).unwrap();
+
+        let copy_dir = iota_common::tempdir();
+        store
+            .checkpoint_db(&copy_dir.path().join(HISTORY_DIR_NAME))
+            .unwrap();
+
+        let copy = open_store(copy_dir.path());
+        assert_eq!(copy.list_epochs(), vec![3]);
+        assert!(copy.is_sealed(3).unwrap());
+        assert!(copy.get_object(&object_key).unwrap().is_some());
+        assert!(
+            copy.get_checkpoint_contents(&contents_digest)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(copy.lowest_available_checkpoint().unwrap(), Some(7));
+
+        // The copy is independent of the source.
+        store.drop_epoch(3).unwrap();
+        assert!(copy.get_object(&object_key).unwrap().is_some());
     }
 
     #[tokio::test]

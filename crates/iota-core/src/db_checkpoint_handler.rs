@@ -278,29 +278,44 @@ impl DBCheckpointHandler {
         epoch_duration_ms: u64,
     ) -> Result<()> {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-        let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
-            &db_path.join("checkpoints"),
-        ));
-        let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
-        let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-        info!(
-            "Pruning db checkpoint in {:?} for epoch: {epoch}",
-            db_path.display()
-        );
-        // Relocation must stay disabled here: this prunes a DB checkpoint
-        // snapshot, which contains no historic store to relocate into.
-        AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &perpetual_db,
-            &checkpoint_store,
-            Some(&grpc_indexes_store),
-            None,
-            None,
-            self.pruning_config.clone(),
-            metrics,
-            epoch_duration_ms,
-            self.checkpoint_progress_tracker.as_ref(),
-        )
-        .await?;
+        if self.pruning_config.historic_store.is_some() {
+            // With the historic store enabled the source node prunes
+            // continuously by relocation, so there is little to shrink here —
+            // and delete-mode pruning of the snapshot would strip data from
+            // its perpetual store without relocating it into the snapshot's
+            // history, making the uploaded artifact serve less history than
+            // the source node. Only compact.
+            info!(
+                "Skipping pruning of db checkpoint in {:?} for epoch: {epoch}: the historic \
+                 store keeps the source continuously pruned",
+                db_path.display()
+            );
+        } else {
+            let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
+                &db_path.join("checkpoints"),
+            ));
+            let grpc_indexes_store =
+                GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
+            let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
+            info!(
+                "Pruning db checkpoint in {:?} for epoch: {epoch}",
+                db_path.display()
+            );
+            // Relocation must stay disabled here: this prunes a DB checkpoint
+            // snapshot, which contains no historic store to relocate into.
+            AuthorityStorePruner::prune_objects_for_eligible_epochs(
+                &perpetual_db,
+                &checkpoint_store,
+                Some(&grpc_indexes_store),
+                None,
+                None,
+                self.pruning_config.clone(),
+                metrics,
+                epoch_duration_ms,
+                self.checkpoint_progress_tracker.as_ref(),
+            )
+            .await?;
+        }
         info!(
             "Compacting db checkpoint in {:?} for epoch: {epoch}",
             db_path.display()

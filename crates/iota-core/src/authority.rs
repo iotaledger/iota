@@ -3845,12 +3845,6 @@ impl AuthorityState {
         self.get_reconfig_api()
             .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
 
-        // The historic object store is intentionally not part of DB
-        // checkpoints: it only holds superseded object versions served over
-        // gRPC, can grow to terabytes, and a node restored without it stays
-        // fully consensus-consistent (it merely answers NotFound for
-        // relocated versions).
-
         self.committee_store
             .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
 
@@ -3861,6 +3855,17 @@ impl AuthorityState {
             if let Some(grpc_indexes_store) = self.grpc_indexes_store.as_ref() {
                 grpc_indexes_store.checkpoint_db(&checkpoint_path_tmp.join(GRPC_INDEXES_DIR))?;
             }
+        }
+
+        // The history DB must be snapshotted after its source stores
+        // (perpetual and checkpoints): relocation writes history before
+        // deleting the source rows, so this ordering can at worst capture a
+        // harmless duplicate, while the reverse has a window where a row
+        // relocated in between is in neither snapshot. The restored layout
+        // (`store/history`) must match the live layout because restore is a
+        // plain directory copy.
+        if let Some(historic_store) = self.historic_store.as_ref() {
+            historic_store.checkpoint_db(&store_checkpoint_path_tmp.join("history"))?;
         }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)

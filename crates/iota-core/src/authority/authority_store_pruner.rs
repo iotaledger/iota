@@ -2137,6 +2137,59 @@ mod tests {
         assert_eq!(historic.lowest_available_checkpoint().unwrap(), Some(9));
     }
 
+    /// DB checkpoints must snapshot the source stores before the history DB:
+    /// relocation writes history before deleting the source rows, so with
+    /// that ordering a row relocated between the two snapshots is always in
+    /// at least one of them. This test relocates in between the snapshots
+    /// (the torn window) and asserts the restored copies jointly cover every
+    /// row.
+    #[tokio::test]
+    async fn db_checkpoint_source_first_ordering_loses_no_rows() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let historic = open_historic(tmp_dir.path());
+        let (to_keep, to_delete, _) = generate_test_data(db.clone(), 3, 1, 60).unwrap();
+        let (first_half, second_half) = to_delete.split_at(to_delete.len() / 2);
+
+        relocate(&db, &historic, 1, effects_superseding(first_half, &[]), 1).await;
+
+        // Snapshot the source store first ...
+        let restore_dir = iota_common::tempdir();
+        db.objects
+            .checkpoint_db(&restore_dir.path().join("perpetual"))
+            .unwrap();
+        // ... relocation continues in the torn window ...
+        relocate(&db, &historic, 1, effects_superseding(second_half, &[]), 2).await;
+        // ... and the history DB is snapshotted last.
+        historic
+            .checkpoint_db(&restore_dir.path().join("history"))
+            .unwrap();
+
+        let restored_db = Arc::new(AuthorityPerpetualTables::open(restore_dir.path(), None));
+        let restored_historic = open_historic(restore_dir.path());
+        for key in to_keep.iter().chain(&to_delete) {
+            let in_live = restored_db.objects.get(key).unwrap().is_some();
+            let in_history = restored_historic.get_store_object(key).unwrap().is_some();
+            assert!(
+                in_live || in_history,
+                "{key:?} is in neither restored store"
+            );
+        }
+        // Relocated data reads back as full objects from the restored copy,
+        // and the captured watermark allows idempotent replay of the torn
+        // window.
+        assert!(
+            restored_historic
+                .get_object(&first_half[0])
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            restored_db.get_highest_pruned_checkpoint().unwrap(),
+            Some(1)
+        );
+    }
+
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
