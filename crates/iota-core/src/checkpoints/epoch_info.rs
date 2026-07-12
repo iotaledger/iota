@@ -469,7 +469,9 @@ fn assemble_boundary_checkpoint_data(
     contents: CheckpointContents,
 ) -> Result<CheckpointData, StorageError> {
     use iota_types::{
-        effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
+        effects::{TransactionEffectsAPI, TransactionEffectsExt},
+        full_checkpoint_content::CheckpointTransaction,
+        storage::ObjectKey,
     };
 
     let inner = contents.transactions();
@@ -478,24 +480,74 @@ fn assemble_boundary_checkpoint_data(
     };
     let tx_digest = boundary_digests.transaction;
 
-    let transaction = authority_store
-        .get_transaction_block(&tx_digest)?
-        .ok_or_else(|| StorageError::missing("missing boundary transaction"))?;
-    let effects = authority_store
-        .get_executed_effects(&tx_digest)?
-        .ok_or_else(|| StorageError::missing("missing boundary transaction effects"))?;
-    let output_objects =
-        iota_types::storage::get_transaction_output_objects(authority_store, &effects)?;
+    // Boundary data of old epochs has usually been relocated into the
+    // historic buckets by now (objects at commit time, the rest by the
+    // checkpoint pruner), so every read falls back to them after a live
+    // miss. `Missing` then only means the data aged past historic retention.
+    let transaction = match authority_store.get_transaction_block(&tx_digest)? {
+        Some(transaction) => transaction,
+        None => authority_store
+            .historic_store
+            .get_transaction(&tx_digest)
+            .map_err(StorageError::custom)?
+            .map(|transaction| transaction.into())
+            .ok_or_else(|| StorageError::missing("missing boundary transaction"))?,
+    };
+    let effects = match authority_store.get_executed_effects(&tx_digest)? {
+        Some(effects) => effects,
+        None => {
+            let effects_digest = authority_store
+                .historic_store
+                .get_executed_effects(&tx_digest)
+                .map_err(StorageError::custom)?
+                .ok_or_else(|| StorageError::missing("missing boundary transaction effects"))?;
+            authority_store
+                .historic_store
+                .get_effects(&effects_digest)
+                .map_err(StorageError::custom)?
+                .ok_or_else(|| StorageError::missing("missing boundary transaction effects"))?
+        }
+    };
+
+    let output_object_keys: Vec<ObjectKey> = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+        .collect();
+    let output_objects = authority_store
+        .multi_get_objects_by_key(&output_object_keys)
+        .map_err(StorageError::custom)?
+        .into_iter()
+        .zip(&output_object_keys)
+        .map(|(maybe_object, key)| match maybe_object {
+            Some(object) => Ok(object),
+            None => authority_store
+                .historic_store
+                .get_object(key)
+                .map_err(StorageError::custom)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!(
+                        "missing output object {key:?} of the boundary transaction"
+                    ))
+                }),
+        })
+        .collect::<Result<Vec<_>, StorageError>>()?;
 
     let events = if effects.events_digest().is_some() {
-        Some(
-            authority_store
+        let events = match authority_store
+            .get_events(effects.transaction_digest())
+            .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
+        {
+            Some(events) => events,
+            None => authority_store
+                .historic_store
                 .get_events(effects.transaction_digest())
-                .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
+                .map_err(StorageError::custom)?
                 .ok_or_else(|| {
                     StorageError::missing("missing events for the boundary transaction")
                 })?,
-        )
+        };
+        Some(events)
     } else {
         None
     };
