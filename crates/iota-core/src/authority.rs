@@ -1726,11 +1726,39 @@ impl AuthorityState {
         // Allow testing what happens if we crash here.
         fail_point!("crash");
 
-        let transaction_outputs = TransactionOutputs::build_transaction_outputs(
+        let mut transaction_outputs = TransactionOutputs::build_transaction_outputs(
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
         );
+        // Mutations of runtime-loaded objects (dynamic fields) are not
+        // transaction inputs, so their pre-images could not be captured from
+        // `input_objects`. Read them back through the cache — the transaction
+        // just read them, so they are memory-hot — to complete the capture;
+        // a version already relocated is absent from the live view and needs
+        // no move.
+        let captured: HashSet<ObjectKey> = transaction_outputs
+            .superseded
+            .iter()
+            .map(|(key, _)| *key)
+            .collect();
+        let missing: Vec<ObjectKey> = effects
+            .modified_at_versions()
+            .into_iter()
+            .map(|(object_id, version)| ObjectKey(object_id, version))
+            .filter(|key| !captured.contains(key))
+            .collect();
+        if !missing.is_empty() {
+            let objects = self
+                .get_object_cache_reader()
+                .try_multi_get_objects_by_key(&missing)?;
+            transaction_outputs.superseded.extend(
+                missing
+                    .into_iter()
+                    .zip(objects)
+                    .filter_map(|(key, object)| object.map(|object| (key, object))),
+            );
+        }
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
 
