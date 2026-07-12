@@ -136,10 +136,11 @@ impl TransactionOutputs {
 
         let wrapped = effects.wrapped().into_iter().map(ObjectKey::from).collect();
 
-        // The pre-images of superseded versions are exactly the mutated,
-        // deleted, wrapped and received inputs — all present in
-        // `input_objects` at their input version. Anything absent (or at an
-        // unexpected version) is skipped; the pruner relocates it later.
+        // The pre-images of superseded *input* versions: the mutated,
+        // deleted, wrapped and received inputs at their input version.
+        // Mutations of runtime-loaded objects (dynamic fields) are not
+        // inputs and are completed from the object cache in
+        // `commit_transaction`.
         let superseded = modified_at
             .iter()
             .filter_map(|(id, version)| {

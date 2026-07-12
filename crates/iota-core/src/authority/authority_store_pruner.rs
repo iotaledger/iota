@@ -372,6 +372,9 @@ impl AuthorityStorePruner {
             .zip(values)
             .filter_map(|(key, value)| value.map(|value| (key, value)))
             .collect();
+        for (key, _) in &rows {
+            debug!(?key, "walker found a superseded version in the live table");
+        }
 
         relocation
             .store
