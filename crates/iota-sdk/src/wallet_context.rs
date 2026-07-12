@@ -11,14 +11,13 @@ use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
 use iota_json_rpc_types::{
-    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
+use iota_sdk_types::{Address, Coin, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
     crypto::IotaKeyPair,
-    gas_coin::GasCoin,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use tokio::sync::RwLock;
@@ -242,42 +241,59 @@ impl WalletContext {
     pub async fn gas_objects(
         &self,
         address: Address,
-    ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
-        let client = self.get_client().await?;
-
-        let values_objects = PagedFn::stream(async |cursor| {
-            client
-                .read_api()
-                .get_owned_objects(
-                    address,
-                    IotaObjectResponseQuery::new(
-                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                        Some(IotaObjectDataOptions::full_content()),
-                    ),
-                    cursor,
-                    None,
-                )
-                .await
-        })
-        .filter_map(|res| async {
-            match res {
-                Ok(res) => {
-                    if let Some(o) = res.data {
-                        match GasCoin::try_from(&o) {
-                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o))),
-                            Err(e) => Some(Err(anyhow!("{e}"))),
-                        }
-                    } else {
-                        None
-                    }
-                }
-                Err(e) => Some(Err(anyhow!("{e}"))),
+    ) -> Result<Vec<(u64, iota_sdk_types::Object)>, anyhow::Error> {
+        match self.resolve_backend()? {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .list_owned_objects(address, Some(StructTag::new_gas_coin()), None, None, None)
+                    .collect(None)
+                    .await?
+                    .into_inner();
+                objects
+                    .iter()
+                    .map(|o| {
+                        let object = o.object()?;
+                        let coin = Coin::try_from_object(&object).map_err(|e| anyhow!("{e}"))?;
+                        Ok((coin.balance(), object))
+                    })
+                    .collect()
             }
-        })
-        .try_collect::<Vec<_>>()
-        .await?;
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
 
-        Ok(values_objects)
+                let values_objects = PagedFn::stream(async |cursor| {
+                    client
+                        .read_api()
+                        .get_owned_objects(
+                            address,
+                            IotaObjectResponseQuery::new(
+                                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                                Some(IotaObjectDataOptions::full_content().with_bcs()),
+                            ),
+                            cursor,
+                            None,
+                        )
+                        .await
+                })
+                .filter_map(|res| async {
+                    match res {
+                        Ok(res) => res.data.map(|o| {
+                            let object =
+                                iota_sdk_types::Object::try_from(&o).map_err(|e| anyhow!("{e}"))?;
+                            let coin =
+                                Coin::try_from_object(&object).map_err(|e| anyhow!("{e}"))?;
+                            Ok((coin.balance(), object))
+                        }),
+                        Err(e) => Some(Err(anyhow!("{e}"))),
+                    }
+                })
+                .try_collect::<Vec<_>>()
+                .await?;
+
+                Ok(values_objects)
+            }
+        }
     }
 
     /// Get the address that owns the object of the provided [`ObjectId`].
@@ -354,9 +370,9 @@ impl WalletContext {
         address: Address,
         budget: u64,
         forbidden_gas_objects: BTreeSet<ObjectId>,
-    ) -> Result<(u64, IotaObjectData), anyhow::Error> {
+    ) -> Result<(u64, iota_sdk_types::Object), anyhow::Error> {
         for o in self.gas_objects(address).await? {
-            if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {
+            if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.id()) {
                 return Ok((o.0, o.1));
             }
         }

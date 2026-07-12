@@ -122,9 +122,9 @@ impl SimpleFaucet {
             .map_err(|e| FaucetError::Wallet(e.to_string()))?
             .iter()
             // Ok to unwrap() since `get_gas_objects` guarantees gas
-            .map(|q| GasCoin::try_from(&q.1).unwrap())
-            .filter(|coin| coin.0.balance.value() >= (config.amount * config.num_coins as u64))
-            .collect::<Vec<GasCoin>>();
+            .map(|q| iota_sdk_types::Coin::try_from_object(&q.1).unwrap())
+            .filter(|coin| coin.balance() >= (config.amount * config.num_coins as u64))
+            .collect::<Vec<_>>();
 
         if coins.is_empty() {
             return Err(FaucetError::NoGasCoinAvailable);
@@ -1665,13 +1665,13 @@ mod tests {
 
         let tiny_amount = gas_coins
             .iter()
-            .find(|gas| gas.1.object_id == tiny_coin_id)
+            .find(|gas| gas.1.id() == tiny_coin_id)
             .unwrap()
             .0;
         assert_eq!(tiny_amount, tiny_value);
 
         let gas_coins: HashSet<ObjectId> =
-            HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.1.object_id));
+            HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.1.id()));
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();

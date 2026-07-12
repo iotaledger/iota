@@ -70,7 +70,6 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
-    gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
@@ -1611,7 +1610,7 @@ impl IotaClientCommands {
                     .await?
                     .iter()
                     // Ok to unwrap() since `get_gas_objects` guarantees gas
-                    .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+                    .map(|(_val, object)| iota_sdk_types::Coin::try_from_object(object).unwrap())
                     .collect();
                 IotaClientCommandResult::Gas(coins)
             }
@@ -2898,14 +2897,28 @@ pub struct GasCoinOutput {
     pub iota_balance: String,
 }
 
-impl From<&GasCoin> for GasCoinOutput {
-    fn from(gas_coin: &GasCoin) -> Self {
+impl From<&iota_sdk_types::Coin> for GasCoinOutput {
+    fn from(gas_coin: &iota_sdk_types::Coin) -> Self {
         Self {
             gas_coin_id: *gas_coin.id(),
-            nanos_balance: gas_coin.value(),
-            iota_balance: format_balance(gas_coin.value() as u128, 9, 2, None),
+            nanos_balance: gas_coin.balance(),
+            iota_balance: format_balance(gas_coin.balance() as u128, 9, 2, None),
         }
     }
+}
+
+fn serialize_coins_as_gas_output<S>(
+    coins: &[iota_sdk_types::Coin],
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    coins
+        .iter()
+        .map(GasCoinOutput::from)
+        .collect::<Vec<_>>()
+        .serialize(serializer)
 }
 
 #[derive(Serialize)]
@@ -2964,7 +2977,7 @@ pub enum IotaClientCommandResult {
     DryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
-    Gas(Vec<GasCoin>),
+    Gas(#[serde(serialize_with = "serialize_coins_as_gas_output")] Vec<iota_sdk_types::Coin>),
     NewAddress(NewAddressOutput),
     NewEnv(IotaEnv),
     NoOutput,
@@ -3737,14 +3750,14 @@ async fn select_coins_for_amount(
         .await?
         .iter()
         // Ok to unwrap() since `gas_objects` guarantees gas
-        .map(|(_val, object)| GasCoin::try_from(object).unwrap())
+        .map(|(_val, object)| iota_sdk_types::Coin::try_from_object(object).unwrap())
         .collect::<Vec<_>>();
     // Sort in ascending order
-    gas_coins.sort_unstable_by_key(|c| c.value());
+    gas_coins.sort_unstable_by_key(|c| c.balance());
     let mut amount_remaining = amount;
     while amount_remaining > 0 {
         if let Some(coin) = gas_coins.pop() {
-            amount_remaining = amount_remaining.saturating_sub(coin.value());
+            amount_remaining = amount_remaining.saturating_sub(coin.balance());
             coins.push(*coin.id());
         } else {
             anyhow::bail!(
