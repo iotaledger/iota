@@ -4103,11 +4103,22 @@ impl AuthorityState {
         object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
-        let Some(object) = self
+        // Superseded versions leave the live table when their checkpoint
+        // commits, so exact-version reads fall back to the historic buckets.
+        // This is a read-API path only; consensus and execution never take
+        // it.
+        let object = match self
             .get_object_cache_reader()
             .try_get_object_by_key(object_id, version)?
-        else {
-            return Ok(None);
+        {
+            Some(object) => object,
+            None => match self
+                .historic_store
+                .get_object(&ObjectKey(*object_id, version))?
+            {
+                Some(object) => object,
+                None => return Ok(None),
+            },
         };
 
         let layout = self.get_object_layout(&object)?;

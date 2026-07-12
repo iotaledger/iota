@@ -2331,7 +2331,7 @@ impl TestEnvironment {
 
         // The transaction must be successful
         assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty());
+        assert!(errors.is_empty(), "response errors: {errors:?}");
         Ok(())
     }
 
