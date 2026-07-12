@@ -1862,7 +1862,10 @@ impl IotaClientCommands {
                 let transaction = Transaction::from_generic_sig_data(data, sigs);
 
                 let response = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(response)
+                IotaClientCommandResult::TransactionBlock(
+                    IotaTransactionBlockResponse::try_from(&response)
+                        .map_err(|e| anyhow!("{e}"))?,
+                )
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
                 let data: SenderSignedData = bcs::from_bytes(
@@ -1873,7 +1876,10 @@ impl IotaClientCommands {
                 ).map_err(|_| anyhow!("Failed to parse SenderSignedData bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedData, EmptySignInfo>::new(data);
                 let response = context.execute_transaction_may_fail(transaction).await?;
-                IotaClientCommandResult::TransactionBlock(response)
+                IotaClientCommandResult::TransactionBlock(
+                    IotaTransactionBlockResponse::try_from(&response)
+                        .map_err(|e| anyhow!("{e}"))?,
+                )
             }
             IotaClientCommands::Sign {
                 address,
