@@ -9,6 +9,7 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt, future};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
+use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
 use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -210,13 +211,31 @@ impl WalletContext {
         &self,
         object_id: ObjectId,
     ) -> Result<ObjectReference, anyhow::Error> {
-        let client = self.get_client().await?;
-        Ok(client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::new())
-            .await?
-            .into_object()?
-            .object_ref())
+        match self.resolve_backend()? {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .get_objects(
+                        &[(object_id, None)],
+                        Some(ReadMask::from(ObjectField::REFERENCE)),
+                    )
+                    .await?
+                    .into_inner();
+                let object = objects
+                    .first()
+                    .ok_or_else(|| anyhow!("object {object_id} not found"))?;
+                Ok(object.object_reference()?)
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                Ok(client
+                    .read_api()
+                    .get_object_with_options(object_id, IotaObjectDataOptions::new())
+                    .await?
+                    .into_object()?
+                    .object_ref())
+            }
+        }
     }
 
     /// Get all the gas objects (and conveniently, gas amounts) for the address.
@@ -263,17 +282,36 @@ impl WalletContext {
 
     /// Get the address that owns the object of the provided [`ObjectId`].
     pub async fn get_object_owner(&self, id: &ObjectId) -> Result<Address, anyhow::Error> {
-        let client = self.get_client().await?;
-        let object = client
-            .read_api()
-            .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
-            .await?
-            .into_object()?;
-        Ok(*object
-            .owner
-            .ok_or_else(|| anyhow!("Owner field is None"))?
-            .address_or_object()
-            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
+        match self.resolve_backend()? {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .get_objects(&[(*id, None)], Some(ReadMask::from(ObjectField::BCS)))
+                    .await?
+                    .into_inner();
+                let object = objects
+                    .first()
+                    .ok_or_else(|| anyhow!("object {id} not found"))?
+                    .object()?;
+                Ok(*object
+                    .owner()
+                    .address_or_object()
+                    .ok_or_else(|| anyhow!("not an address or object owner"))?)
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let object = client
+                    .read_api()
+                    .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
+                    .await?
+                    .into_object()?;
+                Ok(*object
+                    .owner
+                    .ok_or_else(|| anyhow!("Owner field is None"))?
+                    .address_or_object()
+                    .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
+            }
+        }
     }
 
     /// Get the address that owns the object, if an [`ObjectId`] is provided.
@@ -415,9 +453,16 @@ impl WalletContext {
     }
 
     pub async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let client = self.get_client().await?;
-        let gas_price = client.governance_api().get_reference_gas_price().await?;
-        Ok(gas_price)
+        match self.resolve_backend()? {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                Ok(client.get_reference_gas_price().await?.into_inner())
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                Ok(client.governance_api().get_reference_gas_price().await?)
+            }
+        }
     }
 
     /// Add an account.

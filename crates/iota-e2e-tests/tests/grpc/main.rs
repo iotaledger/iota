@@ -12,3 +12,4 @@ mod client;
 mod utils;
 mod v1;
 mod wallet_context;
+mod wallet_context_read_methods;
