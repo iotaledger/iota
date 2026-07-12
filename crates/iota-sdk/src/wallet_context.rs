@@ -28,6 +28,17 @@ use crate::{
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
 
+/// Which transport `WalletContext` uses for chain-touching operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WalletBackend {
+    /// Use the node's gRPC API. The default: falls back to `JsonRpc` when the
+    /// active environment has no `grpc` URL configured.
+    #[default]
+    Grpc,
+    /// Use the node's JSON-RPC API unconditionally.
+    JsonRpc,
+}
+
 /// Wallet for managing accounts, objects, and interact with client APIs.
 // Mainly used in the CLI and tests.
 #[derive(Getters, MutGetters)]
@@ -39,6 +50,7 @@ pub struct WalletContext {
     grpc_client: Arc<RwLock<Option<iota_grpc_client::Client>>>,
     max_concurrent_requests: Option<u64>,
     env_override: Option<String>,
+    backend: WalletBackend,
 }
 
 impl WalletContext {
@@ -77,6 +89,7 @@ impl WalletContext {
             grpc_client: Default::default(),
             max_concurrent_requests: None,
             env_override: None,
+            backend: WalletBackend::default(),
         };
         Ok(context)
     }
@@ -94,6 +107,25 @@ impl WalletContext {
     pub fn with_env_override(mut self, env_override: String) -> Self {
         self.env_override = Some(env_override);
         self
+    }
+
+    /// Force `WalletContext` to use the JSON-RPC backend, even for
+    /// environments that have a `grpc` URL configured.
+    pub fn with_jsonrpc_backend(mut self) -> Self {
+        self.backend = WalletBackend::JsonRpc;
+        self
+    }
+
+    /// Resolve which backend a chain-touching method should use for the
+    /// active environment: `JsonRpc` if `with_jsonrpc_backend()` was called,
+    /// or if the default `Grpc` backend has no `grpc` URL configured for the
+    /// active environment; `Grpc` otherwise.
+    fn resolve_backend(&self) -> Result<WalletBackend, anyhow::Error> {
+        Ok(match self.backend {
+            WalletBackend::JsonRpc => WalletBackend::JsonRpc,
+            WalletBackend::Grpc if self.active_env()?.grpc().is_none() => WalletBackend::JsonRpc,
+            WalletBackend::Grpc => WalletBackend::Grpc,
+        })
     }
 
     /// Get all addresses from the keystore.
@@ -442,5 +474,61 @@ impl WalletContext {
                 iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
             )
             .await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use iota_config::Config;
+    use iota_keys::keystore::InMemKeystore;
+
+    use super::*;
+    use crate::iota_client_config::IotaClientConfig;
+
+    /// Builds a `WalletContext` with a single active env, backed by an
+    /// in-memory keystore and a config that is never written to disk (tests
+    /// only exercise in-memory dispatch logic, never `PersistedConfig::save`).
+    fn wallet_context_with_env(env: IotaEnv) -> WalletContext {
+        let alias = env.alias().clone();
+        let config = IotaClientConfig::new(Keystore::InMem(InMemKeystore::default()))
+            .with_envs([env])
+            .with_active_env(alias)
+            .persisted(&PathBuf::from("unused-test-config.yaml"));
+        WalletContext {
+            config,
+            request_timeout: None,
+            client: Default::default(),
+            grpc_client: Default::default(),
+            max_concurrent_requests: None,
+            env_override: None,
+            backend: WalletBackend::default(),
+        }
+    }
+
+    #[test]
+    fn resolve_backend_defaults_to_grpc_when_env_has_grpc_url() {
+        let ctx = wallet_context_with_env(
+            IotaEnv::new("test", "https://rpc.example")
+                .with_grpc(Some("https://grpc.example".to_string())),
+        );
+        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::Grpc);
+    }
+
+    #[test]
+    fn resolve_backend_falls_back_to_json_rpc_when_env_has_no_grpc_url() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"));
+        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::JsonRpc);
+    }
+
+    #[test]
+    fn resolve_backend_honors_explicit_json_rpc_override_even_with_grpc_url() {
+        let ctx = wallet_context_with_env(
+            IotaEnv::new("test", "https://rpc.example")
+                .with_grpc(Some("https://grpc.example".to_string())),
+        )
+        .with_jsonrpc_backend();
+        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::JsonRpc);
     }
 }
