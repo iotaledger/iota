@@ -12,7 +12,6 @@ use iota_types::{
     storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
-use tracing::error;
 use typed_store::{
     DBMapUtils, DbIterator,
     metrics::SamplingInterval,
@@ -20,13 +19,11 @@ use typed_store::{
         DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
     },
-    rocksdb::compaction_filter::Decision,
     traits::Map,
 };
 
 use super::*;
 use crate::authority::{
-    authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
@@ -44,7 +41,6 @@ const ENV_VAR_EVENTS_BLOCK_CACHE_SIZE: &str = "EVENTS_BLOCK_CACHE_MB";
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
-    pub compaction_filter: Option<ObjectsCompactionFilter>,
     /// Additional column families to open with the given options, e.g. the
     /// historic epoch buckets rediscovered from disk. Column families left
     /// to auto-discovery would silently get default options.
@@ -160,27 +156,6 @@ pub struct AuthorityPerpetualTables {
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 }
 
-#[derive(DBMapUtils)]
-pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectId, SequenceNumber>,
-}
-
-impl AuthorityPrunerTables {
-    pub fn path(parent_path: &Path) -> PathBuf {
-        parent_path.join("pruner")
-    }
-
-    pub fn open(parent_path: &Path) -> Self {
-        Self::open_tables_read_write(
-            Self::path(parent_path),
-            MetricConf::new("pruner")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            None,
-            None,
-        )
-    }
-}
-
 /// The total IOTA supply used during conservation checks.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TotalIotaSupplyCheck {
@@ -205,7 +180,7 @@ impl AuthorityPerpetualTables {
         let mut table_options_map = BTreeMap::from([
             (
                 "objects".to_string(),
-                objects_table_config(db_options.clone(), db_options_override.compaction_filter),
+                objects_table_config(db_options.clone()),
             ),
             (
                 "live_owned_object_markers".to_string(),
@@ -699,23 +674,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
     }
 }
 
-fn objects_table_config(
-    mut db_options: DBOptions,
-    compaction_filter: Option<ObjectsCompactionFilter>,
-) -> DBOptions {
-    if let Some(mut compaction_filter) = compaction_filter {
-        db_options
-            .options
-            .set_compaction_filter("objects", move |_, key, value| {
-                match compaction_filter.filter(key, value) {
-                    Ok(decision) => decision,
-                    Err(err) => {
-                        error!("Compaction error: {:?}", err);
-                        Decision::Keep
-                    }
-                }
-            });
-    }
+fn objects_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))

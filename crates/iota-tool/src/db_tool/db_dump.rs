@@ -22,6 +22,7 @@ use iota_core::{
         },
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
+        historic_store::{HistoricStore, HistoricStoreMetrics},
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
@@ -219,20 +220,19 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     info!("Highest pruned checkpoint: {}", highest_pruned_checkpoint);
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
     info!("Pruning setup for db at path: {:?}", db_path.display());
-    let pruning_config = AuthorityStorePruningConfig {
-        num_epochs_to_retain: 0,
-        ..Default::default()
-    };
+    let pruning_config = AuthorityStorePruningConfig::default();
+    let historic_store = Arc::new(HistoricStore::new_shared(
+        perpetual_db.database(),
+        HistoricStoreMetrics::new(&Registry::default()),
+    )?);
     info!("Starting object pruning");
     AuthorityStorePruner::prune_objects_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
         Some(&grpc_indexes_store),
-        None,
-        None,
-        pruning_config,
+        &historic_store,
+        &pruning_config,
         metrics,
-        EPOCH_DURATION_MS_FOR_TESTING,
         None,
     )
     .await?;
@@ -249,15 +249,18 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         num_epochs_to_retain_for_checkpoints: Some(1),
         ..Default::default()
     };
+    let historic_store = Arc::new(HistoricStore::new_shared(
+        perpetual_db.database(),
+        HistoricStoreMetrics::new(&Registry::default()),
+    )?);
     info!("Starting txns and effects pruning");
     let archive_readers = ArchiveReaderBalancer::default();
     AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
         Some(&grpc_indexes_store),
-        None,
-        None,
-        pruning_config,
+        &historic_store,
+        &pruning_config,
         metrics,
         archive_readers,
         EPOCH_DURATION_MS_FOR_TESTING,

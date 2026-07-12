@@ -7,10 +7,7 @@ use std::{fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Result;
 use bytes::Bytes;
 use futures::future::try_join_all;
-use iota_config::{
-    node::AuthorityStorePruningConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_storage::object_store::util::{
     copy_recursively, find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs,
     path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
@@ -19,16 +16,8 @@ use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 
-use crate::{
-    authority::{
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
-        authority_store_tables::AuthorityPerpetualTables,
-    },
-    checkpoint_progress_tracker::CheckpointProgressTracker,
-    checkpoints::CheckpointStore,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+use crate::authority::{
+    authority_store_pruner::AuthorityStorePruner, authority_store_tables::AuthorityPerpetualTables,
 };
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
@@ -78,10 +67,7 @@ pub struct DBCheckpointHandler {
     prune_and_compact_before_upload: bool,
     /// If true, upload will block on state snapshot upload completed marker
     state_snapshot_enabled: bool,
-    /// Pruning objects
-    pruning_config: AuthorityStorePruningConfig,
     metrics: Arc<DBCheckpointMetrics>,
-    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 }
 
 impl DBCheckpointHandler {
@@ -90,10 +76,8 @@ impl DBCheckpointHandler {
         output_object_store_config: Option<&ObjectStoreConfig>,
         interval_s: u64,
         prune_and_compact_before_upload: bool,
-        pruning_config: AuthorityStorePruningConfig,
         registry: &Registry,
         state_snapshot_enabled: bool,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<Arc<Self>> {
         let input_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -113,9 +97,7 @@ impl DBCheckpointHandler {
             gc_markers,
             prune_and_compact_before_upload,
             state_snapshot_enabled,
-            pruning_config,
             metrics: DBCheckpointMetrics::new(registry),
-            checkpoint_progress_tracker,
         }))
     }
     pub fn new_for_test(
@@ -138,9 +120,7 @@ impl DBCheckpointHandler {
             gc_markers: vec![UPLOAD_COMPLETED_MARKER.to_string(), TEST_MARKER.to_string()],
             prune_and_compact_before_upload,
             state_snapshot_enabled,
-            pruning_config: AuthorityStorePruningConfig::default(),
             metrics: DBCheckpointMetrics::new(&Registry::default()),
-            checkpoint_progress_tracker: None,
         }))
     }
 
@@ -271,51 +251,11 @@ impl DBCheckpointHandler {
         Ok(())
     }
 
-    async fn prune_and_compact(
-        &self,
-        db_path: PathBuf,
-        epoch: u64,
-        epoch_duration_ms: u64,
-    ) -> Result<()> {
+    async fn compact(&self, db_path: PathBuf, epoch: u64) -> Result<()> {
+        // The source node prunes continuously by relocation, so there is
+        // nothing to prune in a DB checkpoint before upload; compacting
+        // reclaims the space of any not-yet-compacted deletes.
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-        if self.pruning_config.historic_store.is_some() {
-            // With the historic store enabled the source node prunes
-            // continuously by relocation, so there is little to shrink here —
-            // and delete-mode pruning of the snapshot would strip data from
-            // its perpetual store without relocating it into the snapshot's
-            // history, making the uploaded artifact serve less history than
-            // the source node. Only compact.
-            info!(
-                "Skipping pruning of db checkpoint in {:?} for epoch: {epoch}: the historic \
-                 store keeps the source continuously pruned",
-                db_path.display()
-            );
-        } else {
-            let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
-                &db_path.join("checkpoints"),
-            ));
-            let grpc_indexes_store =
-                GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
-            let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-            info!(
-                "Pruning db checkpoint in {:?} for epoch: {epoch}",
-                db_path.display()
-            );
-            // Relocation must stay disabled here: this prunes a DB checkpoint
-            // snapshot, which contains no historic store to relocate into.
-            AuthorityStorePruner::prune_objects_for_eligible_epochs(
-                &perpetual_db,
-                &checkpoint_store,
-                Some(&grpc_indexes_store),
-                None,
-                None,
-                self.pruning_config.clone(),
-                metrics,
-                epoch_duration_ms,
-                self.checkpoint_progress_tracker.as_ref(),
-            )
-            .await?;
-        }
         info!(
             "Compacting db checkpoint in {:?} for epoch: {epoch}",
             db_path.display()
@@ -359,9 +299,7 @@ impl DBCheckpointHandler {
                 }
 
                 if self.prune_and_compact_before_upload {
-                    // Invoke pruning and compaction on the db checkpoint
-                    self.prune_and_compact(local_db_path, *epoch, EPOCH_DURATION_MS_FOR_TESTING)
-                        .await?;
+                    self.compact(local_db_path, *epoch).await?;
                 }
 
                 info!("Copying db checkpoint for epoch: {epoch} to remote storage");

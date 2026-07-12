@@ -11,8 +11,9 @@ migration-tx-data-path: "/opt/iota/config/migration.blob"
 
 # Pruning Configuration (see https://docs.iota.org/operator/full-node/configs/pruning)
 authority-store-pruning-config:
-  # Use 18446744073709551615 to disable object versions pruning
-  num-epochs-to-retain: 1
+  # Number of epochs of superseded object versions and pruned checkpoint
+  # data to keep readable; whole epoch buckets are dropped past this window.
+  historic-epochs-to-retain: 2
   # Use 18446744073709551615 to disable transaction pruning
   num-epochs-to-retain-for-checkpoints: 2
 

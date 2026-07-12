@@ -19,4 +19,6 @@ migration-tx-data-path: "/opt/iota/config/migration.blob"
 
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
-  num-epochs-to-retain: 1
+  # Number of epochs of superseded object versions and pruned checkpoint
+  # data to keep readable; whole epoch buckets are dropped past this window.
+  historic-epochs-to-retain: 2

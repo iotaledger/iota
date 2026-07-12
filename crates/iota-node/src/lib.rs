@@ -34,10 +34,7 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
         historic_store::{HistoricStore, HistoricStoreMetrics},
@@ -423,72 +420,26 @@ impl IotaNode {
             None,
         ));
 
-        let mut historic_store_config =
-            config.authority_store_pruning_config.historic_store.clone();
-        if historic_store_config.is_some() {
-            // The compaction filter can only keep or remove rows at arbitrary
-            // compaction times; it would destroy rows before relocation could
-            // read them. This must be caught before the perpetual DB is
-            // opened, because the filter is installed at DB-open time.
-            anyhow::ensure!(
-                !config
-                    .authority_store_pruning_config
-                    .enable_compaction_filter,
-                "`historic-store` and `enable-compaction-filter` are mutually exclusive; \
-                 disable one of them"
-            );
-            if is_validator {
-                warn!(
-                    "The historic object store is fullnode-only; ignoring the configuration on \
-                     this validator."
-                );
-                historic_store_config = None;
-            }
-        }
-        let mut pruner_db = None;
-        if config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-            && historic_store_config.is_none()
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &config.db_path().join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
-
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
         // The historic epoch buckets are column families of the perpetual
         // database; buckets already on disk must be reopened with their tuned
         // options.
-        let extra_column_families = if historic_store_config.is_some() {
-            HistoricStore::extra_column_family_options(&AuthorityPerpetualTables::path(
-                &config.db_path().join("store"),
-            ))
-        } else {
-            Vec::new()
-        };
+        let extra_column_families = HistoricStore::extra_column_family_options(
+            &AuthorityPerpetualTables::path(&config.db_path().join("store")),
+        );
         let perpetual_tables_options = AuthorityPerpetualTablesOptions {
             enable_write_stall,
-            compaction_filter,
             extra_column_families,
         };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
         ));
-        let historic_store = historic_store_config
-            .map(|_| {
-                HistoricStore::new_shared(
-                    perpetual_tables.database(),
-                    HistoricStoreMetrics::new(&prometheus_registry),
-                )
-                .map(Arc::new)
-            })
-            .transpose()?;
+        let historic_store = Arc::new(HistoricStore::new_shared(
+            perpetual_tables.database(),
+            HistoricStoreMetrics::new(&prometheus_registry),
+        )?);
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
@@ -710,7 +661,6 @@ impl IotaNode {
             &config,
             &prometheus_registry,
             state_snapshot_handle.is_some(),
-            Some(checkpoint_progress_tracker.clone()),
         )?;
 
         let mut genesis_objects = genesis.objects().to_vec();
@@ -747,7 +697,6 @@ impl IotaNode {
             archive_readers,
             validator_tx_finalizer,
             chain_identifier,
-            pruner_db,
             historic_store,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
@@ -1193,7 +1142,6 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         state_snapshot_enabled: bool,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<(
         DBCheckpointConfig,
         Option<tokio::sync::broadcast::Sender<()>>,
@@ -1238,10 +1186,8 @@ impl IotaNode {
                     db_checkpoint_config
                         .prune_and_compact_before_upload
                         .unwrap_or(true),
-                    config.authority_store_pruning_config.clone(),
                     prometheus_registry,
                     state_snapshot_enabled,
-                    checkpoint_progress_tracker,
                 )?;
                 Ok((
                     db_checkpoint_config,
