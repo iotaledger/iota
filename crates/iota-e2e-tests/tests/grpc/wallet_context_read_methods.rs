@@ -77,3 +77,36 @@ async fn gas_objects_agree_across_backends() {
         assert_eq!(grpc_object.object_ref(), jsonrpc_object.object_ref());
     }
 }
+
+/// `execute_transaction_may_fail` succeeds and reports a successful status
+/// on the gRPC backend.
+#[sim_test]
+async fn execute_transaction_succeeds_on_grpc_backend() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .with_num_validators(1)
+        .build()
+        .await;
+    test_cluster.wait_for_checkpoint(1, None).await;
+
+    let wallet = &test_cluster.wallet;
+    let (sender, gas) = wallet.get_one_gas_object().await.unwrap().unwrap();
+    let rgp = wallet.get_reference_gas_price().await.unwrap();
+    let tx = wallet.sign_transaction(
+        &iota_test_transaction_builder::TestTransactionBuilder::new(sender, gas, rgp)
+            .transfer_iota(None, sender)
+            .build(),
+    );
+
+    let executed = wallet.execute_transaction_must_succeed(tx).await;
+    assert!(
+        executed
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1()
+            .status
+            .is_success()
+    );
+}

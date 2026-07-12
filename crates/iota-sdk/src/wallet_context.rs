@@ -10,9 +10,10 @@ use futures::{StreamExt, TryStreamExt, future};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_types::{Address, Coin, ObjectId, ObjectReference, StructTag, crypto::Intent};
@@ -27,6 +28,24 @@ use crate::{
     IotaClient, PagedFn,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
+
+/// Read mask for `execute_transaction`: everything `WalletContext`'s current
+/// consumers read off an executed transaction.
+const EXECUTE_TRANSACTION_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "transaction.digest",
+    "effects",
+    "events",
+    "input_objects",
+    "output_objects",
+    "object_changes",
+    "balance_changes",
+    "checkpoint",
+    "timestamp",
+);
+
+/// How long the server waits for a submitted transaction to land in a
+/// checkpoint before `execute_transaction` returns.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 
 /// Which transport `WalletContext` uses for chain-touching operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -500,16 +519,18 @@ impl WalletContext {
     /// Execute a transaction and wait for it to be locally executed on the
     /// fullnode. Also expects the effects status to be
     /// ExecutionStatus::Success.
-    pub async fn execute_transaction_must_succeed(
-        &self,
-        tx: Transaction,
-    ) -> IotaTransactionBlockResponse {
+    pub async fn execute_transaction_must_succeed(&self, tx: Transaction) -> ExecutedTransaction {
         tracing::debug!("Executing transaction: {:?}", tx);
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
-        assert!(
-            response.status_ok().unwrap(),
-            "Transaction failed: {response:?}"
-        );
+        let status_ok = response
+            .effects()
+            .expect("effects missing from execute_transaction response")
+            .effects()
+            .expect("effects failed to deserialize")
+            .as_v1()
+            .status
+            .is_success();
+        assert!(status_ok, "Transaction failed: {response:?}");
         response
     }
 
@@ -520,21 +541,44 @@ impl WalletContext {
     pub async fn execute_transaction_may_fail(
         &self,
         tx: Transaction,
-    ) -> anyhow::Result<IotaTransactionBlockResponse> {
-        let client = self.get_client().await?;
-        Ok(client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx,
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_input()
-                    .with_events()
-                    .with_object_changes()
-                    .with_balance_changes(),
-                iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
-            )
-            .await?)
+    ) -> anyhow::Result<ExecutedTransaction> {
+        match self.resolve_backend()? {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let signed_transaction: iota_sdk_types::SignedTransaction = tx.try_into().map_err(
+                    |e: iota_types::iota_sdk_types_conversions::SdkTypeConversionError| {
+                        anyhow!("{e}")
+                    },
+                )?;
+                Ok(client
+                    .execute_transaction(
+                        signed_transaction,
+                        Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
+                        Some(CHECKPOINT_INCLUSION_TIMEOUT_MS),
+                    )
+                    .await?
+                    .into_inner())
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let response = client
+                    .quorum_driver_api()
+                    .execute_transaction_block(
+                        tx,
+                        IotaTransactionBlockResponseOptions::new()
+                            .with_effects()
+                            .with_input()
+                            .with_raw_input()
+                            .with_events()
+                            .with_object_changes()
+                            .with_balance_changes()
+                            .with_raw_effects(),
+                        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
+                    )
+                    .await?;
+                ExecutedTransaction::try_from(&response).map_err(|e| anyhow!("{e}"))
+            }
+        }
     }
 }
 
