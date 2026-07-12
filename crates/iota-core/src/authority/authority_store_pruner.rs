@@ -3,20 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{max, min},
+    cmp::min,
     collections::{BTreeSet, HashMap},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::anyhow;
-use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::SequenceNumber,
     committee::EpochId,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -39,18 +38,11 @@ use tokio::{
     time::Instant,
 };
 use tracing::{debug, error, info, warn};
-use typed_store::{
-    Map, TypedStoreError,
-    rocks::DBBatch,
-    rocksdb::{LiveFile, compaction_filter::Decision},
-};
+use typed_store::{Map, TypedStoreError, rocks::DBBatch, rocksdb::LiveFile};
 
-use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables};
+use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
-    authority::{
-        authority_store_types::{StoreObject, StoreObjectWrapper},
-        historic_store::HistoricStore,
-    },
+    authority::historic_store::HistoricStore,
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     grpc_indexes::GrpcIndexesStore,
@@ -140,7 +132,7 @@ pub struct AuthorityStorePruningMetrics {
     pub num_pruned_tombstones: IntCounter,
     pub last_pruned_effects_checkpoint: IntGauge,
     pub last_pruned_indexes_transaction: IntGauge,
-    pub num_epochs_to_retain_for_objects: IntGauge,
+    pub historic_epochs_to_retain: IntGauge,
     pub num_epochs_to_retain_for_checkpoints: IntGauge,
     pub last_pruned_checkpoint_timestamp_ms: IntGauge,
     pub last_pruned_effects_checkpoint_timestamp_ms: IntGauge,
@@ -183,9 +175,9 @@ impl AuthorityStorePruningMetrics {
                 registry
             )
             .unwrap(),
-            num_epochs_to_retain_for_objects: register_int_gauge_with_registry!(
-                "num_epochs_to_retain_for_objects",
-                "Number of epochs to retain for objects",
+            historic_epochs_to_retain: register_int_gauge_with_registry!(
+                "historic_epochs_to_retain",
+                "Number of epochs of historic data to retain before dropping epoch buckets",
                 registry
             )
             .unwrap(),
@@ -241,20 +233,20 @@ struct HistoricRelocation<'a> {
 }
 
 impl AuthorityStorePruner {
-    /// prunes old versions of objects based on transaction effects
+    /// Relocates old versions of objects into the historic store based on
+    /// transaction effects, and advances the objects pruning watermark.
     async fn prune_objects(
         transaction_effects: Vec<TransactionEffects>,
         perpetual_db: &Arc<AuthorityPerpetualTables>,
-        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        relocation: Option<HistoricRelocation<'_>>,
+        relocation: &HistoricRelocation<'_>,
         checkpoint_number: CheckpointSequenceNumber,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("ObjectsLivePruner");
         let mut wb = perpetual_db.objects.batch();
-        let mut pruner_db_wb = pruner_db.map(|db| db.object_tombstones.batch());
 
-        // Collect objects keys that need to be deleted from `transaction_effects`.
+        // Collect objects keys that need to be relocated from
+        // `transaction_effects`.
         let mut live_object_keys_to_prune = vec![];
         let mut object_tombstones_to_prune = vec![];
         for effects in &transaction_effects {
@@ -275,81 +267,15 @@ impl AuthorityStorePruner {
             .num_pruned_tombstones
             .inc_by(object_tombstones_to_prune.len() as u64);
 
-        if let Some(relocation) = relocation {
-            debug_assert!(
-                pruner_db.is_none(),
-                "the compaction filter and the historic store are mutually exclusive"
-            );
-            Self::relocate_objects(
-                &mut wb,
-                perpetual_db,
-                &relocation,
-                live_object_keys_to_prune,
-                object_tombstones_to_prune,
-            )?;
-            perpetual_db.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
-            metrics.last_pruned_checkpoint.set(checkpoint_number as i64);
-            wb.write()?;
-            return Ok(());
-        }
-
-        let mut updates: HashMap<ObjectId, (VersionNumber, VersionNumber)> = HashMap::new();
-        for ObjectKey(object_id, seq_number) in live_object_keys_to_prune {
-            updates
-                .entry(object_id)
-                .and_modify(|range| *range = (min(range.0, seq_number), max(range.1, seq_number)))
-                .or_insert((seq_number, seq_number));
-        }
-
-        for (object_id, (min_version, max_version)) in updates {
-            debug!(
-                "Pruning object {:?} versions {:?} - {:?}",
-                object_id, min_version, max_version
-            );
-            match pruner_db_wb {
-                Some(ref mut batch) => {
-                    batch.insert_batch(
-                        &pruner_db.expect("invariant checked").object_tombstones,
-                        std::iter::once((object_id, max_version)),
-                    )?;
-                }
-                None => {
-                    let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, max_version + 1);
-                    wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
-                }
-            }
-        }
-
-        // Instead of using range deletes, we
-        // need to do a scan of all the keys for the deleted objects and then do
-        // point deletes to delete all the existing keys. This is because using
-        // range delete to delete tombstones may leak objects (imagine a tombstone
-        // is compacted away, but earlier version is still not). Using point
-        // deletes guarantees that all earlier versions are deleted in the
-        // database.
-        if !object_tombstones_to_prune.is_empty() {
-            let mut object_keys_to_delete = vec![];
-            for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
-                for result in perpetual_db.objects.safe_iter_with_bounds(
-                    Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                    Some(ObjectKey(object_id, seq_number.next().unwrap())),
-                ) {
-                    let (object_key, _) = result?;
-                    assert_eq!(object_key.0, object_id);
-                    object_keys_to_delete.push(object_key);
-                }
-            }
-
-            wb.delete_batch(&perpetual_db.objects, object_keys_to_delete)?;
-        }
-
+        Self::relocate_objects(
+            &mut wb,
+            perpetual_db,
+            relocation,
+            live_object_keys_to_prune,
+            object_tombstones_to_prune,
+        )?;
         perpetual_db.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
         metrics.last_pruned_checkpoint.set(checkpoint_number as i64);
-
-        if let Some(batch) = pruner_db_wb {
-            batch.write()?;
-        }
         wb.write()?;
         Ok(())
     }
@@ -498,20 +424,19 @@ impl AuthorityStorePruner {
     /// prune. This function removes outdated data, updates pruning metrics,
     /// and maintains database consistency by updating watermarks.
     ///
-    /// With `relocation` set, the checkpoint-keyed history (transactions,
-    /// effects, events, checkpoint contents and summaries) is durably copied
-    /// into the historic bucket of the checkpoints' epoch before the deletes
-    /// are committed; on a crash in between, replay finds the not-yet-deleted
-    /// rows and rewrites identical historic rows. Two families are still
-    /// deleted outright: the legacy `events` table (a duplicate of `events_2`
-    /// that is being migrated away) and `executed_transactions_to_checkpoint`
-    /// (only consumed by the JSON-RPC read path, which does not serve
-    /// historic data).
+    /// The checkpoint-keyed history (transactions, effects, events,
+    /// checkpoint contents and summaries) is durably copied into the historic
+    /// bucket of the checkpoints' epoch before the deletes are committed; on
+    /// a crash in between, replay finds the not-yet-deleted rows and rewrites
+    /// identical historic rows. Two families are deleted outright: the legacy
+    /// `events` table (a duplicate of `events_2` that is being migrated away)
+    /// and `executed_transactions_to_checkpoint` (only consumed by the
+    /// JSON-RPC read path, which does not serve historic data).
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
-        relocation: Option<HistoricRelocation<'_>>,
+        relocation: &HistoricRelocation<'_>,
         checkpoint_number: CheckpointSequenceNumber,
         checkpoints_to_prune: Vec<CheckpointDigest>,
         checkpoint_content_to_prune: Vec<CheckpointContents>,
@@ -526,18 +451,16 @@ impl AuthorityStorePruner {
             .flat_map(|content| content.iter().map(|tx| tx.transaction))
             .collect();
 
-        if let Some(relocation) = &relocation {
-            Self::relocate_checkpoint_data(
-                &mut perpetual_batch,
-                perpetual_db,
-                checkpoint_db,
-                relocation,
-                &transactions,
-                &checkpoints_to_prune,
-                &checkpoint_content_to_prune,
-                effects_to_prune,
-            )?;
-        }
+        Self::relocate_checkpoint_data(
+            &mut perpetual_batch,
+            perpetual_db,
+            checkpoint_db,
+            relocation,
+            &transactions,
+            &checkpoints_to_prune,
+            &checkpoint_content_to_prune,
+            effects_to_prune,
+        )?;
 
         perpetual_batch.delete_batch(&perpetual_db.transactions, transactions.iter())?;
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
@@ -599,31 +522,29 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
-    /// Prunes old data based on effects from all checkpoints from epochs
-    /// eligible for pruning
+    /// Relocates superseded object versions for every checkpoint below the
+    /// executed watermark.
+    ///
+    /// Commit-time relocation already moves pre-images as checkpoints
+    /// commit, so for data written by this version the walk finds nothing to
+    /// do and only advances the watermark. Its real work is the backlog:
+    /// databases predating commit-time relocation (this is the migration
+    /// path) and any commit-time capture miss (this is the backstop).
+    /// Relocation is not deletion — walked data stays readable through the
+    /// historic store — so no retention window applies.
     pub async fn prune_objects_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
-        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        historic_store: Option<&Arc<HistoricStore>>,
-        config: AuthorityStorePruningConfig,
+        historic_store: &Arc<HistoricStore>,
+        config: &AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
-        epoch_duration_ms: u64,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
         let (max_eligible_checkpoint_number, cutoff_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
-            .map(|c| {
-                let window_ms = config
-                    .num_epochs_to_retain
-                    .saturating_mul(epoch_duration_ms);
-                (
-                    c.sequence_number(),
-                    c.timestamp_ms.saturating_sub(window_ms),
-                )
-            })
+            .map(|c| (c.sequence_number(), c.timestamp_ms))
             .unwrap_or_default();
         let pruned_checkpoint_number = perpetual_db
             .get_highest_pruned_checkpoint()?
@@ -640,11 +561,10 @@ impl AuthorityStorePruner {
             perpetual_db,
             checkpoint_store,
             grpc_indexes_store,
-            pruner_db,
             historic_store,
             seals_buckets,
             PruningMode::Objects,
-            config.num_epochs_to_retain,
+            0,
             pruned_checkpoint_number,
             max_eligible_checkpoint_number,
             cutoff_timestamp_ms,
@@ -666,9 +586,8 @@ impl AuthorityStorePruner {
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
-        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        historic_store: Option<&Arc<HistoricStore>>,
-        config: AuthorityStorePruningConfig,
+        historic_store: &Arc<HistoricStore>,
+        config: &AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         epoch_duration_ms: u64,
@@ -686,15 +605,15 @@ impl AuthorityStorePruner {
             .get_archive_watermark()
             .await?
             .unwrap_or(u64::MAX);
-        let mut max_eligible_checkpoint = min(latest_archived_checkpoint, last_executed_checkpoint);
-        if config.num_epochs_to_retain != u64::MAX {
-            max_eligible_checkpoint = min(
-                max_eligible_checkpoint,
-                perpetual_db
-                    .get_highest_pruned_checkpoint()?
-                    .unwrap_or_default(),
-            );
-        }
+        // Capped at the objects watermark: the objects walker reads effects
+        // and checkpoint contents of the checkpoints it replays, so they must
+        // not be relocated out of the live tables before it has passed them.
+        let max_eligible_checkpoint = min(
+            min(latest_archived_checkpoint, last_executed_checkpoint),
+            perpetual_db
+                .get_highest_pruned_checkpoint()?
+                .unwrap_or_default(),
+        );
         let num_epochs_to_retain = config
             .num_epochs_to_retain_for_checkpoints()
             .ok_or_else(|| anyhow!("config value not set"))?;
@@ -705,7 +624,6 @@ impl AuthorityStorePruner {
             perpetual_db,
             checkpoint_store,
             grpc_indexes_store,
-            pruner_db,
             historic_store,
             // The checkpoint pruner always seals: its eligibility is capped
             // at the objects watermark, so it is the lagging pruning mode.
@@ -727,8 +645,7 @@ impl AuthorityStorePruner {
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
-        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        historic_store: Option<&Arc<HistoricStore>>,
+        historic_store: &Arc<HistoricStore>,
         seals_buckets: bool,
         mode: PruningMode,
         num_epochs_to_retain: u64,
@@ -777,72 +694,64 @@ impl AuthorityStorePruner {
                 break;
             }
 
-            // With relocation enabled a batch must not span epochs: relocated
-            // rows are bucketed by the epoch of their checkpoint. Flush the
-            // pending batch before crossing the boundary and seal the
-            // finished epoch's bucket.
-            if let Some(store) = historic_store {
-                match batch_epoch {
-                    Some(epoch) if epoch != checkpoint.epoch() => {
-                        if !checkpoints_to_prune.is_empty() {
-                            Self::prune_batch(
-                                perpetual_db,
-                                checkpoint_store,
-                                grpc_indexes_store,
-                                pruner_db,
-                                Some(HistoricRelocation {
-                                    store,
-                                    supersession_epoch: epoch,
-                                }),
-                                mode,
-                                checkpoint_number,
-                                std::mem::take(&mut checkpoints_to_prune),
-                                std::mem::take(&mut checkpoint_content_to_prune),
-                                std::mem::take(&mut effects_to_prune),
-                                metrics.clone(),
-                            )
-                            .await?;
+            // A batch must not span epochs: relocated rows are bucketed by
+            // the epoch of their checkpoint. Flush the pending batch before
+            // crossing the boundary and seal the finished epoch's bucket.
+            match batch_epoch {
+                Some(epoch) if epoch != checkpoint.epoch() => {
+                    if !checkpoints_to_prune.is_empty() {
+                        Self::prune_batch(
+                            perpetual_db,
+                            checkpoint_store,
+                            grpc_indexes_store,
+                            &HistoricRelocation {
+                                store: historic_store,
+                                supersession_epoch: epoch,
+                            },
+                            mode,
+                            checkpoint_number,
+                            std::mem::take(&mut checkpoints_to_prune),
+                            std::mem::take(&mut checkpoint_content_to_prune),
+                            std::mem::take(&mut effects_to_prune),
+                            metrics.clone(),
+                        )
+                        .await?;
+                        match mode {
+                            PruningMode::Objects => &metrics.last_pruned_checkpoint_timestamp_ms,
+                            PruningMode::Checkpoints => {
+                                &metrics.last_pruned_effects_checkpoint_timestamp_ms
+                            }
+                        }
+                        .set(last_pruned_timestamp_ms as i64);
+                        if let Some(tracker) = progress_tracker {
+                            let elapsed = pruning_start.elapsed();
                             match mode {
-                                PruningMode::Objects => {
-                                    &metrics.last_pruned_checkpoint_timestamp_ms
-                                }
+                                PruningMode::Objects => tracker.add_object_pruning_time(elapsed),
                                 PruningMode::Checkpoints => {
-                                    &metrics.last_pruned_effects_checkpoint_timestamp_ms
+                                    tracker.add_checkpoint_pruning_time(elapsed)
                                 }
                             }
-                            .set(last_pruned_timestamp_ms as i64);
-                            if let Some(tracker) = progress_tracker {
-                                let elapsed = pruning_start.elapsed();
-                                match mode {
-                                    PruningMode::Objects => {
-                                        tracker.add_object_pruning_time(elapsed)
-                                    }
-                                    PruningMode::Checkpoints => {
-                                        tracker.add_checkpoint_pruning_time(elapsed)
-                                    }
-                                }
-                                pruning_start = Instant::now();
-                            }
-                        }
-                        if seals_buckets {
-                            store.seal_epoch(epoch)?;
+                            pruning_start = Instant::now();
                         }
                     }
-                    None if seals_buckets => {
-                        // A previous run may have finished exactly at an
-                        // epoch boundary without sealing; catch up on any
-                        // unsealed earlier buckets.
-                        for epoch in store.list_epochs() {
-                            if epoch >= checkpoint.epoch() {
-                                break;
-                            }
-                            if !store.is_sealed(epoch)? {
-                                store.seal_epoch(epoch)?;
-                            }
-                        }
+                    if seals_buckets {
+                        historic_store.seal_epoch(epoch)?;
                     }
-                    _ => {}
                 }
+                None if seals_buckets => {
+                    // A previous run may have finished exactly at an
+                    // epoch boundary without sealing; catch up on any
+                    // unsealed earlier buckets.
+                    for epoch in historic_store.list_epochs() {
+                        if epoch >= checkpoint.epoch() {
+                            break;
+                        }
+                        if !historic_store.is_sealed(epoch)? {
+                            historic_store.seal_epoch(epoch)?;
+                        }
+                    }
+                }
+                _ => {}
             }
             batch_epoch = Some(checkpoint.epoch());
             checkpoint_number = checkpoint.sequence_number();
@@ -872,12 +781,11 @@ impl AuthorityStorePruner {
                     perpetual_db,
                     checkpoint_store,
                     grpc_indexes_store,
-                    pruner_db,
-                    historic_store.map(|store| HistoricRelocation {
-                        store,
+                    &HistoricRelocation {
+                        store: historic_store,
                         supersession_epoch: batch_epoch
                             .expect("batch epoch is set before batching"),
-                    }),
+                    },
                     mode,
                     checkpoint_number,
                     std::mem::take(&mut checkpoints_to_prune),
@@ -919,11 +827,10 @@ impl AuthorityStorePruner {
                 perpetual_db,
                 checkpoint_store,
                 grpc_indexes_store,
-                pruner_db,
-                historic_store.map(|store| HistoricRelocation {
-                    store,
+                &HistoricRelocation {
+                    store: historic_store,
                     supersession_epoch: batch_epoch.expect("batch epoch is set before batching"),
-                }),
+                },
                 mode,
                 checkpoint_number,
                 checkpoints_to_prune,
@@ -959,8 +866,7 @@ impl AuthorityStorePruner {
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
-        pruner_db: Option<&Arc<AuthorityPrunerTables>>,
-        relocation: Option<HistoricRelocation<'_>>,
+        relocation: &HistoricRelocation<'_>,
         mode: PruningMode,
         checkpoint_number: CheckpointSequenceNumber,
         checkpoints_to_prune: Vec<CheckpointDigest>,
@@ -973,7 +879,6 @@ impl AuthorityStorePruner {
                 Self::prune_objects(
                     effects_to_prune,
                     perpetual_db,
-                    pruner_db,
                     relocation,
                     checkpoint_number,
                     metrics,
@@ -1116,8 +1021,7 @@ impl AuthorityStorePruner {
         checkpoint_store: Arc<CheckpointStore>,
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         jsonrpc_index: Option<Arc<IndexStore>>,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
@@ -1125,15 +1029,11 @@ impl AuthorityStorePruner {
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
-            "Starting store pruner with num_epochs_to_retain={}",
-            config.num_epochs_to_retain
+            "Starting store pruner with historic_epochs_to_retain={}",
+            config.historic_epochs_to_retain
         );
 
-        let historic_epochs_to_retain = config
-            .historic_store
-            .as_ref()
-            .map(|c| c.num_epochs_to_retain)
-            .unwrap_or(u64::MAX);
+        let historic_epochs_to_retain = config.historic_epochs_to_retain;
 
         // Periodic background compaction of aged SST files, independent of the
         // execution-driven pruning loop below.
@@ -1163,23 +1063,19 @@ impl AuthorityStorePruner {
         }
 
         metrics
-            .num_epochs_to_retain_for_objects
-            .set(config.num_epochs_to_retain as i64);
+            .historic_epochs_to_retain
+            .set(historic_epochs_to_retain as i64);
         metrics.num_epochs_to_retain_for_checkpoints.set(
             config
                 .num_epochs_to_retain_for_checkpoints
                 .unwrap_or_default() as i64,
         );
 
-        let prune_objects = config.num_epochs_to_retain != u64::MAX;
         let prune_checkpoints = !matches!(
             config.num_epochs_to_retain_for_checkpoints(),
             None | Some(u64::MAX) | Some(0)
         );
         let prune_indexes = config.num_epochs_to_retain_for_indexes.is_some();
-        // Lag tracking only makes sense when something is actually being
-        // pruned.
-        let track_lag = prune_objects || prune_checkpoints;
 
         // Execution-driven pruning: on every nudge from the checkpoint executor,
         // drain each enabled pruner fully to its chain-time cutoff. Draining
@@ -1207,20 +1103,18 @@ impl AuthorityStorePruner {
                     .map(|checkpoint| checkpoint.timestamp_ms)
                     .unwrap_or(u64::MAX);
 
-                if track_lag {
-                    let lag_ms = caught_up_to.saturating_sub(last_drain_target_ms);
-                    metrics.pruning_chain_time_lag_ms.set(lag_ms as i64);
-                    if lag_ms > PRUNING_BACKLOG_WARN_THRESHOLD_MS
-                        && last_backlog_warn
-                            .is_none_or(|at| at.elapsed() >= PRUNING_BACKLOG_WARN_INTERVAL)
-                    {
-                        warn!(
-                            lag_ms,
-                            "pruning has fallen behind execution; the database grows until \
-                             pruning catches up"
-                        );
-                        last_backlog_warn = Some(Instant::now());
-                    }
+                let lag_ms = caught_up_to.saturating_sub(last_drain_target_ms);
+                metrics.pruning_chain_time_lag_ms.set(lag_ms as i64);
+                if lag_ms > PRUNING_BACKLOG_WARN_THRESHOLD_MS
+                    && last_backlog_warn
+                        .is_none_or(|at| at.elapsed() >= PRUNING_BACKLOG_WARN_INTERVAL)
+                {
+                    warn!(
+                        lag_ms,
+                        "pruning has fallen behind execution; the database grows until \
+                         pruning catches up"
+                    );
+                    last_backlog_warn = Some(Instant::now());
                 }
 
                 // Only batch (debounce) while catching up: if execution lags the
@@ -1239,49 +1133,41 @@ impl AuthorityStorePruner {
                 let catching_up =
                     synced_seq.saturating_sub(executed_seq) > PRUNING_DEBOUNCE_MIN_LAG;
 
-                if prune_objects {
-                    if let Err(err) = Self::prune_objects_for_eligible_epochs(
-                        &perpetual_db,
-                        &checkpoint_store,
-                        grpc_indexes_store.as_deref(),
-                        pruner_db.as_ref(),
-                        historic_store.as_ref(),
-                        config.clone(),
-                        metrics.clone(),
-                        epoch_duration_ms,
-                        progress_tracker.as_ref(),
-                    )
-                    .await
-                    {
-                        error!("Failed to prune objects: {:?}", err);
-                    }
+                if let Err(err) = Self::prune_objects_for_eligible_epochs(
+                    &perpetual_db,
+                    &checkpoint_store,
+                    grpc_indexes_store.as_deref(),
+                    &historic_store,
+                    &config,
+                    metrics.clone(),
+                    progress_tracker.as_ref(),
+                )
+                .await
+                {
+                    error!("Failed to prune objects: {:?}", err);
                 }
                 // Expire historic epoch buckets in the same drain: a cheap
                 // no-op while nothing has aged out of retention, and
-                // execution-driven like the pruning steps above. Not part of
-                // the leash — dropping old buckets never blocks execution.
-                if let Some(store) = &historic_store {
-                    let current_epoch = highest_executed
-                        .as_ref()
-                        .map(|checkpoint| checkpoint.epoch())
-                        .unwrap_or_default();
-                    if let Err(err) = Self::drop_expired_historic_epochs(
-                        &perpetual_db,
-                        store,
-                        current_epoch,
-                        historic_epochs_to_retain,
-                    ) {
-                        error!("Failed to drop expired historic epochs: {:?}", err);
-                    }
+                // execution-driven like the pruning steps above.
+                let current_epoch = highest_executed
+                    .as_ref()
+                    .map(|checkpoint| checkpoint.epoch())
+                    .unwrap_or_default();
+                if let Err(err) = Self::drop_expired_historic_epochs(
+                    &perpetual_db,
+                    &historic_store,
+                    current_epoch,
+                    historic_epochs_to_retain,
+                ) {
+                    error!("Failed to drop expired historic epochs: {:?}", err);
                 }
                 if prune_checkpoints {
                     if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(
                         &perpetual_db,
                         &checkpoint_store,
                         grpc_indexes_store.as_deref(),
-                        pruner_db.as_ref(),
-                        historic_store.as_ref(),
-                        config.clone(),
+                        &historic_store,
+                        &config,
                         metrics.clone(),
                         archive_readers.clone(),
                         epoch_duration_ms,
@@ -1303,10 +1189,8 @@ impl AuthorityStorePruner {
                     }
                 }
 
-                if track_lag {
-                    last_drain_target_ms = caught_up_to;
-                    metrics.pruning_chain_time_lag_ms.set(0);
-                }
+                last_drain_target_ms = caught_up_to;
+                metrics.pruning_chain_time_lag_ms.set(0);
 
                 tokio::select! {
                     _ = &mut recv => break,
@@ -1334,48 +1218,15 @@ impl AuthorityStorePruner {
         checkpoint_store: Arc<CheckpointStore>,
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         jsonrpc_index: Option<Arc<IndexStore>>,
-        mut pruning_config: AuthorityStorePruningConfig,
-        is_validator: bool,
+        pruning_config: AuthorityStorePruningConfig,
         epoch_duration_ms: u64,
         registry: &Registry,
         archive_readers: ArchiveReaderBalancer,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        mut historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
-        if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
-        {
-            warn!(
-                "Using objects pruner with num_epochs_to_retain = {} can lead to performance issues",
-                pruning_config.num_epochs_to_retain
-            );
-            if is_validator {
-                warn!("Resetting to aggressive pruner.");
-                pruning_config.num_epochs_to_retain = 0;
-            } else {
-                warn!("Consider using an aggressive pruner (num_epochs_to_retain = 0)");
-            }
-        }
-
-        assert!(
-            historic_store.is_none() || pruner_db.is_none(),
-            "the compaction filter pruner and the historic object store are mutually exclusive"
-        );
-        if is_validator && historic_store.is_some() {
-            warn!("The historic object store is fullnode-only; disabling it on this validator.");
-            historic_store = None;
-        }
-        if historic_store.is_some() && pruning_config.num_epochs_to_retain == u64::MAX {
-            warn!(
-                "The historic object store is enabled but the objects pruner is disabled \
-                 (num_epochs_to_retain = u64::MAX); no object versions will ever be relocated."
-            );
-        }
-        if historic_store.is_some() {
-            if let Err(err) = Self::fast_forward_objects_watermark(&perpetual_db, &checkpoint_store)
-            {
-                error!("Failed to fast-forward the objects pruning watermark: {err:?}");
-            }
+        if let Err(err) = Self::fast_forward_objects_watermark(&perpetual_db, &checkpoint_store) {
+            error!("Failed to fast-forward the objects pruning watermark: {err:?}");
         }
 
         // Coordination channel between the checkpoint executor and the pruner
@@ -1390,7 +1241,6 @@ impl AuthorityStorePruner {
                 checkpoint_store,
                 grpc_indexes_store,
                 jsonrpc_index,
-                pruner_db,
                 historic_store,
                 AuthorityStorePruningMetrics::new(registry),
                 archive_readers,
@@ -1443,76 +1293,6 @@ impl AuthorityStorePruner {
             &ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL),
             &ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL),
         )
-    }
-}
-
-#[derive(Clone)]
-pub struct ObjectsCompactionFilter {
-    db: Weak<AuthorityPrunerTables>,
-    metrics: Arc<ObjectCompactionMetrics>,
-}
-
-impl ObjectsCompactionFilter {
-    pub fn new(db: Arc<AuthorityPrunerTables>, registry: &Registry) -> Self {
-        Self {
-            db: Arc::downgrade(&db),
-            metrics: ObjectCompactionMetrics::new(registry),
-        }
-    }
-    pub fn filter(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<Decision> {
-        let ObjectKey(object_id, version) = bincode::DefaultOptions::new()
-            .with_big_endian()
-            .with_fixint_encoding()
-            .deserialize(key)?;
-        let object: StoreObjectWrapper = bcs::from_bytes(value)?;
-        // Compaction sees raw on-disk rows, which may be legacy V1; migrate
-        // before `into_inner()`, which panics on an un-migrated V1.
-        if matches!(object.migrate().into_inner(), StoreObject::Value(_)) {
-            if let Some(db) = self.db.upgrade() {
-                match db.object_tombstones.get(&object_id)? {
-                    Some(gc_version) => {
-                        if version <= gc_version {
-                            self.metrics.key_removed.inc();
-                            return Ok(Decision::Remove);
-                        }
-                        self.metrics.key_kept.inc();
-                    }
-                    None => self.metrics.key_not_found.inc(),
-                }
-            }
-        }
-        Ok(Decision::Keep)
-    }
-}
-
-struct ObjectCompactionMetrics {
-    key_removed: IntCounter,
-    key_kept: IntCounter,
-    key_not_found: IntCounter,
-}
-
-impl ObjectCompactionMetrics {
-    pub fn new(registry: &Registry) -> Arc<Self> {
-        Arc::new(Self {
-            key_removed: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_removed",
-                "Compaction key removed",
-                registry
-            )
-            .unwrap(),
-            key_kept: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_kept",
-                "Compaction key kept",
-                registry
-            )
-            .unwrap(),
-            key_not_found: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_not_found",
-                "Compaction key not found",
-                registry
-            )
-            .unwrap(),
-        })
     }
 }
 
@@ -1675,9 +1455,19 @@ mod tests {
                     ObjectDigest::MIN,
                 ));
             }
-            AuthorityStorePruner::prune_objects(vec![effects], &db, None, None, 0, metrics)
-                .await
-                .unwrap();
+            let historic = open_historic(&db);
+            AuthorityStorePruner::prune_objects(
+                vec![effects],
+                &db,
+                &HistoricRelocation {
+                    store: &historic,
+                    supersession_epoch: 0,
+                },
+                0,
+                metrics,
+            )
+            .await
+            .unwrap();
             to_keep
         };
         tokio::time::sleep(Duration::from_secs(3)).await;
@@ -1746,11 +1536,10 @@ mod tests {
         AuthorityStorePruner::prune_objects(
             vec![effects],
             db,
-            None,
-            Some(HistoricRelocation {
+            &HistoricRelocation {
                 store: historic,
                 supersession_epoch,
-            }),
+            },
             checkpoint_number,
             AuthorityStorePruningMetrics::new_for_test(),
         )
@@ -1783,7 +1572,7 @@ mod tests {
             perpetual_db.clone(),
             false,
             &Registry::default(),
-            Some(historic.clone()),
+            historic.clone(),
         )
         .unwrap();
 
@@ -2133,10 +1922,10 @@ mod tests {
                 &perpetual_db,
                 &checkpoint_db,
                 None,
-                Some(HistoricRelocation {
+                &HistoricRelocation {
                     store: &historic,
                     supersession_epoch: committee.epoch,
-                }),
+                },
                 9,
                 vec![ckpt_digest],
                 vec![contents.clone()],
@@ -2270,20 +2059,6 @@ mod tests {
         );
     }
 
-    // Tests pruning deleted objects (object tombstones).
-    #[tokio::test]
-    async fn test_pruning_tombstones() {
-        let tmp_dir = iota_common::tempdir();
-        let to_keep = run_pruner(tmp_dir.path(), 0, 0, 1000).await;
-        assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(tmp_dir.path()).unwrap().len(), 0);
-
-        let tmp_dir2 = iota_common::tempdir();
-        let to_keep = run_pruner(tmp_dir2.path(), 3, 0, 1000).await;
-        assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(tmp_dir2.path()).unwrap().len(), 0);
-    }
-
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
@@ -2306,27 +2081,25 @@ mod tests {
             id = id.next_lexicographical();
         }
 
-        fn get_sst_size(path: &Path) -> u64 {
-            let mut size = 0;
-            for entry in std::fs::read_dir(path).unwrap() {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if let Some(ext) = path.extension() {
-                    if ext != "sst" {
-                        continue;
-                    }
-                    size += std::fs::metadata(path).unwrap().len();
-                }
-            }
-            size
+        // Relocation moves rows into historic column families of the same
+        // database, so only the live `objects` column family is expected to
+        // shrink.
+        fn objects_cf_size(db: &Arc<AuthorityPerpetualTables>) -> u64 {
+            db.objects
+                .db
+                .live_files()
+                .unwrap()
+                .iter()
+                .filter(|file| file.column_family_name == "objects")
+                .map(|file| file.size as u64)
+                .sum()
         }
 
-        let db_path = tmp_dir.path().join("perpetual");
         let start = ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL);
         let end = ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL);
 
         perpetual_db.objects.compact_range(&start, &end)?;
-        let before_compaction_size = get_sst_size(&db_path);
+        let before_compaction_size = objects_cf_size(&perpetual_db);
 
         let mut effects =
             TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
@@ -2339,11 +2112,14 @@ mod tests {
         }
         let registry = Registry::default();
         let metrics = AuthorityStorePruningMetrics::new(&registry);
+        let historic = open_historic(&perpetual_db);
         let total_pruned = AuthorityStorePruner::prune_objects(
             vec![effects],
             &perpetual_db,
-            None,
-            None,
+            &HistoricRelocation {
+                store: &historic,
+                supersession_epoch: 0,
+            },
             0,
             metrics,
         )
@@ -2351,7 +2127,7 @@ mod tests {
         info!("Total pruned keys = {:?}", total_pruned);
 
         perpetual_db.objects.compact_range(&start, &end)?;
-        let after_compaction_size = get_sst_size(&db_path);
+        let after_compaction_size = objects_cf_size(&perpetual_db);
 
         info!(
             "Before compaction disk size = {:?}, after compaction disk size = {:?}",
@@ -2359,65 +2135,6 @@ mod tests {
         );
         ma::assert_le!(after_compaction_size, before_compaction_size);
         Ok(())
-    }
-
-    /// A legacy V1 row reaching the objects compaction filter (a pre-V2 object
-    /// left on disk after an in-place upgrade or a V1 formal-snapshot restore)
-    /// must be migrated before `into_inner()`, which panics on an un-migrated
-    /// V1 wrapper.
-    #[tokio::test]
-    async fn compaction_filter_handles_legacy_v1_row() {
-        use bincode::Options;
-        use iota_sdk_types::Owner;
-        use typed_store::rocksdb::compaction_filter::Decision;
-
-        use super::ObjectsCompactionFilter;
-        use crate::authority::{
-            authority_store_tables::AuthorityPrunerTables,
-            authority_store_types::{StoreData, StoreObjectV1, StoreObjectValue},
-        };
-
-        // A V1 `Value` row is what a pre-V2 binary wrote for a live object;
-        // only `Value` rows reach the tombstone lookup.
-        let object_key = ObjectKey(ObjectId::random(), SequenceNumber::from_u64(1));
-        let v1_value = StoreObjectValue {
-            data: StoreData::Coin(42),
-            owner: Owner::Immutable,
-            previous_transaction: TransactionDigest::random(),
-            storage_rebate: 7,
-        };
-        let key_bytes = bincode::DefaultOptions::new()
-            .with_big_endian()
-            .with_fixint_encoding()
-            .serialize(&object_key)
-            .unwrap();
-        let value_bytes = bcs::to_bytes(&StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(
-            v1_value,
-        ))))
-        .unwrap();
-
-        // The filter holds only a `Weak`, so keep a strong ref alive for the
-        // tombstone lookup to run.
-        let tmp_dir = iota_common::tempdir();
-        let pruner_db = Arc::new(AuthorityPrunerTables::open(tmp_dir.path()));
-        let mut filter = ObjectsCompactionFilter::new(pruner_db.clone(), &Registry::default());
-
-        // No tombstone: the row must survive.
-        let decision = filter
-            .filter(&key_bytes, &value_bytes)
-            .expect("legacy V1 row must not panic");
-        assert!(matches!(decision, Decision::Keep));
-
-        // Tombstoned at this version: the row must be compacted away, which
-        // proves the migrated row reached the tombstone-lookup branch.
-        pruner_db
-            .object_tombstones
-            .insert(&object_key.0, &object_key.1)
-            .unwrap();
-        let decision = filter
-            .filter(&key_bytes, &value_bytes)
-            .expect("legacy V1 row must not panic");
-        assert!(matches!(decision, Decision::Remove));
     }
 
     /// Builds a single-epoch chain of checkpoints with the given timestamps,
@@ -2473,12 +2190,12 @@ mod tests {
             .update_highest_executed_checkpoint(checkpoints.last().unwrap())
             .unwrap();
 
+        let historic = open_historic(&perpetual_db);
         AuthorityStorePruner::prune_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
             None,
-            None,
-            None,
+            &historic,
             true,
             mode,
             num_epochs_to_retain,

@@ -28,7 +28,7 @@ fn transaction_input_objects(
     fx: &iota_types::effects::TransactionEffects,
     outputs: Option<&crate::transaction_outputs::TransactionOutputs>,
     object_store: &dyn ObjectStore,
-    historic_store: Option<&HistoricStore>,
+    historic_store: &HistoricStore,
 ) -> IotaResult<Vec<Object>> {
     let carried: HashMap<ObjectKey, &Object> = outputs
         .map(|outputs| {
@@ -54,9 +54,7 @@ fn transaction_input_objects(
                 return Ok(object);
             }
             historic_store
-                .map(|store| store.get_object(&key))
-                .transpose()?
-                .flatten()
+                .get_object(&key)?
                 .ok_or(IotaError::UserInput {
                     error: iota_types::error::UserInputError::ObjectNotFound {
                         object_id,
@@ -72,7 +70,7 @@ pub(crate) fn load_checkpoint_data(
     checkpoint_tx_data: &CheckpointTransactionData,
     object_store: &dyn ObjectStore,
     transaction_cache_reader: &dyn TransactionCacheRead,
-    historic_store: Option<&HistoricStore>,
+    historic_store: &HistoricStore,
 ) -> IotaResult<CheckpointData> {
     let event_tx_digests = checkpoint_tx_data
         .effects

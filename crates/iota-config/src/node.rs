@@ -1030,12 +1030,6 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// number of epochs to keep the latest version of objects for.
-    /// Note that a zero value corresponds to an aggressive pruner.
-    /// This mode is experimental and needs to be used with caution.
-    /// Use `u64::MAX` to disable the pruner for the objects.
-    #[serde(default)]
-    pub num_epochs_to_retain: u64,
     /// enables periodic background compaction for old SST files whose last
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
@@ -1049,45 +1043,21 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// Enables the compaction filter for pruning the objects table.
-    /// If disabled, a range deletion approach is used instead.
-    /// While it is generally safe to switch between the two modes,
-    /// switching from the compaction filter approach back to range deletion
-    /// may result in some old versions that will never be pruned.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub enable_compaction_filter: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
-    /// Enables the live/historic object split: instead of deleting superseded
-    /// object versions after `num_epochs_to_retain` epochs, the pruner
-    /// relocates them into per-epoch historic stores where they remain
-    /// readable through exact-version RPC lookups and are dropped wholesale
-    /// once out of retention. Fullnode-only; incompatible with
-    /// `enable_compaction_filter`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub historic_store: Option<HistoricStoreConfig>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct HistoricStoreConfig {
-    /// Number of epochs of superseded object versions to retain, bucketed by
-    /// the epoch in which they were superseded. Whole epoch buckets are
-    /// dropped once they fall out of this window.
+    /// Number of epochs of historic data to retain: superseded object
+    /// versions and pruned checkpoint-keyed history (transactions, effects,
+    /// events, checkpoint contents and summaries) are relocated into
+    /// per-epoch buckets, bucketed by the epoch in which they were
+    /// superseded, and whole buckets are dropped once they fall out of this
+    /// window. Historic data remains readable through exact-version gRPC
+    /// lookups and checkpoint reads until then.
     #[serde(default = "default_historic_epochs_to_retain")]
-    pub num_epochs_to_retain: u64,
+    pub historic_epochs_to_retain: u64,
 }
 
 fn default_historic_epochs_to_retain() -> u64 {
-    100
-}
-
-impl Default for HistoricStoreConfig {
-    fn default() -> Self {
-        Self {
-            num_epochs_to_retain: default_historic_epochs_to_retain(),
-        }
-    }
+    2
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -1102,21 +1072,15 @@ impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
-            num_epochs_to_retain: 0,
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
-            historic_store: None,
+            historic_epochs_to_retain: default_historic_epochs_to_retain(),
         }
     }
 }
 
 impl AuthorityStorePruningConfig {
-    pub fn set_num_epochs_to_retain(&mut self, num_epochs_to_retain: u64) {
-        self.num_epochs_to_retain = num_epochs_to_retain;
-    }
-
     pub fn set_num_epochs_to_retain_for_checkpoints(&mut self, num_epochs_to_retain: Option<u64>) {
         self.num_epochs_to_retain_for_checkpoints = num_epochs_to_retain;
     }

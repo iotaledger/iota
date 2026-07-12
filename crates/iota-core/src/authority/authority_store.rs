@@ -44,13 +44,11 @@ use super::{
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
+        authority_store_pruner::{AuthorityStorePruner, AuthorityStorePruningMetrics},
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
-        historic_store::HistoricStore,
+        historic_store::{HistoricStore, HistoricStoreMetrics},
     },
     global_state_hasher::GlobalStateHashStore,
     grpc_indexes::GrpcIndexesStore,
@@ -126,10 +124,10 @@ pub struct AuthorityStore {
 
     pub(crate) perpetual_tables: Arc<AuthorityPerpetualTables>,
 
-    /// When set, checkpoint commit relocates superseded object versions into
-    /// the historic epoch buckets (column families of the same database) in
-    /// the same atomic write batch that deletes them from the live table.
-    pub(crate) historic_store: Option<Arc<HistoricStore>>,
+    /// Checkpoint commit relocates superseded object versions into the
+    /// historic epoch buckets (column families of the same database) in the
+    /// same atomic write batch that deletes them from the live table.
+    pub(crate) historic_store: Arc<HistoricStore>,
 
     pub(crate) root_state_notify_read:
         NotifyRead<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
@@ -152,7 +150,7 @@ impl AuthorityStore {
         config: &NodeConfig,
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
     ) -> IotaResult<Arc<Self>> {
         let enable_epoch_iota_conservation_check = config
             .expensive_safety_check_config
@@ -239,13 +237,20 @@ impl AuthorityStore {
         // TODO: Since we always start at genesis, the committee should be technically
         // the same as the genesis committee.
         assert_eq!(committee.epoch, 0);
+        let historic_store = Arc::new(
+            HistoricStore::new_shared(
+                perpetual_tables.database(),
+                HistoricStoreMetrics::new(&Registry::new()),
+            )
+            .expect("opening the historic store on a test database should not fail"),
+        );
         Self::open_inner(
             genesis,
             perpetual_tables,
             true,
             &Registry::new(),
             None,
-            None,
+            historic_store,
         )
         .await
     }
@@ -256,7 +261,7 @@ impl AuthorityStore {
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -385,7 +390,7 @@ impl AuthorityStore {
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
     ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
@@ -855,16 +860,14 @@ impl AuthorityStore {
         // background: creating its column families takes tens of
         // milliseconds and would otherwise land on the first commit of each
         // epoch (the synchronous call here is then a no-op).
-        if let Some(historic_store) = &self.historic_store {
-            historic_store.prepare_bucket(epoch_id)?;
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let historic_store = historic_store.clone();
-                handle.spawn_blocking(move || {
-                    if let Err(err) = historic_store.prepare_bucket(epoch_id + 1) {
-                        tracing::warn!("failed to pre-create historic bucket: {err:?}");
-                    }
-                });
-            }
+        self.historic_store.prepare_bucket(epoch_id)?;
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let historic_store = self.historic_store.clone();
+            handle.spawn_blocking(move || {
+                if let Err(err) = historic_store.prepare_bucket(epoch_id + 1) {
+                    tracing::warn!("failed to pre-create historic bucket: {err:?}");
+                }
+            });
         }
 
         let mut write_batch = self.perpetual_tables.transactions.batch();
@@ -950,26 +953,25 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
-        // With the historic store enabled, the versions this transaction
-        // superseded move into the checkpoint epoch's bucket within this same
-        // atomic batch, keeping the live table heads-only. The pre-images
-        // were carried from execution; anything not captured (or already
-        // relocated) is picked up by the pruner's backstop pass. Tombstones
-        // written above stay in the live table as lineage heads; their keys
-        // go to the bucket's expiry list instead.
-        if let Some(historic_store) = &self.historic_store {
-            let relocated: Vec<_> = tx_outputs
-                .superseded
-                .iter()
-                .map(|(key, object)| (*key, get_store_object(object.clone(), None)))
-                .collect();
-            let tombstone_heads: Vec<_> = deleted.iter().chain(wrapped.iter()).copied().collect();
-            historic_store.stage_objects(write_batch, epoch_id, &relocated, &tombstone_heads)?;
-            write_batch.delete_batch(
-                &self.perpetual_tables.objects,
-                relocated.iter().map(|(key, _)| *key),
-            )?;
-        }
+        // The versions this transaction superseded move into the checkpoint
+        // epoch's bucket within this same atomic batch, keeping the live
+        // table heads-only. The pre-images were carried from execution;
+        // anything not captured (or already relocated) is picked up by the
+        // pruner's backstop pass. Tombstones written above stay in the live
+        // table as lineage heads; their keys go to the bucket's expiry list
+        // instead.
+        let relocated: Vec<_> = tx_outputs
+            .superseded
+            .iter()
+            .map(|(key, object)| (*key, get_store_object(object.clone(), None)))
+            .collect();
+        let tombstone_heads: Vec<_> = deleted.iter().chain(wrapped.iter()).copied().collect();
+        self.historic_store
+            .stage_objects(write_batch, epoch_id, &relocated, &tombstone_heads)?;
+        write_batch.delete_batch(
+            &self.perpetual_tables.objects,
+            relocated.iter().map(|(key, _)| *key),
+        )?;
 
         // Write events into the new table keyed off of transaction_digest
         if effects.events_digest().is_some() {
@@ -1715,19 +1717,14 @@ impl AuthorityStore {
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
     ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
+        let pruning_config = AuthorityStorePruningConfig::default();
         let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &self.perpetual_tables,
             checkpoint_store,
             grpc_indexes_store,
-            None,
-            None,
-            pruning_config,
+            &self.historic_store,
+            &pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
-            EPOCH_DURATION_MS_FOR_TESTING,
             None,
         )
         .await;

@@ -46,7 +46,6 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
-        capture_superseded: bool,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -141,19 +140,15 @@ impl TransactionOutputs {
         // deleted, wrapped and received inputs — all present in
         // `input_objects` at their input version. Anything absent (or at an
         // unexpected version) is skipped; the pruner relocates it later.
-        let superseded = if capture_superseded {
-            modified_at
-                .iter()
-                .filter_map(|(id, version)| {
-                    input_objects
-                        .get(id)
-                        .filter(|object| object.version() == *version)
-                        .map(|object| (ObjectKey(*id, *version), object.clone()))
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let superseded = modified_at
+            .iter()
+            .filter_map(|(id, version)| {
+                input_objects
+                    .get(id)
+                    .filter(|object| object.version() == *version)
+                    .map(|object| (ObjectKey(*id, *version), object.clone()))
+            })
+            .collect();
 
         TransactionOutputs {
             transaction: Arc::new(transaction),

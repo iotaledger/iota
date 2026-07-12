@@ -45,7 +45,7 @@ pub struct RocksDbStore {
     /// checkpoint contents and summaries). Consulted only after a live-table
     /// miss, so recent reads never touch it; extends the availability
     /// horizon served to gRPC and state-sync peers.
-    historic_store: Option<Arc<HistoricStore>>,
+    historic_store: Arc<HistoricStore>,
     // in memory checkpoint watermark sequence numbers
     highest_verified_checkpoint: Arc<Mutex<Option<u64>>>,
     highest_synced_checkpoint: Arc<Mutex<Option<u64>>>,
@@ -56,7 +56,7 @@ impl RocksDbStore {
         cache_traits: ExecutionCacheTraitPointers,
         committee_store: Arc<CommitteeStore>,
         checkpoint_store: Arc<CheckpointStore>,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
     ) -> Self {
         Self {
             cache_traits,
@@ -81,10 +81,7 @@ impl RocksDbStore {
         {
             return Ok(Some(effects));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        historic_store
+        self.historic_store
             .get_effects(digest)
             .map_err(StorageError::custom)
     }
@@ -112,10 +109,8 @@ impl ReadStore for RocksDbStore {
         {
             return Ok(Some(checkpoint));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        Ok(historic_store
+        Ok(self
+            .historic_store
             .get_checkpoint_by_digest(digest)
             .map_err(StorageError::custom)?
             .map(Into::into))
@@ -167,11 +162,8 @@ impl ReadStore for RocksDbStore {
         // checkpoints in order and buckets expire oldest-first.
         let Some(historic_lowest) = self
             .historic_store
-            .as_ref()
-            .map(|store| store.lowest_available_checkpoint())
-            .transpose()
+            .lowest_available_checkpoint()
             .map_err(StorageError::custom)?
-            .flatten()
         else {
             return Ok(after_pruned);
         };
@@ -262,10 +254,8 @@ impl ReadStore for RocksDbStore {
         {
             return Ok(Some(transaction));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        Ok(historic_store
+        Ok(self
+            .historic_store
             .get_transaction(digest)
             .map_err(StorageError::custom)?
             .map(|transaction| Arc::new(transaction.into())))
@@ -283,16 +273,14 @@ impl ReadStore for RocksDbStore {
         {
             return Ok(Some(effects));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        let Some(effects_digest) = historic_store
+        let Some(effects_digest) = self
+            .historic_store
             .get_executed_effects(digest)
             .map_err(StorageError::custom)?
         else {
             return Ok(None);
         };
-        historic_store
+        self.historic_store
             .get_effects(&effects_digest)
             .map_err(StorageError::custom)
     }
@@ -309,10 +297,7 @@ impl ReadStore for RocksDbStore {
         {
             return Ok(Some(events));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        historic_store
+        self.historic_store
             .get_events(digest)
             .map_err(StorageError::custom)
     }
@@ -339,10 +324,7 @@ impl ReadStore for RocksDbStore {
         {
             return Ok(Some(contents));
         }
-        let Some(historic_store) = &self.historic_store else {
-            return Ok(None);
-        };
-        historic_store
+        self.historic_store
             .get_checkpoint_contents(digest)
             .map_err(StorageError::custom)
     }
@@ -497,10 +479,8 @@ impl ObjectStore for GrpcReadStore {
         // constructed only for the gRPC server, so this fallback is
         // unreachable from consensus and execution: a live-table miss there
         // must stay a miss.
-        let Some(historic_store) = self.state.historic_store.as_ref() else {
-            return Ok(None);
-        };
-        historic_store
+        self.state
+            .historic_store
             .get_object(&ObjectKey(*object_id, version))
             .map_err(StorageError::custom)
     }
@@ -618,14 +598,9 @@ impl GrpcStateReader for GrpcReadStore {
             .map_err(StorageError::custom)?
             .map(|cp| cp + 1)
             .unwrap_or(0);
-        // With the historic store enabled, exact-version availability extends
-        // back to the start of the earliest retained epoch bucket.
-        let Some(earliest_epoch) = self
-            .state
-            .historic_store
-            .as_ref()
-            .and_then(|store| store.earliest_epoch())
-        else {
+        // Exact-version availability extends back to the start of the
+        // earliest retained epoch bucket.
+        let Some(earliest_epoch) = self.state.historic_store.earliest_epoch() else {
             return Ok(after_pruned);
         };
         let historic_start = if earliest_epoch == 0 {

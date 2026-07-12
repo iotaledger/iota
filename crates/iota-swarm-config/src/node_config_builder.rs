@@ -528,7 +528,6 @@ impl FullnodeConfigBuilder {
         let mut pruning_config = AuthorityStorePruningConfig::default();
         if self.disable_pruning {
             pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
-            pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
         NodeConfig {

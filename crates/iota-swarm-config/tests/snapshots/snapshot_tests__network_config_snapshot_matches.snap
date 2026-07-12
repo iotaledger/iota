@@ -36,7 +36,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -135,7 +135,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -234,7 +234,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -333,7 +333,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -432,7 +432,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -531,7 +531,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -630,7 +630,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      num-epochs-to-retain: 0
+      historic-epochs-to-retain: 2
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4

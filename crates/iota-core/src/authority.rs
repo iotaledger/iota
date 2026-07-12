@@ -157,7 +157,6 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_store::HistoricStore,
     },
@@ -858,7 +857,7 @@ pub struct AuthorityState {
     /// Superseded object versions relocated out of the live objects table.
     /// Read exclusively by the gRPC exact-version object lookup; consensus
     /// and execution paths must never consult it.
-    pub historic_store: Option<Arc<HistoricStore>>,
+    pub historic_store: Arc<HistoricStore>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
@@ -1731,7 +1730,6 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
-            self.historic_store.is_some(),
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -3266,8 +3264,7 @@ impl AuthorityState {
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
-        historic_store: Option<Arc<HistoricStore>>,
+        historic_store: Arc<HistoricStore>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
@@ -3300,11 +3297,9 @@ impl AuthorityState {
             grpc_indexes_store.clone(),
             indexes.clone(),
             config.authority_store_pruning_config.clone(),
-            epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             archive_readers,
-            pruner_db,
             historic_store.clone(),
             checkpoint_progress_tracker.clone(),
         );
@@ -3437,9 +3432,8 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.grpc_indexes_store.as_deref(),
-            None,
-            self.historic_store.as_ref(),
-            config.authority_store_pruning_config,
+            &self.historic_store,
+            &config.authority_store_pruning_config,
             metrics,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,

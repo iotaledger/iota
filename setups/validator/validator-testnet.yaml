@@ -29,7 +29,6 @@ p2p-config:
 
 # Pruning Configuration
 authority-store-pruning-config:
-  num-epochs-to-retain: 0
   num-epochs-to-retain-for-checkpoints: 2
 
 # Resource Optimization
