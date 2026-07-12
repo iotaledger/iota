@@ -93,20 +93,20 @@ async fn run_thread<F, Fut>(
             .wallet
             .execute_transaction_may_fail(tx)
             .await
-            .map(|r| r.effects.unwrap())
+            .map(|r| r.effects().unwrap().effects().unwrap())
         else {
             // When epochs are short, it is possible that some transactions
             // keep getting sent at epoch boundaries and timeout eventually.
             continue;
         };
-        if effects.status().is_ok() {
+        if effects.as_v1().status.is_success() {
             info!(?thread_id, ?tx_digest, "Transaction succeeded");
             num_tx_succeeded += 1;
         } else {
             info!(?thread_id, ?tx_digest, "Transaction failed");
             num_tx_failed += 1;
         }
-        let executed_epoch = effects.executed_epoch();
+        let executed_epoch = effects.as_v1().epoch;
         if executed_epoch >= target_epoch {
             info!(
                 ?thread_id,

@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use futures::future;
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
+    EventFilter, EventPage, IotaEvent, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionFilter,
 };
 use iota_keys::keystore::AccountKeystore;
@@ -110,7 +110,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         counter_ref.version,
     )
     .await;
-    let digest = response.digest;
+    let digest = response.transaction().unwrap().digest().unwrap();
     handle
         .iota_node
         .state()
@@ -213,7 +213,7 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         counter_ref.version,
     )
     .await;
-    let digest = response.digest;
+    let digest = response.transaction().unwrap().digest().unwrap();
 
     let txes = node
         .state()
@@ -579,7 +579,10 @@ async fn do_test_full_node_sync_flood() {
                         counter_ref.version,
                     )
                     .await
-                    .digest,
+                    .transaction()
+                    .unwrap()
+                    .digest()
+                    .unwrap(),
                 );
             }
             tx.send((owned_tx_digest.unwrap(), shared_tx_digest.unwrap()))
@@ -988,9 +991,15 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
 
     // Delete the object
     let response = delete_nft(&test_cluster.wallet, recipient, package_id, object_ref_v2).await;
-    assert_eq!(
-        *response.effects.unwrap().status(),
-        IotaExecutionStatus::Success
+    assert!(
+        response
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1()
+            .status
+            .is_success()
     );
     sleep(Duration::from_secs(1)).await;
 
@@ -1300,7 +1309,7 @@ async fn transfer_coin(
         object_to_send.object_id,
         sender,
         receiver,
-        resp.digest,
+        resp.transaction().unwrap().digest().unwrap(),
         gas_object,
     ))
 }

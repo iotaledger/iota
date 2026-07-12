@@ -299,11 +299,14 @@ impl TryFrom<&IotaTransactionBlockResponse> for ExecutedTransaction {
 }
 
 /// Converts a gRPC-native `ExecutedTransaction` back into a JSON-RPC
-/// `IotaTransactionBlockResponse` for the CLI's shared display path.
+/// `IotaTransactionBlockResponse` for consumers that still expect the JSON-RPC
+/// shape (the CLI's shared display path and
+/// `TestCluster::execute_transaction`).
 ///
-/// Only the digest, `object_changes`, `balance_changes`, and `checkpoint` are
-/// populated; `transaction`/`effects`/`events`/`raw_*` are left at their zero
-/// values, which is all the CLI display path reads off this direction.
+/// Populates the digest, `effects` (and `raw_effects`), `object_changes`,
+/// `balance_changes`, and `checkpoint` when present on the source;
+/// `transaction`/`raw_transaction`/`events` are left at their zero values,
+/// which no consumer of this direction reads.
 impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
     type Error = SdkConversionError;
 
@@ -313,6 +316,16 @@ impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
             .map_err(|e| SdkConversionError(e.to_string()))?
             .digest()
             .map_err(|e| SdkConversionError(e.to_string()))?;
+
+        let (effects, raw_effects) = match value.effects().ok().and_then(|e| e.effects().ok()) {
+            Some(sdk_effects) => {
+                let raw = bcs::to_bytes(&sdk_effects)?;
+                let effects = crate::IotaTransactionBlockEffects::try_from(sdk_effects)
+                    .map_err(|e| SdkConversionError(e.to_string()))?;
+                (Some(effects), raw)
+            }
+            None => (None, vec![]),
+        };
 
         let object_changes = value
             .object_changes()
@@ -341,7 +354,7 @@ impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
             digest,
             transaction: None,
             raw_transaction: vec![],
-            effects: None,
+            effects,
             events: None,
             object_changes,
             balance_changes,
@@ -349,7 +362,7 @@ impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
             confirmed_local_execution: None,
             checkpoint: value.checkpoint,
             errors: vec![],
-            raw_effects: vec![],
+            raw_effects,
         })
     }
 }

@@ -5,12 +5,10 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
-    rpc_types::{
-        IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-        get_new_package_obj_from_response,
-    },
+    rpc_types::{IotaObjectDataOptions, created, get_new_package_ref},
     wallet_context::WalletContext,
 };
 use iota_sdk_crypto::Signer as SdkSigner;
@@ -577,7 +575,7 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    get_new_package_obj_from_response(&resp).unwrap()
+    get_new_package_ref(&resp).unwrap()
 }
 
 /// Executes a transaction to publish the `basics` package and returns the
@@ -591,7 +589,7 @@ pub async fn publish_basics_package(context: &WalletContext) -> ObjectReference 
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    get_new_package_obj_from_response(&resp).unwrap()
+    get_new_package_ref(&resp).unwrap()
 }
 
 /// Executes a transaction to publish the `basics` package and another one to
@@ -610,14 +608,26 @@ pub async fn publish_basics_package_and_make_counter(
     let resp = context
         .execute_transaction_must_succeed(counter_creation_txn)
         .await;
-    let counter_ref = resp
-        .effects
-        .unwrap()
-        .created()
-        .iter()
-        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared(_)))
-        .unwrap()
-        .reference;
+    let effects = resp.effects().unwrap().effects().unwrap();
+    // Unlike the JSON-RPC `created()`, the SDK-native `created()` yields only
+    // `ObjectReference`s with no owner, so find the shared counter by matching
+    // its ref against `output_objects` and reading the owner from there.
+    let counter_ref = created(effects.as_v1())
+        .into_iter()
+        .find(|object_ref| {
+            let owner = resp
+                .output_objects()
+                .ok()
+                .and_then(|objs| {
+                    objs.objects
+                        .iter()
+                        .find(|o| o.object_reference().ok().as_ref() == Some(object_ref))
+                })
+                .and_then(|o| o.object().ok())
+                .map(|o| *o.owner());
+            matches!(owner, Some(Owner::Shared(_)))
+        })
+        .unwrap();
     (package_ref, counter_ref)
 }
 
@@ -630,7 +640,7 @@ pub async fn increment_counter(
     package_id: ObjectId,
     counter_id: ObjectId,
     initial_shared_version: Version,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()
     } else {
@@ -654,7 +664,7 @@ pub async fn increment_counter(
 pub async fn emit_new_random_u128(
     context: &WalletContext,
     package_id: ObjectId,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -708,8 +718,8 @@ pub async fn publish_example_package(
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
-    (package_id, resp.digest)
+    let package_id = get_new_package_ref(&resp).unwrap().object_id;
+    (package_id, resp.transaction().unwrap().digest().unwrap())
 }
 
 /// Executes a transaction to publish the `nft` package and returns the package
@@ -726,8 +736,12 @@ pub async fn publish_nfts_package(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
-    (package_id, gas_id, resp.digest)
+    let package_id = get_new_package_ref(&resp).unwrap().object_id;
+    (
+        package_id,
+        gas_id,
+        resp.transaction().unwrap().digest().unwrap(),
+    )
 }
 
 /// Executes a transaction to publish the `simple_warrior` package and returns
@@ -758,17 +772,16 @@ pub async fn create_nft(
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
 
-    let object_id = resp
-        .effects
-        .as_ref()
-        .unwrap()
-        .created()
+    let object_id = created(resp.effects().unwrap().effects().unwrap().as_v1())
         .first()
         .unwrap()
-        .reference
         .object_id;
 
-    (sender, object_id, resp.digest)
+    (
+        sender,
+        object_id,
+        resp.transaction().unwrap().digest().unwrap(),
+    )
 }
 
 /// Executes a transaction to delete the given NFT.
@@ -777,7 +790,7 @@ pub async fn delete_nft(
     sender: Address,
     package_id: ObjectId,
     nft_to_delete: ObjectReference,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let gas = context
         .get_one_gas_object_owned_by_address(sender)
         .await

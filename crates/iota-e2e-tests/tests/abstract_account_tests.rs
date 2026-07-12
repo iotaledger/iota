@@ -323,15 +323,17 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .execute_transaction_may_fail(tx)
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
 
     // Assert received a MoveAbort error
     assert!(
-        tx_result.status().is_err(),
+        !tx_result.as_v1().status.is_success(),
         "Expected TX2 certificate creation to fail due to conflict on receiving object"
     );
-    let error_string = format!("{:#?}", tx_result.status());
+    let error_string = format!("{:#?}", tx_result.as_v1().status);
     assert!(
         error_string.contains("abort"),
         "Expected MoveAbort error, got: {error_string}"

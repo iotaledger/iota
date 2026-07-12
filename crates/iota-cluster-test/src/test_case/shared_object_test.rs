@@ -42,6 +42,8 @@ impl TestCaseImpl for SharedCounterTest {
             counter_ref.version,
         )
         .await;
+        let response = iota_json_rpc_types::IotaTransactionBlockResponse::try_from(&response)
+            .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse");
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success,

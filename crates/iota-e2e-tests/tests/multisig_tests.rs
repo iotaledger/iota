@@ -277,7 +277,15 @@ async fn test_multisig_e2e() {
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[0], &keys[1]], 0b011);
     let res = context.execute_transaction_must_succeed(tx1).await;
-    assert!(res.status_ok().unwrap());
+    assert!(
+        res.effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1()
+            .status
+            .is_success()
+    );
 
     // 2. sign with key 1 and 2 executes successfully.
     let gas = test_cluster
@@ -287,7 +295,15 @@ async fn test_multisig_e2e() {
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[&keys[1], &keys[2]], 0b110);
     let res = context.execute_transaction_must_succeed(tx2).await;
-    assert!(res.status_ok().unwrap());
+    assert!(
+        res.effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1()
+            .status
+            .is_success()
+    );
 
     // 3. signature 2 and 1 swapped fails to execute.
     let gas = test_cluster

@@ -1287,7 +1287,8 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             .await;
 
         // Wait for the transaction to be executed
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         // Find the bag object
         let objects: ObjectsPage = client
@@ -1413,7 +1414,8 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             .await;
 
         // Wait for the transaction to be executed
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         // Find the bag object
         let objects: ObjectsPage = client

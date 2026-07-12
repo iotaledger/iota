@@ -604,7 +604,9 @@ impl TestCluster {
     /// ExecutionStatus::Success. This function is recommended for
     /// transaction execution since it most resembles the production path.
     pub async fn execute_transaction(&self, tx: Transaction) -> IotaTransactionBlockResponse {
-        self.wallet.execute_transaction_must_succeed(tx).await
+        let executed = self.wallet.execute_transaction_must_succeed(tx).await;
+        IotaTransactionBlockResponse::try_from(&executed)
+            .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse")
     }
 
     /// Different from `execute_transaction` which returns RPC effects types,

@@ -1177,7 +1177,6 @@ pub async fn batch_transfer_gases(
 #[cfg(test)]
 mod tests {
     use anyhow::*;
-    use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
     use iota_sdk_types::crypto::Intent;
     use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
@@ -1188,7 +1187,7 @@ mod tests {
     async fn execute_tx(
         ctx: &mut WalletContext,
         tx_data: TransactionData,
-    ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
+    ) -> Result<iota_sdk_types::TransactionEffects, anyhow::Error> {
         let signature = ctx.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
@@ -1197,16 +1196,16 @@ mod tests {
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         let transaction = Transaction::new(sender_signed_data);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
-        let result_effects = response.effects;
+        let effects = response
+            .effects()
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+            .effects()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-        if let Some(effects) = result_effects {
-            if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                bail!("error executing transaction: {:#?}", effects.status());
-            } else {
-                Ok(effects)
-            }
+        if effects.as_v1().status.is_success() {
+            Ok(effects)
         } else {
-            bail!("effects from IotaTransactionBlockResult should not be empty");
+            bail!("error executing transaction: {:?}", effects.as_v1().status);
         }
     }
 
@@ -1658,7 +1657,7 @@ mod tests {
 
         let effects = execute_tx(&mut context, tx_data).await.unwrap();
 
-        let tiny_coin_id = effects.created()[0].reference.object_id;
+        let tiny_coin_id = iota_json_rpc_types::created(effects.as_v1())[0].object_id;
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();

@@ -1207,6 +1207,8 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
 
     // Locate the shared `Account` object created by `init` at publish time.
     let account_type = type_tag(&pkg_id, "account", "Account");
+    let resp = iota_json_rpc_types::IotaTransactionBlockResponse::try_from(&resp)
+        .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse");
     let account_ref = match find_created_shared_in_response(&resp, &account_type) {
         Some(r) => r,
         None => {
@@ -2005,7 +2007,7 @@ impl TestEnvironment {
     ) -> anyhow::Result<(
         ObjectId,
         ObjectReference,
-        iota_json_rpc_types::IotaTransactionBlockResponse,
+        iota_grpc_types::v1::transaction::ExecutedTransaction,
     )> {
         let path = Self::example_path(name);
         let (sender, gas) = self
@@ -2026,7 +2028,7 @@ impl TestEnvironment {
             .execute_transaction_must_succeed(tx)
             .await;
 
-        let pkg_id = iota_json_rpc_types::get_new_package_obj_from_response(&resp)
+        let pkg_id = iota_json_rpc_types::get_new_package_ref(&resp)
             .ok_or_else(|| anyhow::anyhow!("no Published object change in response"))?
             .object_id;
         let metadata_id = move_package::derive_package_metadata_id(pkg_id);

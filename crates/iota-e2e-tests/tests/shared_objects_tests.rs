@@ -456,13 +456,17 @@ async fn call_shared_object_contract() {
         .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&transaction))
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     // Transaction fails
-    assert!(effects.status().is_err(),);
+    assert!(effects.as_v1().status.is_failure());
+    let ExecutionStatus::Failure { error, .. } = &effects.as_v1().status else {
+        panic!("expected a failed transaction status");
+    };
     assert!(
-        effects
-            .status()
+        error
             .to_string()
             .contains("Immutable objects cannot be passed by mutable reference")
     );
