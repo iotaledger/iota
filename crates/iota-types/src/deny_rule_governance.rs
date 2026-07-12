@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Implemented by both a validator's local `TransactionDenyConfig` and the
 /// consensus-governed [`DenyRuleSet`], so the deny checks can run against
 /// either source without knowing which one is in effect.
-pub trait DenyRuleConfig {
+pub trait DenyRuleConfig: Send + Sync {
     /// Whether `address` is denied as a transaction sender or gas sponsor.
     fn is_address_denied(&self, address: &Address) -> bool;
     /// Whether the object `id` is denied as an input or receiving object.
