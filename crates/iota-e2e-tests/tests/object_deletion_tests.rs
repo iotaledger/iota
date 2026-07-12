@@ -63,10 +63,12 @@ mod sim_only_tests {
                     .prune_objects_and_compact_for_testing(checkpoint_store, None)
                     .await;
 
-                // Check that no object with `child_id` exists in object store.
+                // The child's superseded versions were relocated into the
+                // historic buckets; only its `Wrapped` tombstone stays in the
+                // live table as the lineage head.
                 assert_eq!(
                     state.database_for_testing().count_object_versions(child_id),
-                    0
+                    1
                 );
                 assert!(
                     state
@@ -119,16 +121,21 @@ mod sim_only_tests {
                     .prune_objects_and_compact_for_testing(checkpoint_store, None)
                     .await;
 
-                // Check that both root and child objects are gone from object store.
+                // Both lineages end in a `Deleted` tombstone, which stays in
+                // the live table as the head until its epoch bucket expires;
+                // everything below it was relocated. The child also keeps the
+                // stale `Wrapped` tombstone from before its resurrection: it
+                // is only removed by the exact-key delete when the wrapping
+                // epoch's bucket expires.
                 assert_eq!(
                     state.database_for_testing().count_object_versions(child_id),
-                    0
+                    2
                 );
                 assert_eq!(
                     state
                         .database_for_testing()
                         .count_object_versions(object_id),
-                    0
+                    1
                 );
             })
             .await;
