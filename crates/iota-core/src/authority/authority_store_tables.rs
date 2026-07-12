@@ -135,6 +135,11 @@ pub struct AuthorityPerpetualTables {
     /// objects pruner progress
     pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
+    /// A singleton table that records the progress of the one-time migration
+    /// of pre-existing data into the historic epoch buckets, so it resumes
+    /// across restarts and never reruns once complete.
+    pub(crate) historic_migration: DBMap<(), HistoricMigrationProgress>,
+
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
     /// enabled.
@@ -154,6 +159,26 @@ pub struct AuthorityPerpetualTables {
     /// per-epoch, and all previous epochs other than the current epoch may
     /// be pruned safely.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
+}
+
+/// Progress of the one-time migration that moves pre-existing superseded
+/// object versions into the historic epoch buckets. Databases created by a
+/// version with commit-time relocation start out `Complete`; upgraded
+/// databases walk through the states below exactly once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HistoricMigrationProgress {
+    /// The one-time sweep over the live objects table is in progress; it
+    /// resumes with the object id following this one. `None` means the sweep
+    /// has not processed any object yet.
+    Sweeping { resume_after: Option<ObjectId> },
+    /// The sweep finished; the checkpoint walker has not yet confirmed that
+    /// no pre-existing superseded versions remain below the executed
+    /// watermark.
+    SweepComplete,
+    /// Every pre-existing superseded version has been relocated. From here
+    /// on, any version the walker still finds in the live table is a
+    /// commit-time capture miss.
+    Complete,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -421,6 +446,20 @@ impl AuthorityPerpetualTables {
         let mut wb = self.pruned_checkpoint.batch();
         self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
         wb.write()?;
+        Ok(())
+    }
+
+    /// The recorded migration progress; a database from before the migration
+    /// marker existed has no row and starts sweeping from the beginning.
+    pub fn get_historic_migration(&self) -> IotaResult<HistoricMigrationProgress> {
+        Ok(self
+            .historic_migration
+            .get(&())?
+            .unwrap_or(HistoricMigrationProgress::Sweeping { resume_after: None }))
+    }
+
+    pub fn set_historic_migration(&self, progress: HistoricMigrationProgress) -> IotaResult {
+        self.historic_migration.insert(&(), &progress)?;
         Ok(())
     }
 

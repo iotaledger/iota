@@ -38,7 +38,7 @@ use typed_store::{
 };
 
 use super::{
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    authority_store_tables::{AuthorityPerpetualTables, HistoricMigrationProgress, LiveObject},
     *,
 };
 use crate::{
@@ -279,6 +279,14 @@ impl AuthorityStore {
             .database_is_empty()
             .expect("database read should not fail at init.")
         {
+            // A database created by this version has no pre-existing history
+            // to migrate: commit-time relocation covers everything from
+            // genesis on.
+            store
+                .perpetual_tables
+                .set_historic_migration(HistoricMigrationProgress::Complete)
+                .expect("cannot initialize the migration marker");
+
             // Initialize with genesis data
             // First insert genesis objects
             store
