@@ -1794,7 +1794,8 @@ mod tests {
         assert!(perpetual_db.objects.get(&key_v2).unwrap().is_some());
         assert!(perpetual_db.objects.get(&key_v1).unwrap().is_none());
         assert!(historic.get_store_object(&key_v1).unwrap().is_some());
-        assert_eq!(historic.list_epochs(), vec![3]);
+        // The commit pre-creates the next epoch's bucket alongside its own.
+        assert_eq!(historic.list_epochs(), vec![3, 4]);
         assert!(
             historic
                 .get_object(&key_v1)

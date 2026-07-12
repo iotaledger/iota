@@ -111,6 +111,10 @@ pub struct EpochBucketInfo {
 }
 
 struct EpochBucket {
+    /// In-memory copy of the bucket's `meta` row, updated on every staged
+    /// write and persisted within the same batch, so staging never reads the
+    /// database. The single-writer commit/pruner path keeps it coherent.
+    info: std::sync::Mutex<EpochBucketInfo>,
     /// Superseded object versions relocated out of the live `objects` table.
     objects: DBMap<ObjectKey, StoreObjectWrapper>,
     /// Tombstone heads (`Deleted`/`Wrapped`) whose lineages were superseded in
@@ -326,7 +330,7 @@ impl HistoricStore {
                         .map_err(|e| IotaError::Storage(e.to_string()))?;
                 }
             }
-            buckets.insert(epoch, Self::reopen_bucket(&db, epoch)?);
+            buckets.insert(epoch, Self::reopen_bucket(&db, &meta, epoch)?);
         }
 
         let store = Self {
@@ -370,7 +374,11 @@ impl HistoricStore {
         EPOCH_CF_PREFIXES.map(|prefix| format!("{prefix}{epoch}"))
     }
 
-    fn reopen_bucket(db: &Arc<Database>, epoch: EpochId) -> IotaResult<EpochBucket> {
+    fn reopen_bucket(
+        db: &Arc<Database>,
+        meta: &DBMap<EpochId, EpochBucketInfo>,
+        epoch: EpochId,
+    ) -> IotaResult<EpochBucket> {
         // Per-epoch column families skip the periodic metrics reporter task:
         // with ~100 retained epochs the per-table metrics add little insight
         // and one task per column family adds up.
@@ -383,6 +391,7 @@ impl HistoricStore {
             )?)
         }
         Ok(EpochBucket {
+            info: std::sync::Mutex::new(meta.get(&epoch)?.unwrap_or_default()),
             objects: map(db, Self::objects_cf_name(epoch))?,
             expiry: map(db, Self::expiry_cf_name(epoch))?,
             transactions: map(db, format!("{TRANSACTIONS_CF_PREFIX}{epoch}"))?,
@@ -435,9 +444,12 @@ impl HistoricStore {
         batch.insert_batch(&bucket.objects, objects.iter().map(|(k, v)| (k, v)))?;
         batch.insert_batch(&bucket.expiry, tombstone_heads.iter().map(|k| (k, ())))?;
 
-        let mut info = self.meta.get(&supersession_epoch)?.unwrap_or_default();
-        info.object_count += objects.len() as u64;
-        info.expiry_count += tombstone_heads.len() as u64;
+        let info = {
+            let mut info = bucket.info.lock().expect("lock should not be poisoned");
+            info.object_count += objects.len() as u64;
+            info.expiry_count += tombstone_heads.len() as u64;
+            info.clone()
+        };
         batch.insert_batch(&self.meta, [(supersession_epoch, info)])?;
 
         self.metrics.relocated_objects.inc_by(objects.len() as u64);
@@ -498,11 +510,14 @@ impl HistoricStore {
         )?;
         batch.insert_batch(&bucket.checkpoints, data.checkpoints)?;
 
-        let mut info = self.meta.get(&epoch)?.unwrap_or_default();
-        if let Some((batch_min, batch_max)) = data.checkpoint_range {
-            info.min_checkpoint = Some(info.min_checkpoint.unwrap_or(batch_min).min(batch_min));
-            info.max_checkpoint = Some(info.max_checkpoint.unwrap_or(batch_max).max(batch_max));
-        }
+        let info = {
+            let mut info = bucket.info.lock().expect("lock should not be poisoned");
+            if let Some((batch_min, batch_max)) = data.checkpoint_range {
+                info.min_checkpoint = Some(info.min_checkpoint.unwrap_or(batch_min).min(batch_min));
+                info.max_checkpoint = Some(info.max_checkpoint.unwrap_or(batch_max).max(batch_max));
+            }
+            info.clone()
+        };
         batch.insert_batch(&self.meta, [(epoch, info)])?;
 
         self.metrics.relocated_transactions.inc_by(num_transactions);
@@ -546,9 +561,13 @@ impl HistoricStore {
                     .compact_range_raw(&cf_name, vec![], full_range_end.clone())?;
             }
         }
-        let mut info = self.meta.get(&epoch)?.unwrap_or_default();
-        if !info.sealed {
-            info.sealed = true;
+        let buckets = self.buckets.read().expect("lock should not be poisoned");
+        if let Some(bucket) = buckets.get(&epoch) {
+            let info = {
+                let mut info = bucket.info.lock().expect("lock should not be poisoned");
+                info.sealed = true;
+                info.clone()
+            };
             self.meta.insert(&epoch, &info)?;
         }
         Ok(())
@@ -735,7 +754,7 @@ impl HistoricStore {
                     .map_err(|e| IotaError::Storage(e.to_string()))?;
             }
         }
-        buckets.insert(epoch, Self::reopen_bucket(&self.db, epoch)?);
+        buckets.insert(epoch, Self::reopen_bucket(&self.db, &self.meta, epoch)?);
         drop(buckets);
         self.update_retention_metrics();
         Ok(())

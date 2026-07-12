@@ -851,9 +851,20 @@ impl AuthorityStore {
 
         // Column-family creation is not part of a write batch, so the
         // checkpoint epoch's bucket must exist before relocation stages into
-        // the batch below.
+        // the batch below. The next epoch's bucket is pre-created in the
+        // background: creating its column families takes tens of
+        // milliseconds and would otherwise land on the first commit of each
+        // epoch (the synchronous call here is then a no-op).
         if let Some(historic_store) = &self.historic_store {
             historic_store.prepare_bucket(epoch_id)?;
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let historic_store = historic_store.clone();
+                handle.spawn_blocking(move || {
+                    if let Err(err) = historic_store.prepare_bucket(epoch_id + 1) {
+                        tracing::warn!("failed to pre-create historic bucket: {err:?}");
+                    }
+                });
+            }
         }
 
         let mut write_batch = self.perpetual_tables.transactions.batch();
