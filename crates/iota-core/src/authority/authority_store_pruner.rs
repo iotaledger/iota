@@ -11,6 +11,7 @@ use std::{
 
 use anyhow::anyhow;
 use iota_archival::reader::ArchiveReaderBalancer;
+use iota_common::debug_fatal;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_sdk_types::ObjectId;
@@ -40,9 +41,12 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 use typed_store::{Map, TypedStoreError, rocks::DBBatch, rocksdb::LiveFile};
 
-use super::authority_store_tables::AuthorityPerpetualTables;
+use super::authority_store_tables::{AuthorityPerpetualTables, HistoricMigrationProgress};
 use crate::{
-    authority::historic_store::HistoricStore,
+    authority::{
+        authority_store_types::{StoreObject, StoreObjectWrapper},
+        historic_store::HistoricStore,
+    },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     grpc_indexes::GrpcIndexesStore,
@@ -97,6 +101,12 @@ const PRUNING_NUDGE_DEBOUNCE: Duration = Duration::from_millis(1000);
 /// (per-checkpoint) and does not incur the debounce delay.
 const PRUNING_DEBOUNCE_MIN_LAG: u64 = 100;
 
+/// Upper bound on live-table rows scanned per legacy-sweep slice. Bounds both
+/// the memory of a slice's write batch and the time the pruner task spends
+/// per drain on the one-time sweep, so pruning and bucket expiry stay
+/// responsive while the sweep works through a large table.
+const LEGACY_SWEEP_ROWS_PER_SLICE: usize = 100_000;
+
 /// The `AuthorityStorePruner` manages the pruning process for object stores
 /// within the `AuthorityStore`. It includes a cancellation handle that can be
 /// used to stop the pruning task for objects.
@@ -137,6 +147,8 @@ pub struct AuthorityStorePruningMetrics {
     pub last_pruned_checkpoint_timestamp_ms: IntGauge,
     pub last_pruned_effects_checkpoint_timestamp_ms: IntGauge,
     pub pruning_chain_time_lag_ms: IntGauge,
+    pub historic_migration_state: IntGauge,
+    pub historic_capture_miss_total: IntCounter,
 }
 
 impl AuthorityStorePruningMetrics {
@@ -206,6 +218,20 @@ impl AuthorityStorePruningMetrics {
                 registry
             )
             .unwrap(),
+            historic_migration_state: register_int_gauge_with_registry!(
+                "historic_migration_state",
+                "Progress of the one-time historic migration: 0 = legacy sweep running, \
+                 1 = sweep complete, 2 = migration complete",
+                registry
+            )
+            .unwrap(),
+            historic_capture_miss_total: register_int_counter_with_registry!(
+                "historic_capture_miss_total",
+                "Superseded object versions the walker still found in the live table after \
+                 the migration completed, i.e. commit-time relocation capture misses",
+                registry
+            )
+            .unwrap(),
         };
         Arc::new(this)
     }
@@ -230,18 +256,39 @@ pub enum PruningMode {
 struct HistoricRelocation<'a> {
     store: &'a Arc<HistoricStore>,
     supersession_epoch: EpochId,
+    /// The bucket is already past the retention horizon (possible only while
+    /// draining migration backlog): skip the copy and delete outright, which
+    /// is equivalent to relocating and immediately dropping the bucket.
+    expired: bool,
+}
+
+impl HistoricRelocation<'_> {
+    fn new(
+        store: &Arc<HistoricStore>,
+        supersession_epoch: EpochId,
+        current_epoch: EpochId,
+        historic_epochs_to_retain: u64,
+    ) -> HistoricRelocation<'_> {
+        HistoricRelocation {
+            store,
+            supersession_epoch,
+            expired: current_epoch.saturating_sub(supersession_epoch) > historic_epochs_to_retain,
+        }
+    }
 }
 
 impl AuthorityStorePruner {
     /// Relocates old versions of objects into the historic store based on
     /// transaction effects, and advances the objects pruning watermark.
+    /// Returns how many superseded versions were still present in the live
+    /// table (zero when commit-time relocation already moved everything).
     async fn prune_objects(
         transaction_effects: Vec<TransactionEffects>,
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         relocation: &HistoricRelocation<'_>,
         checkpoint_number: CheckpointSequenceNumber,
         metrics: Arc<AuthorityStorePruningMetrics>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<usize> {
         let _scope = monitored_scope("ObjectsLivePruner");
         let mut wb = perpetual_db.objects.batch();
 
@@ -267,7 +314,7 @@ impl AuthorityStorePruner {
             .num_pruned_tombstones
             .inc_by(object_tombstones_to_prune.len() as u64);
 
-        Self::relocate_objects(
+        let found = Self::relocate_objects(
             &mut wb,
             perpetual_db,
             relocation,
@@ -277,7 +324,7 @@ impl AuthorityStorePruner {
         perpetual_db.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
         metrics.last_pruned_checkpoint.set(checkpoint_number as i64);
         wb.write()?;
-        Ok(())
+        Ok(found)
     }
 
     /// Moves superseded object versions into the historic epoch bucket
@@ -305,7 +352,18 @@ impl AuthorityStorePruner {
         relocation: &HistoricRelocation<'_>,
         live_object_keys_to_prune: Vec<ObjectKey>,
         tombstone_heads: Vec<ObjectKey>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<usize> {
+        if relocation.expired {
+            // The bucket would be dropped by the next retention pass anyway:
+            // delete the superseded versions and the tombstone heads outright
+            // instead of copying them. Expired batches are migration backlog
+            // by construction (a freshly executed checkpoint is never past
+            // retention), so nothing is reported as found.
+            wb.delete_batch(&perpetual_db.objects, live_object_keys_to_prune)?;
+            wb.delete_batch(&perpetual_db.objects, tombstone_heads)?;
+            return Ok(0);
+        }
+
         let values = perpetual_db
             .objects
             .multi_get(live_object_keys_to_prune.iter())?;
@@ -325,7 +383,7 @@ impl AuthorityStorePruner {
             &tombstone_heads,
         )?;
         wb.delete_batch(&perpetual_db.objects, rows.iter().map(|(key, _)| *key))?;
-        Ok(())
+        Ok(rows.len())
     }
 
     /// Stages one epoch-homogeneous batch of checkpoint-keyed history into
@@ -451,16 +509,18 @@ impl AuthorityStorePruner {
             .flat_map(|content| content.iter().map(|tx| tx.transaction))
             .collect();
 
-        Self::relocate_checkpoint_data(
-            &mut perpetual_batch,
-            perpetual_db,
-            checkpoint_db,
-            relocation,
-            &transactions,
-            &checkpoints_to_prune,
-            &checkpoint_content_to_prune,
-            effects_to_prune,
-        )?;
+        if !relocation.expired {
+            Self::relocate_checkpoint_data(
+                &mut perpetual_batch,
+                perpetual_db,
+                checkpoint_db,
+                relocation,
+                &transactions,
+                &checkpoints_to_prune,
+                &checkpoint_content_to_prune,
+                effects_to_prune,
+            )?;
+        }
 
         perpetual_batch.delete_batch(&perpetual_db.transactions, transactions.iter())?;
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
@@ -540,7 +600,7 @@ impl AuthorityStorePruner {
         config: &AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<usize> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
         let (max_eligible_checkpoint_number, cutoff_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
@@ -562,6 +622,7 @@ impl AuthorityStorePruner {
             checkpoint_store,
             grpc_indexes_store,
             historic_store,
+            config.historic_epochs_to_retain,
             seals_buckets,
             PruningMode::Objects,
             0,
@@ -625,6 +686,7 @@ impl AuthorityStorePruner {
             checkpoint_store,
             grpc_indexes_store,
             historic_store,
+            config.historic_epochs_to_retain,
             // The checkpoint pruner always seals: its eligibility is capped
             // at the objects watermark, so it is the lagging pruning mode.
             true,
@@ -636,7 +698,8 @@ impl AuthorityStorePruner {
             metrics.clone(),
             progress_tracker,
         )
-        .await
+        .await?;
+        Ok(())
     }
 
     /// Prunes old object versions based on effects from all checkpoints from
@@ -646,6 +709,7 @@ impl AuthorityStorePruner {
         checkpoint_store: &Arc<CheckpointStore>,
         grpc_indexes_store: Option<&GrpcIndexesStore>,
         historic_store: &Arc<HistoricStore>,
+        historic_epochs_to_retain: u64,
         seals_buckets: bool,
         mode: PruningMode,
         num_epochs_to_retain: u64,
@@ -654,11 +718,12 @@ impl AuthorityStorePruner {
         cutoff_timestamp_ms: CheckpointTimestamp,
         metrics: Arc<AuthorityStorePruningMetrics>,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<usize> {
         let _scope = monitored_scope("PruneForEligibleEpochs");
 
         let mut checkpoint_number = starting_checkpoint_number;
         let mut last_pruned_timestamp_ms = 0;
+        let mut total_found = 0;
         let current_epoch = checkpoint_store
             .get_highest_executed_checkpoint()?
             .map(|c| c.epoch())
@@ -700,14 +765,16 @@ impl AuthorityStorePruner {
             match batch_epoch {
                 Some(epoch) if epoch != checkpoint.epoch() => {
                     if !checkpoints_to_prune.is_empty() {
-                        Self::prune_batch(
+                        total_found += Self::prune_batch(
                             perpetual_db,
                             checkpoint_store,
                             grpc_indexes_store,
-                            &HistoricRelocation {
-                                store: historic_store,
-                                supersession_epoch: epoch,
-                            },
+                            &HistoricRelocation::new(
+                                historic_store,
+                                epoch,
+                                current_epoch,
+                                historic_epochs_to_retain,
+                            ),
                             mode,
                             checkpoint_number,
                             std::mem::take(&mut checkpoints_to_prune),
@@ -777,15 +844,16 @@ impl AuthorityStorePruner {
             if effects_to_prune.len() >= MAX_TRANSACTIONS_IN_BATCH
                 || checkpoints_to_prune.len() >= MAX_CHECKPOINTS_IN_BATCH
             {
-                Self::prune_batch(
+                total_found += Self::prune_batch(
                     perpetual_db,
                     checkpoint_store,
                     grpc_indexes_store,
-                    &HistoricRelocation {
-                        store: historic_store,
-                        supersession_epoch: batch_epoch
-                            .expect("batch epoch is set before batching"),
-                    },
+                    &HistoricRelocation::new(
+                        historic_store,
+                        batch_epoch.expect("batch epoch is set before batching"),
+                        current_epoch,
+                        historic_epochs_to_retain,
+                    ),
                     mode,
                     checkpoint_number,
                     std::mem::take(&mut checkpoints_to_prune),
@@ -823,14 +891,16 @@ impl AuthorityStorePruner {
         }
 
         if !checkpoints_to_prune.is_empty() {
-            Self::prune_batch(
+            total_found += Self::prune_batch(
                 perpetual_db,
                 checkpoint_store,
                 grpc_indexes_store,
-                &HistoricRelocation {
-                    store: historic_store,
-                    supersession_epoch: batch_epoch.expect("batch epoch is set before batching"),
-                },
+                &HistoricRelocation::new(
+                    historic_store,
+                    batch_epoch.expect("batch epoch is set before batching"),
+                    current_epoch,
+                    historic_epochs_to_retain,
+                ),
                 mode,
                 checkpoint_number,
                 checkpoints_to_prune,
@@ -858,10 +928,12 @@ impl AuthorityStorePruner {
             }
         }
 
-        Ok(())
+        Ok(total_found)
     }
 
-    /// Dispatches one pruning batch to the mode-specific pruner.
+    /// Dispatches one pruning batch to the mode-specific pruner. In objects
+    /// mode, returns how many superseded versions were still present in the
+    /// live table.
     async fn prune_batch(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -873,7 +945,7 @@ impl AuthorityStorePruner {
         checkpoint_content_to_prune: Vec<CheckpointContents>,
         effects_to_prune: Vec<TransactionEffects>,
         metrics: Arc<AuthorityStorePruningMetrics>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<usize> {
         match mode {
             PruningMode::Objects => {
                 Self::prune_objects(
@@ -885,17 +957,20 @@ impl AuthorityStorePruner {
                 )
                 .await
             }
-            PruningMode::Checkpoints => Self::prune_checkpoints(
-                perpetual_db,
-                checkpoint_store,
-                grpc_indexes_store,
-                relocation,
-                checkpoint_number,
-                checkpoints_to_prune,
-                checkpoint_content_to_prune,
-                &effects_to_prune,
-                metrics,
-            ),
+            PruningMode::Checkpoints => {
+                Self::prune_checkpoints(
+                    perpetual_db,
+                    checkpoint_store,
+                    grpc_indexes_store,
+                    relocation,
+                    checkpoint_number,
+                    checkpoints_to_prune,
+                    checkpoint_content_to_prune,
+                    &effects_to_prune,
+                    metrics,
+                )?;
+                Ok(0)
+            }
         }
     }
 
@@ -933,6 +1008,111 @@ impl AuthorityStorePruner {
             );
         }
         Ok(())
+    }
+
+    /// Runs one bounded slice of the one-time sweep that relocates
+    /// pre-existing superseded object versions out of the live table.
+    ///
+    /// This exists for databases whose checkpoint data below the objects
+    /// watermark was already pruned before the upgrade: the checkpoint walker
+    /// can never reach those rows (their effects are gone), so without the
+    /// sweep the migration could never finish. Rows below each lineage head
+    /// move into the historic bucket of `sweep_epoch` — their true
+    /// supersession epochs are unknowable, and a current-epoch bucket only
+    /// errs toward retaining them longer. Tombstone heads stay in the live
+    /// table but are recorded in the bucket's expiry list, exactly as in
+    /// checkpoint-driven relocation. The resume cursor is persisted in the
+    /// same atomic batch as the moves.
+    ///
+    /// Safe next to concurrent commits: the iterator reads a snapshot, cuts
+    /// only at lineage boundaries, and both sides' writes are idempotent
+    /// (a version is only ever relocated with identical bytes, and deletes
+    /// of already-relocated keys are no-ops).
+    fn legacy_sweep_slice(
+        perpetual_db: &Arc<AuthorityPerpetualTables>,
+        historic_store: &Arc<HistoricStore>,
+        sweep_epoch: EpochId,
+        resume_after: Option<ObjectId>,
+        row_budget: usize,
+    ) -> anyhow::Result<HistoricMigrationProgress> {
+        let _scope = monitored_scope("HistoricLegacySweep");
+
+        fn is_tombstone(wrapper: &StoreObjectWrapper) -> bool {
+            matches!(
+                wrapper.clone().migrate().into_inner(),
+                StoreObject::Deleted | StoreObject::Wrapped
+            )
+        }
+
+        // Strictly after every version of the cursor object: no version key
+        // reaches `MAX_VALID_EXCL`.
+        let lower_bound = resume_after.map(|id| ObjectKey(id, SequenceNumber::MAX_VALID_EXCL));
+
+        let mut relocated: Vec<(ObjectKey, StoreObjectWrapper)> = vec![];
+        let mut tombstone_heads: Vec<ObjectKey> = vec![];
+        let mut last_completed = resume_after;
+        // The row most recently read but not yet classified: it is the head
+        // of its lineage unless the next row shares its object id.
+        let mut pending: Option<(ObjectKey, StoreObjectWrapper)> = None;
+        let mut finished = true;
+
+        for (scanned, row) in perpetual_db
+            .objects
+            .safe_iter_with_bounds(lower_bound, None)
+            .enumerate()
+        {
+            let (key, value) = row?;
+            if let Some((prev_key, prev_value)) = pending.take() {
+                if prev_key.0 == key.0 {
+                    relocated.push((prev_key, prev_value));
+                } else {
+                    if is_tombstone(&prev_value) {
+                        tombstone_heads.push(prev_key);
+                    }
+                    last_completed = Some(prev_key.0);
+                    // Cut only at lineage boundaries so the cursor always
+                    // names a fully processed object.
+                    if scanned >= row_budget {
+                        finished = false;
+                        break;
+                    }
+                }
+            }
+            pending = Some((key, value));
+        }
+        if let Some((head_key, head_value)) = pending {
+            if finished {
+                if is_tombstone(&head_value) {
+                    tombstone_heads.push(head_key);
+                }
+                last_completed = Some(head_key.0);
+            }
+        }
+
+        let progress = if finished {
+            HistoricMigrationProgress::SweepComplete
+        } else {
+            HistoricMigrationProgress::Sweeping {
+                resume_after: last_completed,
+            }
+        };
+
+        historic_store.prepare_bucket(sweep_epoch)?;
+        let mut wb = perpetual_db.objects.batch();
+        historic_store.stage_objects(&mut wb, sweep_epoch, &relocated, &tombstone_heads)?;
+        wb.delete_batch(&perpetual_db.objects, relocated.iter().map(|(key, _)| *key))?;
+        wb.insert_batch(&perpetual_db.historic_migration, [((), progress)])?;
+        wb.write()?;
+
+        if !relocated.is_empty() || !tombstone_heads.is_empty() {
+            debug!(
+                relocated = relocated.len(),
+                tombstone_heads = tombstone_heads.len(),
+                sweep_epoch,
+                "legacy sweep slice relocated pre-existing versions"
+            );
+        }
+        Ok(progress)
     }
 
     fn prune_indexes(
@@ -1092,7 +1272,22 @@ impl AuthorityStorePruner {
             // is reported before the first drain completes.
             let mut last_drain_target_ms: CheckpointTimestamp = u64::MAX;
             let mut last_backlog_warn: Option<Instant> = None;
+            let mut migration = match perpetual_db.get_historic_migration() {
+                Ok(progress) => progress,
+                Err(err) => {
+                    error!("Failed to read the historic migration marker: {err:?}");
+                    HistoricMigrationProgress::Sweeping { resume_after: None }
+                }
+            };
+            if migration != HistoricMigrationProgress::Complete {
+                info!(?migration, "historic migration in progress");
+            }
             loop {
+                metrics.historic_migration_state.set(match migration {
+                    HistoricMigrationProgress::Sweeping { .. } => 0,
+                    HistoricMigrationProgress::SweepComplete => 1,
+                    HistoricMigrationProgress::Complete => 2,
+                });
                 // The executed position this pass prunes up to.
                 let highest_executed = checkpoint_store
                     .get_highest_executed_checkpoint()
@@ -1133,7 +1328,7 @@ impl AuthorityStorePruner {
                 let catching_up =
                     synced_seq.saturating_sub(executed_seq) > PRUNING_DEBOUNCE_MIN_LAG;
 
-                if let Err(err) = Self::prune_objects_for_eligible_epochs(
+                let objects_found = match Self::prune_objects_for_eligible_epochs(
                     &perpetual_db,
                     &checkpoint_store,
                     grpc_indexes_store.as_deref(),
@@ -1144,7 +1339,72 @@ impl AuthorityStorePruner {
                 )
                 .await
                 {
-                    error!("Failed to prune objects: {:?}", err);
+                    Ok(found) => Some(found),
+                    Err(err) => {
+                        error!("Failed to prune objects: {:?}", err);
+                        None
+                    }
+                };
+
+                match migration {
+                    HistoricMigrationProgress::Sweeping { resume_after } => {
+                        let sweep_epoch = highest_executed
+                            .as_ref()
+                            .map(|checkpoint| checkpoint.epoch())
+                            .unwrap_or_default();
+                        match Self::legacy_sweep_slice(
+                            &perpetual_db,
+                            &historic_store,
+                            sweep_epoch,
+                            resume_after,
+                            LEGACY_SWEEP_ROWS_PER_SLICE,
+                        ) {
+                            Ok(progress) => {
+                                if progress == HistoricMigrationProgress::SweepComplete {
+                                    info!("historic migration: legacy sweep complete");
+                                }
+                                migration = progress;
+                            }
+                            Err(err) => error!("Legacy sweep slice failed: {err:?}"),
+                        }
+                    }
+                    HistoricMigrationProgress::SweepComplete => {
+                        // Complete once a drain reached the executed watermark
+                        // having found nothing left to relocate: from then on,
+                        // anything the walker finds is a commit-time capture
+                        // miss.
+                        let caught_up = perpetual_db
+                            .get_highest_pruned_checkpoint()
+                            .ok()
+                            .flatten()
+                            .unwrap_or_default()
+                            + 1
+                            >= executed_seq;
+                        if objects_found == Some(0) && caught_up {
+                            match perpetual_db
+                                .set_historic_migration(HistoricMigrationProgress::Complete)
+                            {
+                                Ok(()) => {
+                                    info!("historic migration complete");
+                                    migration = HistoricMigrationProgress::Complete;
+                                }
+                                Err(err) => {
+                                    error!("Failed to persist the migration marker: {err:?}")
+                                }
+                            }
+                        }
+                    }
+                    HistoricMigrationProgress::Complete => {
+                        if let Some(found) = objects_found {
+                            if found > 0 {
+                                metrics.historic_capture_miss_total.inc_by(found as u64);
+                                debug_fatal!(
+                                    "commit-time relocation missed {found} superseded object \
+                                     versions; the walker relocated them"
+                                );
+                            }
+                        }
+                    }
                 }
                 // Expire historic epoch buckets in the same drain: a cheap
                 // no-op while nothing has aged out of retention, and
@@ -1197,6 +1457,10 @@ impl AuthorityStorePruner {
                     // `changed()` cannot error: the paired sender lives in the
                     // `AuthorityStorePruner` returned to the caller.
                     _ = executed_rx.changed() => {}
+                    // While the legacy sweep still has work, keep slicing even
+                    // without execution progress.
+                    _ = tokio::time::sleep(PRUNING_NUDGE_DEBOUNCE),
+                        if matches!(migration, HistoricMigrationProgress::Sweeping { .. }) => {}
                 }
 
                 // Debounce only while catching up: let more executed checkpoints
@@ -1326,7 +1590,7 @@ mod tests {
     use crate::{
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
-            authority_store_tables::AuthorityPerpetualTables,
+            authority_store_tables::{AuthorityPerpetualTables, HistoricMigrationProgress},
             authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
             historic_store::{HistoricStore, HistoricStoreMetrics},
         },
@@ -1462,6 +1726,7 @@ mod tests {
                 &HistoricRelocation {
                     store: &historic,
                     supersession_epoch: 0,
+                    expired: false,
                 },
                 0,
                 metrics,
@@ -1539,6 +1804,7 @@ mod tests {
             &HistoricRelocation {
                 store: historic,
                 supersession_epoch,
+                expired: false,
             },
             checkpoint_number,
             AuthorityStorePruningMetrics::new_for_test(),
@@ -1619,7 +1885,14 @@ mod tests {
         assert!(perpetual_db.objects.get(&key_v2).unwrap().is_some());
         assert!(perpetual_db.objects.get(&key_v1).unwrap().is_none());
         assert!(historic.get_store_object(&key_v1).unwrap().is_some());
-        // The commit pre-creates the next epoch's bucket alongside its own.
+        // The commit pre-creates the next epoch's bucket alongside its own,
+        // on a background thread — wait for it briefly.
+        for _ in 0..100 {
+            if historic.list_epochs() == vec![3, 4] {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
         assert_eq!(historic.list_epochs(), vec![3, 4]);
         assert!(
             historic
@@ -1925,6 +2198,7 @@ mod tests {
                 &HistoricRelocation {
                     store: &historic,
                     supersession_epoch: committee.epoch,
+                    expired: false,
                 },
                 9,
                 vec![ckpt_digest],
@@ -2119,6 +2393,7 @@ mod tests {
             &HistoricRelocation {
                 store: &historic,
                 supersession_epoch: 0,
+                expired: false,
             },
             0,
             metrics,
@@ -2196,6 +2471,7 @@ mod tests {
             &checkpoint_store,
             None,
             &historic,
+            u64::MAX,
             true,
             mode,
             num_epochs_to_retain,
@@ -2302,6 +2578,175 @@ mod tests {
             5000
         );
         assert_eq!(metrics.last_pruned_checkpoint_timestamp_ms.get(), 0);
+    }
+
+    /// The one-time sweep empties the live table down to lineage heads:
+    /// non-heads move into the sweep bucket, value heads stay untouched, and
+    /// tombstone heads stay live but land in the bucket's expiry list.
+    #[tokio::test]
+    async fn legacy_sweep_relocates_non_heads_and_records_tombstone_heads() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let historic = open_historic(&db);
+        let (to_keep, to_delete, _) = generate_test_data(db.clone(), 3, 1, 100).unwrap();
+
+        // A deleted lineage: one superseded version below a tombstone head.
+        let deleted_id = ObjectId::MAX;
+        let old_key = ObjectKey(deleted_id, SequenceNumber::from_u64(0));
+        let tombstone_key = ObjectKey(deleted_id, SequenceNumber::from_u64(1));
+        db.objects
+            .insert(
+                &old_key,
+                &get_store_object(Object::immutable_with_id_for_testing(deleted_id), None),
+            )
+            .unwrap();
+        db.objects
+            .insert(
+                &tombstone_key,
+                &StoreObjectWrapper::V2(StoreObject::Deleted),
+            )
+            .unwrap();
+
+        let progress =
+            AuthorityStorePruner::legacy_sweep_slice(&db, &historic, 7, None, usize::MAX).unwrap();
+        assert_eq!(progress, HistoricMigrationProgress::SweepComplete);
+        assert_eq!(
+            db.get_historic_migration().unwrap(),
+            HistoricMigrationProgress::SweepComplete
+        );
+
+        let mut expected_live: HashSet<_> = HashSet::from_iter(to_keep);
+        expected_live.insert(tombstone_key);
+        assert_eq!(live_keys(&db), expected_live);
+        for key in to_delete.iter().chain([&old_key]) {
+            assert!(
+                historic.get_store_object(key).unwrap().is_some(),
+                "{key:?} was not swept"
+            );
+        }
+        assert_eq!(historic.tombstone_heads(7).unwrap(), vec![tombstone_key]);
+    }
+
+    /// A row budget cuts the sweep at lineage boundaries; the persisted
+    /// cursor resumes each slice and the end state matches a one-shot sweep.
+    #[tokio::test]
+    async fn legacy_sweep_resumes_across_slices() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let historic = open_historic(&db);
+        let (to_keep, to_delete, _) = generate_test_data(db.clone(), 3, 1, 10).unwrap();
+
+        let mut progress = db.get_historic_migration().unwrap();
+        assert_eq!(
+            progress,
+            HistoricMigrationProgress::Sweeping { resume_after: None }
+        );
+        let mut slices = 0;
+        while let HistoricMigrationProgress::Sweeping { resume_after } = progress {
+            progress = AuthorityStorePruner::legacy_sweep_slice(&db, &historic, 3, resume_after, 4)
+                .unwrap();
+            assert_eq!(db.get_historic_migration().unwrap(), progress);
+            slices += 1;
+            assert!(slices < 100, "sweep must terminate");
+        }
+        assert_eq!(progress, HistoricMigrationProgress::SweepComplete);
+        assert!(slices > 1, "the budget must force multiple slices");
+
+        assert_eq!(live_keys(&db), HashSet::from_iter(to_keep));
+        for key in &to_delete {
+            assert!(
+                historic.get_store_object(key).unwrap().is_some(),
+                "{key:?} was not swept"
+            );
+        }
+    }
+
+    /// Relocation into a bucket already past the retention horizon deletes
+    /// outright — including the tombstone heads, which the bucket's expiry
+    /// would have removed anyway — and creates no bucket.
+    #[tokio::test]
+    async fn expired_bucket_relocation_deletes_outright() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let historic = open_historic(&db);
+        let (_, to_delete, tombstones) = generate_test_data(db.clone(), 3, 0, 10).unwrap();
+
+        let found = AuthorityStorePruner::prune_objects(
+            vec![effects_superseding(&to_delete, &tombstones)],
+            &db,
+            &HistoricRelocation {
+                store: &historic,
+                supersession_epoch: 1,
+                expired: true,
+            },
+            1,
+            AuthorityStorePruningMetrics::new_for_test(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(found, 0);
+        assert!(live_keys(&db).is_empty());
+        assert_eq!(historic.list_epochs(), Vec::<u64>::new());
+        assert_eq!(db.get_highest_pruned_checkpoint().unwrap(), Some(1));
+    }
+
+    /// The relocation count reports how many superseded versions were still
+    /// present — the walker's signal for migration backlog and, after the
+    /// migration completes, for commit-time capture misses. A replay finds
+    /// nothing.
+    #[tokio::test]
+    async fn walker_reports_versions_found_and_zero_on_replay() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+        let historic = open_historic(&db);
+        let (_, to_delete, _) = generate_test_data(db.clone(), 3, 1, 10).unwrap();
+        let effects = effects_superseding(&to_delete, &[]);
+
+        let relocation = HistoricRelocation {
+            store: &historic,
+            supersession_epoch: 2,
+            expired: false,
+        };
+        let found = AuthorityStorePruner::prune_objects(
+            vec![effects.clone()],
+            &db,
+            &relocation,
+            1,
+            AuthorityStorePruningMetrics::new_for_test(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(found, to_delete.len());
+
+        let found = AuthorityStorePruner::prune_objects(
+            vec![effects],
+            &db,
+            &relocation,
+            2,
+            AuthorityStorePruningMetrics::new_for_test(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(found, 0);
+    }
+
+    /// A database created at genesis has nothing to migrate: the marker is
+    /// `Complete` from the start, so the walker's findings immediately count
+    /// as capture misses and the legacy sweep never runs.
+    #[tokio::test]
+    async fn genesis_database_starts_with_migration_complete() {
+        use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+        let state = TestAuthorityBuilder::new().build().await;
+        assert_eq!(
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .get_historic_migration()
+                .unwrap(),
+            HistoricMigrationProgress::Complete
+        );
     }
 
     // A nudge wakes the pruner task's subscription.
