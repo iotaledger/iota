@@ -32,7 +32,7 @@ use crate::{
         VerifiedTransactions, genesis_blocks,
     },
     commit::{
-        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
@@ -643,24 +643,16 @@ impl DagState {
             return;
         };
 
+        let last_commit_index = last_commit.index();
         let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
-        if commit_recovery_start_index > last_commit.index() {
+        if commit_recovery_start_index > last_commit_index {
             return;
         }
 
-        let commits = self
-            .store
-            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        let mut unscored_subdags = Vec::with_capacity(commits.len());
-        for commit in commits {
-            let pending_subdag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
-                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"));
-            unscored_subdags.push(pending_subdag.base);
-        }
+        let unscored_subdags = self.load_scoring_subdags_from_store(
+            (commit_recovery_start_index..=last_commit_index).into(),
+        );
 
         if !unscored_subdags.is_empty() {
             self.scoring_subdag.add_subdags(unscored_subdags);
@@ -2626,12 +2618,27 @@ impl DagState {
         self.scoring_subdag.calculate_distributed_vote_scores()
     }
 
-    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
+    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitRange {
         self.scoring_subdag
             .commit_range
-            .as_ref()
+            .clone()
             .expect("commit range should exist for scoring subdag")
-            .end()
+    }
+
+    /// Loads the committed subdags in `range` from stored commits, for
+    /// re-scoring. The commits and their block headers must exist in the
+    /// store.
+    pub(crate) fn load_scoring_subdags_from_store(&self, range: CommitRange) -> Vec<SubDagBase> {
+        self.store
+            .scan_commits(range)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+            .into_iter()
+            .map(|commit| {
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
+                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"))
+                    .base
+            })
+            .collect()
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
