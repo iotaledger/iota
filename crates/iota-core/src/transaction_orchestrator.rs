@@ -262,17 +262,45 @@ where
 
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
-                self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
-                    .await?
+                let td = td.clone();
+                let validator_state = self.validator_state.clone();
+                let metrics = self.metrics.clone();
+                // Detached so a client disconnect (this future dropped) does
+                // not cancel a submission that may already be in consensus;
+                // the task drives the transaction to finality on its own.
+                spawn_monitored_task!(Self::submit_with_checkpoint_race(
+                    td,
+                    validator_state,
+                    metrics,
+                    request,
+                    client_addr,
+                    tx_digest,
+                ))
+                .await
+                .unwrap_or_else(|e| {
+                    Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
+                        format!("transaction submission task panicked: {e}"),
+                    )))
+                })?
             }
-            (Driver::Transaction(td), false) => (
-                Some(
-                    self.submit_with_transaction_driver(td.clone(), request, client_addr, false)
-                        .await
-                        .map_err(map_td_error_to_qd)?,
-                ),
-                None,
-            ),
+            (Driver::Transaction(td), false) => {
+                let td = td.clone();
+                // Detached for the same reason as above.
+                let result = spawn_monitored_task!(Self::submit_with_transaction_driver(
+                    td,
+                    request,
+                    client_addr,
+                    false,
+                ))
+                .await
+                .unwrap_or_else(|e| {
+                    Err(TransactionDriverError::ClientInternal {
+                        error: format!("transaction submission task panicked: {e}"),
+                    })
+                })
+                .map_err(map_td_error_to_qd)?;
+                (Some(result), None)
+            }
             (Driver::Quorum(qd), _) => {
                 let (_, qd_resp) = self
                     .execute_transaction_impl(qd, &epoch_store, request, client_addr)
@@ -513,13 +541,21 @@ where
                 epoch_store
                     .verify_transaction(request.transaction.clone())
                     .map_err(QuorumDriverError::InvalidUserSignature)?;
-                self.submit_with_transaction_driver(
-                    td.clone(),
+                let td = td.clone();
+                // Detached so a client disconnect does not cancel a
+                // submission that may already be in consensus.
+                spawn_monitored_task!(Self::submit_with_transaction_driver(
+                    td,
                     request,
                     client_addr,
                     skip_certification,
-                )
+                ))
                 .await
+                .unwrap_or_else(|e| {
+                    Err(TransactionDriverError::ClientInternal {
+                        error: format!("transaction submission task panicked: {e}"),
+                    })
+                })
                 .map_err(map_td_error_to_qd)
             }
             Driver::Quorum(qd) => {
@@ -547,11 +583,17 @@ where
     /// returned a result (which may carry `UncertifiedSingleValidator`
     /// finality requiring rebuild) and `seq` is the checkpoint sequence if
     /// either future yielded it.
+    ///
+    /// Takes `validator_state` and `metrics` by `Arc` rather than `&self`:
+    /// the caller runs this inside a detached task so a client disconnect
+    /// does not cancel the race before the checkpoint-seq bookkeeping
+    /// completes, and a detached task needs owned, `'static` inputs.
     #[instrument(name = "tx_orchestrator_submit_with_checkpoint_race", level = "trace", skip_all,
                  fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(
-        &self,
         td: Arc<TransactionDriver<A>>,
+        validator_state: Arc<AuthorityState>,
+        metrics: Arc<TransactionOrchestratorMetrics>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         tx_digest: TransactionDigest,
@@ -563,11 +605,10 @@ where
         QuorumDriverError,
     > {
         let digests = [tx_digest];
-        let checkpoint_inclusion = self
-            .validator_state
-            .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
+        let checkpoint_inclusion =
+            validator_state.wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
         tokio::pin!(checkpoint_inclusion);
-        let driver = self.submit_with_transaction_driver(td, request, client_addr, true);
+        let driver = Self::submit_with_transaction_driver(td, request, client_addr, true);
 
         let seq_for_tx = |inclusion_map: BTreeMap<_, (CheckpointSequenceNumber, _)>| {
             inclusion_map.get(&tx_digest).map(|&(seq, _)| seq)
@@ -585,7 +626,7 @@ where
                 (response, seq)
             }
             checkpoint_result = &mut checkpoint_inclusion => {
-                self.metrics.skip_effect_cert_checkpoint_overrode_driver.inc();
+                metrics.skip_effect_cert_checkpoint_overrode_driver.inc();
                 (None, checkpoint_result.ok().and_then(seq_for_tx))
             }
         };
@@ -603,10 +644,14 @@ where
     /// authoritative data — uncertified data must never reach the client.
     /// See `corroborate_single_validator_error` for the per-submission
     /// fetch-failure recovery flow inside the driver.
+    ///
+    /// Takes `td` by `Arc` rather than `&self`: the caller runs this inside
+    /// a detached task so a client disconnect does not cancel a
+    /// `drive_transaction` call that may already be in consensus, and a
+    /// detached task needs owned, `'static` inputs.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
-        &self,
         td: Arc<TransactionDriver<A>>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
@@ -626,7 +671,11 @@ where
         //     debug!(?tx_digest, "transaction already in flight, skipping duplicate
         // submission."); }
 
-        let td_response = td
+        // This call runs inside a task detached from the caller, so the
+        // outcome is logged here rather than left to the caller — a
+        // disconnected client's continuation never runs and would
+        // otherwise never observe it.
+        let td_response = match td
             .drive_transaction(
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
@@ -636,12 +685,16 @@ where
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
                 skip_certification,
             )
-            .await?;
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                warn!(?tx_digest, "TransactionDriver submission failed: {e}");
+                return Err(e);
+            }
+        };
 
-        debug!(
-            "TransactionOrchestrator: TransactionDriver submission succeeded for transaction {}",
-            tx_digest
-        );
+        debug!(?tx_digest, "TransactionDriver submission succeeded");
 
         let QuorumTransactionResponse {
             effects: td_effects,
