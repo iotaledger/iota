@@ -25,6 +25,7 @@ import os
 import sys
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 label, start, end, step, out = sys.argv[1:6]
 prom = os.environ["PROM"]
@@ -186,8 +187,8 @@ def trim_after_last_reset(values):
     return values[last:]
 
 
-series = {}
-for name, q in metrics.items():
+def fetch(item):
+    name, q = item
     url = (
         prom
         + "/api/v1/query_range?"
@@ -200,9 +201,17 @@ for name, q in metrics.items():
             for s_ in result:
                 if s_.get("values"):
                     s_["values"] = trim_after_last_reset(s_["values"])
-        series[name] = result
+        return name, result
     except Exception as e:  # noqa: BLE001
-        series[name] = {"error": str(e)}
+        return name, {"error": str(e)}
+
+
+# The queries are independent and I/O-bound, so fetch them concurrently — run
+# sequentially the ~70 of them dominate the dump's wall time. 8 workers stays
+# well below Prometheus's default query concurrency limit (20). pool.map keeps
+# the metrics-dict order, so the output JSON is stable.
+with ThreadPoolExecutor(max_workers=8) as pool:
+    series = dict(pool.map(fetch, metrics.items()))
 
 with open(out, "w") as f:
     json.dump(
