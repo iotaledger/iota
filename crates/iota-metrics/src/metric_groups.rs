@@ -91,11 +91,12 @@ pub struct MetricGroups {
     /// Modules: `iota_network::discovery`, `iota_network::randomness`,
     /// `iota_network::state_sync`.
     pub network: MetricLevel,
-    /// Persistent storage. The authority object store is part of the
-    /// `authority` group, not this one.
+    /// Persistent storage, including archive writes/reads and state snapshot
+    /// uploads. The authority object store is part of the `authority` group,
+    /// not this one.
     ///
     /// Modules: `typed_store`, `iota_storage`,
-    /// `iota_core::db_checkpoint_handler`.
+    /// `iota_core::db_checkpoint_handler`, `iota_archival`, `iota_snapshot`.
     pub storage: MetricLevel,
     /// API servers and RPC-facing indexes.
     ///
@@ -172,6 +173,8 @@ impl MetricGroups {
                 "typed_store",
                 "iota_storage",
                 "iota_core::db_checkpoint_handler",
+                "iota_archival",
+                "iota_snapshot",
             ],
             "rpc" => &[
                 "iota_json_rpc",
