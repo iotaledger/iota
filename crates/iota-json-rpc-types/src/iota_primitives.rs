@@ -27,10 +27,9 @@ use iota_sdk_types::{
     ConsensusCommitDigest, Digest, EffectsAuxDataDigest, Identifier as NativeIdentifier,
     MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest, ObjectId as NativeObjectId,
     SenderSignedDataDigest, StructTag as NativeStructTag, TransactionDigest,
-    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag,
+    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag, Version,
 };
 use iota_types::{
-    base_types::SequenceNumber,
     iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
     parse_iota_struct_tag, parse_iota_type_tag,
     signature::GenericSignature as NativeGenericSignature,
@@ -125,7 +124,7 @@ impl<'de> DeserializeAs<'de, NativeObjectId> for ObjectId {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`] type as a string
+/// [`Version`] type as a string
 /// and provides an alternate serialization usable via `#[serde_as]`.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -149,11 +148,8 @@ impl JsonSchema for SequenceNumberString {
     }
 }
 
-impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberString {
-    fn serialize_as<S>(
-        source: &iota_types::base_types::SequenceNumber,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl SerializeAs<Version> for SequenceNumberString {
+    fn serialize_as<S>(source: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -161,32 +157,30 @@ impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberStrin
     }
 }
 
-impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for SequenceNumberString {
-    fn deserialize_as<D>(
-        deserializer: D,
-    ) -> Result<iota_types::base_types::SequenceNumber, D::Error>
+impl<'de> DeserializeAs<'de, Version> for SequenceNumberString {
+    fn deserialize_as<D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let schema = SequenceNumberString::deserialize(deserializer)?;
-        Ok(iota_types::base_types::SequenceNumber::from_u64(schema.0))
+        Ok(Version::from_u64(schema.0))
     }
 }
 
-/// JSON representation of a [`SequenceNumber`] as a u64 integer.
+/// JSON representation of a [`Version`] as a u64 integer.
 ///
 /// This serializes to a number as opposed to the SDK type that serializes
 /// as a string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SequenceNumberU64(SequenceNumber);
+pub struct SequenceNumberU64(Version);
 
-impl From<SequenceNumber> for SequenceNumberU64 {
-    fn from(value: SequenceNumber) -> Self {
+impl From<Version> for SequenceNumberU64 {
+    fn from(value: Version) -> Self {
         Self(value)
     }
 }
 
-impl From<SequenceNumberU64> for SequenceNumber {
+impl From<SequenceNumberU64> for Version {
     fn from(value: SequenceNumberU64) -> Self {
         value.0
     }
@@ -212,9 +206,7 @@ impl<'de> Deserialize<'de> for SequenceNumberU64 {
     where
         D: Deserializer<'de>,
     {
-        Ok(Self(SequenceNumber::from_u64(u64::deserialize(
-            deserializer,
-        )?)))
+        Ok(Self(Version::from_u64(u64::deserialize(deserializer)?)))
     }
 }
 

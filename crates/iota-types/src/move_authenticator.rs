@@ -4,12 +4,11 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TypeTag, crypto::IntentMessage};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TypeTag, Version, crypto::IntentMessage};
 pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 use serde::Serialize;
 
 use crate::{
-    base_types::SequenceNumber,
     digests::ObjectDigest,
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
@@ -39,7 +38,7 @@ pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
 
     fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)>;
+    ) -> UserInputResult<(ObjectId, Option<Version>, Option<ObjectDigest>)>;
 
     fn input_objects(&self) -> Vec<InputObjectKind>;
 
@@ -89,7 +88,7 @@ impl MoveAuthenticatorExt for MoveAuthenticator {
 
     fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectId, Option<Version>, Option<ObjectDigest>)> {
         match self {
             Self::V1(v1) => v1.object_to_authenticate_components(),
             _ => unimplemented!(
@@ -156,7 +155,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
 
     fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectId, Option<Version>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
             CallArg::Pure(_) => {
                 return Err(UserInputError::Unsupported(

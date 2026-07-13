@@ -58,9 +58,9 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
-    base_types::{EpochId, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, VerifiedExecutionData},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -167,13 +167,13 @@ impl From<ObjectOrTombstone> for ObjectEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LatestObjectCacheEntry {
-    Object(SequenceNumber, ObjectEntry),
+    Object(Version, ObjectEntry),
     NonExistent,
 }
 
 impl LatestObjectCacheEntry {
     #[cfg(test)]
-    fn version(&self) -> Option<SequenceNumber> {
+    fn version(&self) -> Option<Version> {
         match self {
             LatestObjectCacheEntry::Object(version, _) => Some(*version),
             LatestObjectCacheEntry::NonExistent => None,
@@ -529,12 +529,7 @@ impl WritebackCache {
         std::mem::swap(self, &mut new);
     }
 
-    fn write_object_entry(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-        object: ObjectEntry,
-    ) {
+    fn write_object_entry(&self, object_id: &ObjectId, version: Version, object: ObjectEntry) {
         trace!(?object_id, ?version, ?object, "inserting object entry");
         self.metrics.record_cache_write("object");
 
@@ -638,7 +633,7 @@ impl WritebackCache {
     fn get_object_entry_by_key_cache_only(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> CacheResult<ObjectEntry> {
         Self::with_locked_cache_entries(
             &self.dirty.objects,
@@ -667,7 +662,7 @@ impl WritebackCache {
     fn get_object_by_key_cache_only(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> CacheResult<Object> {
         match self.get_object_entry_by_key_cache_only(object_id, version) {
             CacheResult::Hit(entry) => match entry {
@@ -683,7 +678,7 @@ impl WritebackCache {
         &self,
         request_type: &'static str,
         object_id: &ObjectId,
-    ) -> CacheResult<(SequenceNumber, ObjectEntry)> {
+    ) -> CacheResult<(Version, ObjectEntry)> {
         self.metrics
             .record_cache_request(request_type, "object_by_id");
         let entry = self.object_by_id_cache.get(object_id);
@@ -764,7 +759,7 @@ impl WritebackCache {
         &self,
         request_type: &'static str,
         object_id: &ObjectId,
-    ) -> CacheResult<(SequenceNumber, Object)> {
+    ) -> CacheResult<(Version, Object)> {
         match self.get_object_entry_by_id_cache_only(request_type, object_id) {
             CacheResult::Hit((version, entry)) => match entry {
                 ObjectEntry::Object(object) => CacheResult::Hit((version, object)),
@@ -778,7 +773,7 @@ impl WritebackCache {
     fn get_marker_value_cache_only(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> CacheResult<MarkerValue> {
         Self::with_locked_cache_entries(
@@ -809,7 +804,7 @@ impl WritebackCache {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> CacheResult<(SequenceNumber, MarkerValue)> {
+    ) -> CacheResult<(Version, MarkerValue)> {
         Self::with_locked_cache_entries(
             &self.dirty.markers,
             &self.cached.marker_cache,
@@ -1203,7 +1198,7 @@ impl WritebackCache {
         dirty: &DashMap<K, CachedVersionMap<V>>,
         cache: &MokaCache<K, Arc<Mutex<CachedVersionMap<V>>>>,
         key: K,
-        version: SequenceNumber,
+        version: Version,
         value: &V,
     ) where
         K: Eq + std::hash::Hash + Clone + Send + Sync + Copy + 'static,
@@ -1432,7 +1427,7 @@ impl ObjectCacheRead for WritebackCache {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         match self.get_object_by_key_cache_only(object_id, version) {
             CacheResult::Hit(object) => Ok(Some(object)),
@@ -1465,11 +1460,7 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     #[instrument(level = "trace", skip_all, fields(object_id, version))]
-    fn try_object_exists_by_key(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<bool> {
+    fn try_object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> IotaResult<bool> {
         match self.get_object_by_key_cache_only(object_id, version) {
             CacheResult::Hit(_) => Ok(true),
             CacheResult::NegativeHit => Ok(false),
@@ -1558,7 +1549,7 @@ impl ObjectCacheRead for WritebackCache {
     fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version_bound: SequenceNumber,
+        version_bound: Version,
     ) -> IotaResult<Option<Object>> {
         macro_rules! check_cache_entry {
             ($level: expr, $objects: expr) => {
@@ -1654,20 +1645,19 @@ impl ObjectCacheRead for WritebackCache {
                 // reads to it from the object_by_id cache check above.  Most of
                 // the apparently wasteful code here exists only to ensure
                 // correctness in all the edge cases.
-                let latest: Option<(SequenceNumber, ObjectEntry)> =
-                    if let Some(dirty_set) = dirty_entry {
-                        dirty_set
-                            .get_highest()
-                            .cloned()
-                            .tap_none(|| panic!("dirty set cannot be empty"))
-                    } else {
-                        // TODO: we should try not to read from the db while holding the locks.
-                        self.record_db_get("object_lt_or_eq_version_latest")
-                            .get_latest_object_or_tombstone(object_id)?
-                            .map(|(ObjectKey(_, version), obj_or_tombstone)| {
-                                (version, ObjectEntry::from(obj_or_tombstone))
-                            })
-                    };
+                let latest: Option<(Version, ObjectEntry)> = if let Some(dirty_set) = dirty_entry {
+                    dirty_set
+                        .get_highest()
+                        .cloned()
+                        .tap_none(|| panic!("dirty set cannot be empty"))
+                } else {
+                    // TODO: we should try not to read from the db while holding the locks.
+                    self.record_db_get("object_lt_or_eq_version_latest")
+                        .get_latest_object_or_tombstone(object_id)?
+                        .map(|(ObjectKey(_, version), obj_or_tombstone)| {
+                            (version, ObjectEntry::from(obj_or_tombstone))
+                        })
+                };
 
                 if let Some((obj_version, obj_entry)) = latest {
                     // we can always cache the latest object (or tombstone), even if it is not
@@ -1731,7 +1721,7 @@ impl ObjectCacheRead for WritebackCache {
     fn try_get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
         match self.get_marker_value_cache_only(object_id, version, epoch_id) {
@@ -1747,7 +1737,7 @@ impl ObjectCacheRead for WritebackCache {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+    ) -> IotaResult<Option<(Version, MarkerValue)>> {
         match self.get_latest_marker_value_cache_only(object_id, epoch_id) {
             CacheResult::Hit((v, marker)) => Ok(Some((v, marker))),
             CacheResult::NegativeHit => {
@@ -2266,7 +2256,7 @@ impl ChildObjectResolver for WritebackCache {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let Some(child_object) =
             self.try_find_object_lt_or_eq_version(*child, child_version_upper_bound)?
@@ -2289,7 +2279,7 @@ impl ChildObjectResolver for WritebackCache {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         let Some(recv_object) = ObjectCacheRead::try_get_object_by_key(

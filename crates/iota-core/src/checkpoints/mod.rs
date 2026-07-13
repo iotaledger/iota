@@ -2914,10 +2914,10 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, Version, move_package::MovePackage,
     };
     use iota_types::{
-        base_types::{SequenceNumber, TransactionEffectsDigest},
+        base_types::TransactionEffectsDigest,
         crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
@@ -3057,7 +3057,7 @@ mod tests {
                     ObjectData::Package(
                         MovePackage::new(
                             ObjectId::new(id),
-                            SequenceNumber::default(),
+                            Version::default(),
                             BTreeMap::from([(
                                 Identifier::new_unchecked("m"),
                                 vec![0u8; payload_size],

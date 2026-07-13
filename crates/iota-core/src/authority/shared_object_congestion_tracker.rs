@@ -763,9 +763,10 @@ mod execution_slot_tests {
 
 #[cfg(test)]
 pub mod shared_object_test_utils {
+    use iota_sdk_types::Version;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{SequenceNumber, random_object_ref},
+        base_types::random_object_ref,
         crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
         transaction::{CallArg, VerifiedTransaction},
@@ -800,7 +801,7 @@ pub mod shared_object_test_utils {
                             .map(|(id, mutable)| {
                                 CallArg::Shared(SharedObjectRef::new(
                                     *id,
-                                    SequenceNumber::default(),
+                                    Version::default(),
                                     *mutable,
                                 ))
                             })
@@ -849,7 +850,7 @@ pub mod shared_object_test_utils {
     pub fn construct_shared_input_objects(objects: &[(ObjectId, bool)]) -> Vec<SharedObjectRef> {
         objects
             .iter()
-            .map(|(id, mutable)| SharedObjectRef::new(*id, SequenceNumber::default(), *mutable))
+            .map(|(id, mutable)| SharedObjectRef::new(*id, Version::default(), *mutable))
             .collect()
     }
 }

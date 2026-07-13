@@ -142,7 +142,7 @@ use crate::restore::RestoreEpochInfo;
 /// │ │       ObjectReference N        │ │
 /// │ └────────────────────────────────┘ │
 /// └────────────────────────────────────┘
-/// ObjectReference (ObjectId, SequenceNumber, ObjectDigest)
+/// ObjectReference (ObjectId, Version, ObjectDigest)
 /// ┌───────────────┬───────────────────┬──────────────┐
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘

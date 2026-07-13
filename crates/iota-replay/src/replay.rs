@@ -18,7 +18,9 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind};
+use iota_sdk_types::{
+    ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, Version,
+};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
@@ -27,7 +29,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
@@ -161,7 +163,7 @@ pub struct Storage {
     pub package_cache: Arc<Mutex<BTreeMap<ObjectId, Object>>>,
     /// Object contents are frozen at their versions so we can cache these
     /// We must place system packages here as well
-    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectId, SequenceNumber), Object>>>,
+    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectId, Version), Object>>>,
 }
 
 impl std::fmt::Display for Storage {
@@ -233,7 +235,7 @@ pub struct LocalExec {
     // at this protocol version.
     pub protocol_version_epoch_table: BTreeMap<u64, ProtocolVersionSummary>,
     // For a given protocol version, the mapping valid sequence numbers for each framework package
-    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectId, SequenceNumber>>,
+    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectId, Version>>,
     // The current protocol version for this execution
     pub current_protocol_version: u64,
     // All state is contained here
@@ -255,7 +257,7 @@ pub struct LocalExec {
     // Whether or not to enable the gas profiler, the PathBuf contains either a user specified
     // filepath or the default current directory and name format for the profile output
     pub enable_profiler: Option<PathBuf>,
-    pub config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
+    pub config_and_versions: Option<Vec<(ObjectId, Version)>>,
     // Retry policies due to RPC errors
     pub num_retries_for_timeout: u32,
     pub sleep_period_for_timeout: std::time::Duration,
@@ -266,7 +268,7 @@ impl LocalExec {
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download(
         &self,
-        objs: &[(ObjectId, SequenceNumber)],
+        objs: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
@@ -314,7 +316,7 @@ impl LocalExec {
     pub async fn fetch_loaded_child_refs(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         // Get the child objects loaded
         self.fetcher.get_loaded_child_objects(tx_digest).await
     }
@@ -339,7 +341,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, Version)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         info!("Using RPC URL: {}", rpc_url);
         LocalExec::new_from_fn_url(&rpc_url)
@@ -452,7 +454,7 @@ impl LocalExec {
 
     pub async fn multi_download_and_store(
         &mut self,
-        objs: &[(ObjectId, SequenceNumber)],
+        objs: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let objs = self.multi_download(objs).await?;
 
@@ -531,7 +533,7 @@ impl LocalExec {
     pub fn download_object(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> Result<Object, ReplayEngineError> {
         if self
             .storage
@@ -1286,7 +1288,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, Version)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         self.executor_version = executor_version;
         self.protocol_version = protocol_version;
@@ -1369,7 +1371,7 @@ impl LocalExec {
     pub fn system_package_versions_for_protocol_version(
         &self,
         protocol_version: u64,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         match &self.fetcher {
             Fetchers::Remote(_) => Ok(self
                 .protocol_version_system_package_table
@@ -1536,8 +1538,7 @@ impl LocalExec {
 
     pub async fn system_package_versions(
         &self,
-    ) -> Result<BTreeMap<ObjectId, Vec<(SequenceNumber, TransactionDigest)>>, ReplayEngineError>
-    {
+    ) -> Result<BTreeMap<ObjectId, Vec<(Version, TransactionDigest)>>, ReplayEngineError> {
         let system_package_ids = Self::system_package_ids(
             *self
                 .protocol_version_epoch_table
@@ -1725,7 +1726,7 @@ impl LocalExec {
     fn add_config_objects_if_needed(
         &self,
         status: &IotaExecutionStatus,
-    ) -> Vec<(ObjectId, SequenceNumber)> {
+    ) -> Vec<(ObjectId, Version)> {
         match parse_effect_error_for_denied_coins(status) {
             Some(coin_type) => {
                 let Some(mut config_id_and_version) = self.config_and_versions.clone() else {
@@ -1778,7 +1779,7 @@ impl LocalExec {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, Version)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
@@ -1873,7 +1874,7 @@ impl LocalExec {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, Version)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
@@ -2165,7 +2166,7 @@ impl LocalExec {
 /// `authority.rs` — we skip validation since we trust on-chain state.
 fn load_authenticator_function_ref(
     move_authenticator: &MoveAuthenticator,
-    account_object_version: SequenceNumber,
+    account_object_version: Version,
     get_object: impl Fn(&ObjectId) -> Option<Object>,
 ) -> Result<AuthenticatorFunctionRefForExecution, ReplayEngineError> {
     let (account_object_id, _, _) = move_authenticator
@@ -2220,13 +2221,13 @@ impl ChildObjectResolver for LocalExec {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
             parent: &ObjectId,
             child: &ObjectId,
-            child_version_upper_bound: SequenceNumber,
+            child_version_upper_bound: Version,
         ) -> IotaResult<Option<Object>> {
             let child_object =
                 match self_.download_object_by_upper_bound(child, child_version_upper_bound)? {
@@ -2269,14 +2270,14 @@ impl ChildObjectResolver for LocalExec {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
             owner: &ObjectId,
             receiving_object_id: &ObjectId,
-            receive_object_at_version: SequenceNumber,
+            receive_object_at_version: Version,
         ) -> IotaResult<Option<Object>> {
             let recv_object = match self_.try_get_object(receiving_object_id)? {
                 None => return Ok(None),

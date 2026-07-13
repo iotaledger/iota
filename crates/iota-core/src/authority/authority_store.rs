@@ -10,9 +10,10 @@ use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
 use iota_macros::fail_point_arg;
+use iota_sdk_types::Version;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    base_types::{SequenceNumber, VerifiedExecutionData},
+    base_types::VerifiedExecutionData,
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
@@ -499,7 +500,7 @@ impl AuthorityStore {
     pub fn get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
         let object_key = (epoch_id, ObjectKey(*object_id, *version));
@@ -513,7 +514,7 @@ impl AuthorityStore {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
+    ) -> IotaResult<Option<(Version, MarkerValue)>> {
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
@@ -1297,7 +1298,7 @@ impl AuthorityStore {
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         self.perpetual_tables
             .find_object_lt_or_eq_version(object_id, version)

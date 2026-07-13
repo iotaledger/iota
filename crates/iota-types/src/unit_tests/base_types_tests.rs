@@ -101,7 +101,7 @@ fn test_signatures_serde() {
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX_VALID_EXCL;
+    let max = Version::MAX_VALID_EXCL;
     assert_eq!(max * 2 + 1, u64::MAX);
 }
 
@@ -119,13 +119,13 @@ fn test_gas_coin_ser_deser_roundtrip() {
 #[test]
 fn test_lamport_increment_version() {
     let versions = [
-        SequenceNumber::from(1),
-        SequenceNumber::from(3),
-        SequenceNumber::from(257),
-        SequenceNumber::from(42),
+        Version::from(1),
+        Version::from(3),
+        Version::from(257),
+        Version::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
+    let incremented = Version::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");
