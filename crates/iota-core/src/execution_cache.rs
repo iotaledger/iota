@@ -5,7 +5,7 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::{fatal, sync::notify_read::NotifyRead};
+use iota_common::sync::notify_read::NotifyRead;
 use iota_config::ExecutionCacheConfig;
 use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::{
@@ -1008,26 +1008,36 @@ pub trait TransactionCacheRead: Send + Sync {
     /// ExecutionLockReadGuard would also prevent reconfig from happening while
     /// waiting, but this is very dangerous, as it could prevent
     /// reconfiguration from ever occurring!
+    ///
+    /// Returns an error if any of the requested effects have been pruned from
+    /// the database. Use this in paths where effects may not exist. For
+    /// critical paths where effects must exist (e.g. checkpoint building),
+    /// use `notify_read_executed_effects`.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
-            let digests = self
+            let effects_digests = self
                 .try_notify_read_executed_effects_digests(digests)
                 .await?;
-            // once digests are available, effects must be present as well
-            self.try_multi_get_effects(&digests).map(|effects| {
-                effects
-                    .into_iter()
-                    .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
-                    .collect()
-            })
+            self.try_multi_get_effects(&effects_digests)?
+                .into_iter()
+                .zip(digests)
+                .map(|(effects, digest)| {
+                    effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
+                })
+                .collect()
         }
         .boxed()
     }
 
     /// Non-fallible version of `try_notify_read_executed_effects`.
+    ///
+    /// Panics if any of the requested effects are not found. Use this in
+    /// critical paths where effects are expected to exist (e.g. checkpoint
+    /// building). For paths where effects may have been pruned, use
+    /// `try_notify_read_executed_effects`.
     fn notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -1035,7 +1045,7 @@ pub trait TransactionCacheRead: Send + Sync {
         Box::pin(async move {
             self.try_notify_read_executed_effects(digests)
                 .await
-                .expect("storage access failed")
+                .unwrap_or_else(|e| panic!("effects must exist: {e}"))
         })
     }
 }

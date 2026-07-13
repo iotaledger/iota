@@ -1282,9 +1282,9 @@ impl CheckpointBuilder {
                 .await?;
             let root_effects = self
                 .effects_store
-                .try_notify_read_executed_effects(&root_digests)
+                .notify_read_executed_effects(&root_digests)
                 .in_monitored_scope("CheckpointNotifyRead")
-                .await?;
+                .await;
 
             let consensus_commit_prologue = {
                 // If the roots contains consensus commit prologue transaction, we want to
