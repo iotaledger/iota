@@ -296,14 +296,10 @@ mod move_authenticator {
 pub use move_authenticator::*;
 
 mod passkey {
-    use fastcrypto::secp256r1::Secp256r1KeyPair;
+    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
 
     use super::*;
-    use crate::{
-        crypto::{Signer, get_key_pair},
-        passkey_authenticator::PasskeyAuthenticator,
-        signature::GenericSignature,
-    };
+    use crate::{passkey_authenticator::PasskeyAuthenticator, signature::GenericSignature};
 
     /// Build a [`GenericSignature::PasskeyAuthenticator`] backed by a
     /// freshly-generated Secp256r1 key pair, for use in tests.
@@ -312,15 +308,11 @@ mod passkey {
     /// padding, satisfying the length requirement without needing a real
     /// WebAuthn round-trip.
     pub fn make_passkey_authenticator_sig() -> GenericSignature {
-        let (_, r1_kp): (_, Secp256r1KeyPair) = get_key_pair();
-        let user_sig: SimpleSignature = IotaKeyPair::from(&r1_kp).sign(&[0u8; 32]);
+        let r1_kp = Secp256r1PrivateKey::generate(rand::thread_rng());
+        let user_sig: SimpleSignature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
-        let passkey = PasskeyAuthenticator::new(
-            vec![],
-            client_data_json.to_string(),
-            SimpleSignature::from_bytes(user_sig.to_bytes()).unwrap(),
-        )
-        .unwrap();
+        let passkey =
+            PasskeyAuthenticator::new(vec![], client_data_json.to_string(), user_sig).unwrap();
         GenericSignature::PasskeyAuthenticator(passkey)
     }
 }
