@@ -21,7 +21,6 @@ const branches = ["mainnet", "testnet", "devnet"];
 const fetchSpec = async (branch) => {
     const url = `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-open-rpc/spec/openrpc.json`;
     const maxAttempts = 4;
-    let lastError;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             const res = await axios({
@@ -32,14 +31,13 @@ const fetchSpec = async (branch) => {
             });
             return res.data;
         } catch (err) {
-            lastError = err;
             console.log(`Attempt ${attempt}/${maxAttempts} to download ${branch} openrpc spec failed: ${err.message}`);
-            if (attempt < maxAttempts) {
-                await sleep(2000 * attempt);
+            if (attempt === maxAttempts) {
+                throw new Error(`Could not download ${branch} openrpc spec after ${maxAttempts} attempts: ${err.message}`);
             }
+            await sleep(2000 * attempt);
         }
     }
-    throw new Error(`Could not download ${branch} openrpc spec after ${maxAttempts} attempts: ${lastError.message}`);
 };
 
 const downloadFile = async (branch) => {
