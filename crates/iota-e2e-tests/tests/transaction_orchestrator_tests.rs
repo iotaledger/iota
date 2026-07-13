@@ -750,3 +750,80 @@ async fn test_orchestrator_rejects_expired_transaction() {
         "expected InvalidTransaction(TransactionExpired), got {err:?}"
     );
 }
+
+/// Under the P-COOL flow, `WaitForLocalExecution` races the
+/// TransactionDriver submission against local checkpoint inclusion inside
+/// `submit_with_checkpoint_race`. That race — including the
+/// `drive_transaction` call it wraps — runs in a task detached from the
+/// caller, so a client that disconnects mid-call must not stop the
+/// transaction from being driven to finality.
+///
+/// Quorum is broken before submission so the caller can be aborted while the
+/// transaction is provably still stuck (no quorum can possibly have been
+/// reached yet); quorum is then restored and finality is confirmed
+/// independently of the aborted caller.
+#[sim_test]
+async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    // Break quorum so the submission cannot possibly finish yet, then submit
+    // and abort the caller while it is provably still stuck.
+    let validator_addresses = test_cluster.get_validator_pubkeys();
+    assert_eq!(validator_addresses.len(), 4);
+    test_cluster.stop_node(&validator_addresses[0]);
+    test_cluster.stop_node(&validator_addresses[1]);
+
+    let caller_orchestrator = orchestrator.clone();
+    let caller_task = tokio::spawn(async move {
+        caller_orchestrator
+            .execute_transaction_block(
+                ExecuteTransactionRequestV1::new(txn),
+                ExecuteTransactionRequestType::WaitForLocalExecution,
+                Some(make_socket_addr()),
+            )
+            .await
+    });
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    caller_task.abort();
+    assert!(
+        caller_task
+            .await
+            .expect_err("caller task should not have finished before quorum was restored")
+            .is_cancelled(),
+        "caller task should have been aborted, not have panicked"
+    );
+
+    // Restore quorum. The detached task inside the orchestrator — never
+    // aborted — should still be retrying submission on its own and drive the
+    // transaction to finality.
+    test_cluster.start_node(&validator_addresses[0]).await;
+    test_cluster.start_node(&validator_addresses[1]).await;
+
+    let inclusion = handle
+        .state()
+        .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+        .await
+        .expect("wait_for_checkpoint_inclusion should not error");
+    assert!(
+        inclusion.contains_key(&digest),
+        "transaction should reach finality via the detached task even though \
+         the caller was aborted"
+    );
+
+    Ok(())
+}
