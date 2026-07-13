@@ -21,7 +21,9 @@ authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 1
 
-# Set the exposure level for each Prometheus metric group.
+# Set the exposure level for each Prometheus metric group. The values below
+# are the defaults; omitting a group (or this whole section) is the same as
+# writing them out.
 # metrics:
 #   groups:
 #     default: info # metrics whose module belongs to no group
@@ -35,4 +37,4 @@ authority-store-pruning-config:
 #     storage: warn
 #     rpc: warn
 #     epoch: warn
-#     hardware: warn # startup-only: `off` skips the group, other levels register it
+#     hardware: warn # set to `off` to disable hardware metrics; takes effect at startup only

@@ -9,15 +9,13 @@
 //! [`MetricGroups::to_filter_string`].
 //!
 //! Each filter-based group is set to a [`MetricLevel`], a verbosity threshold.
-//! Individual metrics declare their own level where they are registered
-//! (defaulting to [`MetricLevel::Debug`]); metrics used by the shipped Grafana
-//! dashboards are tagged [`MetricLevel::Warn`]. A group's level decides which
-//! of its metrics are **exposed** on the metrics endpoint — a metric is
-//! exposed when the group's level is at least as verbose as the metric's:
+//! Individual metrics declare their own level where they are registered,
+//! defaulting to [`MetricLevel::Debug`]. A group's level decides which of its
+//! metrics are **exposed** on the metrics endpoint — a metric is exposed when
+//! the group's level is at least as verbose as the metric's:
 //!
 //! - `off` exposes nothing;
-//! - `warn` (the group default) exposes only the `warn`-tagged (dashboard)
-//!   metrics;
+//! - `warn` (the group default) exposes only `warn`-tagged metrics;
 //! - `info` exposes `warn` and `info` metrics;
 //! - `debug` exposes everything except `trace`-tagged metrics;
 //! - `trace` exposes everything.
@@ -31,7 +29,7 @@
 //!
 //! Note the two defaults differ: an untagged metric is exposed from level
 //! `debug`, while a group defaults to the `warn` threshold, so the default
-//! config exposes only the dashboard metrics.
+//! config exposes only the `warn`-tagged metrics.
 //!
 //! The node applies [`MetricGroups::default()`] when the config omits
 //! `metrics.groups` entirely, so an omitted and an empty section behave the
@@ -266,10 +264,10 @@ mod tests {
     }
 
     #[test]
-    fn metric_groups_default_trims_to_dashboard() {
+    fn metric_groups_default_trims_to_warn_tagged() {
         // The default (all groups `warn`) renders `{module}=warn` for every
-        // group's modules, so only the `warn`-tagged (dashboard) metrics
-        // are exposed; non-grouped modules fall to the `info` catch-all.
+        // group's modules, so only the `warn`-tagged metrics are exposed;
+        // non-grouped modules fall to the `info` catch-all.
         let filter_string = MetricGroups::default().to_filter_string();
         assert!(filter_string.starts_with("info,"));
         assert!(filter_string.contains("starfish_core=warn"));

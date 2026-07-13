@@ -37,3 +37,21 @@ state-archive-read-config:
       no-sign-request: true
     concurrency: 5
     use-for-pruning-watermark: false
+
+# Set the exposure level for each Prometheus metric group. The values below
+# are the defaults; omitting a group (or this whole section) is the same as
+# writing them out.
+# metrics:
+#   groups:
+#     default: info # metrics whose module belongs to no group
+#     consensus: warn
+#     execution: warn
+#     checkpoints: warn
+#     transactions: warn
+#     authority: warn
+#     traffic-control: warn
+#     network: warn
+#     storage: warn
+#     rpc: warn
+#     epoch: warn
+#     hardware: warn # set to `off` to disable hardware metrics; takes effect at startup only
