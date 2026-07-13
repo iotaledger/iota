@@ -599,9 +599,11 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
 fn get_total_supply_with_native_coin_manager_coins() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
+        // disable full node pruning: node needs historical object versions to assemble
+        // the checkpoint contents the indexer needs to ingest.
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("get_total_supply_with_native_coin_manager_coins"),
-            None,
+            Some(Box::new(|builder| builder.disable_fullnode_pruning())),
             None,
         )
         .await;
