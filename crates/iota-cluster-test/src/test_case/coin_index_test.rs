@@ -9,12 +9,12 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
-use iota_sdk_transaction_builder::{PTBArgumentList, SharedMut, TransactionBuilder};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag};
-use iota_test_transaction_builder::make_staking_transaction;
+use iota_sdk_transaction_builder::SharedMut;
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, StructTag};
+use iota_test_transaction_builder::{make_staking_transaction, move_call_tx};
 use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionData,
+    quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::rpc_params;
 use tracing::info;
@@ -36,10 +36,11 @@ impl TestCaseImpl for CoinIndexTest {
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         let account = ctx.get_wallet_address();
         let client = ctx.clone_fullnode_client();
-        let grpc_url = ctx
-            .get_fullnode_grpc_url()
-            .expect("coin index test requires a local cluster with the gRPC API enabled")
-            .to_string();
+        let grpc_client = iota_grpc_client::Client::new(
+            ctx.get_fullnode_grpc_url()
+                .expect("coin index test requires a local cluster with the gRPC API enabled"),
+        )
+        .unwrap();
         let rgp = ctx.get_reference_gas_price().await;
 
         // 0. Get some coins first
@@ -155,8 +156,8 @@ impl TestCaseImpl for CoinIndexTest {
         info!("coin type: {coin_type_str}");
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -227,8 +228,8 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(balances, expected_balances,);
 
         // 5. Mint another MANAGED coin to account, balance 10
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -287,8 +288,8 @@ impl TestCaseImpl for CoinIndexTest {
         let managed_old_total_count = managed_balance.coin_object_count;
 
         // 7. take back the balance 10 MANAGED coin
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -319,8 +320,8 @@ impl TestCaseImpl for CoinIndexTest {
         let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         // 9. Take from envelope and burn
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -343,8 +344,8 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_balance.coin_object_count, managed_old_total_count);
 
         // 10. Burn the balance=10000 MANAGED coin
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -403,8 +404,8 @@ impl TestCaseImpl for CoinIndexTest {
         );
 
         // 11. Mint 40 MANAGED coins with balance 5
-        let txn = build_move_call_tx(
-            &grpc_url,
+        let txn = move_call_tx(
+            &grpc_client,
             account,
             package.object_id,
             "managed",
@@ -635,13 +636,14 @@ async fn add_to_envelope(
     coin: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let account = ctx.get_wallet_address();
-    let grpc_url = ctx
-        .get_fullnode_grpc_url()
-        .expect("coin index test requires a local cluster with the gRPC API enabled")
-        .to_string();
+    let grpc_client = iota_grpc_client::Client::new(
+        ctx.get_fullnode_grpc_url()
+            .expect("coin index test requires a local cluster with the gRPC API enabled"),
+    )
+    .unwrap();
     let rgp = ctx.get_reference_gas_price().await;
-    let txn = build_move_call_tx(
-        &grpc_url,
+    let txn = move_call_tx(
+        &grpc_client,
         account,
         pkg_id,
         "managed",
@@ -655,51 +657,4 @@ async fn add_to_envelope(
         .await;
     assert!(response.status_ok().unwrap());
     response
-}
-
-/// Build a `managed` Move-call transaction ready to be signed.
-///
-/// `args` is anything the builder accepts as an argument list: a tuple of mixed
-/// argument types (`ObjectId` for owned objects, `SharedMut(id)` for shared
-/// mutable objects, `u64`/`Address` and other pure values), or an
-/// array/`Vec` of a single argument type.
-async fn build_move_call_tx<A: PTBArgumentList>(
-    grpc_url: &str,
-    sender: Address,
-    package_id: ObjectId,
-    module: &str,
-    function: &str,
-    args: A,
-    gas_budget: u64,
-) -> TransactionData {
-    let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();
-    let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
-
-    builder
-        .move_call(package_id, module, function)
-        .arguments(args);
-
-    // Use a single explicit gas coin; without this, `finish()` would auto-add
-    // every IOTA coin the sender owns as gas inputs and merge the leftover into
-    // one output coin, breaking tests that observe `coin_object_count`.
-    let gas_coin = grpc_client
-        .list_owned_objects(sender, Some(StructTag::new_gas_coin()), Some(1), None, None)
-        .collect(Some(1))
-        .await
-        .expect("failed to fetch gas coin")
-        .into_inner()
-        .into_iter()
-        .next()
-        .expect("sender has no gas coin");
-    let gas_object_id = *gas_coin
-        .object_reference()
-        .expect("gas coin missing object reference")
-        .object_id();
-    builder.gas(vec![gas_object_id]);
-    builder.gas_budget(gas_budget);
-
-    builder
-        .finish()
-        .await
-        .expect("failed to construct move call transaction")
 }

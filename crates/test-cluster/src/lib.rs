@@ -38,6 +38,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::{Address, ObjectId, ObjectReference};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
@@ -138,6 +139,20 @@ impl TestCluster {
             .iota_node
             .with(|node| node.get_config().grpc_api_config.clone());
         format!("http://{}", grpc_config.unwrap_or_default().address)
+    }
+
+    /// Create a gRPC client connected to the fullnode's gRPC API.
+    pub fn grpc_client(&self) -> iota_grpc_client::Client {
+        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    }
+
+    /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
+    /// objects and gas through the fullnode's gRPC API.
+    pub fn grpc_transaction_builder(
+        &self,
+        sender: Address,
+    ) -> TransactionBuilder<iota_grpc_client::Client> {
+        TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 
     pub fn wallet(&mut self) -> &WalletContext {
@@ -1027,7 +1042,7 @@ impl TestClusterBuilder {
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
-            fullnode_enable_grpc_api: false,
+            fullnode_enable_grpc_api: true,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1065,6 +1080,7 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Enable or disable the fullnode's gRPC API. Enabled by default.
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
