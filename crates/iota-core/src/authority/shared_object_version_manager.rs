@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::{ObjectId, Version, VersionAssignment};
+use iota_sdk_types::{ObjectId, SharedObjectReference, Version, VersionAssignment};
 use iota_types::{
     base_types::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -13,7 +13,7 @@ use iota_types::{
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedObjectRef, TransactionKey},
+    transaction::{SenderSignedData, TransactionKey},
 };
 use tracing::trace;
 
@@ -146,7 +146,7 @@ impl SharedObjVerManager {
             // For cancelled transaction due to congestion, assign special versions to all
             // shared objects. Note that new lamport version does not depend on
             // any shared objects.
-            for SharedObjectRef { object_id: id, .. } in shared_input_objects.iter() {
+            for SharedObjectReference { object_id: id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
                     Some(CancelConsensusTransactionReason::CongestionOnObjects {
                         congested_objects: _,
@@ -190,7 +190,7 @@ impl SharedObjVerManager {
             }
         } else {
             for (
-                SharedObjectRef {
+                SharedObjectReference {
                     object_id: id,
                     mutable,
                     ..
@@ -703,7 +703,7 @@ mod tests {
         for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
         {
             builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     *shared_object_id,
                     *shared_object_init_version,
                     *shared_object_mutable,

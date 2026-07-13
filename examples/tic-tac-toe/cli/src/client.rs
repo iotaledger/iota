@@ -17,7 +17,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{
+use iota_sdk_types::{SharedObjectReference, 
     Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction, StructTag,
     TransactionKind,
     crypto::{Intent, UserSignature},
@@ -27,10 +27,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{
-        CallArg, InputObjectKind, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKindExt,
-    },
+    transaction::{CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKindExt},
 };
 
 use crate::{
@@ -147,7 +144,7 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared(SharedObjectRef::new(
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 false,
@@ -351,7 +348,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,
@@ -428,7 +425,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,

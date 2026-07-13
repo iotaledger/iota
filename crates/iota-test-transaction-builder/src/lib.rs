@@ -16,7 +16,7 @@ use iota_sdk::{
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    TransactionKind, TypeTag, Version,
+    SharedObjectReference, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
@@ -25,9 +25,8 @@ use iota_types::{
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
     utils::to_sender_signed_transaction,
 };
@@ -121,7 +120,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -139,7 +138,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "value",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 false,
@@ -157,7 +156,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -209,7 +208,7 @@ impl TestTransactionBuilder {
             package_id,
             "random",
             "new",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 ObjectId::RANDOMNESS_STATE,
                 randomness_initial_shared_version,
                 false,
@@ -676,7 +675,7 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let random_call_arg = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
         false,

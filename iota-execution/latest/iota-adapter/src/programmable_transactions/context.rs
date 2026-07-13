@@ -19,8 +19,8 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, ObjectData, ObjectId, Owner, StructTag,
-        TypeTag, move_package::MovePackage,
+        Address, Argument, CommandArgumentError, Event, ObjectData, ObjectId, Owner,
+        SharedObjectReference, StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         balance::Balance,
@@ -36,7 +36,7 @@ mod checked {
         move_package::{MovePackageExt, derive_package_metadata_id},
         object::{MoveObject, MoveObjectExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{CallArg, SharedObjectRef},
+        transaction::CallArg,
     };
     use move_binary_format::{
         CompiledModule,
@@ -1542,7 +1542,7 @@ mod checked {
                 false,
                 object_ref.object_id,
             ),
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id: id,
                 mutable,
                 ..
