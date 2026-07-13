@@ -4,7 +4,7 @@
 
 use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
 use iota_macros::sim_test;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
@@ -257,11 +257,12 @@ async fn create_test_env() -> TestEnv {
         .await
         .publish(path)
         .build();
-    let effects = test_cluster
-        .sign_and_execute_transaction(&tx_data)
-        .await
-        .effects
-        .unwrap();
+    let effects = IotaTransactionBlockResponse::try_from(
+        &test_cluster.sign_and_execute_transaction(&tx_data).await,
+    )
+    .unwrap()
+    .effects
+    .unwrap();
     let mut coin_id = None;
     let mut coin_type = None;
     let mut coin_owner = None;

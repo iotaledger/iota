@@ -27,7 +27,7 @@ async fn verify_tx_replay() {
         .transfer_iota(Some(1_000_000_000), Address::ZERO)
         .build();
     let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
-    let tx_digest = response.digest;
+    let tx_digest = response.transaction().unwrap().digest().unwrap();
 
     // Replay with authority certificate execution
     execute_replay(rpc_url, &tx_digest, true)

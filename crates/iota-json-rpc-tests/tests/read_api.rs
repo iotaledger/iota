@@ -1573,15 +1573,15 @@ async fn try_get_past_object_deleted() {
         )
         .await;
 
-    let created_object_id = tx_block_response
-        .object_changes
-        .unwrap()
-        .iter()
-        .filter_map(|obj_change| match obj_change {
-            ObjectChange::Created { object_id, .. } => Some(*object_id),
-            _ => None,
-        })
-        .collect::<Vec<ObjectId>>()[0];
+    let created_object_id = iota_json_rpc_types::created(
+        tx_block_response
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1(),
+    )[0]
+    .object_id;
 
     let objects = cluster
         .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
@@ -1620,7 +1620,15 @@ async fn try_get_past_object_deleted() {
         .await;
 
     assert_eq!(
-        tx_block_response.effects.as_ref().unwrap().deleted().len(),
+        iota_json_rpc_types::deleted(
+            tx_block_response
+                .effects()
+                .unwrap()
+                .effects()
+                .unwrap()
+                .as_v1()
+        )
+        .len(),
         1
     );
 

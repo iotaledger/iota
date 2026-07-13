@@ -23,9 +23,10 @@ use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
 use iota_genesis_builder::SnapshotSource;
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
@@ -56,7 +57,7 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
@@ -594,7 +595,7 @@ impl TestCluster {
     pub async fn sign_and_execute_transaction(
         &self,
         tx_data: &TransactionData,
-    ) -> IotaTransactionBlockResponse {
+    ) -> ExecutedTransaction {
         let tx = self.wallet.sign_transaction(tx_data);
         self.execute_transaction(tx).await
     }
@@ -603,10 +604,8 @@ impl TestCluster {
     /// the rpc fullnode. Also expects the effects status to be
     /// ExecutionStatus::Success. This function is recommended for
     /// transaction execution since it most resembles the production path.
-    pub async fn execute_transaction(&self, tx: Transaction) -> IotaTransactionBlockResponse {
-        let executed = self.wallet.execute_transaction_must_succeed(tx).await;
-        IotaTransactionBlockResponse::try_from(&executed)
-            .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse")
+    pub async fn execute_transaction(&self, tx: Transaction) -> ExecutedTransaction {
+        self.wallet.execute_transaction_must_succeed(tx).await
     }
 
     /// Different from `execute_transaction` which returns RPC effects types,
@@ -801,13 +800,10 @@ impl TestCluster {
             .await
             .transfer_iota(Some(amount), receiver)
             .build();
-        let effects = self
-            .sign_and_execute_transaction(&tx)
-            .await
-            .effects
-            .unwrap();
-        assert_eq!(&IotaExecutionStatus::Success, effects.status());
-        effects.created().first().unwrap().object_id()
+        let executed = self.sign_and_execute_transaction(&tx).await;
+        let effects = executed.effects().unwrap().effects().unwrap();
+        assert!(effects.status().is_success());
+        effects.created().first().unwrap().0.object_id
     }
 
     /// Wait to catch up to the given checkpoint sequence

@@ -20,9 +20,7 @@ use fastcrypto::{
     traits::Authenticator,
 };
 use iota_core::authority_client::validator::ValidatorAPI;
-use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-};
+use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -2322,18 +2320,20 @@ impl TestEnvironment {
     }
 
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
+        // `execute_transaction` already asserts a successful effects status
+        // (it wraps `execute_transaction_must_succeed`), so reaching here means
+        // the transaction executed successfully.
         let transaction_response = self.test_cluster.execute_transaction(tx).await;
-
-        // Check correctness
-        let IotaTransactionBlockResponse {
-            confirmed_local_execution,
-            errors,
-            ..
-        } = transaction_response;
-
-        // The transaction must be successful
-        assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty());
+        assert!(
+            transaction_response
+                .effects()
+                .unwrap()
+                .effects()
+                .unwrap()
+                .as_v1()
+                .status
+                .is_success()
+        );
         Ok(())
     }
 

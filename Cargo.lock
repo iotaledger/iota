@@ -13928,6 +13928,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk",
  "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-simulator",

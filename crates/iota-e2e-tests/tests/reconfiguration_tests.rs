@@ -14,7 +14,6 @@ use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
     consensus_adapter::position_submit_certificate,
 };
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -157,7 +156,7 @@ async fn reconfig_with_revert_end_to_end_test() {
             .build(),
     );
     let effects1 = test_cluster.execute_transaction(tx).await;
-    assert_eq!(0, effects1.effects.unwrap().executed_epoch());
+    assert_eq!(0, effects1.effects().unwrap().effects().unwrap().epoch());
 
     // gas2 transaction is (most likely) reverted
     let gas2 = gas_objects.pop().unwrap();
@@ -506,9 +505,11 @@ async fn test_validator_resign_effects() {
     let effects0 = test_cluster
         .execute_transaction(tx.clone())
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
-    assert_eq!(effects0.executed_epoch(), 0);
+    assert_eq!(effects0.epoch(), 0);
     test_cluster.force_new_epoch().await;
 
     let net = test_cluster
