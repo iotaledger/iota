@@ -39,7 +39,7 @@ fn build_test_checkpoint() -> CheckpointData {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn process_checkpoint_round_trips_objects_transactions_and_checkpoints() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     let checkpoint = build_test_checkpoint();
@@ -126,7 +126,7 @@ async fn process_checkpoint_round_trips_objects_transactions_and_checkpoints() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn readers_omit_not_found_keys() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     let checkpoint = build_test_checkpoint();

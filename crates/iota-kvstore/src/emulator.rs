@@ -8,18 +8,22 @@
 //! Requires `gcloud`, `cbt`, and the BigTable emulator on PATH.
 
 use std::{
-    net::{Ipv4Addr, SocketAddr, TcpStream},
+    net::{Ipv4Addr, SocketAddr},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::OnceLock,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use futures::future::try_join_all;
 use iota_bigtable::BigTableClient;
 use strum::IntoEnumIterator;
-use tokio::process::Command as TokioCommand;
+use tokio::{
+    net::TcpStream,
+    process::Command as TokioCommand,
+    time::{interval, timeout},
+};
 
 use crate::Table;
 
@@ -36,8 +40,9 @@ pub struct BigTableEmulator {
 }
 
 impl BigTableEmulator {
-    /// Spawns a new BigTable emulator as a child process on a random port.
-    pub fn start() -> Result<Self> {
+    /// Spawns a new BigTable emulator as a child process on a random port and
+    /// creates the necessary tables.
+    pub async fn start() -> Result<Self> {
         require_bigtable_emulator()?;
         let port = get_available_port()?;
         let child = Command::new(cbtemulator_path()?)
@@ -50,37 +55,31 @@ impl BigTableEmulator {
         let host = format!("localhost:{port}");
         // Construct first so Drop kills the child if the readiness wait fails.
         let mut emulator = Self { child, host };
-        emulator.wait_until_ready(port)?;
+        emulator.wait_until_ready(port).await?;
+        create_tables(emulator.host(), INSTANCE_ID).await?;
         Ok(emulator)
     }
 
     /// Waits until the emulator accepts TCP connections on `port`.
     ///
     /// Fails if the process exits during startup or the timeout elapses.
-    fn wait_until_ready(&mut self, port: u16) -> Result<()> {
+    async fn wait_until_ready(&mut self, port: u16) -> Result<()> {
         const TIMEOUT: Duration = Duration::from_secs(10);
         let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let deadline = Instant::now() + TIMEOUT;
-        loop {
-            if let Some(status) = self.child.try_wait()? {
-                bail!("BigTable emulator exited during startup: {status}");
+        let mut poll = interval(Duration::from_millis(50));
+        timeout(TIMEOUT, async {
+            loop {
+                poll.tick().await;
+                if let Some(status) = self.child.try_wait()? {
+                    bail!("BigTable emulator exited during startup: {status}");
+                }
+                if TcpStream::connect(addr).await.is_ok() {
+                    return Ok(());
+                }
             }
-            if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
-                return Ok(());
-            }
-            if Instant::now() >= deadline {
-                bail!("BigTable emulator not ready on port {port} after {TIMEOUT:?}");
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
-
-    /// Spawns a new BigTable emulator as a child process on a random port and
-    /// creates the necessary tables.
-    pub async fn start_and_create_tables() -> Result<Self> {
-        let emulator = Self::start()?;
-        create_tables(emulator.host(), INSTANCE_ID).await?;
-        Ok(emulator)
+        })
+        .await
+        .map_err(|_| anyhow!("BigTable emulator not ready on port {port} after {TIMEOUT:?}"))?
     }
 
     /// Returns the host string for the emulator, e.g. `localhost:12345`.

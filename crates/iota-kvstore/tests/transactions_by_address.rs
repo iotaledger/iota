@@ -79,7 +79,7 @@ fn affected_addresses_per_transaction() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn process_checkpoint() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
     let checkpoint = build_test_checkpoint();
 
@@ -137,7 +137,7 @@ async fn process_checkpoint() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn paginates_newest_first() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     let address = Address::random();
@@ -175,7 +175,7 @@ async fn paginates_newest_first() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn paginates_oldest_first() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     let address = Address::random();
@@ -213,7 +213,7 @@ async fn paginates_oldest_first() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn order_flip_is_exact_reverse() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     let address = Address::random();
@@ -265,7 +265,7 @@ async fn order_flip_is_exact_reverse() {
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn empty_range_guards_return_ok_empty() {
-    let emulator = BigTableEmulator::start_and_create_tables().await.unwrap();
+    let emulator = BigTableEmulator::start().await.unwrap();
     let mut client = emulator.client().unwrap();
 
     // Address need not exist: the guards short-circuit before hitting BigTable.
