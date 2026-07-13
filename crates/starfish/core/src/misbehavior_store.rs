@@ -276,6 +276,8 @@ enum FaultType {
 }
 
 fn classify_block_header_error(error: &ConsensusError) -> FaultType {
+    // Exhaustive on purpose: a new `ConsensusError` variant must be assigned a
+    // fault type here rather than silently falling through to `Untracked`.
     match error {
         // Pre-signature / parsing errors — the header's author field can't
         // be trusted, so charge the sender, not the claimed author.
@@ -292,20 +294,84 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. } => FaultType::Unprovable,
 
-        // Signed block header verification — provably the author's fault
+        // Checks that run only after the author's signature is verified, so the
+        // signed header itself proves the author produced a block that violates
+        // protocol rules.
         ConsensusError::TooManyAncestors(..)
         | ConsensusError::InsufficientParentStakes { .. }
         | ConsensusError::InvalidAncestorPosition { .. }
         | ConsensusError::InvalidAncestorRound { .. }
+        | ConsensusError::AncestorRoundTooOld { .. }
+        | ConsensusError::AcknowledgmentRoundTooOld { .. }
         | ConsensusError::InvalidGenesisAncestor(_)
         | ConsensusError::DuplicatedAncestorsAuthority(_)
         | ConsensusError::InvalidOverlapIndices { .. }
+        | ConsensusError::TooManyAcknowledgments { .. }
+        | ConsensusError::TooManyCommitVotes { .. }
+        | ConsensusError::InvalidAcknowledgmentRound { .. }
+        | ConsensusError::InvalidStrongVoteAuthority { .. }
+        | ConsensusError::StrongVoteLeaderNotInAncestors { .. }
         | ConsensusError::TransactionTooLarge { .. }
         | ConsensusError::TooManyTransactions { .. }
         | ConsensusError::TooManyTransactionBytes { .. }
         | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
 
-        _ => FaultType::Untracked,
+        // Not attributable to a block author from a signed block alone:
+        // subjective rejections, commit-chain and commit-sync inconsistencies,
+        // fetch-shape mismatches, relayed shard / bundle parts, reconstruction
+        // and encoder failures, storage, network transport, request-shape
+        // checks, and local lifecycle signals.
+        ConsensusError::MalformedShard(_)
+        | ConsensusError::MalformedCommit(_)
+        | ConsensusError::UnexpectedGenesisRequested { .. }
+        | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
+        | ConsensusError::UnexpectedLastOwnHeader { .. }
+        | ConsensusError::TooManyFetchedTransactionsReturned(_)
+        | ConsensusError::TooManyAuthoritiesProvided(_)
+        | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
+        | ConsensusError::InvalidAuthorityIndexRequested { .. }
+        | ConsensusError::TransactionCommitmentMismatch { .. }
+        | ConsensusError::SynchronizerSaturated(_)
+        | ConsensusError::TransactionSynchronizerSaturated
+        | ConsensusError::BlockRejected { .. }
+        | ConsensusError::EmptyMerkleTree
+        | ConsensusError::MissingBlockHeader { .. }
+        | ConsensusError::CommitRangeExceededAfterScanning { .. }
+        | ConsensusError::TooManyCommitsFromPeer { .. }
+        | ConsensusError::NoCommitReceived { .. }
+        | ConsensusError::UnexpectedStartCommit { .. }
+        | ConsensusError::UnexpectedCommitSequence { .. }
+        | ConsensusError::NotEnoughCommitVotes { .. }
+        | ConsensusError::TooManyCommitVoteHeaders { .. }
+        | ConsensusError::SerializedCommitTooLarge { .. }
+        | ConsensusError::SerializedBlockHeaderTooLarge { .. }
+        | ConsensusError::InvalidCommitRange { .. }
+        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
+        | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::RocksDBFailure(_)
+        | ConsensusError::NetworkConfig(_)
+        | ConsensusError::NetworkClientConnection(_)
+        | ConsensusError::NetworkRequest(_)
+        | ConsensusError::NetworkRequestTimeout(_)
+        | ConsensusError::AccumulatorSenderClosed
+        | ConsensusError::Shutdown
+        | ConsensusError::EncoderResetFailed(_)
+        | ConsensusError::AddShardFailed(_)
+        | ConsensusError::ShardsEncodingFailed(_)
+        | ConsensusError::ShardsDecodingFailed(_)
+        | ConsensusError::InsufficientShardsInDecoder(..)
+        | ConsensusError::ShardsVecIsTooSmall(..)
+        | ConsensusError::TooBigHeaderRoundInABundle { .. }
+        | ConsensusError::IncorrectShardProof { .. }
+        | ConsensusError::TooBigShardRoundInABundle { .. }
+        | ConsensusError::InconsistentTransactionRefVariants
+        | ConsensusError::TransactionRefVariantMismatch { .. }
+        | ConsensusError::FailedToFetchBlockHeaders { .. }
+        | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
+        | ConsensusError::WrongShardVersion { .. }
+        | ConsensusError::WrongCommitVersionForFlags { .. }
+        | ConsensusError::WrongBlockHeaderVersionForFlag { .. } => FaultType::Untracked,
     }
 }
 
@@ -844,6 +910,39 @@ mod tests {
                 limit: 50,
             },
             ConsensusError::InvalidTransaction("bad tx".to_string()),
+            // Bounds and structure checks that run only after the signature is
+            // verified, so the signed header proves the author's fault.
+            ConsensusError::TooManyAcknowledgments {
+                count: 100,
+                max: 50,
+            },
+            ConsensusError::TooManyCommitVotes {
+                count: 100,
+                max: 50,
+            },
+            ConsensusError::InvalidAcknowledgmentRound {
+                acknowledgment: 5,
+                block: 5,
+            },
+            ConsensusError::AcknowledgmentRoundTooOld {
+                acknowledgment: 1,
+                block: 10,
+                gc_depth: 3,
+            },
+            ConsensusError::AncestorRoundTooOld {
+                ancestor: 1,
+                block: 10,
+                gc_depth: 3,
+            },
+            ConsensusError::InvalidStrongVoteAuthority {
+                index: AuthorityIndex::new_for_test(3),
+                max: 4,
+            },
+            ConsensusError::StrongVoteLeaderNotInAncestors {
+                block_round: 5,
+                leader_round: 4,
+                leader_authority: AuthorityIndex::new_for_test(1),
+            },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
