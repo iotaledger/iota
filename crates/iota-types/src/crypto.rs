@@ -717,7 +717,7 @@ pub use iota_sdk_types::SimpleSignature as Signature;
 /// An all-zero ed25519 [`Signature`] placeholder, used for system transactions
 /// (which are not signed) and in tests where the signature content is
 /// irrelevant.
-pub fn empty_signature() -> Signature {
+pub fn zero_ed25519_signature() -> Signature {
     // `flag || signature || public key`, all zero; the leading zero byte selects
     // the ed25519 scheme.
     Signature::from_bytes([0u8; 1 + Ed25519Signature::LENGTH + Ed25519PublicKey::LENGTH])

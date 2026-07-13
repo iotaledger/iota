@@ -3148,7 +3148,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = iota_types::crypto::empty_signature().into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);

@@ -263,7 +263,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::empty_signature(),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // it should take no more than 4 requests to be added to the blocklist
@@ -314,7 +314,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::empty_signature(),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // Before reconfiguring the policy, we should not block any requests due to dry
@@ -535,7 +535,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::empty_signature(),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // start test firewall server

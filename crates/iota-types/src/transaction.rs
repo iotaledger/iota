@@ -42,7 +42,7 @@ use crate::{
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
-        Signature, Signer, empty_signature,
+        Signature, Signer, zero_ed25519_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -2552,7 +2552,9 @@ impl VerifiedTransaction {
     fn new_system_transaction(system_transaction: TransactionKind) -> Self {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
-            .pipe(|data| SenderSignedData::new_from_sender_signature(data, empty_signature()))
+            .pipe(|data| {
+                SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
+            })
             .pipe(Transaction::new)
             .pipe(Self::new_from_verified)
     }
