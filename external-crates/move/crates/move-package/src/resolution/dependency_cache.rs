@@ -466,6 +466,11 @@ mod tests {
         run_git(root, &["config", "user.email", "test@example.com"]);
         run_git(root, &["config", "user.name", "test"]);
         run_git(root, &["config", "commit.gpgsign", "false"]);
+        // Let this repo serve partial (`--filter`) clones and fetches of arbitrary
+        // object ids over `file://`. Without these a blobless clone is silently
+        // downgraded to a full one, so the tests could not observe blob deferral.
+        run_git(root, &["config", "uploadpack.allowFilter", "true"]);
+        run_git(root, &["config", "uploadpack.allowAnySHA1InWant", "true"]);
         for sub in subdirs {
             let dir = root.join(sub);
             fs::create_dir_all(&dir).unwrap();
@@ -493,13 +498,38 @@ mod tests {
         (repo, sha)
     }
 
+    /// A `file://` URL for the fixture repo. The scheme matters: git treats a
+    /// bare local path as a "local clone" and silently ignores `--filter`, but
+    /// over `file://` it goes through the real fetch protocol that honours it.
     fn repo_url(repo: &TempDir) -> String {
-        repo.path().to_str().unwrap().to_string()
+        format!("file://{}", repo.path().display())
     }
 
     /// Whether the package at `subdir` has been checked out in `dest`.
     fn has_pkg(dest: &Path, subdir: &str) -> bool {
         dest.join(subdir).join("Move.toml").exists()
+    }
+
+    /// Number of objects the clone left un-downloaded (fetched lazily on
+    /// demand) -- direct proof that `--filter=blob:none` actually took
+    /// effect. A full clone, or one whose filter was silently ignored,
+    /// reports 0.
+    fn deferred_object_count(dest: &Path) -> usize {
+        let output = Command::new("git")
+            .args([
+                OsStr::new("-C"),
+                dest.as_os_str(),
+                OsStr::new("rev-list"),
+                OsStr::new("--objects"),
+                OsStr::new("--all"),
+                OsStr::new("--missing=print"),
+            ])
+            .output()
+            .expect("failed to spawn git");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|line| line.starts_with('?'))
+            .count()
     }
 
     #[test]
@@ -523,6 +553,13 @@ mod tests {
         assert!(
             !has_pkg(&dest, "c"),
             "unrequested subdir is not checked out"
+        );
+        // The point of the whole change: blobs outside the checked-out subdir are
+        // deferred, not downloaded. This fails if `--filter=blob:none` is dropped or
+        // silently ignored (e.g. a bare-path clone source).
+        assert!(
+            deferred_object_count(&dest) > 0,
+            "blobless clone should defer blob downloads",
         );
     }
 
@@ -577,6 +614,11 @@ mod tests {
         .unwrap();
 
         assert!(!is_sparse_repo(&dest), "a full clone is not a sparse repo");
+        assert_eq!(
+            deferred_object_count(&dest),
+            0,
+            "a full clone downloads every object, it defers nothing",
+        );
         assert!(
             has_pkg(&dest, "a") && has_pkg(&dest, "b") && has_pkg(&dest, "c"),
             "a full clone contains every subdir",
