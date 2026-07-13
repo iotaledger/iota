@@ -25,12 +25,14 @@ use crate::{
         BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
         TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
+    block_verifier::BlockVerifier,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorStore,
     transaction_ref::TransactionRef,
 };
 
@@ -236,9 +238,10 @@ impl<C: CoreThreadDispatcher + 'static> ShardReconstructor<C> {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
         core_dispatcher: Arc<C>,
+        block_verifier: Arc<dyn BlockVerifier>,
     ) -> Arc<ShardReconstructorHandle> {
         let (mut reconstructor, transaction_message_sender) =
-            ShardReconstructor::new(context, dag_state, core_dispatcher);
+            ShardReconstructor::new(context, dag_state, core_dispatcher, block_verifier);
 
         let join_handle = tokio::spawn(async move {
             reconstructor.run().await;
@@ -282,6 +285,11 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     transaction_message_receiver: Receiver<Vec<TransactionMessage>>,
     /// After full reconstruction and verification, send data to the core
     core_dispatcher: Arc<C>,
+    /// Applies the same transaction limit and batch verification checks to
+    /// reconstructed payloads as the direct block-bundle route
+    block_verifier: Arc<dyn BlockVerifier>,
+    /// Records the author of payloads that fail verification
+    misbehavior_store: Arc<MisbehaviorStore>,
     /// Queue is used to not reconstruct the same data twice
     reconstruction_queue: BTreeSet<TransactionRef>,
     /// Once enough shards are collected, they are sent to reconstructor workers
@@ -300,6 +308,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
         core_dispatcher: Arc<C>,
+        block_verifier: Arc<dyn BlockVerifier>,
     ) -> (Self, Sender<Vec<TransactionMessage>>) {
         let info_length = context.committee.info_length();
         let total_length = context.committee.size();
@@ -308,12 +317,15 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         let (ready_sender, ready_receiver) = mpsc::channel(1000);
         let (result_sender, result_receiver) = mpsc::channel(1000);
 
+        let misbehavior_store = dag_state.read().misbehavior_store().clone();
         let reconstructor = Self {
             info_length,
             total_length,
             context,
             core_dispatcher,
             dag_state,
+            block_verifier,
+            misbehavior_store,
             transaction_gc_round: GENESIS_ROUND,
             reconstruction_queue: BTreeSet::new(),
             ready_to_reconstruct_sender: ready_sender,
@@ -334,8 +346,11 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             let mut codec = Codec::new(&self.context);
             let ready_rx = Arc::clone(&self.ready_to_reconstruct_receiver);
             let result_tx = self.reconstructed_transactions_sender.clone();
-            let metrics = Arc::clone(&self.context.metrics);
+            let context = self.context.clone();
+            let block_verifier = self.block_verifier.clone();
+            let misbehavior_store = self.misbehavior_store.clone();
             tokio::spawn(async move {
+                let metrics = &context.metrics;
                 loop {
                     // Receive a job from the ready to reconstruct channel
                     let job = {
@@ -348,14 +363,44 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             metrics.node_metrics.reconstruction_jobs_started.inc();
                             match shard_accumulator.decode_by_codec(&mut codec) {
                                 Ok(verified_transactions) => {
-                                    debug!(
-                                        "Successfully reconstructed transactions for {:?}",
-                                        shard_accumulator.transaction_ref
-                                    );
-                                    if let Err(err) = result_tx.send(verified_transactions).await {
-                                        warn!(
-                                            "Failed to send the result to shard accumulator {err}"
-                                        );
+                                    match block_verifier.check_and_verify_transactions(
+                                        &verified_transactions.transactions(),
+                                    ) {
+                                        Ok(()) => {
+                                            debug!(
+                                                "Successfully reconstructed transactions for {:?}",
+                                                shard_accumulator.transaction_ref
+                                            );
+                                            if let Err(err) =
+                                                result_tx.send(verified_transactions).await
+                                            {
+                                                warn!(
+                                                    "Failed to send the result to shard accumulator {err}"
+                                                );
+                                            }
+                                        }
+                                        Err(err) => {
+                                            // The recomputed commitment matches the author-signed
+                                            // one, so the invalid payload is provably the author's.
+                                            // The shards came from relayers, so no sending peer is
+                                            // charged.
+                                            let author = shard_accumulator.transaction_ref.author;
+                                            metrics
+                                                .node_metrics
+                                                .invalid_transactions
+                                                .with_label_values(&[
+                                                    context.authority_hostname(author),
+                                                    "shard_reconstructor",
+                                                    err.name(),
+                                                ])
+                                                .inc();
+                                            misbehavior_store
+                                                .record_faulty_block_header(author, author, &err);
+                                            warn!(
+                                                "Reconstructed transactions for {:?} failed verification: {:?}",
+                                                shard_accumulator.transaction_ref, err
+                                            );
+                                        }
                                     }
                                 }
                                 Err(err) => {
@@ -633,12 +678,16 @@ mod tests {
             Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
             VerifiedTransactions,
         },
+        block_verifier::{
+            BlockVerifier, NoopBlockVerifier, SignedBlockVerifier, test::TxnSizeVerifier,
+        },
         commit::CertifiedCommits,
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
+        misbehavior_store::MisbehaviorCounts,
         shard_reconstructor::{
             ShardMessage, ShardReconstructor, ShardReconstructorHandle, TransactionMessage,
         },
@@ -650,23 +699,40 @@ mod tests {
         context: Arc<Context>,
         core_dispatcher: Arc<MockCoreThreadDispatcher>,
         handle: Arc<ShardReconstructorHandle>,
+        dag_state: Arc<RwLock<DagState>>,
         tx: Sender<Vec<TransactionMessage>>,
     }
 
     impl TestHarness {
         fn new(committee_size: usize) -> Self {
             let (context, _) = Context::new_for_test(committee_size);
-            let context = Arc::new(context);
+            Self::new_with_block_verifier(Arc::new(context), Arc::new(NoopBlockVerifier))
+        }
+
+        /// Builds the harness with a caller-supplied `block_verifier`, so
+        /// tests can exercise the transaction-verification rejection path
+        /// with a verifier stricter than the default no-op. `context` is
+        /// taken from the caller so it can build a `block_verifier` bound to
+        /// the same committee and protocol config.
+        fn new_with_block_verifier(
+            context: Arc<Context>,
+            block_verifier: Arc<dyn BlockVerifier>,
+        ) -> Self {
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-            let handle =
-                ShardReconstructor::start(context.clone(), dag_state, core_dispatcher.clone());
+            let handle = ShardReconstructor::start(
+                context.clone(),
+                dag_state.clone(),
+                core_dispatcher.clone(),
+                block_verifier,
+            );
             let tx = handle.transaction_message_sender();
             Self {
                 context,
                 core_dispatcher,
                 handle,
+                dag_state,
                 tx,
             }
         }
@@ -1199,5 +1265,83 @@ mod tests {
             "ShardMessage.transaction_ref.author must point to the shard-source block's author \
              (authority=1), not the carrier block's author (authority=0)"
         );
+    }
+
+    /// A reconstructed payload must pass the same per-transaction limit and
+    /// `verify_batch` checks the direct route enforces before it can reach
+    /// Core. Otherwise it could be acknowledged and become committable while
+    /// diverging from nodes that received the same payload directly.
+    #[tokio::test]
+    async fn test_reconstruction_rejects_transactions_failing_verification() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN a harness whose block_verifier rejects transactions shorter
+        // than 4 bytes.
+        let (context, _) = Context::new_for_test(10);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(TxnSizeVerifier {}),
+        ));
+        let h = TestHarness::new_with_block_verifier(context.clone(), block_verifier);
+        let transaction_message_sender = h.tx.clone();
+
+        // A 2-byte transaction fails `TxnSizeVerifier::verify_batch` (< 4 bytes).
+        let txs = vec![Transaction::new(vec![0u8; 2])];
+        let serialized = Transaction::serialize(&txs).unwrap();
+
+        let mut encoder = create_encoder(&context);
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
+        let block_ref = header.reference();
+        let author = block_ref.author;
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+
+        let all_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .unwrap();
+
+        let batch: Vec<_> = (0..info_length)
+            .map(|i| {
+                TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: all_shards[i].clone(),
+                    shard_index: i,
+                })
+            })
+            .collect();
+
+        // WHEN enough shards arrive to reconstruct the payload.
+        transaction_message_sender.send(batch).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        // THEN the payload is dropped instead of being handed to Core, so it
+        // can never be acknowledged.
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched.is_empty(),
+            "A reconstructed payload failing verification must never reach Core"
+        );
+
+        let counts = h.dag_state.read().misbehavior_store().snapshot_totals();
+        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        assert_eq!(
+            author_counts.faulty_blocks_provable, 1,
+            "The author should be charged for the provably invalid payload"
+        );
+
+        h.handle
+            .stop()
+            .await
+            .expect("We should expect graceful shutdown");
     }
 }

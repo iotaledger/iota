@@ -238,8 +238,12 @@ impl ConsensusAuthority {
             context.clone(),
         );
 
-        let shard_reconstructor =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
+        let shard_reconstructor = ShardReconstructor::start(
+            context.clone(),
+            dag_state.clone(),
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+        );
 
         // `fast_sync_active` is a shared flag used by the fast syncer to
         // signal when it has any work in flight. The regular commit syncer
