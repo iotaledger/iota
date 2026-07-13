@@ -5792,6 +5792,7 @@ dependencies = [
  "iota-authority-aggregation",
  "iota-common",
  "iota-config",
+ "iota-core",
  "iota-execution",
  "iota-framework",
  "iota-genesis-builder",

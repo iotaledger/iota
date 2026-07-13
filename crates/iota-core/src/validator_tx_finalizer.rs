@@ -636,7 +636,7 @@ mod tests {
         let network_config = ConfigBuilder::new_with_temp_dir()
             .committee_size(NonZeroUsize::new(COMMITTEE_SIZE).unwrap())
             .build();
-        let (auth_agg, _) = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let (auth_agg, _) = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_network_clients();
         let auth_agg = Arc::new(auth_agg);
         let finalizers = (0..COMMITTEE_SIZE)
@@ -704,7 +704,7 @@ mod tests {
                 )
             })
             .collect();
-        let auth_agg = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let auth_agg = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_custom_clients(clients.clone());
         (
             authority_states,

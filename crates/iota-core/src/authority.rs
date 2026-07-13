@@ -221,6 +221,7 @@ mod coin_deny_list_tests;
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
+#[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
 pub mod authority_per_epoch_store;
@@ -234,6 +235,7 @@ pub mod epoch_start_configuration;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_authority_builder;
 pub mod transaction_deferral;
 
