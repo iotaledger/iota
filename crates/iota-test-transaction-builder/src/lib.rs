@@ -8,7 +8,7 @@ use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
-    rpc_types::{IotaObjectDataOptions, created, get_new_package_ref},
+    rpc_types::{IotaObjectDataOptions, get_new_package_ref},
     wallet_context::WalletContext,
 };
 use iota_sdk_crypto::Signer as SdkSigner;
@@ -21,6 +21,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
+    effects::TransactionEffectsAPI,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
@@ -609,24 +610,10 @@ pub async fn publish_basics_package_and_make_counter(
         .execute_transaction_must_succeed(counter_creation_txn)
         .await;
     let effects = resp.effects().unwrap().effects().unwrap();
-    // Unlike the JSON-RPC `created()`, the SDK-native `created()` yields only
-    // `ObjectReference`s with no owner, so find the shared counter by matching
-    // its ref against `output_objects` and reading the owner from there.
-    let counter_ref = created(effects.as_v1())
+    let (counter_ref, _) = effects
+        .created()
         .into_iter()
-        .find(|object_ref| {
-            let owner = resp
-                .output_objects()
-                .ok()
-                .and_then(|objs| {
-                    objs.objects
-                        .iter()
-                        .find(|o| o.object_reference().ok().as_ref() == Some(object_ref))
-                })
-                .and_then(|o| o.object().ok())
-                .map(|o| *o.owner());
-            matches!(owner, Some(Owner::Shared(_)))
-        })
+        .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
         .unwrap();
     (package_ref, counter_ref)
 }
@@ -772,9 +759,15 @@ pub async fn create_nft(
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
 
-    let object_id = created(resp.effects().unwrap().effects().unwrap().as_v1())
+    let object_id = resp
+        .effects()
+        .unwrap()
+        .effects()
+        .unwrap()
+        .created()
         .first()
         .unwrap()
+        .0
         .object_id;
 
     (

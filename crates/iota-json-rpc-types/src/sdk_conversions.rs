@@ -25,7 +25,6 @@ use iota_grpc_types::v1::{
 };
 use iota_sdk_types::{
     MoveObjectType, MoveStruct, Object, ObjectData, ObjectReference, StructTag, Version,
-    effects::{ObjectOut, TransactionEffectsV1},
 };
 
 use crate::{BalanceChange, IotaObjectData, IotaTransactionBlockResponse, ObjectChange};
@@ -456,86 +455,6 @@ fn proto_object_change_to_json_rpc(
     }
 }
 
-/// Objects newly created by this transaction (`ObjectIn::Missing` →
-/// `ObjectOut::ObjectWrite`/`PackageWrite`, `IdOperation::Created`).
-pub fn created(effects: &TransactionEffectsV1) -> Vec<ObjectReference> {
-    effects
-        .changed_objects
-        .iter()
-        .filter(|c| c.id_operation.is_created() && c.input_state.is_missing())
-        .filter_map(|c| match &c.output_state {
-            ObjectOut::ObjectWrite { digest, .. } => Some(ObjectReference::new(
-                c.object_id,
-                effects.lamport_version,
-                *digest,
-            )),
-            ObjectOut::PackageWrite { version, digest } => {
-                Some(ObjectReference::new(c.object_id, *version, *digest))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-/// Objects deleted by this transaction while they existed at the top level
-/// (`ObjectIn::Data` → `ObjectOut::Missing`, `IdOperation::Deleted`).
-pub fn deleted(effects: &TransactionEffectsV1) -> Vec<iota_sdk_types::ObjectId> {
-    effects
-        .changed_objects
-        .iter()
-        .filter(|c| {
-            c.id_operation.is_deleted() && c.input_state.is_data() && c.output_state.is_missing()
-        })
-        .map(|c| c.object_id)
-        .collect()
-}
-
-/// Objects wrapped into another object by this transaction (`ObjectIn::Data`
-/// → `ObjectOut::Missing`, `IdOperation::None` — the ID is not freed).
-pub fn wrapped(effects: &TransactionEffectsV1) -> Vec<iota_sdk_types::ObjectId> {
-    effects
-        .changed_objects
-        .iter()
-        .filter(|c| {
-            c.id_operation.is_none() && c.input_state.is_data() && c.output_state.is_missing()
-        })
-        .map(|c| c.object_id)
-        .collect()
-}
-
-/// Objects unwrapped back to the top level by this transaction
-/// (`ObjectIn::Missing` → `ObjectOut::ObjectWrite`, `IdOperation::None` — the
-/// ID already existed from a prior wrap).
-pub fn unwrapped(effects: &TransactionEffectsV1) -> Vec<ObjectReference> {
-    effects
-        .changed_objects
-        .iter()
-        .filter(|c| c.id_operation.is_none() && c.input_state.is_missing())
-        .filter_map(|c| match &c.output_state {
-            ObjectOut::ObjectWrite { digest, .. } => Some(ObjectReference::new(
-                c.object_id,
-                effects.lamport_version,
-                *digest,
-            )),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Objects that were wrapped in a previous transaction and fully deleted by
-/// this one (`ObjectIn::Missing` → `ObjectOut::Missing`,
-/// `IdOperation::Deleted`).
-pub fn unwrapped_then_deleted(effects: &TransactionEffectsV1) -> Vec<iota_sdk_types::ObjectId> {
-    effects
-        .changed_objects
-        .iter()
-        .filter(|c| {
-            c.id_operation.is_deleted() && c.input_state.is_missing() && c.output_state.is_missing()
-        })
-        .map(|c| c.object_id)
-        .collect()
-}
-
 /// The reference of the package published by this transaction, if any.
 /// Mirrors `get_new_package_obj_from_response` but reads gRPC's native
 /// `object_changes` instead of the JSON-RPC view.
@@ -576,10 +495,7 @@ pub fn get_new_upgrade_cap_ref(tx: &ExecutedTransaction) -> Option<ObjectReferen
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{
-        Address, GenesisTransaction, Owner, TransactionDigest, TransactionKind,
-        effects::{IdOperation, ObjectIn},
-    };
+    use iota_sdk_types::{Address, GenesisTransaction, Owner, TransactionDigest, TransactionKind};
     use iota_types::transaction::{SenderSignedData, TransactionData, TransactionDataAPI};
 
     use super::*;
@@ -741,52 +657,5 @@ mod tests {
 
         let response = IotaTransactionBlockResponse::try_from(&executed).unwrap();
         assert_eq!(response.digest, digest);
-    }
-
-    fn changed_object(
-        object_id: iota_sdk_types::ObjectId,
-        input_state: ObjectIn,
-        output_state: ObjectOut,
-        id_operation: IdOperation,
-    ) -> iota_sdk_types::effects::ChangedObject {
-        iota_sdk_types::effects::ChangedObject {
-            object_id,
-            input_state,
-            output_state,
-            id_operation,
-        }
-    }
-
-    #[test]
-    fn created_filters_missing_to_write_with_created_id_operation() {
-        let created_id = iota_sdk_types::ObjectId::random();
-        let digest = iota_sdk_types::ObjectDigest::random();
-        let effects = TransactionEffectsV1 {
-            status: iota_sdk_types::ExecutionStatus::Success,
-            epoch: 0,
-            gas_cost_summary: Default::default(),
-            transaction_digest: TransactionDigest::random(),
-            gas_object_index: None,
-            events_digest: None,
-            dependencies: vec![],
-            lamport_version: 2.into(),
-            changed_objects: vec![changed_object(
-                created_id,
-                ObjectIn::Missing,
-                ObjectOut::ObjectWrite {
-                    digest,
-                    owner: Owner::Address(address(2)),
-                },
-                IdOperation::Created,
-            )],
-            unchanged_shared_objects: vec![],
-            auxiliary_data_digest: None,
-        };
-
-        let refs = created(&effects);
-        assert_eq!(
-            refs,
-            vec![ObjectReference::new(created_id, 2.into(), digest)]
-        );
     }
 }

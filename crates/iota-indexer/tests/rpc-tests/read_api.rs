@@ -29,6 +29,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -2081,12 +2082,15 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
             .await;
 
-        let sword_object_ref =
-            iota_json_rpc_types::created(res.effects().unwrap().effects().unwrap().as_v1());
-
-        let sword_object_ref = *sword_object_ref
+        let sword_object_ref = res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .created()
             .first()
-            .expect("expected at least one created object");
+            .expect("expected at least one created object")
+            .0;
 
         // 3) Wrap the `Sword` object
         let pt = {
@@ -2137,14 +2141,12 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         .await;
 
         // 6) Test transaction filter for wrapped object
-        let wrapped_objects = iota_json_rpc_types::wrapped(
-            wrap_transaction_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
+        let wrapped_objects = wrap_transaction_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .wrapped();
 
         assert_eq!(
             wrapped_objects.len(),
@@ -2156,7 +2158,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        wrapped_objects[0],
+                        wrapped_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2174,18 +2176,15 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         );
 
         // 7) Unwrap then delete the `Sword`
-        let warrior_object_ref = iota_json_rpc_types::created(
-            wrap_transaction_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
-
-        let warrior_object_ref = *warrior_object_ref
+        let warrior_object_ref = wrap_transaction_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .created()
             .first()
-            .expect("expected at least one created object for warrior");
+            .expect("expected at least one created object for warrior")
+            .0;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -2235,14 +2234,12 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         // 8) Test transaction filter for unwrapped and deleted object. It should return
         //    two transactions:
         // one for the performed `wrap` and one for more recent `unwrap then delete`.
-        let unwrapped_then_deleted_objects = iota_json_rpc_types::unwrapped_then_deleted(
-            unwrap_then_delete_transaction_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
+        let unwrapped_then_deleted_objects = unwrap_then_delete_transaction_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .unwrapped_then_deleted();
 
         assert_eq!(
             unwrapped_then_deleted_objects.len(),
@@ -2254,7 +2251,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        unwrapped_then_deleted_objects[0],
+                        unwrapped_then_deleted_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2338,14 +2335,12 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         .await;
 
         // 9) Test transaction filter for deleted `Warrior` object
-        let deleted_objects = iota_json_rpc_types::deleted(
-            delete_warrior_transaction_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
+        let deleted_objects = delete_warrior_transaction_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .deleted();
 
         assert_eq!(
             deleted_objects.len(),
@@ -2357,7 +2352,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        deleted_objects[0],
+                        deleted_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2477,21 +2472,19 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         .await;
 
         // Find warrior object
-        let created_objects = iota_json_rpc_types::created(
-            create_and_wrap_tx_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
+        let created_objects = create_and_wrap_tx_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .created();
         assert_eq!(
             created_objects.len(),
             1,
             "expected exactly one created object"
         );
 
-        let warrior_object_id = created_objects[0].object_id;
+        let warrior_object_id = created_objects[0].0.object_id;
 
         // 5) Unwrap the Sword to find out it's object ID
         let warrior_object_ref = cluster.get_latest_object_ref(&warrior_object_id).await;
@@ -2539,14 +2532,12 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         .await;
 
         // 6) Test transaction filter for create and wrap operation
-        let sword_object_ref = iota_json_rpc_types::unwrapped(
-            unwrap_transaction_res
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1(),
-        );
+        let sword_object_ref = unwrap_transaction_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .unwrapped();
 
         assert_eq!(
             sword_object_ref.len(),
@@ -2558,7 +2549,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        sword_object_ref[0].object_id,
+                        sword_object_ref[0].0.object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },

@@ -19,7 +19,8 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_types::{
-    digests::TransactionDigest, messages_checkpoint::CheckpointSequenceNumber,
+    digests::TransactionDigest, effects::TransactionEffectsAPI,
+    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
@@ -1573,15 +1574,14 @@ async fn try_get_past_object_deleted() {
         )
         .await;
 
-    let created_object_id = iota_json_rpc_types::created(
-        tx_block_response
-            .effects()
-            .unwrap()
-            .effects()
-            .unwrap()
-            .as_v1(),
-    )[0]
-    .object_id;
+    let created_object_id = tx_block_response
+        .effects()
+        .unwrap()
+        .effects()
+        .unwrap()
+        .created()[0]
+        .0
+        .object_id;
 
     let objects = cluster
         .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
@@ -1620,15 +1620,13 @@ async fn try_get_past_object_deleted() {
         .await;
 
     assert_eq!(
-        iota_json_rpc_types::deleted(
-            tx_block_response
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1()
-        )
-        .len(),
+        tx_block_response
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .deleted()
+            .len(),
         1
     );
 

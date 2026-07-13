@@ -1179,7 +1179,10 @@ mod tests {
     use anyhow::*;
     use iota_sdk::wallet_context::WalletContext;
     use iota_sdk_types::crypto::Intent;
-    use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
+    use iota_types::{
+        effects::TransactionEffectsAPI,
+        transaction::{SenderSignedData, TransactionDataAPI},
+    };
     use test_cluster::TestClusterBuilder;
 
     use super::*;
@@ -1657,7 +1660,7 @@ mod tests {
 
         let effects = execute_tx(&mut context, tx_data).await.unwrap();
 
-        let tiny_coin_id = iota_json_rpc_types::created(effects.as_v1())[0].object_id;
+        let tiny_coin_id = effects.created()[0].0.object_id;
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();
