@@ -28,11 +28,13 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
+    block_verifier::BlockVerifier,
     commit_syncer::verify_transactions_with_transactions_refs,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
@@ -388,6 +390,11 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
     last_failure_by_peer: Arc<LastFailureByPeer>,
+    /// Applies the same transaction limit and batch verification checks to
+    /// fetched payloads as the direct block-bundle route.
+    block_verifier: Arc<dyn BlockVerifier>,
+    /// Records the author of fetched payloads that fail verification.
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
@@ -399,6 +406,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
+        block_verifier: Arc<dyn BlockVerifier>,
     ) -> Arc<TransactionsSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_transactions_synchronizer_commands", 1_000);
@@ -413,6 +421,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let mut tasks = JoinSet::new();
         let active_requests = InflightActiveRequests::new();
         let last_failure_by_peer = LastFailureByPeer::new(&context);
+        let misbehavior_store = dag_state.read().misbehavior_store().clone();
         // Spawn the live fetcher task
         let live_fetcher_async = Self::live_fetcher(
             active_requests.clone(),
@@ -422,6 +431,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             live_fetch_receiver,
             inflight_transactions_map.clone(),
             last_failure_by_peer.clone(),
+            block_verifier.clone(),
+            misbehavior_store.clone(),
         );
         tasks.spawn(monitored_future!(live_fetcher_async));
 
@@ -441,6 +452,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 commands_sender: commands_sender_clone,
                 dag_state,
                 last_failure_by_peer,
+                block_verifier,
+                misbehavior_store,
             };
             s.run().await;
         }));
@@ -532,6 +545,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         mut receiver: Receiver<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
         last_failure_by_peer: Arc<LastFailureByPeer>,
+        block_verifier: Arc<dyn BlockVerifier>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         let semaphore = Arc::new(Semaphore::new(LIVE_FETCH_TRANSACTIONS_CONCURRENCY));
 
@@ -551,6 +566,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let network_client = network_client.clone();
                     let core_dispatcher = core_dispatcher.clone();
                     let last_failure_by_peer = last_failure_by_peer.clone();
+                    let block_verifier = block_verifier.clone();
+                    let misbehavior_store = misbehavior_store.clone();
                     tokio::spawn(async move {
                         Self::fetch_and_process_transactions_from_authorities(
                             context,
@@ -561,6 +578,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             core_dispatcher,
                             last_failure_by_peer,
                             SyncMethod::Live,
+                            block_verifier,
+                            misbehavior_store,
                         )
                         .await;
 
@@ -640,6 +659,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
         let last_failure_by_peer = self.last_failure_by_peer.clone();
+        let block_verifier = self.block_verifier.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -660,6 +681,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     core_dispatcher,
                     last_failure_by_peer,
                     SyncMethod::Periodic,
+                    block_verifier,
+                    misbehavior_store,
                 )
                 .await;
                 context
@@ -685,6 +708,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         last_failure_by_peer: Arc<LastFailureByPeer>,
         sync_method: SyncMethod,
+        block_verifier: Arc<dyn BlockVerifier>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
         let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<GenericTransactionRef>> =
@@ -778,6 +803,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 let context = context.clone();
                 let network_client = network_client.clone();
                 let core_dispatcher = core_dispatcher.clone();
+                let block_verifier = block_verifier.clone();
+                let misbehavior_store = misbehavior_store.clone();
                 request_futures.push(async move {
                     let result = Self::fetch_and_process_transactions_from_authority(
                         authority,
@@ -787,6 +814,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         core_dispatcher,
                         sync_method,
                         active_request_guard,
+                        block_verifier,
+                        misbehavior_store,
                     )
                     .await;
                     (authority, result)
@@ -857,6 +886,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         sync_method: SyncMethod,
         _active_guard: ActiveRequestGuard,
+        block_verifier: Arc<dyn BlockVerifier>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<FetchStats> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let total_requested = transactions_guard.transactions_refs.len();
@@ -893,6 +924,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             core_dispatcher.clone(),
             context,
             sync_method,
+            block_verifier,
+            misbehavior_store,
         )
         .await?;
 
@@ -1011,6 +1044,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         context: Arc<Context>,
         sync_method: SyncMethod,
+        block_verifier: Arc<dyn BlockVerifier>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<usize> {
         let _s = context
             .metrics
@@ -1091,6 +1126,34 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         .cloned()
         .collect::<Vec<_>>();
 
+        // The commitment check above only proves the fetched bytes match what
+        // the author committed to; it does not enforce the per-transaction
+        // limits or the application-level `verify_batch` checks the direct
+        // block-bundle route applies before a payload can be acknowledged.
+        // Run the same checks here so a payload violating them can't be
+        // acknowledged and become committable via this route either.
+        for verified_transactions in &transactions {
+            if let Err(err) =
+                block_verifier.check_and_verify_transactions(&verified_transactions.transactions())
+            {
+                let author = verified_transactions.author();
+                metrics
+                    .invalid_transactions
+                    .with_label_values(&[
+                        context.authority_hostname(author),
+                        "transaction_synchronizer",
+                        err.name(),
+                    ])
+                    .inc();
+                // The recomputed commitment (checked above) already ties this
+                // payload to the author's signed transactions_commitment, so
+                // the invalid payload is provably the author's. `peer_index`
+                // only relayed it and is not charged.
+                misbehavior_store.record_faulty_block_header(author, author, &err);
+                return Err(err);
+            }
+        }
+
         metrics
             .transactions_synchronizer_fetched_transactions_by_peer
             .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
@@ -1155,12 +1218,14 @@ mod tests {
             BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
             VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
+        block_verifier::{NoopBlockVerifier, SignedBlockVerifier, test::TxnSizeVerifier},
         commit::{CertifiedCommits, CommitRange},
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
+        misbehavior_store::MisbehaviorCounts,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
     };
@@ -1182,6 +1247,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -1273,6 +1339,105 @@ mod tests {
         transaction_synchronizer.stop().await.unwrap();
     }
 
+    /// A fetched payload must pass the same per-transaction limit and
+    /// `verify_batch` checks the direct route enforces before it can reach
+    /// Core. Otherwise it could be acknowledged and become committable while
+    /// diverging from nodes that received the same payload directly.
+    #[tokio::test]
+    async fn live_syncing_rejects_transactions_failing_verification() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a block_verifier that rejects transactions shorter than 4
+        // bytes.
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(TxnSizeVerifier {}),
+        ));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let transaction_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+        );
+        let mut encoder = create_encoder(&context);
+
+        // A 2-byte transaction fails `TxnSizeVerifier::verify_batch` (< 4
+        // bytes).
+        let author = AuthorityIndex::new_for_test(1);
+        let transactions = vec![Transaction::new(vec![0u8; 2])];
+        let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, author.value() as u8)
+                .set_commitment(commitment)
+                .build(),
+        );
+
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            header.transaction_ref(),
+            Some(header.digest()),
+            serialized,
+        );
+
+        let mut missing_transactions = BTreeMap::new();
+        let mut authorities = BTreeSet::new();
+        authorities.insert(author);
+        missing_transactions.insert(
+            GenericTransactionRef::from(header.transaction_ref()),
+            authorities,
+        );
+
+        network_client
+            .stub_fetch_transactions(vec![verified_transactions], author)
+            .await;
+
+        dag_state
+            .write()
+            .accept_block_headers(vec![header], DataSource::Test);
+
+        // WHEN
+        let result = transaction_synchronizer
+            .fetch_transactions(missing_transactions)
+            .await;
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(1000)).await;
+
+        // THEN the payload never reaches Core, so it can never be
+        // acknowledged.
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched_transactions.is_empty(),
+            "A fetched payload failing verification must never reach Core"
+        );
+
+        let counts = dag_state.read().misbehavior_store().snapshot_totals();
+        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        assert_eq!(
+            author_counts.faulty_blocks_provable, 1,
+            "The author should be charged for the provably invalid payload"
+        );
+
+        // Clean up
+        transaction_synchronizer.stop().await.unwrap();
+    }
+
     #[tokio::test]
     async fn live_syncing_with_saturated_tasks() {
         telemetry_subscribers::init_for_testing();
@@ -1290,6 +1455,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -1412,6 +1578,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -1539,6 +1706,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -1655,6 +1823,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -1773,6 +1942,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -2006,6 +2176,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 

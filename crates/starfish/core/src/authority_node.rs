@@ -229,6 +229,7 @@ impl ConsensusAuthority {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let leader_timeout_handle = LeaderTimeoutTask::start(
