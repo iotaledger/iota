@@ -148,7 +148,9 @@ pub async fn start_test_cluster_with_read_write_indexer(
     pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
-    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
+    let mut builder = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning();
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
