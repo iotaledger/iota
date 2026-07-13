@@ -50,11 +50,11 @@ const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 /// Which transport `WalletContext` uses for chain-touching operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WalletBackend {
-    /// Use the node's gRPC API. The default: falls back to `JsonRpc` when the
-    /// active environment has no `grpc` URL configured.
+    /// Use the node's gRPC API. The default; requires the active environment
+    /// to have a `grpc` URL configured (chain-touching calls error otherwise).
     #[default]
     Grpc,
-    /// Use the node's JSON-RPC API unconditionally.
+    /// Use the node's JSON-RPC API.
     JsonRpc,
 }
 
@@ -128,23 +128,11 @@ impl WalletContext {
         self
     }
 
-    /// Force `WalletContext` to use the JSON-RPC backend, even for
-    /// environments that have a `grpc` URL configured.
+    /// Force `WalletContext` to use the JSON-RPC backend instead of the
+    /// default gRPC one.
     pub fn with_jsonrpc_backend(mut self) -> Self {
         self.backend = WalletBackend::JsonRpc;
         self
-    }
-
-    /// Resolve which backend a chain-touching method should use for the
-    /// active environment: `JsonRpc` if `with_jsonrpc_backend()` was called,
-    /// or if the default `Grpc` backend has no `grpc` URL configured for the
-    /// active environment; `Grpc` otherwise.
-    fn resolve_backend(&self) -> Result<WalletBackend, anyhow::Error> {
-        Ok(match self.backend {
-            WalletBackend::JsonRpc => WalletBackend::JsonRpc,
-            WalletBackend::Grpc if self.active_env()?.grpc().is_none() => WalletBackend::JsonRpc,
-            WalletBackend::Grpc => WalletBackend::Grpc,
-        })
     }
 
     /// Get all addresses from the keystore.
@@ -229,7 +217,7 @@ impl WalletContext {
         &self,
         object_id: ObjectId,
     ) -> Result<ObjectReference, anyhow::Error> {
-        match self.resolve_backend()? {
+        match self.backend {
             WalletBackend::Grpc => {
                 let client = self.get_grpc_client().await?;
                 let objects = client
@@ -261,7 +249,7 @@ impl WalletContext {
         &self,
         address: Address,
     ) -> Result<Vec<(u64, iota_sdk_types::Object)>, anyhow::Error> {
-        match self.resolve_backend()? {
+        match self.backend {
             WalletBackend::Grpc => {
                 let client = self.get_grpc_client().await?;
                 let objects = client
@@ -317,7 +305,7 @@ impl WalletContext {
 
     /// Get the address that owns the object of the provided [`ObjectId`].
     pub async fn get_object_owner(&self, id: &ObjectId) -> Result<Address, anyhow::Error> {
-        match self.resolve_backend()? {
+        match self.backend {
             WalletBackend::Grpc => {
                 let client = self.get_grpc_client().await?;
                 let objects = client
@@ -488,7 +476,7 @@ impl WalletContext {
     }
 
     pub async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        match self.resolve_backend()? {
+        match self.backend {
             WalletBackend::Grpc => {
                 let client = self.get_grpc_client().await?;
                 Ok(client.get_reference_gas_price().await?.into_inner())
@@ -542,7 +530,7 @@ impl WalletContext {
         &self,
         tx: Transaction,
     ) -> anyhow::Result<ExecutedTransaction> {
-        match self.resolve_backend()? {
+        match self.backend {
             WalletBackend::Grpc => {
                 let client = self.get_grpc_client().await?;
                 let signed_transaction: iota_sdk_types::SignedTransaction = tx.try_into().map_err(
@@ -613,27 +601,27 @@ mod tests {
     }
 
     #[test]
-    fn resolve_backend_defaults_to_grpc_when_env_has_grpc_url() {
-        let ctx = wallet_context_with_env(
-            IotaEnv::new("test", "https://rpc.example")
-                .with_grpc(Some("https://grpc.example".to_string())),
-        );
-        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::Grpc);
-    }
-
-    #[test]
-    fn resolve_backend_falls_back_to_json_rpc_when_env_has_no_grpc_url() {
+    fn defaults_to_grpc_backend() {
         let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"));
-        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::JsonRpc);
+        assert_eq!(ctx.backend, WalletBackend::Grpc);
     }
 
     #[test]
-    fn resolve_backend_honors_explicit_json_rpc_override_even_with_grpc_url() {
-        let ctx = wallet_context_with_env(
-            IotaEnv::new("test", "https://rpc.example")
-                .with_grpc(Some("https://grpc.example".to_string())),
-        )
-        .with_jsonrpc_backend();
-        assert_eq!(ctx.resolve_backend().unwrap(), WalletBackend::JsonRpc);
+    fn with_jsonrpc_backend_selects_json_rpc() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"))
+            .with_jsonrpc_backend();
+        assert_eq!(ctx.backend, WalletBackend::JsonRpc);
+    }
+
+    /// The default gRPC backend errors loudly when the active env has no `grpc`
+    /// URL, rather than silently falling back to JSON-RPC.
+    #[tokio::test]
+    async fn grpc_backend_errors_without_grpc_url() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"));
+        let err = ctx.get_reference_gas_price().await.unwrap_err().to_string();
+        assert!(
+            err.contains("gRPC is not configured"),
+            "expected a gRPC-not-configured error, got: {err}"
+        );
     }
 }
