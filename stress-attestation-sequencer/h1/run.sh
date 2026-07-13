@@ -9,8 +9,8 @@
 #   2. bootstrap  -b, regenerate genesis with benchmark gas accounts
 #   3. Run A — V1 attestation OFF (control), TotalTxCount
 #   4. Run B — V2 attestation ON, same load (network reset between A and B —
-#                 cleanup + re-bootstrap of a fresh genesis, so Run B cold-starts
-#                 like Run A; unattended runs wipe the Prometheus TSDB (at each
+#                 cleanup wipes the node DBs but keeps Run A's genesis, so Run B
+#                 cold-starts like Run A; unattended runs wipe the Prometheus TSDB (at each
 #                 iteration start AND between A and B) for cleanly separated runs;
 #                 interactively nothing is wiped, so all runs coexist in Grafana;
 #                 Run A's JSON is saved before the reset)
@@ -30,7 +30,7 @@
 #                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, MAX_DEFERRAL_ROUNDS,
 #                 MAX_ACCUMULATED_TXN_COST, MAX_CONGESTION_OVERSHOOT,
 #                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
-#                 TS_STEP.
+#                 TS_STEP, EPOCH_DURATION_MS.
 
 set -euo pipefail
 
@@ -80,6 +80,11 @@ GENESIS_DIR="$REPO_ROOT/dev-tools/iota-private-network/configs/genesis"
 rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) printf '%s' "$1" ;; esac }
 
 N="${N:-4}"
+# Epoch length baked into the bootstrapped genesis. Long (1h) on purpose: the
+# A->B reset reuses Run A's genesis, so Run B starts several minutes into
+# epoch 0 — a long epoch keeps reconfiguration structurally out of both run
+# windows.
+EPOCH_DURATION_MS="${EPOCH_DURATION_MS:-3600000}"
 RUN_DURATION="${RUN_DURATION:-60s}"
 TARGET_QPS="${TARGET_QPS:-2000}"
 NUM_WORKERS="${NUM_WORKERS:-24}"
@@ -229,13 +234,17 @@ wipe_monitoring() {
     >/dev/null 2>&1 || true
 }
 
-# Reset the network between runs so Run B's startup path is IDENTICAL to the
-# initial setup before Run A — that full symmetry is what keeps the pre-spam
-# warmup the same. We tear EVERYTHING down (incl. the monitoring stack) and
-# re-bootstrap a brand-new genesis (current timestamp) with an empty DB, exactly
-# like Run A's [1/5] cleanup + [2/5] bootstrap. Leaving Prometheus up across the
-# reset appears to give Run B a longer warmup, so cleanup.sh brings the monitoring
-# container down (WITHOUT -v) and start.sh brings it back up for Run B.
+# Reset the network between runs so Run B's startup path matches the initial
+# setup before Run A — that symmetry is what keeps the pre-spam warmup the
+# same. We tear EVERYTHING down (incl. the monitoring stack: leaving Prometheus
+# up across the reset appears to give Run B a longer warmup, so cleanup.sh
+# brings the monitoring container down WITHOUT -v and start.sh brings it back
+# up for Run B). cleanup.sh wipes the node DBs (data/) but keeps
+# configs/genesis, so Run B cold-starts from the SAME genesis blob as Run A —
+# byte-identical startup work (better symmetry than a re-bootstrap, whose
+# genesis differs by timestamp) without a second multi-minute genesis ceremony
+# per iteration. The long EPOCH_DURATION_MS epoch keeps Run B's later start
+# within epoch 0 far from any reconfiguration.
 #
 # wipe_monitoring here clears the TSDB between Run A and Run B — but ONLY when
 # output is redirected (unattended run): Run B then starts on a fresh TSDB with no
@@ -244,12 +253,10 @@ wipe_monitoring() {
 # by-side debugging (the A->B carryforward that leaves is stripped from the saved
 # JSONs by dump_timeseries, so they stay correct either way).
 reset_network() {
-  echo "${YELLOW}Tearing everything down and re-bootstrapping a fresh genesis for Run B...${RESET}"
+  echo "${YELLOW}Tearing everything down for Run B (reusing Run A's genesis, fresh DBs)...${RESET}"
   echo "  - cleanup   -> $(rel "$RESULTS_DIR/cleanup.log")"
-  echo "  - bootstrap -> $(rel "$RESULTS_DIR/bootstrap.log")"
   sudo "$TOOLS_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
   wipe_monitoring
-  sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 }
 
 # Dump the raw timeseries (Prometheus query_range) over the run window to a JSON
@@ -385,7 +392,7 @@ run_one_iteration() {
   echo "cleanup output -> $(rel "$RESULTS_DIR/cleanup.log")"
 
   banner "== H1 [2/5] bootstrap (-b, $N validators) =="
-  sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
+  sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N" -e "$EPOCH_DURATION_MS" >>"$RESULTS_DIR/bootstrap.log" 2>&1
   echo "bootstrap output -> $(rel "$RESULTS_DIR/bootstrap.log")"
 
   banner "== H1 [3/5] Run A — V1 (attestation OFF) =="
@@ -396,8 +403,8 @@ run_one_iteration() {
   run_stress "Run A — V1 (attestation off)" "$RESULTS_DIR/run-a-v1-timeseries.json"
 
   # Run A is scraped; let the network run a moment so the post-run tail is
-  # captured, then fully reset and re-bootstrap a fresh genesis for Run B, idling
-  # so the runs are cleanly separated. Run A's metrics are already saved.
+  # captured, then fully reset (same genesis, fresh DBs) for Run B, idling so
+  # the runs are cleanly separated. Run A's metrics are already saved.
   echo "${YELLOW}Letting the network run ${PRE_STOP_WAIT_S}s after the scrape before resetting...${RESET}"
   sleep "$PRE_STOP_WAIT_S"
   # Capture Run A's (V1) node state BEFORE the reset destroys these containers — so
@@ -411,9 +418,9 @@ run_one_iteration() {
   sleep "$SLEEP_BETWEEN_RUNS_S"
 
   banner "== H1 [4/5] Run B — V2 (attestation ON) =="
-  # start.sh boots the validators from the freshly re-bootstrapped genesis with an
-  # empty data dir, so Run B cold-starts exactly like Run A — only attestation
-  # differs. Run A's metrics live in run-a-v1-timeseries.json (already saved).
+  # start.sh boots the validators from Run A's genesis with an empty data dir,
+  # so Run B cold-starts exactly like Run A — only attestation differs. Run A's
+  # metrics live in run-a-v1-timeseries.json (already saved).
   MODE=TotalTxCount \
     MAX_DEFERRAL_ROUNDS="$MAX_DEFERRAL_ROUNDS" MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \
     MAX_CONGESTION_OVERSHOOT="$MAX_CONGESTION_OVERSHOOT" \
