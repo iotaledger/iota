@@ -7,7 +7,12 @@
 // finality, and proactively executes finalized transactions locally.
 
 use std::{
-    collections::BTreeMap, net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration,
+    collections::{BTreeMap, HashSet},
+    net::SocketAddr,
+    ops::Deref,
+    path::Path,
+    sync::Arc,
+    time::Duration,
 };
 
 use futures::{
@@ -39,6 +44,7 @@ use iota_types::{
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
+use parking_lot::Mutex;
 use prometheus_filtered::{
     Histogram, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
@@ -94,6 +100,12 @@ pub struct TransactionOrchestrator<A: Clone> {
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
+    /// Digests currently being driven to finality by the TransactionDriver;
+    /// used to deduplicate concurrent submissions of the same transaction.
+    /// Kept in memory only: the driver path is best-effort, so there is
+    /// nothing to recover after a restart. The QuorumDriver path tracks its
+    /// submissions in `pending_tx_log` instead.
+    in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
 }
@@ -217,6 +229,7 @@ where
             validator_state,
             _local_executor_handle,
             pending_tx_log,
+            in_flight_transactions: Default::default(),
             notifier,
             metrics,
         }
@@ -262,25 +275,13 @@ where
 
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
-                self.submit_with_checkpoint_race(
-                    td.clone(),
-                    &transaction,
-                    request,
-                    client_addr,
-                    tx_digest,
-                )
-                .await?
+                self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
+                    .await?
             }
             (Driver::Transaction(td), false) => (
                 Some(
-                    self.submit_with_transaction_driver(
-                        td.clone(),
-                        &transaction,
-                        request,
-                        client_addr,
-                        false,
-                    )
-                    .await?,
+                    self.submit_with_transaction_driver(td.clone(), request, client_addr, false)
+                        .await?,
                 ),
                 None,
             ),
@@ -521,12 +522,11 @@ where
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
                 // reconcile the response from the cache there.
-                let transaction = epoch_store
+                epoch_store
                     .verify_transaction(request.transaction.clone())
                     .map_err(QuorumDriverError::InvalidUserSignature)?;
                 self.submit_with_transaction_driver(
                     td.clone(),
-                    &transaction,
                     request,
                     client_addr,
                     skip_certification,
@@ -563,7 +563,6 @@ where
     async fn submit_with_checkpoint_race(
         &self,
         td: Arc<TransactionDriver<A>>,
-        transaction: &VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         tx_digest: TransactionDigest,
@@ -579,8 +578,7 @@ where
             .validator_state
             .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
         tokio::pin!(checkpoint_inclusion);
-        let driver =
-            self.submit_with_transaction_driver(td, transaction, request, client_addr, true);
+        let driver = self.submit_with_transaction_driver(td, request, client_addr, true);
 
         let seq_for_tx = |inclusion_map: BTreeMap<_, (CheckpointSequenceNumber, _)>| {
             inclusion_map.get(&tx_digest).map(|&(seq, _)| seq)
@@ -621,20 +619,18 @@ where
     async fn submit_with_transaction_driver(
         &self,
         td: Arc<TransactionDriver<A>>,
-        transaction: &VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        let tx_digest = *transaction.digest();
+        let tx_digest = *request.transaction.digest();
 
         // Deduplicate concurrent submissions of the same digest: only the first
         // caller drives the committee-wide submission; the rest wait for its
-        // effects. The guard removes the pending-log entry on every exit path
-        // (success, error, timeout, or cancellation) when it is dropped.
-        let guard = TransactionSubmissionGuard::new(self.pending_tx_log.clone(), transaction)
-            .await
-            .map_err(QuorumDriverError::QuorumDriverInternal)?;
+        // effects. The guard removes the digest from the in-flight set on every
+        // exit path (success, error, timeout, or cancellation) when it is
+        // dropped.
+        let guard = TransactionSubmissionGuard::new(self.in_flight_transactions.clone(), tx_digest);
         if !guard.is_new_transaction() {
             debug!(
                 ?tx_digest,
@@ -1488,38 +1484,35 @@ fn read_cached_transaction_data(
 }
 
 /// Tracks a transaction that is being submitted to finality so that concurrent
-/// submissions of the same digest deduplicate, and guarantees the pending
-/// transaction log entry is removed once submission finishes.
+/// submissions of the same digest deduplicate.
 ///
 /// `is_new_transaction` is `false` when another submission of the same digest
 /// is already in flight; the caller should then wait for that submission's
-/// effects instead of starting a new one. The log entry is removed when the
-/// guard is dropped, covering success, error, timeout, and cancellation.
+/// effects instead of starting a new one. The driving submission's guard
+/// removes the digest from the in-flight set when dropped, covering success,
+/// error, timeout, and cancellation.
 struct TransactionSubmissionGuard {
-    pending_tx_log: Arc<WritePathPendingTransactionLog>,
+    in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
     tx_digest: TransactionDigest,
     is_new_transaction: bool,
 }
 
 impl TransactionSubmissionGuard {
-    async fn new(
-        pending_tx_log: Arc<WritePathPendingTransactionLog>,
-        transaction: &VerifiedTransaction,
-    ) -> IotaResult<Self> {
-        let tx_digest = *transaction.digest();
-        let is_new_transaction = pending_tx_log
-            .write_pending_transaction_maybe(transaction)
-            .await?;
+    fn new(
+        in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+        tx_digest: TransactionDigest,
+    ) -> Self {
+        let is_new_transaction = in_flight_transactions.lock().insert(tx_digest);
         if is_new_transaction {
             debug!(?tx_digest, "added transaction to in-flight set");
         } else {
             debug!(?tx_digest, "transaction already being processed");
         }
-        Ok(Self {
-            pending_tx_log,
+        Self {
+            in_flight_transactions,
             tx_digest,
             is_new_transaction,
-        })
+        }
     }
 
     fn is_new_transaction(&self) -> bool {
@@ -1529,12 +1522,11 @@ impl TransactionSubmissionGuard {
 
 impl Drop for TransactionSubmissionGuard {
     fn drop(&mut self) {
-        match self.pending_tx_log.finish_transaction(&self.tx_digest) {
-            Ok(()) => debug!(tx_digest = ?self.tx_digest, "cleaned up transaction in pending log"),
-            Err(err) => warn!(
-                tx_digest = ?self.tx_digest,
-                "failed to clean up transaction in pending log: {err}"
-            ),
+        // Only the guard that inserted the digest owns the entry; a duplicate
+        // submission's guard must not remove it while the driving submission
+        // is still in flight.
+        if self.is_new_transaction {
+            self.in_flight_transactions.lock().remove(&self.tx_digest);
         }
     }
 }

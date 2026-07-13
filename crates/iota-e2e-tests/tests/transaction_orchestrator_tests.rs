@@ -534,7 +534,8 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
 /// transaction digest must not each drive an independent committee-wide
 /// submission: the second observes the first in flight and waits for its
 /// effects instead. Both callers must return the same finalized effects, and
-/// the pending-transaction log must be empty once both complete.
+/// the pending-transaction log must stay empty: the driver path tracks
+/// in-flight submissions in memory only.
 #[sim_test]
 async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
     let _env_guard = enable_pcool_env();
@@ -599,7 +600,7 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
     let pending = orchestrator.load_all_pending_transactions()?;
     assert!(
         pending.is_empty(),
-        "pending transaction log must be cleaned up after submissions complete, found {pending:?}"
+        "driver path must not write to the pending transaction log, found {pending:?}"
     );
 
     Ok(())
