@@ -172,7 +172,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })
+            .inspect_err(|e| {
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, e);
+            })?;
 
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedHeader)
@@ -318,22 +322,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
             let header_round = signed_block_header.round();
             if header_round >= block_round {
-                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
+                let e = ConsensusError::TooBigHeaderRoundInABundle {
                     header_round,
                     block_round,
-                });
+                };
                 self.context
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", "invalid round in header"])
                     .inc();
-                info!(
-                    "Invalid additional block header from {}: {}",
-                    peer,
-                    e.as_ref().unwrap_err()
-                );
-                return e;
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, &e);
+                info!("Invalid additional block header from {}: {}", peer, e);
+                return Err(e);
             }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
@@ -387,8 +389,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
-            let shard: ShardWithProof =
-                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+            let shard: ShardWithProof = bcs::from_bytes(serialized_shard)
+                .map_err(ConsensusError::MalformedShard)
+                .inspect_err(|e| {
+                    self.misbehavior_store
+                        .record_faulty_block_header(peer, peer, e);
+                })?;
 
             if let Err(e) = check_shard_version(&shard) {
                 self.context
@@ -423,6 +429,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -445,6 +453,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -717,7 +727,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+            SerializedBlockBundleParts::try_from(serialized_block_bundle).inspect_err(|e| {
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, e);
+            })?;
         if let Err(e) =
             serialized_block_bundle_parts.validate_useful_authorities(&self.context.committee)
         {
@@ -727,6 +740,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
                 .inc();
+            self.misbehavior_store
+                .record_faulty_block_header(peer, peer, &e);
             warn!("Invalid bundle metadata from {}: {}", peer, e);
             return Err(e);
         }
@@ -2148,6 +2163,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2158,7 +2174,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2209,6 +2225,10 @@ mod tests {
         } else {
             panic!("Expected TooBigHeaderRoundInABundle error, got {result:?}",);
         }
+
+        // The relaying peer (authority 0) is charged for the invalid header.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
@@ -2289,6 +2309,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2299,7 +2320,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2337,6 +2358,10 @@ mod tests {
         assert!(core_dispatcher.get_blocks().is_empty());
         assert!(core_dispatcher.get_block_headers().is_empty());
         assert_eq!(authority_service.received_block_headers.size(), 0);
+
+        // The relaying peer (authority 0) is charged for the invalid metadata.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

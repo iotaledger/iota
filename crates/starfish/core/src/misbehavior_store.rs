@@ -267,9 +267,11 @@ enum FaultType {
     /// The signed block header itself is proof of misbehavior.
     Provable,
     /// Can't prove authorship — either because the signature is bad or
-    /// missing, or because the header is rejected by a pre-signature check
+    /// missing, because the header is rejected by a pre-signature check
     /// (epoch / genesis / author-vs-peer mismatch) so its `author` field
-    /// can't be trusted. Charged to the sending peer, not the claimed author.
+    /// can't be trusted, or because the fault is in a relayed bundle part
+    /// (framing, metadata, or shard) that isn't tied to a verified author.
+    /// Charged to the sending peer, not the claimed author.
     Unprovable,
     /// Not counted as misbehavior.
     Untracked,
@@ -292,7 +294,14 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializationFailure(_)
         | ConsensusError::DeserializationFailure(_)
         | ConsensusError::SerializedTransactionsTooLarge { .. }
-        | ConsensusError::TransactionCommitmentFailure { .. } => FaultType::Unprovable,
+        | ConsensusError::TransactionCommitmentFailure { .. }
+        // Corrupt or invalid relayed bundle parts (framing, additional-header
+        // round, and shard structure/proof). We know which peer relayed them
+        // but can't tie them to a verified author.
+        | ConsensusError::MalformedShard(_)
+        | ConsensusError::TooBigHeaderRoundInABundle { .. }
+        | ConsensusError::TooBigShardRoundInABundle { .. }
+        | ConsensusError::IncorrectShardProof { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -316,13 +325,13 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooManyTransactionBytes { .. }
         | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
 
-        // Not attributable to a block author from a signed block alone:
-        // subjective rejections, commit-chain and commit-sync inconsistencies,
-        // fetch-shape mismatches, relayed shard / bundle parts, reconstruction
-        // and encoder failures, storage, network transport, request-shape
-        // checks, and local lifecycle signals.
-        ConsensusError::MalformedShard(_)
-        | ConsensusError::MalformedCommit(_)
+        // Not attributable as misbehavior from a signed block alone: subjective
+        // rejections, commit-chain and commit-sync inconsistencies, fetch-shape
+        // mismatches, reconstruction and encoder failures, storage, network
+        // transport, request-shape checks, local lifecycle signals, and version
+        // mismatches that may stem from a benign upgrade misconfiguration rather
+        // than a faulty peer.
+        ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
@@ -362,9 +371,6 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::ShardsDecodingFailed(_)
         | ConsensusError::InsufficientShardsInDecoder(..)
         | ConsensusError::ShardsVecIsTooSmall(..)
-        | ConsensusError::TooBigHeaderRoundInABundle { .. }
-        | ConsensusError::IncorrectShardProof { .. }
-        | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::InconsistentTransactionRefVariants
         | ConsensusError::TransactionRefVariantMismatch { .. }
         | ConsensusError::FailedToFetchBlockHeaders { .. }
@@ -963,6 +969,21 @@ mod tests {
                 AuthorityIndex::new_for_test(0),
                 AuthorityIndex::new_for_test(1),
             ),
+            // Corrupt or invalid relayed bundle parts: charged to the relaying
+            // peer, not to a verified author.
+            ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::TooBigHeaderRoundInABundle {
+                header_round: 5,
+                block_round: 5,
+            },
+            ConsensusError::TooBigShardRoundInABundle {
+                shard_round: 5,
+                block_round: 5,
+            },
+            ConsensusError::IncorrectShardProof {
+                peer: AuthorityIndex::new_for_test(0),
+                round: 3,
+            },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
@@ -1001,6 +1022,9 @@ mod tests {
                 expected: 3,
                 received: 1,
             },
+            // Version mismatch may be a benign upgrade misconfiguration, so it
+            // is not charged as misbehavior.
+            ConsensusError::WrongShardVersion { actual: "V1" },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
