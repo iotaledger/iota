@@ -362,16 +362,26 @@ run_stress() {
 # crashed during the run; the digest keeps only real WARN/ERROR panics/forks (the
 # level filter drops benign DEBUG "processing aborted (retriable)" TD spam).
 capture_node_state() {
-  local out="$1" c _nodes
+  local out="$1" c i _nodes
   mkdir -p "$out"
   mapfile -t _nodes < <(docker ps --format '{{.Names}}' | grep -E '^(validator|fullnode)-[0-9]+$' | sort)
   : >"$out/_state.log"
-  for c in "${_nodes[@]}"; do
-    docker inspect "$c" --format \
+  if ((${#_nodes[@]})); then
+    # One inspect call covers every container; the log dumps then run
+    # concurrently — they are independent and I/O-bound, and run sequentially
+    # the ~50 of them dominate capture time on a large network. Batches of 16
+    # keep the docker daemon from serving all dumps at once.
+    docker inspect "${_nodes[@]}" --format \
       '{{.Name}} status={{.State.Status}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}' \
       >>"$out/_state.log" 2>&1 || true
-    docker logs "$c" >"$out/$c.log" 2>&1 || true
-  done
+    i=0
+    for c in "${_nodes[@]}"; do
+      docker logs "$c" >"$out/$c.log" 2>&1 &
+      i=$((i + 1))
+      if ((i % 16 == 0)); then wait; fi
+    done
+    wait
+  fi
   grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$out"/*.log 2>/dev/null |
     grep -vE ':[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z +(TRACE|DEBUG|INFO) ' \
       >"$out/_crash.log" || true

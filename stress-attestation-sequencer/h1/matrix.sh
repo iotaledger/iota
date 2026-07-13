@@ -48,6 +48,10 @@ FILTER="${1:-}"
 LOGDIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOGDIR"
 
+# Node-log compression is CPU-bound and single-threaded under gzip; use pigz
+# (parallel gzip, same .gz format) when installed.
+GZIP_BIN="$(command -v pigz || echo gzip)"
+
 # When launched detached (nohup / output not a terminal), send our own console
 # output to logs/_matrix.log instead of relying on an outer `> logs/_matrix.log`
 # redirect — that redirect is opened by the shell before this script's mkdir runs,
@@ -167,7 +171,7 @@ for ((round = 1; round <= ITERS; round++)); do
     # campaign does not fill the disk. _state.log/_crash.log stay uncompressed —
     # the crash scan reads them; the analysis tooling never reads node logs.
     sudo find "$SCRIPT_DIR/results/$label" -path '*node-logs/*.log' \
-      ! -name '_state.log' ! -name '_crash.log' -exec gzip -f {} + 2>/dev/null
+      ! -name '_state.log' ! -name '_crash.log' -exec "$GZIP_BIN" -f {} + 2>/dev/null
   done
 done
 
