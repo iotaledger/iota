@@ -932,7 +932,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
     /// Processes the requested raw fetched transactions from peer `peer_index`.
     /// If no error is returned then the verified transactions are
-    /// immediately sent to Core for processing.
+    /// immediately sent to Core for processing. Returns an error if the
+    /// response contains a transaction that was not requested.
     async fn process_fetched_transactions(
         serialized_transactions_vec: Vec<Bytes>,
         peer_index: AuthorityIndex,
@@ -978,7 +979,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         serialized_transactions.transaction_ref,
                     );
                     if !requested_transaction_refs.contains(&committed_transaction_ref) {
-                        continue;
+                        return Err(ConsensusError::UnrequestedTransactionFetched {
+                            peer: peer_index,
+                            transaction_ref: serialized_transactions.transaction_ref,
+                        });
                     }
                     serialized_transactions_map.insert(
                         committed_transaction_ref,
@@ -1803,6 +1807,119 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn live_syncing_with_unrequested_transactions_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+        let mut encoder = create_encoder(&context);
+
+        // Create test transactions; the last one is never requested.
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2), (4, 3)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let mut transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let unrequested_transaction = transactions.pop().unwrap();
+        block_headers.truncate(transactions.len());
+
+        // Peer 1 is the only acknowledger of the requested transactions.
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1));
+            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
+            missing_transactions.insert(gen_ref, authorities);
+        }
+
+        // Peer 1 returns one of the requested transactions together with a
+        // transaction that was not requested.
+        network_client
+            .stub_fetch_transactions(
+                vec![transactions[0].clone()],
+                AuthorityIndex::new_for_test(1),
+            )
+            .await;
+        network_client
+            .stub_unrequested_transactions(
+                vec![unrequested_transaction],
+                AuthorityIndex::new_for_test(1),
+            )
+            .await;
+
+        // Add block headers to the dag state
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(500)).await;
+
+        // The whole response must be rejected, including the requested
+        // transaction it contained.
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched_transactions.is_empty(),
+            "Expected the response containing an unrequested transaction to be rejected"
+        );
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn live_syncing_with_all_peers_failing() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
@@ -2102,6 +2219,7 @@ mod tests {
         timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         corrupted_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
+        unrequested_transactions: Arc<Mutex<HashMap<AuthorityIndex, Vec<Bytes>>>>,
     }
 
     impl MockNetworkClient {
@@ -2112,6 +2230,7 @@ mod tests {
                 timeout_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 empty_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 corrupted_peers: Arc::new(Mutex::new(BTreeSet::new())),
+                unrequested_transactions: Arc::new(Mutex::new(HashMap::new())),
             }
         }
 
@@ -2155,6 +2274,25 @@ mod tests {
         async fn set_corrupted_peer(&self, peer: AuthorityIndex) {
             let mut corrupted_peers = self.corrupted_peers.lock().await;
             corrupted_peers.insert(peer);
+        }
+
+        // Set a peer to also return the given transactions even though they
+        // are not requested
+        async fn stub_unrequested_transactions(
+            &self,
+            transactions: Vec<VerifiedTransactions>,
+            peer: AuthorityIndex,
+        ) {
+            let mut unrequested = self.unrequested_transactions.lock().await;
+            let entry = unrequested.entry(peer).or_default();
+            for transaction in transactions {
+                let serialized_transactions = SerializedTransactionsV2 {
+                    transaction_ref: transaction.transaction_ref(),
+                    serialized_transactions: transaction.serialized().clone(),
+                };
+                let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                entry.push(serialized.into());
+            }
         }
     }
 
@@ -2379,6 +2517,12 @@ mod tests {
                 if let Some(serialized) = transactions_map.get(&(peer, block_ref)) {
                     result.push(serialized.clone());
                 }
+            }
+
+            // Append stubbed transactions that were not requested
+            let unrequested = self.unrequested_transactions.lock().await;
+            if let Some(extra) = unrequested.get(&peer) {
+                result.extend(extra.iter().cloned());
             }
             Ok(result)
         }
