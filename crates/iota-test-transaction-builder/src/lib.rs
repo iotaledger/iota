@@ -14,9 +14,10 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_crypto::Signer as SdkSigner;
+use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    TransactionKind, TypeTag, Version,
+    StructTag, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
@@ -790,6 +791,109 @@ pub async fn delete_nft(
             .build(),
     );
     context.execute_transaction_must_succeed(txn).await
+}
+
+/// Fetch one IOTA coin owned by `sender` to use as an explicit gas coin.
+///
+/// Without an explicit gas coin, [`TransactionBuilder::finish`] auto-adds
+/// every IOTA coin the sender owns as gas inputs and merges the leftover into
+/// one output coin, breaking tests that observe the sender's coin count.
+pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
+    let gas_coin = grpc_client
+        .list_owned_objects(sender, Some(StructTag::new_gas_coin()), Some(1), None, None)
+        .collect(Some(1))
+        .await
+        .expect("failed to fetch gas coin")
+        .into_inner()
+        .into_iter()
+        .next()
+        .expect("sender has no gas coin");
+    *gas_coin
+        .object_reference()
+        .expect("gas coin missing object reference")
+        .object_id()
+}
+
+/// Build a Move-call transaction ready to be signed, paying gas from a single
+/// coin picked with [`select_gas_coin`].
+///
+/// `args` is anything the builder accepts as an argument list: a tuple of
+/// mixed argument types (`ObjectId` for owned objects, `SharedMut(id)` for
+/// shared mutable objects, `u64`/`Address` and other pure values), or an
+/// array/`Vec` of a single argument type.
+pub async fn move_call_tx<A: PTBArgumentList>(
+    grpc_client: &iota_grpc_client::Client,
+    sender: Address,
+    package_id: ObjectId,
+    module: &str,
+    function: &str,
+    args: A,
+    gas_budget: u64,
+) -> TransactionData {
+    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+
+    builder
+        .move_call(package_id, module, function)
+        .arguments(args);
+
+    builder.gas(vec![select_gas_coin(grpc_client, sender).await]);
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct move call transaction")
+}
+
+/// Build a transaction splitting `coin_to_split` into `num_coins` coins of
+/// equal value, ready to be signed. The original coin keeps the remainder.
+///
+/// `gas_coin` must differ from `coin_to_split`; when `None`, the builder
+/// selects gas automatically from the sender's IOTA coins.
+pub async fn split_coin_equal_tx(
+    grpc_client: &iota_grpc_client::Client,
+    sender: Address,
+    coin_to_split: ObjectId,
+    num_coins: u64,
+    gas_coin: Option<ObjectId>,
+    gas_budget: u64,
+) -> TransactionData {
+    let coin_object = grpc_client
+        .get_objects(&[(coin_to_split, None)], None)
+        .await
+        .expect("failed to fetch coin")
+        .into_inner()
+        .into_iter()
+        .next()
+        .expect("coin not found")
+        .object()
+        .expect("invalid coin object");
+    let coin_balance = iota_sdk_types::Coin::try_from_object(&coin_object)
+        .expect("object is not a coin")
+        .balance();
+
+    // Create `num_coins - 1` new coins of equal value; the original keeps the
+    // remainder.
+    let amount_per_split = coin_balance / num_coins;
+    let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
+
+    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+
+    // Split off the new coin and transfer it back to the sender; an untransferred
+    // `Coin` would be an unused PTB value (coins have no `drop`) and the
+    // transaction would be rejected.
+    let new_coin = builder.split_coins(coin_to_split, split_amounts).arg();
+    builder.transfer_objects(sender, [new_coin]);
+
+    if let Some(gas) = gas_coin {
+        builder.gas([gas]);
+    }
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct split coin transaction")
 }
 
 #[cfg(test)]
