@@ -341,25 +341,6 @@ pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
     // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
-    // A sample fullnode.yaml config would be:
-    // ---
-    // db-path:  /opt/iota/db/authorities_db
-    // network-address: /ip4/0.0.0.0/tcp/8080/http
-    // json-rpc-address: "0.0.0.0:9000"
-    // websocket-address: "0.0.0.0:9001"
-    // metrics-address: "0.0.0.0:9184"
-    // admin-interface-address: "127.0.0.1:1337"
-    // grpc-load-shed: ~
-    // grpc-concurrency-limit: ~
-    // p2p-config:
-    //   listen-address: "0.0.0.0:8084"
-    // genesis:
-    //   genesis-file-location:  <path to genesis blob for the network>
-    // authority-store-pruning-config:
-    //   num-latest-epoch-dbs-to-retain: 3
-    //   num-epochs-to-retain: 18446744073709551615
-    //   max-checkpoints-in-batch: 10
-    //   max-transactions-in-batch: 1000
     safe_drop_db(
         path.join("store").join("perpetual"),
         std::time::Duration::from_secs(60),
