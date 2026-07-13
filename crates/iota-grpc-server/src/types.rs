@@ -16,7 +16,7 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use iota_types::{
     base_types::VersionNumber,
     digests::TransactionDigest,
@@ -1236,7 +1236,7 @@ impl GrpcReader {
             // would shorten the input/output object lists and corrupt any
             // derived change fields, with no way for the client to detect it
             let require_object = |object_id: &iota_sdk_types::ObjectId,
-                                  version: iota_types::base_types::SequenceNumber|
+                                  version: Version|
              -> Result<Object, crate::error::RpcError> {
                 self.state_reader
                     .try_get_object_by_key(object_id, version)?

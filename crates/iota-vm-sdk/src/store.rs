@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use iota_framework::BuiltInFramework;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     error::{IotaError, IotaResult},
     object::Object,
@@ -190,7 +190,7 @@ impl ChildObjectResolver for StoreBackend<'_> {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         self.inner
             .get_child_object(parent, child, child_version_upper_bound)
@@ -201,7 +201,7 @@ impl ChildObjectResolver for StoreBackend<'_> {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         // Resolve the store's *current* version and require it to equal the
@@ -224,9 +224,8 @@ impl ChildObjectResolver for StoreBackend<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Owner};
+    use iota_sdk_types::{ObjectId, Owner, Version};
     use iota_types::{
-        base_types::SequenceNumber,
         digests::TransactionDigest,
         object::{MoveObject, MoveObjectExt, Object},
         storage::ChildObjectResolver,
@@ -239,7 +238,7 @@ mod tests {
         let parent = ObjectId::random();
         let stranger = ObjectId::random();
         let child = Object::new_move(
-            MoveObject::new_gas_coin(SequenceNumber::from(3), ObjectId::random(), 1),
+            MoveObject::new_gas_coin(Version::from(3), ObjectId::random(), 1),
             Owner::Object(parent),
             TransactionDigest::ZERO,
         );
@@ -248,7 +247,7 @@ mod tests {
         let mut store = InMemoryStore::new();
         store.insert(child);
 
-        let high = SequenceNumber::from(10);
+        let high = Version::from(10);
         assert!(
             store
                 .get_child_object(&parent, &child_id, high)
@@ -263,7 +262,7 @@ mod tests {
                 .is_none()
         );
         // A version bound below the child's version hides it.
-        let low = SequenceNumber::from(2);
+        let low = Version::from(2);
         assert!(
             store
                 .get_child_object(&parent, &child_id, low)
@@ -276,7 +275,7 @@ mod tests {
     fn receiving_resolves_only_the_current_version_for_the_owner() {
         let parent = ObjectId::random();
         let stranger = ObjectId::random();
-        let current = SequenceNumber::from(5);
+        let current = Version::from(5);
         let child = Object::new_move(
             MoveObject::new_gas_coin(current, ObjectId::random(), 1),
             Owner::Address(parent.into()),
@@ -299,7 +298,7 @@ mod tests {
         // past it, so the receive must abort like it does on-chain.
         assert!(
             backend
-                .get_object_received_at_version(&parent, &child_id, SequenceNumber::from(4), 0)
+                .get_object_received_at_version(&parent, &child_id, Version::from(4), 0)
                 .unwrap()
                 .is_none()
         );

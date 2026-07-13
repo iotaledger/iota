@@ -1,14 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Argument, Command, ObjectId, ObjectReference, TypeTag};
+use iota_sdk_types::{Argument, Command, ObjectId, ObjectReference, TypeTag, Version};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    IOTA_FRAMEWORK_ADDRESS, base_types::SequenceNumber, iota_serde::TypeName, transaction::CallArg,
-};
+use crate::{IOTA_FRAMEWORK_ADDRESS, iota_serde::TypeName, transaction::CallArg};
 
 // ---------------------------------------------------------------------------
 // Module / struct name constants
@@ -128,7 +126,7 @@ pub enum MoveObjectArg {
     ImmOrOwnedObject(ObjectReference),
     SharedObject {
         id: ObjectId,
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
         mutable: bool,
     },
     Receiving(ObjectReference),
@@ -190,7 +188,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{ObjectDigest, SequenceNumber},
+        base_types::ObjectDigest,
         transaction::{CallArg, SharedObjectRef},
     };
 
@@ -203,7 +201,7 @@ mod tests {
     fn obj_ref() -> ObjectReference {
         ObjectReference {
             object_id: obj_id(),
-            version: SequenceNumber::from(1),
+            version: Version::from(1),
             digest: ObjectDigest::new([1u8; 32]),
         }
     }
@@ -235,7 +233,7 @@ mod tests {
     fn call_arg_shared_object_round_trip() {
         let arg = MoveCallArg::Object(MoveObjectArg::SharedObject {
             id: obj_id(),
-            initial_shared_version: SequenceNumber::from(5),
+            initial_shared_version: Version::from(5),
             mutable: true,
         });
         assert_eq!(round_trip(&arg), arg);
@@ -286,11 +284,7 @@ mod tests {
 
     #[test]
     fn call_arg_bcs_compatible_shared() {
-        let tx_arg = CallArg::Shared(SharedObjectRef::new(
-            obj_id(),
-            SequenceNumber::from(5),
-            true,
-        ));
+        let tx_arg = CallArg::Shared(SharedObjectRef::new(obj_id(), Version::from(5), true));
         let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),

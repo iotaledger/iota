@@ -14,7 +14,9 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Owner, TransactionKind};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, Owner, TransactionKind, Version,
+};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -25,7 +27,7 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
+    base_types::TransactionDigest,
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -929,7 +931,7 @@ async fn get_obj_read_from_node(
 async fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectId,
-    seq_num: SequenceNumber,
+    seq_num: Version,
 ) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let PastObjectRead::VersionFound(obj_ref, object, layout) =
         node.state().get_past_object_read(&object_id, seq_num)?
@@ -1019,7 +1021,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::Address(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.version]).unwrap();
+    let too_high_version = Version::lamport_increment([object_ref_v3.version]).unwrap();
 
     match node
         .state()

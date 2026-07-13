@@ -7,9 +7,9 @@ use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError};
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
+    base_types::TransactionDigest,
     effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
@@ -104,7 +104,7 @@ impl OptimisticTransactionExecutor {
 
     pub(crate) async fn wait_for_dependencies(
         &self,
-        input_obj_keys: Vec<(ObjectId, SequenceNumber)>,
+        input_obj_keys: Vec<(ObjectId, Version)>,
     ) -> Result<(), IndexerError> {
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),

@@ -7,12 +7,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    StructTag, TransactionKind, TypeTag,
+    StructTag, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{ExecutionDigests, SequenceNumber, dbg_addr, random_object_ref},
+    base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
@@ -171,7 +171,7 @@ impl TestCheckpointDataBuilder {
     pub fn create_shared_object(self, object_idx: u64) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::Shared(SequenceNumber::MIN_VALID_INCL),
+            Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
             GAS::type_tag(),
         )
@@ -227,7 +227,7 @@ impl TestCheckpointDataBuilder {
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
-            SequenceNumber::MIN_VALID_INCL,
+            Version::MIN_VALID_INCL,
             object_id,
             balance,
         );

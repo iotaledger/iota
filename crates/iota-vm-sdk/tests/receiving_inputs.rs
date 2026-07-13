@@ -11,9 +11,8 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{ObjectId, ObjectReference, Owner};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     digests::TransactionDigest,
     error::{IotaError, UserInputError},
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
@@ -49,7 +48,7 @@ fn vm_with_receivable_coin(
         TransactionDigest::ZERO,
     );
     let receivable = Object::new_move(
-        MoveObject::new_gas_coin(SequenceNumber::from(5), ObjectId::random(), 1),
+        MoveObject::new_gas_coin(Version::from(5), ObjectId::random(), 1),
         Owner::Address(parent.into()),
         TransactionDigest::ZERO,
     );
@@ -114,7 +113,7 @@ fn dry_run_rejects_outdated_receiving_version() {
 
     let stale_ref = ObjectReference::new(
         receivable_ref.object_id,
-        SequenceNumber::from(4),
+        Version::from(4),
         receivable_ref.digest,
     );
     let err = vm
@@ -180,7 +179,7 @@ fn dev_inspect_skips_receiving_checks() {
 
     let stale_ref = ObjectReference::new(
         receivable_ref.object_id,
-        SequenceNumber::from(4),
+        Version::from(4),
         receivable_ref.digest,
     );
     let result = vm

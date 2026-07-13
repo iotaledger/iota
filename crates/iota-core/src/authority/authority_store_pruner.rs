@@ -14,9 +14,9 @@ use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
@@ -979,8 +979,8 @@ impl AuthorityStorePruner {
     /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
-            &ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL),
-            &ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL),
+            &ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL),
+            &ObjectKey(ObjectId::MAX, Version::MAX_VALID_EXCL),
         )
     }
 }
@@ -1059,10 +1059,10 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{ObjectId, ObjectReference};
+    use iota_sdk_types::{ObjectId, ObjectReference, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
-        base_types::{ObjectDigest, SequenceNumber},
+        base_types::ObjectDigest,
         digests::TransactionDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
@@ -1136,7 +1136,7 @@ mod tests {
         let mut id = ObjectId::ZERO;
         for _ in 0..total_unique_object_ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
-                let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
+                let object_key = ObjectKey(id, Version::from_u64(seq));
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
                     // latest `num_object_versions_to_retain` should not have been pruned
                     to_keep.push(object_key);
@@ -1146,13 +1146,13 @@ mod tests {
                 let obj = get_store_object(Object::immutable_with_id_for_testing(id), None);
                 batch.insert_batch(
                     &db.objects,
-                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
+                    [(ObjectKey(id, Version::from(seq)), obj.clone())],
                 )?;
             }
 
             // Adding a tombstone for deleted object.
             if num_object_versions_to_retain == 0 {
-                let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
+                let tombstone_key = ObjectKey(id, Version::from(num_versions_per_object));
                 println!("Adding tombstone object {tombstone_key:?}");
                 batch.insert_batch(
                     &db.objects,
@@ -1258,12 +1258,12 @@ mod tests {
         for _ in 0..total_unique_object_ids {
             for i in (0..num_versions_per_object).rev() {
                 if i < num_versions_per_object - 2 {
-                    to_delete.push((id, SequenceNumber::from(i)));
+                    to_delete.push((id, Version::from(i)));
                 }
                 let obj = get_store_object(Object::immutable_with_id_for_testing(id), None);
                 perpetual_db
                     .objects
-                    .insert(&ObjectKey(id, SequenceNumber::from(i)), &obj)?;
+                    .insert(&ObjectKey(id, Version::from(i)), &obj)?;
             }
             id = id.next_lexicographical();
         }
@@ -1284,8 +1284,8 @@ mod tests {
         }
 
         let db_path = tmp_dir.path().join("perpetual");
-        let start = ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL);
-        let end = ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL);
+        let start = ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL);
+        let end = ObjectKey(ObjectId::MAX, Version::MAX_VALID_EXCL);
 
         perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);
@@ -1335,7 +1335,7 @@ mod tests {
 
         // A V1 `Value` row is what a pre-V2 binary wrote for a live object;
         // only `Value` rows reach the tombstone lookup.
-        let object_key = ObjectKey(ObjectId::random(), SequenceNumber::from_u64(1));
+        let object_key = ObjectKey(ObjectId::random(), Version::from_u64(1));
         let v1_value = StoreObjectValue {
             data: StoreData::Coin(42),
             owner: Owner::Immutable,

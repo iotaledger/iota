@@ -7,11 +7,10 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use futures::FutureExt;
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, Version};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::SequenceNumber,
     digests::TransactionDigest,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey},
@@ -44,7 +43,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
     let cache = create_writeback_cache().await;
     let canceled_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: SequenceNumber::CANCELLED_READ,
+        version: Version::CANCELLED_READ,
     };
     let receiving_keys = HashSet::new();
     let epoch = &0;
@@ -57,7 +56,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
 
     let congested_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
+        version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
     };
 
     let result = cache
@@ -68,7 +67,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
 
     let randomness_unavailable_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: SequenceNumber::RANDOMNESS_UNAVAILABLE,
+        version: Version::RANDOMNESS_UNAVAILABLE,
     };
 
     let result = cache
@@ -82,7 +81,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
 async fn test_writeback_immediate_return_cached_object() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
     let object = Object::with_id_owner_version_for_testing(object_id, version, Owner::Immutable);
 
     cache.write_object_for_testing(object);
@@ -125,7 +124,7 @@ async fn test_writeback_immediate_return_cached_package() {
 async fn test_writeback_immediate_return_shared_deleted() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
     let epoch_id = 0;
 
     // Write a SharedDeleted marker
@@ -155,7 +154,7 @@ async fn test_writeback_immediate_return_shared_deleted() {
 async fn test_writeback_wait_for_object() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
 
     let input_keys = vec![InputKey::VersionedObject {
         id: object_id,
@@ -178,7 +177,7 @@ async fn test_writeback_wait_for_object() {
             tokio::time::sleep(Duration::from_millis(100)).await;
             let object = Object::with_id_owner_version_for_testing(
                 object_id,
-                SequenceNumber::from(0),
+                Version::from(0),
                 Owner::Shared(version),
             );
             cache.write_object_for_testing(object);
@@ -255,7 +254,7 @@ async fn test_writeback_wait_for_package() {
 async fn test_writeback_wait_for_shared_deleted() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
     let epoch_id = 0;
 
     let input_keys = vec![InputKey::VersionedObject {
@@ -291,8 +290,8 @@ async fn test_writeback_wait_for_shared_deleted() {
 async fn test_writeback_receiving_object_higher_version() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let requested_version = SequenceNumber::from(1);
-    let higher_version = SequenceNumber::from(2);
+    let requested_version = Version::from(1);
+    let higher_version = Version::from(2);
     let object = Object::with_id_owner_version_for_testing(
         object_id,
         higher_version,
