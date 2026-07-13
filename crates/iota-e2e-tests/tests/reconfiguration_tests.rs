@@ -1087,16 +1087,12 @@ async fn safe_mode_reconfig_test() {
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(EPOCH_DURATION)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
-    let (system_state_version, epoch) = match test_cluster
-        .iota_client()
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await
-        .unwrap()
-    {
+    let system_state_summary = test_cluster.grpc_system_state_summary().await;
+    let (system_state_version, epoch) = match system_state_summary {
         IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
         IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
         _ => unimplemented!(

@@ -6,10 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
 use iota_config::node::RunWithRange;
-use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionFilter,
-};
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI, TransactionFilter};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
@@ -26,7 +23,6 @@ use iota_test_transaction_builder::{
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
     base_types::{SequenceNumber, TransactionDigest},
-    crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -41,7 +37,6 @@ use iota_types::{
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
-use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
 use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
@@ -600,91 +595,6 @@ async fn do_test_full_node_sync_flood() {
         .await;
 }
 
-// Test fullnode has event read jsonrpc endpoints working
-#[sim_test]
-async fn test_full_node_event_read_api_ok() {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_fullnode_rpc_port(50000)
-        .enable_fullnode_events()
-        .build()
-        .await;
-
-    let context = &mut test_cluster.wallet;
-    let node = &test_cluster.fullnode_handle.iota_node;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-
-    let (package_id, _, publish_digest) = publish_nfts_package(context).await;
-
-    let (_, sender, _, transfer_digest, _) = transfer_coin(context).await.unwrap();
-
-    let txes = node
-        .state()
-        .get_transactions_for_tests(
-            Some(TransactionFilter::FromAddress(sender)),
-            None,
-            None,
-            false,
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(txes.len(), 2);
-    assert!(
-        (txes[0] == publish_digest && txes[1] == transfer_digest)
-            || (txes[0] == transfer_digest && txes[1] == publish_digest)
-    );
-
-    // This is a poor substitute for the post processing taking some time
-    sleep(Duration::from_millis(1000)).await;
-
-    let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
-
-    // Add a delay to ensure event processing is done after transaction commits.
-    sleep(Duration::from_secs(5)).await;
-
-    // query by move event struct name
-    let params = rpc_params![digest2];
-    let events: Vec<IotaEvent> = jsonrpc_client
-        .request("iota_getEvents", params)
-        .await
-        .unwrap();
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0].id.tx_digest, digest2);
-}
-
-#[sim_test]
-async fn test_full_node_event_query_by_module_ok() {
-    let mut test_cluster = TestClusterBuilder::new()
-        .enable_fullnode_events()
-        .build()
-        .await;
-
-    let context = &mut test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-
-    let (package_id, _, _) = publish_nfts_package(context).await;
-
-    // This is a poor substitute for the post processing taking some time
-    sleep(Duration::from_millis(1000)).await;
-
-    let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
-
-    // Add a delay to ensure event processing is done after transaction commits.
-    sleep(Duration::from_secs(5)).await;
-
-    // query by move event module
-    let params = rpc_params![EventFilter::MoveEventModule {
-        package: package_id,
-        module: Identifier::from_static("testnet_nft")
-    }];
-    let page: EventPage = jsonrpc_client
-        .request("iotax_queryEvents", params)
-        .await
-        .unwrap();
-    assert_eq!(page.data.len(), 1);
-    assert_eq!(page.data[0].id.tx_digest, digest2);
-}
-
 #[sim_test]
 async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -805,114 +715,6 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
                 .is_err()
         );
     });
-}
-
-#[sim_test]
-async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
-    let context = &mut test_cluster.wallet;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
-
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-
-    let txn_count = 4;
-    let txns = batch_make_transfer_transactions(context, txn_count).await;
-    for txn in txns {
-        let tx_digest = txn.digest();
-        let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-        let params = rpc_params![
-            tx_bytes,
-            signatures,
-            IotaTransactionBlockResponseOptions::new(),
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        ];
-        let response: IotaTransactionBlockResponse = jsonrpc_client
-            .request("iota_executeTransactionBlock", params)
-            .await
-            .unwrap();
-
-        let IotaTransactionBlockResponse {
-            digest,
-            confirmed_local_execution,
-            ..
-        } = response;
-        assert_eq!(digest, *tx_digest);
-        assert!(confirmed_local_execution.unwrap());
-    }
-    Ok(())
-}
-
-#[sim_test]
-async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
-    let context = &mut test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-
-    let txn_count = 4;
-    let mut txns = batch_make_transfer_transactions(context, txn_count).await;
-    assert!(
-        txns.len() >= txn_count,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
-
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-
-    // Test request with ExecuteTransactionRequestType::WaitForLocalExecution
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params)
-        .await
-        .unwrap();
-
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    let _response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-        .await
-        .unwrap();
-
-    // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new().with_effects(),
-        ExecuteTransactionRequestType::WaitForEffectsCert
-    ];
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params)
-        .await
-        .unwrap();
-
-    let IotaTransactionBlockResponse {
-        effects,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
-    assert!(!confirmed_local_execution.unwrap());
-
-    Ok(())
 }
 
 async fn get_obj_read_from_node(
@@ -1408,7 +1210,10 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
 // the transaction itself, without local execution.
 #[sim_test]
 async fn publish_init_events_without_local_execution() {
-    let test_cluster = TestClusterBuilder::new().build().await;
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_test_code");
     let tx_data = test_cluster
         .test_transaction_builder()
@@ -1416,15 +1221,29 @@ async fn publish_init_events_without_local_execution() {
         .publish(path)
         .build();
     let tx = test_cluster.sign_transaction(&tx_data);
-    let client = test_cluster.wallet.get_client().await.unwrap();
+    let signed_tx: iota_sdk_types::SignedTransaction = tx.try_into().unwrap();
+
+    let client = test_cluster.grpc_client();
     let response = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            tx,
-            IotaTransactionBlockResponseOptions::new().with_events(),
-            Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+        .execute_transaction(
+            signed_tx,
+            Some(iota_grpc_client::ReadMask::from(
+                iota_grpc_client::read_mask_fields::TransactionField::EVENTS,
+            )),
+            None,
         )
         .await
         .unwrap();
-    assert_eq!(response.events.unwrap().data.len(), 1);
+
+    let event_count = response
+        .body()
+        .events
+        .as_ref()
+        .expect("events should be present")
+        .events
+        .as_ref()
+        .expect("event list should be present")
+        .events
+        .len();
+    assert_eq!(event_count, 1);
 }

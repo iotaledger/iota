@@ -2,16 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::ed25519::Ed25519KeyPair;
-use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient};
+use iota_grpc_client::ReadMask;
+use iota_json_rpc::governance_api::{ValidatorExchangeRates, calculate_apys};
+use iota_json_rpc_types::ValidatorApys;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_sdk_types::ObjectReference;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    committee::EpochId,
     crypto::{IotaKeyPair, get_key_pair_from_rng},
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::{GasCoin, NANOS_PER_IOTA},
+    iota_system_state::{
+        PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummaryV2,
+    },
 };
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// This e2e test ensures that the tokenomics implementation gives an ~6% APY
 /// under certain assumptions. These assumptions are:
@@ -51,12 +58,6 @@ use test_cluster::TestClusterBuilder;
 /// epoch 1, this is totally fine.
 #[sim_test]
 async fn test_apy() {
-    // clean up the `cached` cache before running the test.
-    #[cfg(msim)]
-    {
-        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
-    }
-
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
@@ -72,6 +73,7 @@ async fn test_apy() {
         .set_genesis_config(genesis_config)
         .with_epoch_duration_ms(10_000)
         .with_num_validators(4)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
@@ -86,23 +88,35 @@ async fn test_apy() {
 
     let ref_gas_price = test_cluster.get_reference_gas_price().await;
 
-    let client = test_cluster.rpc_client();
-    let mut coins = client
-        .get_coins(address, None, None, None)
-        .await
-        .unwrap()
-        .data
-        .into_iter();
-    let (gas_coin, stake_coin) = {
-        let coin1 = coins.next().expect("there should be at least two coins");
-        let coin2 = coins.next().expect("there should be at least two coins");
-
-        if coin1.balance > coin2.balance {
-            (coin2, coin1)
-        } else {
-            (coin1, coin2)
-        }
-    };
+    // The address owns exactly its two genesis coins. Read them from node state
+    // (the gRPC owned-object index is checkpoint-derived and may not yet contain
+    // genesis objects this early) and pick the smaller (gas) and larger (stake)
+    // coin.
+    let mut coins: Vec<(u64, ObjectReference)> = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with_async(|node| async move {
+            let infos = node
+                .state()
+                .get_owner_objects(address, None, 10, None)
+                .expect("owned-object lookup should succeed");
+            let mut coins = Vec::new();
+            for info in infos {
+                let object = node
+                    .state()
+                    .get_object(&info.object_id)
+                    .expect("owned object should exist");
+                let value = GasCoin::try_from(&object)
+                    .expect("owned object should be an IOTA coin")
+                    .value();
+                coins.push((value, object.object_ref()));
+            }
+            coins
+        })
+        .await;
+    assert_eq!(coins.len(), 2, "expected exactly the two genesis coins");
+    coins.sort_by_key(|(value, _)| *value);
+    let (gas_coin_ref, stake_coin_ref) = (coins[0].1, coins[1].1);
 
     let validator_address = test_cluster
         .swarm
@@ -111,8 +125,8 @@ async fn test_apy() {
         .unwrap()
         .config()
         .iota_address();
-    let transaction = TestTransactionBuilder::new(address, gas_coin.object_ref(), ref_gas_price)
-        .call_staking(stake_coin.object_ref(), validator_address)
+    let transaction = TestTransactionBuilder::new(address, gas_coin_ref, ref_gas_price)
+        .call_staking(stake_coin_ref, validator_address)
         .build();
     test_cluster
         .sign_and_execute_transaction(&transaction)
@@ -124,12 +138,7 @@ async fn test_apy() {
     test_cluster.wait_for_epoch(None).await;
     test_cluster.wait_for_epoch(None).await;
 
-    let http_client = test_cluster.rpc_client();
-
-    let apys = http_client
-        .get_validators_apy()
-        .await
-        .expect("call should succeed");
+    let apys = grpc_validators_apy(&test_cluster).await;
 
     assert_eq!(apys.epoch, 3);
 
@@ -145,4 +154,55 @@ async fn test_apy() {
     //     = 191750 * 0.75 / 876_500_000 * 365 ≈ 0.060.
     // Assert that the value is off by at most 0.2 percentage points.
     assert!((validator_apy.apy - 0.06).abs() < 0.002);
+}
+
+/// Replicate `get_validators_apy` over the node gRPC API: read the current
+/// system state via GetEpoch, walk each active validator's exchange-rate table
+/// via `list_dynamic_fields` (name = epoch, value = `PoolTokenExchangeRate`),
+/// then reuse the node's `calculate_apys`.
+async fn grpc_validators_apy(test_cluster: &TestCluster) -> ValidatorApys {
+    let client = test_cluster.grpc_client();
+
+    let summary =
+        IotaSystemStateSummaryV2::try_from(test_cluster.grpc_system_state_summary().await).unwrap();
+    let epoch = summary.epoch;
+
+    let mut exchange_rate_table = Vec::new();
+    for validator in summary.active_validators {
+        let fields = client
+            .list_dynamic_fields(
+                validator.exchange_rates_id,
+                None,
+                None,
+                Some(ReadMask::from(&["name", "value"][..])),
+            )
+            .collect(None)
+            .await
+            .unwrap();
+
+        let mut rates: Vec<(EpochId, PoolTokenExchangeRate)> = fields
+            .body()
+            .iter()
+            .map(|df| {
+                let rate_epoch: EpochId = df.name.as_ref().unwrap().deserialize().unwrap();
+                let rate: PoolTokenExchangeRate = df.value.as_ref().unwrap().deserialize().unwrap();
+                (rate_epoch, rate)
+            })
+            .collect();
+        // `calculate_apys` expects rates in descending epoch order (as produced by
+        // the node's `backfill_rates`).
+        rates.sort_unstable_by_key(|b| std::cmp::Reverse(b.0));
+
+        exchange_rate_table.push(ValidatorExchangeRates {
+            address: validator.iota_address,
+            pool_id: validator.staking_pool_id,
+            active: true,
+            rates,
+        });
+    }
+
+    ValidatorApys {
+        apys: calculate_apys(exchange_rate_table),
+        epoch,
+    }
 }

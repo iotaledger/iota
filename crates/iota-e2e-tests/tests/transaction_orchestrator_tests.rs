@@ -648,22 +648,24 @@ async fn test_authority_aggregator_accessor_under_pcool() {
 
 #[sim_test]
 async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
-    let context = &mut test_cluster.wallet;
-    let handle = &test_cluster.fullnode_handle.iota_node;
-    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
 
-    // Here we test the staking transaction to a committee member.
-    let committee_member_address = context
-        .get_client()
-        .await?
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await?
+    // Here we test the staking transaction to a committee member. Read the
+    // committee via gRPC before borrowing the wallet mutably below.
+    let committee_member_address = test_cluster
+        .grpc_system_state_summary()
+        .await
         .iter_committee_members()
         .next()
         .unwrap()
         .iota_address;
+
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
     let transaction = make_staking_transaction(context, committee_member_address).await;
 

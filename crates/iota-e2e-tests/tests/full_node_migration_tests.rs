@@ -19,26 +19,23 @@ use iota_genesis_builder::{
         types::{address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap},
     },
 };
-use iota_json_rpc_types::{
-    IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-};
+use iota_grpc_client::{ReadMask, read_mask_fields::TransactionField};
+use iota_json_rpc_types::IotaObjectDataFilter;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
-use iota_sdk::IotaClient;
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{
+    Address, Argument, ExecutionStatus, Identifier, ObjectId, ObjectReference, StructTag, TypeTag,
+    crypto::Intent,
+};
 use iota_types::{
-    balance::Balance,
     crypto::SignatureScheme::ED25519,
-    dynamic_field::DynamicFieldName,
-    gas_coin::GAS,
+    effects::TransactionEffectsAPI,
+    gas_coin::{GAS, GasCoin},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
-    timelock::timelock::TimeLock,
     transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bin";
 const ADDRESS_SWAP_MAP_PATH: &str = "tests/migration/address_swap.csv";
@@ -51,6 +48,91 @@ const DELEGATOR: &str = "0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
+
+/// Read objects owned by `owner` (optionally filtered by type) from node
+/// state.
+async fn owned_objects(
+    test_cluster: &TestCluster,
+    owner: Address,
+    type_filter: Option<StructTag>,
+) -> Vec<iota_types::object::Object> {
+    // Read from node state rather than the gRPC StateService: the latter's
+    // owned-object index is built from processed checkpoints and may not (yet)
+    // contain the genesis/migration-loaded objects these tests rely on.
+    test_cluster
+        .fullnode_handle
+        .iota_node
+        .with_async(|node| async move {
+            let filter = type_filter.map(IotaObjectDataFilter::StructType);
+            let limit = 1000;
+            let infos = node
+                .state()
+                .get_owner_objects(owner, None, limit, filter)
+                .expect("owned-object lookup should succeed");
+            assert!(
+                infos.len() < limit,
+                "owned-object lookup hit the page limit; results would be truncated"
+            );
+            let mut objects = Vec::new();
+            for info in infos {
+                if let Some(object) = node.state().get_object(&info.object_id) {
+                    objects.push(object);
+                }
+            }
+            objects
+        })
+        .await
+}
+
+/// The first IOTA gas coin owned by `owner`. Polls the node index, since gRPC
+/// execution can return before the fullnode has indexed a just-funded coin.
+async fn first_gas_coin_ref(
+    test_cluster: &TestCluster,
+    owner: Address,
+) -> Result<ObjectReference, anyhow::Error> {
+    for _ in 0..50 {
+        if let Some(gas_coin_ref) = owned_objects(test_cluster, owner, None)
+            .await
+            .into_iter()
+            .find_map(|object| GasCoin::try_from(&object).ok().map(|_| object.object_ref()))
+        {
+            return Ok(gas_coin_ref);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    Err(anyhow!("No coins found for {owner}"))
+}
+
+/// Execute a signed transaction over the node gRPC API and assert it succeeded.
+async fn execute_and_assert_success(
+    test_cluster: &TestCluster,
+    transaction: Transaction,
+) -> Result<(), anyhow::Error> {
+    let signed: iota_sdk_types::SignedTransaction = transaction.try_into()?;
+    let response = test_cluster
+        .grpc_client()
+        .execute_transaction(
+            signed,
+            Some(ReadMask::from(TransactionField::EFFECTS_BCS)),
+            None,
+        )
+        .await?;
+    let effects: iota_types::effects::TransactionEffects = response
+        .body()
+        .effects
+        .as_ref()
+        .expect("effects should be present")
+        .bcs
+        .as_ref()
+        .expect("effects bcs should be present")
+        .deserialize()?;
+    anyhow::ensure!(
+        matches!(effects.status(), ExecutionStatus::Success),
+        "transaction failed: {:?}",
+        effects.status()
+    );
+    Ok(())
+}
 
 #[sim_test]
 async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), anyhow::Error> {
@@ -83,21 +165,12 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
         .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
         .with_delegator(Address::from_str(DELEGATOR).unwrap())
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
-    // Use a client to issue a test transaction
-    let client = test_cluster.wallet.get_client().await.unwrap();
-    let tx_response = address_unlock_condition(client).await?;
-    let IotaTransactionBlockResponse {
-        confirmed_local_execution,
-        errors,
-        ..
-    } = tx_response;
-
-    // The transaction must be successful
-    assert!(confirmed_local_execution.unwrap());
-    assert!(errors.is_empty(), "unexpected tx errors: {errors:?}");
+    // Issue a test transaction over the node gRPC API; it must succeed.
+    address_unlock_condition(&test_cluster).await?;
     Ok(())
 }
 
@@ -132,13 +205,11 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
         .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
         .with_delegator(Address::from_str(DELEGATOR).unwrap())
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
-    // Use a client to issue a test transaction
-    let client = test_cluster.wallet.get_client().await.unwrap();
-
-    check_address_swap_split_map_after_migration(client, address_swap_split_map).await?;
+    check_address_swap_split_map_after_migration(&test_cluster, address_swap_split_map).await?;
 
     Ok(())
 }
@@ -172,9 +243,7 @@ fn genesis_builder_snapshot_generation(
     Ok(())
 }
 
-async fn address_unlock_condition(
-    iota_client: IotaClient,
-) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+async fn address_unlock_condition(test_cluster: &TestCluster) -> Result<(), anyhow::Error> {
     // Setup the temporary file based keystore
     let tmp_dir = iota_common::tempdir();
     let keystore_path = tmp_dir.path().join(PathBuf::from("iotatempdb"));
@@ -193,76 +262,58 @@ async fn address_unlock_condition(
         None,
     )?;
 
-    fund_address(&iota_client, &mut keystore, sender).await?;
+    fund_address(test_cluster, &mut keystore, sender).await?;
 
     // Get a gas coin
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found"))?;
+    let gas_coin_ref = first_gas_coin_ref(test_cluster, sender).await?;
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
     let alias_output_object_id =
         ObjectId::from_hex("0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a")?;
 
-    let alias_output_object = iota_client
-        .read_api()
-        .get_object_with_options(
-            alias_output_object_id,
-            IotaObjectDataOptions::new().with_bcs(),
-        )
-        .await?
-        .data
-        .into_iter()
-        .next()
+    let alias_output_object_ref = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with_async(|node| async move {
+            node.state()
+                .get_object(&alias_output_object_id)
+                .map(|object| object.object_ref())
+        })
+        .await
         .ok_or(anyhow!("Alias output not found"))?;
 
-    let alias_output_object_ref = alias_output_object.object_ref();
-
     // Get the dynamic field owned by the Alias Output, i.e., only the Alias
-    // object.
-    // The dynamic field name for the Alias object is "alias", of type vector<u8>
-    let df_name = DynamicFieldName {
-        type_: TypeTag::Vector(Box::new(TypeTag::U8)),
-        value: serde_json::Value::String("alias".to_string()),
-    };
-    let alias_object = iota_client
-        .read_api()
-        .get_dynamic_field_object(alias_output_object_id, df_name)
-        .await?
-        .data
+    // object. The dynamic field name for the Alias object is "alias", of type
+    // vector<u8>.
+    let alias_name_bcs_bytes = bcs::to_bytes(&b"alias".to_vec())?;
+    let alias_object_id = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with_async(|node| async move {
+            node.state()
+                .get_dynamic_field_object_id(
+                    alias_output_object_id,
+                    TypeTag::Vector(Box::new(TypeTag::U8)),
+                    &alias_name_bcs_bytes,
+                )
+                .expect("dynamic field lookup should succeed")
+        })
+        .await
         .ok_or(anyhow!("alias not found"))?;
-    let alias_object_address = alias_object.object_ref().object_id;
 
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.
-    let owned_objects_query_filter =
-        IotaObjectDataFilter::StructType(NftOutput::tag(GAS::type_tag()));
-    let owned_objects_query = IotaObjectResponseQuery::new(Some(owned_objects_query_filter), None);
-
-    // Get the first NftOutput found
-    let nft_output_object_owned_by_alias = iota_client
-        .read_api()
-        .get_owned_objects(
-            alias_object_address.into(),
-            Some(owned_objects_query),
-            None,
-            None,
-        )
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("Owned nft outputs not found"))?
-        .data
-        .ok_or(anyhow!("Nft output data not found"))?;
-
-    let nft_output_object_ref = nft_output_object_owned_by_alias.object_ref();
+    let nft_output_object_ref = owned_objects(
+        test_cluster,
+        alias_object_id.into(),
+        Some(NftOutput::tag(GAS::type_tag())),
+    )
+    .await
+    .into_iter()
+    .next()
+    .ok_or(anyhow!("Owned nft outputs not found"))?
+    .object_ref();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -377,36 +428,26 @@ async fn address_unlock_condition(
 
     // Setup gas budget and gas price
     let gas_budget = 10_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+    let gas_price = test_cluster.get_reference_gas_price().await;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
+    let tx_data =
+        TransactionData::new_programmable(sender, vec![gas_coin_ref], pt, gas_budget, gas_price);
 
     // Sign the transaction
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    // Execute transaction
-    let transaction_response = iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-
-    Ok(transaction_response)
+    // Execute the transaction over the node gRPC API.
+    execute_and_assert_success(
+        test_cluster,
+        Transaction::from_data(tx_data, vec![signature]),
+    )
+    .await
 }
 
 /// Utility function for funding an address using the transfer of a coin.
 pub async fn fund_address(
-    iota_client: &IotaClient,
+    test_cluster: &TestCluster,
     keystore: &mut FileBasedKeystore,
     recipient: Address,
 ) -> Result<(), anyhow::Error> {
@@ -414,14 +455,7 @@ pub async fn fund_address(
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
 
     // Get a gas coin.
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sponsor, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found for sponsor"))?;
+    let gas_coin_ref = first_gas_coin_ref(test_cluster, sponsor).await?;
 
     let pt = {
         // Init a programmable transaction builder.
@@ -433,78 +467,52 @@ pub async fn fund_address(
 
     // Setup a gas budget and a gas price.
     let gas_budget = 10_000_000;
-    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+    let gas_price = test_cluster.get_reference_gas_price().await;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
-        sponsor,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
+    let tx_data =
+        TransactionData::new_programmable(sponsor, vec![gas_coin_ref], pt, gas_budget, gas_price);
 
     // Sign the transaction.
     let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
 
-    // Execute the transaction.
-    iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
-            IotaTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
-
-    Ok(())
+    // Execute the transaction over the node gRPC API.
+    execute_and_assert_success(
+        test_cluster,
+        Transaction::from_data(tx_data, vec![signature]),
+    )
+    .await
 }
 
 async fn check_address_swap_split_map_after_migration(
-    iota_client: IotaClient,
+    test_cluster: &TestCluster,
     address_swap_split_map: AddressSwapSplitMap,
 ) -> Result<(), anyhow::Error> {
     for destinations in address_swap_split_map.map().values() {
         for (destination, tokens, tokens_timelocked) in destinations {
             if *tokens > 0 {
-                let balance = iota_client
-                    .coin_read_api()
-                    .get_balance(*destination, None)
-                    .await?;
-                assert_eq!(balance.total_balance, (*tokens as u128));
+                let balance: u128 = owned_objects(test_cluster, *destination, None)
+                    .await
+                    .iter()
+                    .filter_map(|object| {
+                        GasCoin::try_from(object)
+                            .ok()
+                            .map(|coin| coin.value() as u128)
+                    })
+                    .sum();
+                assert_eq!(balance, (*tokens as u128));
             }
             if *tokens_timelocked > 0 {
-                let mut total = 0;
-                let owned_timelocks = iota_client
-                    .read_api()
-                    .get_owned_objects(
-                        *destination,
-                        Some(IotaObjectResponseQuery::new(
-                            Some(IotaObjectDataFilter::StructType(
-                                StructTag::new_timelocked_gas_balance(),
-                            )),
-                            Some(IotaObjectDataOptions::new().with_bcs()),
-                        )),
-                        None,
-                        None,
-                    )
-                    .await?
-                    .data;
-                for response in owned_timelocks {
-                    total += bcs::from_bytes::<TimeLock<Balance>>(
-                        &response
-                            .data
-                            .expect("missing response data")
-                            .bcs
-                            .expect("missing BCS data")
-                            .try_as_move()
-                            .expect("failed to convert to Move object")
-                            .bcs_bytes,
-                    )
-                    .expect("should be a timelock balance")
-                    .locked()
-                    .value();
-                }
+                let total: u64 = owned_objects(
+                    test_cluster,
+                    *destination,
+                    Some(StructTag::new_timelocked_gas_balance()),
+                )
+                .await
+                .iter()
+                .filter_map(|object| object.as_timelock_balance_maybe())
+                .map(|timelock| timelock.locked().value())
+                .sum();
                 assert_eq!(total, *tokens_timelocked);
             }
         }

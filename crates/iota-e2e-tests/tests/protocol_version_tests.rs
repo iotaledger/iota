@@ -58,10 +58,10 @@ mod sim_only_tests {
 
     use std::{path::PathBuf, sync::Arc};
 
-    use fastcrypto::encoding::Base64;
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
-    use iota_json_rpc_api::WriteApiClient;
+    use iota_grpc_client::{ReadMask, read_mask_fields::SimulateField};
+    use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
@@ -408,6 +408,7 @@ mod sim_only_tests {
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
+            .with_fullnode_enable_grpc_api(true)
             .build()
             .await;
 
@@ -468,6 +469,7 @@ mod sim_only_tests {
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
+            .with_fullnode_enable_grpc_api(true)
             .build()
             .await
     }
@@ -546,34 +548,51 @@ mod sim_only_tests {
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: MoveCall) -> u64 {
-        let client = cluster.rpc_client();
-        let sender = cluster.get_address_0();
-
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder.command(Command::MoveCall(call));
             builder.finish()
         };
-        let txn = TransactionKind::new_programmable(pt);
+        // Wrap the programmable transaction (gas handled by the test builder) and
+        // dev-inspect it via the node gRPC simulate endpoint (`skip_checks = true`).
+        let transaction = cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
 
+        let client = cluster.grpc_client();
         let response = client
-            .dev_inspect_transaction_block(
-                sender,
-                Base64::from_bytes(&bcs::to_bytes(&txn).unwrap()),
-                // gas_price
-                None,
-                // epoch_id
-                None,
-                // additional_args
-                None,
+            .simulate_transaction(
+                transaction,
+                // skip_checks (dev-inspect)
+                true,
+                Some(ReadMask::from(
+                    SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
+                )),
             )
             .await
             .unwrap();
 
-        let results = response.results.unwrap();
-        let return_val = &results.first().unwrap().return_values.first().unwrap().0;
+        let command_results = match response.body().execution_result.as_ref() {
+            Some(ExecutionResult::CommandResults(command_results)) => command_results,
+            other => panic!("expected CommandResults, got: {other:?}"),
+        };
+        let return_value = command_results
+            .results
+            .first()
+            .unwrap()
+            .return_values
+            .as_ref()
+            .unwrap()
+            .outputs
+            .first()
+            .unwrap()
+            .bcs
+            .as_ref()
+            .unwrap();
 
-        bcs::from_bytes(return_val).unwrap()
+        return_value.deserialize().unwrap()
     }
 
     async fn execute_creating(
