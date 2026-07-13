@@ -54,7 +54,6 @@ where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
     let builder = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
         .disable_fullnode_pruning()
         .with_num_validators(1);
 
