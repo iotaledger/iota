@@ -323,6 +323,12 @@ impl CommitObserver {
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
+        // Linearizer trackers must cover the same tip window that live
+        // eviction retains (2 * gc_depth below the last commit) and, in
+        // addition, every commit that is fed back to the solidifier: missing
+        // transactions of an unprocessed commit can only be fetched from
+        // peers recorded in the ack tracker, so every scanned commit seeds
+        // the linearizer.
         let linearizer_recovery_start = last_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
             .max(1);
@@ -363,43 +369,41 @@ impl CommitObserver {
                 let pending_sub_dag =
                     load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])?;
 
-                if commit_index >= linearizer_recovery_start {
-                    // Rebuild traversed headers tracker
-                    self.linearizer
-                        .record_traversed_headers(pending_sub_dag.headers.iter());
+                // Rebuild traversed headers tracker
+                self.linearizer
+                    .record_traversed_headers(pending_sub_dag.headers.iter());
 
-                    // Recover transaction acknowledgments tracker state
-                    for ((round, authority_idx), transaction_acknowledgments) in
-                        pending_sub_dag.transaction_acknowledgments().into_iter()
-                    {
-                        self.linearizer.add_committed_transaction_acks(
-                            round,
+                // Recover transaction acknowledgments tracker state
+                for ((round, authority_idx), transaction_acknowledgments) in
+                    pending_sub_dag.transaction_acknowledgments().into_iter()
+                {
+                    self.linearizer.add_committed_transaction_acks(
+                        round,
+                        authority_idx,
+                        transaction_acknowledgments,
+                    );
+                }
+
+                // Repopulate the ack tracker for transactions optimistically committed
+                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                // The full committee is used as a conservative over-approximation of
+                // the actual acknowledging set.
+                if is_optimistic {
+                    let leader_ref = pending_sub_dag.leader;
+                    let leader_header = pending_sub_dag
+                        .headers
+                        .iter()
+                        .find(|h| h.reference() == leader_ref)
+                        .expect("leader header must be present in pending sub-dag");
+                    let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                        .chain(leader_header.acknowledgments().iter().copied())
+                        .collect();
+                    for (authority_idx, _) in self.context.committee.authorities() {
+                        let _ = self.linearizer.add_committed_transaction_acks(
+                            leader_header.round() + 1,
                             authority_idx,
-                            transaction_acknowledgments,
+                            refs.clone(),
                         );
-                    }
-
-                    // Repopulate the ack tracker for transactions optimistically committed
-                    // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
-                    // The full committee is used as a conservative over-approximation of
-                    // the actual acknowledging set.
-                    if is_optimistic {
-                        let leader_ref = pending_sub_dag.leader;
-                        let leader_header = pending_sub_dag
-                            .headers
-                            .iter()
-                            .find(|h| h.reference() == leader_ref)
-                            .expect("leader header must be present in pending sub-dag");
-                        let refs: Vec<BlockRef> = std::iter::once(leader_ref)
-                            .chain(leader_header.acknowledgments().iter().copied())
-                            .collect();
-                        for (authority_idx, _) in self.context.committee.authorities() {
-                            let _ = self.linearizer.add_committed_transaction_acks(
-                                leader_header.round() + 1,
-                                authority_idx,
-                                refs.clone(),
-                            );
-                        }
                     }
                 }
 
@@ -1305,6 +1309,140 @@ mod tests {
 
         // Verify no additional subdags were sent
         verify_channel_empty(&mut receiver);
+    }
+
+    /// Recovery must seed the ack tracker for every commit fed to the
+    /// solidifier, even when the unprocessed backlog is deeper than the
+    /// 2 * gc_depth tip window. Otherwise missing transactions of those
+    /// commits have no recorded acknowledgers and can never be assigned
+    /// to a peer for fetching.
+    #[tokio::test]
+    async fn test_recovery_tracks_acknowledgers_beyond_gc_window() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let (mut context, _keypairs) = Context::new_for_test(num_authorities);
+        // Small gc_depth so the unprocessed backlog exceeds the 2 * gc_depth
+        // window without building a huge DAG.
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(2);
+        let context = Arc::new(context);
+        let gc_window = context.protocol_config.gc_depth() * 2;
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        // Populate fully connected test blocks for round 1 ~ 20. Only add
+        // transactions for rounds 1-3, so transactions committed from round 4
+        // on are "missing" and solid output stalls far behind the commit tip.
+        let num_rounds = 20;
+        let mut builder = DagBuilder::new(context.clone());
+        builder.layers(1..=num_rounds).build();
+
+        {
+            let mut dag_state_guard = dag_state.write();
+            dag_state_guard.accept_block_headers(
+                builder.block_headers.values().cloned().collect(),
+                DataSource::Test,
+            );
+            for (block_ref, transactions) in builder.transactions.iter() {
+                if block_ref.round <= 3 {
+                    dag_state_guard.add_transactions(transactions.clone(), DataSource::Test);
+                }
+            }
+        }
+
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+
+        let leaders = builder
+            .leader_blocks(1..=num_rounds)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+        let _ = observer
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
+            .unwrap();
+        while receiver.try_recv().is_ok() {}
+        drop(observer);
+
+        let last_commit = mem_store.read_last_commit().unwrap().unwrap();
+        let last_commit_index = last_commit.index();
+        assert_eq!(last_commit_index, num_rounds);
+        let commits = mem_store
+            .scan_commits((1..=last_commit_index).into())
+            .unwrap();
+
+        // Determine per commit which committed transactions are missing.
+        let mut first_missing_index = None;
+        let mut expected_missing_refs = Vec::new();
+        {
+            let dag_state_guard = dag_state.read();
+            for commit in &commits {
+                let committed_refs = commit.committed_transactions();
+                let tx_results = dag_state_guard.get_verified_transactions(&committed_refs);
+                let missing_refs = committed_refs
+                    .into_iter()
+                    .zip(tx_results.iter())
+                    .filter_map(|(tx_ref, tx)| tx.is_none().then_some(tx_ref))
+                    .collect::<Vec<_>>();
+                if !missing_refs.is_empty() {
+                    first_missing_index.get_or_insert(commit.index());
+                    expected_missing_refs.extend(missing_refs);
+                }
+            }
+        }
+        let first_missing_index =
+            first_missing_index.expect("Expected commits with missing transactions");
+
+        // The unprocessed backlog must be deeper than the 2 * gc_depth window
+        // for this test to exercise the extended seeding range: after restart
+        // the solidifier is fed from first_missing_index, which lies below
+        // last_commit_index - gc_window.
+        assert!(
+            first_missing_index < last_commit_index - gc_window,
+            "Backlog too shallow: first missing commit {first_missing_index} is within the \
+             gc window of the tip {last_commit_index}"
+        );
+
+        // Restart. Recovery resends solid commits 1..first_missing_index and
+        // feeds the rest to the solidifier as pending sub-dags.
+        let observer = CommitObserver::new(
+            context,
+            CommitConsumer::new(sender, 0),
+            dag_state,
+            mem_store,
+            leader_schedule,
+        )
+        .await;
+        while receiver.try_recv().is_ok() {}
+
+        // Every missing transaction must have acknowledgers recorded,
+        // including those in commits below the tip-anchored gc window.
+        let missing = observer.get_missing_transaction_data();
+        for missing_ref in &expected_missing_refs {
+            let acknowledgers = missing.get(missing_ref).unwrap_or_else(|| {
+                panic!("No acknowledgers tracked for {missing_ref:?} after recovery")
+            });
+            assert!(
+                !acknowledgers.is_empty(),
+                "Empty acknowledger set for {missing_ref:?} after recovery"
+            );
+        }
     }
 
     /// Recovery resend must pace itself on consumer progress: once the
