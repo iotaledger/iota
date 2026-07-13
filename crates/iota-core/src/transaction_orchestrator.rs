@@ -262,14 +262,25 @@ where
 
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
-                self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
-                    .await?
+                self.submit_with_checkpoint_race(
+                    td.clone(),
+                    &transaction,
+                    request,
+                    client_addr,
+                    tx_digest,
+                )
+                .await?
             }
             (Driver::Transaction(td), false) => (
                 Some(
-                    self.submit_with_transaction_driver(td.clone(), request, client_addr, false)
-                        .await
-                        .map_err(map_td_error_to_qd)?,
+                    self.submit_with_transaction_driver(
+                        td.clone(),
+                        &transaction,
+                        request,
+                        client_addr,
+                        false,
+                    )
+                    .await?,
                 ),
                 None,
             ),
@@ -510,17 +521,17 @@ where
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
                 // reconcile the response from the cache there.
-                epoch_store
+                let transaction = epoch_store
                     .verify_transaction(request.transaction.clone())
                     .map_err(QuorumDriverError::InvalidUserSignature)?;
                 self.submit_with_transaction_driver(
                     td.clone(),
+                    &transaction,
                     request,
                     client_addr,
                     skip_certification,
                 )
                 .await
-                .map_err(map_td_error_to_qd)
             }
             Driver::Quorum(qd) => {
                 let qd_resp = self
@@ -552,6 +563,7 @@ where
     async fn submit_with_checkpoint_race(
         &self,
         td: Arc<TransactionDriver<A>>,
+        transaction: &VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         tx_digest: TransactionDigest,
@@ -567,7 +579,8 @@ where
             .validator_state
             .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
         tokio::pin!(checkpoint_inclusion);
-        let driver = self.submit_with_transaction_driver(td, request, client_addr, true);
+        let driver =
+            self.submit_with_transaction_driver(td, transaction, request, client_addr, true);
 
         let seq_for_tx = |inclusion_map: BTreeMap<_, (CheckpointSequenceNumber, _)>| {
             inclusion_map.get(&tx_digest).map(|&(seq, _)| seq)
@@ -580,7 +593,7 @@ where
             // only returns here as `Ok`, `TimeoutWithLastRetriableError`, or
             // a non-retriable error like `RejectedByValidators`.
             driver_result = driver => {
-                let response = Some(driver_result.map_err(map_td_error_to_qd)?);
+                let response = Some(driver_result?);
                 let seq = (&mut checkpoint_inclusion).await.ok().and_then(seq_for_tx);
                 (response, seq)
             }
@@ -608,23 +621,28 @@ where
     async fn submit_with_transaction_driver(
         &self,
         td: Arc<TransactionDriver<A>>,
+        transaction: &VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
-    ) -> Result<ExecuteTransactionResponseV1, TransactionDriverError> {
-        let tx_digest = *request.transaction.digest();
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let tx_digest = *transaction.digest();
 
-        // TODO: add transaction to some struct to prevent sending the same transaction
-        // multiple times in case client sends it multiple times if self
-        //     .pending_tx_log
-        //     .write_pending_transaction_maybe(&transaction)
-        //     .await
-        //     .map_err(|e| QuorumDriverError::QuorumDriverInternal(e))?
-        // {
-        //     debug!(?tx_digest, "no pending request in flight, submitting to
-        // TransactionDriver."); } else {
-        //     debug!(?tx_digest, "transaction already in flight, skipping duplicate
-        // submission."); }
+        // Deduplicate concurrent submissions of the same digest: only the first
+        // caller drives the committee-wide submission; the rest wait for its
+        // effects. The guard removes the pending-log entry on every exit path
+        // (success, error, timeout, or cancellation) when it is dropped.
+        let guard = TransactionSubmissionGuard::new(self.pending_tx_log.clone(), transaction)
+            .await
+            .map_err(QuorumDriverError::QuorumDriverInternal)?;
+        if !guard.is_new_transaction() {
+            debug!(
+                ?tx_digest,
+                "transaction already in flight; awaiting its effects instead of driving a \
+                 duplicate submission"
+            );
+            return self.await_in_flight_transaction(tx_digest, &request).await;
+        }
 
         let td_response = td
             .drive_transaction(
@@ -636,7 +654,8 @@ where
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
                 skip_certification,
             )
-            .await?;
+            .await
+            .map_err(map_td_error_to_qd)?;
 
         debug!(
             "TransactionOrchestrator: TransactionDriver submission succeeded for transaction {}",
@@ -671,6 +690,34 @@ where
                 None
             },
         })
+    }
+
+    /// Wait for an already in-flight submission of `tx_digest` to reach
+    /// finality and build the response from the authoritative local cache,
+    /// instead of starting a second committee-wide submission for the same
+    /// transaction. Times out with `TimeoutBeforeFinality` if the in-flight
+    /// submission does not get the transaction checkpointed in time.
+    async fn await_in_flight_transaction(
+        &self,
+        tx_digest: TransactionDigest,
+        request: &ExecuteTransactionRequestV1,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let digests = [tx_digest];
+        let seq = self
+            .validator_state
+            .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT)
+            .await
+            .ok()
+            .and_then(|inclusion| inclusion.get(&tx_digest).map(|&(seq, _)| seq))
+            .ok_or(QuorumDriverError::TimeoutBeforeFinality)?;
+        Self::build_response_from_cache(
+            &self.validator_state,
+            tx_digest,
+            seq,
+            request.include_events,
+            request.include_input_objects,
+            request.include_output_objects,
+        )
     }
 
     // TODO check if tx is already executed on this node.
@@ -1438,4 +1485,56 @@ fn read_cached_transaction_data(
             output_objects,
         },
     ))
+}
+
+/// Tracks a transaction that is being submitted to finality so that concurrent
+/// submissions of the same digest deduplicate, and guarantees the pending
+/// transaction log entry is removed once submission finishes.
+///
+/// `is_new_transaction` is `false` when another submission of the same digest
+/// is already in flight; the caller should then wait for that submission's
+/// effects instead of starting a new one. The log entry is removed when the
+/// guard is dropped, covering success, error, timeout, and cancellation.
+struct TransactionSubmissionGuard {
+    pending_tx_log: Arc<WritePathPendingTransactionLog>,
+    tx_digest: TransactionDigest,
+    is_new_transaction: bool,
+}
+
+impl TransactionSubmissionGuard {
+    async fn new(
+        pending_tx_log: Arc<WritePathPendingTransactionLog>,
+        transaction: &VerifiedTransaction,
+    ) -> IotaResult<Self> {
+        let tx_digest = *transaction.digest();
+        let is_new_transaction = pending_tx_log
+            .write_pending_transaction_maybe(transaction)
+            .await?;
+        if is_new_transaction {
+            debug!(?tx_digest, "added transaction to in-flight set");
+        } else {
+            debug!(?tx_digest, "transaction already being processed");
+        }
+        Ok(Self {
+            pending_tx_log,
+            tx_digest,
+            is_new_transaction,
+        })
+    }
+
+    fn is_new_transaction(&self) -> bool {
+        self.is_new_transaction
+    }
+}
+
+impl Drop for TransactionSubmissionGuard {
+    fn drop(&mut self) {
+        match self.pending_tx_log.finish_transaction(&self.tx_digest) {
+            Ok(()) => debug!(tx_digest = ?self.tx_digest, "cleaned up transaction in pending log"),
+            Err(err) => warn!(
+                tx_digest = ?self.tx_digest,
+                "failed to clean up transaction in pending log: {err}"
+            ),
+        }
+    }
 }

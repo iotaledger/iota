@@ -530,6 +530,81 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
     Ok(())
 }
 
+/// With the P-COOL flow enabled, two concurrent submissions of the same
+/// transaction digest must not each drive an independent committee-wide
+/// submission: the second observes the first in flight and waits for its
+/// effects instead. Both callers must return the same finalized effects, and
+/// the pending-transaction log must be empty once both complete.
+#[sim_test]
+async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+        transaction: txn,
+        include_events: false,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let (first_response, _) =
+        first.unwrap_or_else(|e| panic!("first submission failed for {digest:?}: {e:?}"));
+    let (second_response, _) =
+        second.unwrap_or_else(|e| panic!("second submission failed for {digest:?}: {e:?}"));
+
+    for response in [&first_response, &second_response] {
+        assert!(
+            matches!(
+                response.effects.finality_info,
+                EffectsFinalityInfo::Checkpointed(_, _)
+            ),
+            "concurrent submission should resolve to Checkpointed, got {:?}",
+            response.effects.finality_info
+        );
+    }
+    assert_eq!(
+        first_response.effects.effects.transaction_digest(),
+        second_response.effects.effects.transaction_digest(),
+        "both concurrent submissions must report the same finalized effects"
+    );
+
+    let pending = orchestrator.load_all_pending_transactions()?;
+    assert!(
+        pending.is_empty(),
+        "pending transaction log must be cleaned up after submissions complete, found {pending:?}"
+    );
+
+    Ok(())
+}
+
 /// Without consensus quorum, the skip-cert path can never observe checkpoint
 /// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
 /// (a retriable transient), not `QuorumDriverInternal` — the latter would
