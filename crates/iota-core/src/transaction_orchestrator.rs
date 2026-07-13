@@ -273,6 +273,24 @@ where
         );
         let tx_digest = *transaction.digest();
 
+        // A resubmission of an already-executed transaction is answered from
+        // the local cache instead of being driven through the validators
+        // again.
+        if let Some(response) = Self::build_response_from_local_effects(
+            &self.validator_state,
+            &tx_digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )? {
+            self.metrics.early_cached_response.inc();
+            debug!(
+                ?tx_digest,
+                "Returning cached results for already-executed transaction"
+            );
+            return Ok((response, true));
+        }
+
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
                 self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
@@ -504,6 +522,50 @@ where
         })
     }
 
+    /// Build a response from the local cache for a transaction that has
+    /// already been executed on this node. Returns `Ok(None)` when the
+    /// transaction has not been executed locally. Unlike
+    /// `build_response_from_cache`, no checkpoint sequence is required: local
+    /// effects only exist for finalized transactions, so the response is
+    /// tagged `QuorumExecuted`.
+    fn build_response_from_local_effects(
+        validator_state: &Arc<AuthorityState>,
+        tx_digest: &TransactionDigest,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
+    ) -> Result<Option<ExecuteTransactionResponseV1>, QuorumDriverError> {
+        let Some(cached) = read_cached_transaction_data(
+            validator_state,
+            tx_digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )
+        .map_err(QuorumDriverError::QuorumDriverInternal)?
+        else {
+            return Ok(None);
+        };
+        let iota_types::transaction_executor::CachedTransactionData {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        } = cached;
+
+        let epoch = effects.epoch();
+        Ok(Some(ExecuteTransactionResponseV1 {
+            effects: FinalizedEffects {
+                effects,
+                finality_info: EffectsFinalityInfo::QuorumExecuted(epoch),
+            },
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data: None,
+        }))
+    }
+
     // Utilize the handle_certificate_v1 validator api to request input/output
     // objects
     #[instrument(name = "tx_orchestrator_execute_transaction_v1", level = "trace", skip_all,
@@ -516,15 +578,35 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
+        epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+        let tx_digest = *request.transaction.digest();
+
+        // A resubmission of an already-executed transaction is answered from
+        // the local cache instead of being driven through the validators
+        // again.
+        if let Some(response) = Self::build_response_from_local_effects(
+            &self.validator_state,
+            &tx_digest,
+            request.include_events,
+            request.include_input_objects,
+            request.include_output_objects,
+        )? {
+            self.metrics.early_cached_response.inc();
+            debug!(
+                ?tx_digest,
+                "Returning cached results for already-executed transaction"
+            );
+            return Ok(response);
+        }
+
         match &self.driver {
             Driver::Transaction(td) => {
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
                 // reconcile the response from the cache there.
-                epoch_store
-                    .verify_transaction(request.transaction.clone())
-                    .map_err(QuorumDriverError::InvalidUserSignature)?;
                 self.submit_with_transaction_driver(
                     td.clone(),
                     request,
@@ -716,9 +798,6 @@ where
         )
     }
 
-    // TODO check if tx is already executed on this node.
-    // Note: since EffectsCert is not stored today, we need to gather that from
-    // validators (and maybe store it for caching purposes)
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     async fn execute_transaction_impl(
         &self,
@@ -1202,6 +1281,8 @@ pub struct TransactionOrchestratorMetrics {
     local_execution_timeout: GenericCounter<AtomicU64>,
     local_execution_failure: GenericCounter<AtomicU64>,
 
+    early_cached_response: GenericCounter<AtomicU64>,
+
     // Bumped when the skip-effect-certification path reconciles against the
     // local cache but the cache has no events for a tx the single submitter
     // claimed had events. Uncertified events are rejected and the request
@@ -1350,6 +1431,12 @@ impl TransactionOrchestratorMetrics {
                 "Total number of failed local execution txns Transaction Orchestrator handles",
                 registry;
                 MetricLevel::Warn,
+            )
+            .unwrap(),
+            early_cached_response: register_int_counter_with_registry!(
+                "tx_orchestrator_early_cached_response",
+                "Total number of requests returning cached results for already-executed transactions",
+                registry,
             )
             .unwrap(),
             skip_effect_cert_events_cache_miss: register_int_counter_with_registry!(

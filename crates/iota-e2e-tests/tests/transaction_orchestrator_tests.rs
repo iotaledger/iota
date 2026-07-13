@@ -314,6 +314,96 @@ async fn execute_with_orchestrator(
         .await
 }
 
+/// A resubmission of an already-executed transaction must be answered from
+/// the local cache (finality `QuorumExecuted`) instead of being driven
+/// through the validators again — on every entry point.
+#[sim_test]
+async fn test_cached_response_for_executed_transaction() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let (first, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(
+        matches!(
+            first.effects.finality_info,
+            EffectsFinalityInfo::Certified(_)
+        ),
+        "first execution should be driven to a certificate, got {:?}",
+        first.effects.finality_info
+    );
+
+    // Make sure the effects have landed in the local cache before
+    // resubmitting.
+    handle
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[digest])
+        .await;
+
+    let (second, executed_locally) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(executed_locally);
+    assert!(
+        matches!(
+            second.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission should be answered from the local cache, got {:?}",
+        second.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        second.effects.effects.digest()
+    );
+
+    let (third, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForEffectsCert,
+    )
+    .await?;
+    assert!(
+        matches!(
+            third.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission without local-execution wait should also be answered \
+         from the local cache, got {:?}",
+        third.effects.finality_info
+    );
+
+    let response = orchestrator
+        .execute_transaction_v1(ExecuteTransactionRequestV1::new(txn), false, None)
+        .await?;
+    assert!(
+        matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "v1 resubmission should be answered from the local cache, got {:?}",
+        response.effects.finality_info
+    );
+
+    Ok(())
+}
+
 #[sim_test]
 async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -468,6 +558,69 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
     // `test_skip_effect_cert_respects_request_flags`.)
     assert!(response.input_objects.is_some());
     assert!(response.output_objects.is_some());
+
+    Ok(())
+}
+
+/// Under the P-COOL flow, a resubmission of an already-executed transaction
+/// must be answered from the local cache (finality `QuorumExecuted`) before
+/// reaching the skip-effect-certification path, and must not be routed
+/// through the cache-rebuild reconciliation (which would tag it
+/// `Checkpointed`).
+#[sim_test]
+async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    // The first execution reconciles from the local cache after checkpoint
+    // inclusion, so the effects are guaranteed to be cached afterwards.
+    let (first, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(
+        matches!(
+            first.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "first skip-cert execution should reconcile to Checkpointed, got {:?}",
+        first.effects.finality_info
+    );
+
+    let (second, executed_locally) = execute_with_orchestrator(
+        &orchestrator,
+        txn,
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(executed_locally);
+    assert!(
+        matches!(
+            second.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission should be answered from the local cache, got {:?}",
+        second.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        second.effects.effects.digest()
+    );
 
     Ok(())
 }
