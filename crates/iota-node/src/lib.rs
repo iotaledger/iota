@@ -103,7 +103,7 @@ use iota_network::{
     randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -597,7 +597,8 @@ impl IotaNode {
         };
 
         // Seed the open epoch's `epoch_info` row before services start.
-        Self::seed_epoch_info(&checkpoint_store, &store, chain_identifier)
+        checkpoint_store
+            .seed_epoch_info(&store, chain_identifier)
             .expect("failed to seed the epoch_info chain");
 
         info!("creating archive reader");
@@ -906,49 +907,6 @@ impl IotaNode {
             .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
 
         Ok(node)
-    }
-
-    /// Seeds the open epoch's `epoch_info` row and guards the chain's
-    /// completeness before live execution resumes. Every node maintains the
-    /// chain live at its executed epoch boundaries, and new nodes obtain the
-    /// history through genesis sync or a formal-snapshot restore, so a gap can
-    /// only mean this node's store predates the `epoch_info` table. A gap is a
-    /// fatal startup error on mainnet/testnet — every node must hold the
-    /// verified chain since genesis — and only a warning on other networks,
-    /// where the missing epochs are left unfilled: such a node cannot produce
-    /// snapshots or serve the epoch gRPC API for those epochs.
-    fn seed_epoch_info(
-        checkpoint_store: &CheckpointStore,
-        authority_store: &AuthorityStore,
-        chain_identifier: ChainIdentifier,
-    ) -> anyhow::Result<()> {
-        // Seed the open epoch's row (no-op if already present). Without it the
-        // next executed boundary can't finalize it and the watermark wedges.
-        checkpoint_store
-            .ensure_current_epoch_info(authority_store)
-            .map_err(|e| anyhow::anyhow!("seeding the current epoch_info row: {e}"))?;
-
-        if let Some((highest_indexed, last_executed)) = checkpoint_store
-            .epoch_info_gap()
-            .map_err(|e| anyhow::anyhow!("checking epoch_info completeness: {e}"))?
-        {
-            let detail = format!(
-                "the epoch_info chain is incomplete (finalized through {highest_indexed:?}, \
-                 executed through epoch {last_executed})"
-            );
-            match chain_identifier.chain() {
-                Chain::Mainnet | Chain::Testnet => anyhow::bail!(
-                    "{detail}; restore this node from a formal snapshot or resync it from \
-                     genesis to obtain the verified chain"
-                ),
-                Chain::Unknown => warn!(
-                    "{detail}; the missing epochs are left unfilled (live indexing only \
-                     extends the chain forward), so this node cannot produce snapshots or \
-                     serve the epoch gRPC API for those epochs"
-                ),
-            }
-        }
-        Ok(())
     }
 
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {

@@ -11,8 +11,10 @@
 //! and never pruned; the `epoch_info_watermark` tracks the highest
 //! epoch whose contiguous prefix is finalized.
 
+use iota_protocol_config::Chain;
 use iota_types::{
     committee::EpochId,
+    digests::ChainIdentifier,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary},
@@ -84,6 +86,47 @@ impl CheckpointStore {
         let highest_indexed = self.highest_indexed_epoch()?;
         // `<`, not `!=`: rows seeded past local execution are a superset.
         Ok((highest_indexed < Some(last_executed)).then_some((highest_indexed, last_executed)))
+    }
+
+    /// Seeds the open epoch's `epoch_info` row and guards the chain's
+    /// completeness; called once at node startup, before live execution
+    /// resumes. Every node maintains the chain live at its executed epoch
+    /// boundaries, and new nodes obtain the history through genesis sync or a
+    /// formal-snapshot restore, so a gap can only mean this node's store
+    /// predates the `epoch_info` table. A gap is a fatal error on
+    /// mainnet/testnet — every node must hold the verified chain since
+    /// genesis — and only a warning on other networks, where the missing
+    /// epochs are left unfilled: such a node cannot produce snapshots or
+    /// serve the epoch gRPC API for those epochs.
+    pub fn seed_epoch_info(
+        &self,
+        authority_store: &AuthorityStore,
+        chain_identifier: ChainIdentifier,
+    ) -> Result<(), StorageError> {
+        // Seed the open epoch's row (no-op if already present). Without it the
+        // next executed boundary can't finalize it and the watermark wedges.
+        self.ensure_current_epoch_info(authority_store)?;
+
+        if let Some((highest_indexed, last_executed)) = self.epoch_info_gap()? {
+            let detail = format!(
+                "the epoch_info chain is incomplete (finalized through {highest_indexed:?}, \
+                 executed through epoch {last_executed})"
+            );
+            match chain_identifier.chain() {
+                Chain::Mainnet | Chain::Testnet => {
+                    return Err(StorageError::custom(format!(
+                        "{detail}; restore this node from a formal snapshot or resync it from \
+                         genesis to obtain the verified chain"
+                    )));
+                }
+                Chain::Unknown => warn!(
+                    "{detail}; the missing epochs are left unfilled (live indexing only \
+                     extends the chain forward), so this node cannot produce snapshots or \
+                     serve the epoch gRPC API for those epochs"
+                ),
+            }
+        }
+        Ok(())
     }
 
     /// Seed the current (open) epoch's `epoch_info` row if still missing. No-op
