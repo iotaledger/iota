@@ -333,7 +333,9 @@ mod tests {
             min_tx_sequence_number: None,
             max_tx_sequence_number: None,
             computation_cost_burned: Some(
-                summary.epoch_rolling_gas_cost_summary.computation_cost_burned as i64,
+                summary
+                    .epoch_rolling_gas_cost_summary
+                    .computation_cost_burned as i64,
             ),
             content_digest: Some(summary.content_digest.into_inner().to_vec()),
             version_specific_data: Some(summary.version_specific_data.clone()),
