@@ -194,6 +194,15 @@ generate_genesis_files() {
 }
 
 generate_benchmark_keystore() {
+  # The keystore holds only the deterministic benchmark gas keys (seed 0, see
+  # the genesis-template comment above) — identical on every generation and
+  # independent of the validator count. Reuse an existing file instead of
+  # paying a second full `iota-localnet genesis` run just to re-extract it;
+  # delete the file to force regeneration.
+  if [[ -f "$GENESIS_DIR/benchmark.keystore" ]]; then
+    echo "Reusing existing benchmark keystore: $GENESIS_DIR/benchmark.keystore"
+    return
+  fi
   echo "Generating benchmark keystore..."
   local BENCH_TEMP_DIR
   BENCH_TEMP_DIR="$(mktemp -d)"
