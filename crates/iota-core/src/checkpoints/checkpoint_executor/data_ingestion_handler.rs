@@ -126,8 +126,32 @@ pub(crate) fn load_checkpoint_data(
                         })
                 })
                 .collect::<IotaResult<Vec<_>>>()?,
-            None => iota_types::storage::get_transaction_output_objects(object_store, fx)
-                .map_err(|e| IotaError::Unknown(e.to_string()))?,
+            // Without buffered outputs (replay after restart, or a stage
+            // lagging behind later commits), read the store with a historic
+            // fallback: a later transaction may already have superseded an
+            // output here and relocated it (e.g. the clock output of an old
+            // checkpoint during catch-up).
+            None => fx
+                .all_changed_objects()
+                .into_iter()
+                .map(|(object_ref, _, _)| {
+                    let key = ObjectKey::from(object_ref);
+                    if let Some(object) = object_store
+                        .try_get_object_by_key(&key.0, key.1)
+                        .map_err(|e| IotaError::Unknown(e.to_string()))?
+                    {
+                        return Ok(object);
+                    }
+                    historic_store
+                        .get_object(&key)?
+                        .ok_or(IotaError::UserInput {
+                            error: iota_types::error::UserInputError::ObjectNotFound {
+                                object_id: key.0,
+                                version: Some(key.1),
+                            },
+                        })
+                })
+                .collect::<IotaResult<Vec<_>>>()?,
         };
 
         let full_transaction = CheckpointTransaction {
