@@ -4,19 +4,18 @@
 use std::str::FromStr;
 
 use anyhow::Result;
+use base64::{Engine, engine::general_purpose::STANDARD};
 use clap::{Arg, Command};
 use iota_sdk_types::crypto::Intent;
 use iota_types::{object::Object, transaction::TransactionData};
 
 fn transaction_from_base64(b64: &str) -> TransactionData {
-    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
-        .expect("Invalid base64 in transaction");
+    let bytes = STANDARD.decode(b64).expect("Invalid base64 in transaction");
     bcs::from_bytes(&bytes).expect("Invalid bcs in transaction")
 }
 
 fn object_from_base64(b64: &str) -> Object {
-    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
-        .expect("Invalid base64 in object");
+    let bytes = STANDARD.decode(b64).expect("Invalid base64 in object");
     bcs::from_bytes(&bytes).expect("Invalid bcs in object")
 }
 
@@ -94,10 +93,7 @@ pub fn main() -> Result<()> {
     )?;
     println!(
         "Signature: {}",
-        base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            signature.signature.to_bytes()
-        )
+        STANDARD.encode(signature.signature.to_bytes())
     );
 
     Ok(())

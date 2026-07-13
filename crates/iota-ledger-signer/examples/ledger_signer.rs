@@ -3,11 +3,13 @@
 
 use std::str::FromStr;
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use clap::{Arg, Command};
 use iota_sdk::{IotaClientBuilder, types::transaction::TransactionData};
 
 fn transaction_from_base64(b64: &str) -> Result<TransactionData, anyhow::Error> {
-    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+    let bytes = STANDARD
+        .decode(b64)
         .map_err(|e| anyhow::format_err!("Invalid base64 in transaction: {e}"))?;
     bcs::from_bytes(&bytes).map_err(|e| anyhow::format_err!("Invalid transaction format: {e}"))
 }
@@ -76,10 +78,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let signed_tx = signer.sign_transaction(&transaction, &address).await?;
     println!(
         "Signature: {}",
-        base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            signed_tx.signature.to_bytes()
-        )
+        STANDARD.encode(signed_tx.signature.to_bytes())
     );
 
     Ok(())
