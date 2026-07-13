@@ -685,6 +685,9 @@ pub enum IotaError {
 
     #[error("Invalid admin request: {0}")]
     InvalidAdminRequest(String),
+
+    #[error("Could not find the referenced transaction effects [{digest}]")]
+    TransactionEffectsNotFound { digest: TransactionDigest },
 }
 
 #[repr(u64)]
