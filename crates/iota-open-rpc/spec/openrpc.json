@@ -1480,6 +1480,9 @@
                 },
                 "check_zklogin_id_cost_base": null,
                 "check_zklogin_issuer_cost_base": null,
+                "checkpoint_rate_window_size": {
+                  "u64": "20"
+                },
                 "checkpoint_summary_version_specific_data": {
                   "u64": "1"
                 },

@@ -662,7 +662,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 6
       },
@@ -1189,9 +1189,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "w": 12,
-        "y": 30,
+        "y": 6,
         "h": 8
       },
       "id": 318,
@@ -1632,7 +1632,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 30
       },
       "id": 325,
@@ -1676,6 +1676,92 @@
       ],
       "title": "Checkpoint TPS",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Distribution of the number of consensus commits coalesced into each checkpoint (`commits_per_checkpoint`). Each cell shows the rate of checkpoints whose commit count fell in the bucket on the Y axis. Buckets are 1..10 with a +Inf overflow (10+). At ~20 commits/s against the ~5 checkpoints/s cap, most checkpoints coalesce 3-5 commits (average ~4); a bimodal spread \u2014 many single-commit checkpoints plus a tail toward 10+ \u2014 indicates clustering.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "id": 418,
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Oranges",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        }
+      },
+      "pluginVersion": "11.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(le) (rate(commits_per_checkpoint_bucket[5m]))",
+          "format": "heatmap",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Commits per checkpoint",
+      "type": "heatmap"
     },
     {
       "datasource": {

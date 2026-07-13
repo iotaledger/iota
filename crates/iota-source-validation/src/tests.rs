@@ -150,11 +150,7 @@ async fn successful_verification_module_ordering() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn successful_verification_upgrades() -> anyhow::Result<()> {
-    let mut cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-    let grpc_url = cluster.grpc_url();
+    let mut cluster = TestClusterBuilder::new().build().await;
     let context = &mut cluster.wallet;
 
     let b_v1_fixtures = iota_common::tempdir();
@@ -166,7 +162,7 @@ async fn successful_verification_upgrades() -> anyhow::Result<()> {
     let b_v2_fixtures = iota_common::tempdir();
     let b_v2 = {
         let b_src = copy_published_package(&b_v2_fixtures, "b-v2", Address::ZERO).await?;
-        upgrade_package(context, &grpc_url, b_v1.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     let b_fixtures = iota_common::tempdir();
@@ -528,11 +524,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn linkage_differs() -> anyhow::Result<()> {
-    let mut cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-    let grpc_url = cluster.grpc_url();
+    let mut cluster = TestClusterBuilder::new().build().await;
     let context = &mut cluster.wallet;
 
     let b_v1_fixtures = iota_common::tempdir();
@@ -546,7 +538,7 @@ async fn linkage_differs() -> anyhow::Result<()> {
         let b_src =
             copy_upgraded_package(&b_v2_fixtures, "b-v2", b_v1.object_id.into(), Address::ZERO)
                 .await?;
-        upgrade_package(context, &grpc_url, b_v1.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish b-v2 a second time, to create a third version of the package that is
@@ -556,7 +548,7 @@ async fn linkage_differs() -> anyhow::Result<()> {
         let b_src =
             copy_upgraded_package(&b_v3_fixtures, "b-v2", b_v2.object_id.into(), Address::ZERO)
                 .await?;
-        upgrade_package(context, &grpc_url, b_v2.object_id, b_cap.object_id, b_src).await
+        upgrade_package(context, b_v2.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish E pointing at v2 of B.
@@ -778,7 +770,6 @@ async fn publish_package(
 
 async fn upgrade_package(
     context: &WalletContext,
-    grpc_url: &str,
     package_id: ObjectId,
     upgrade_cap: ObjectId,
     package: impl AsRef<Path>,
@@ -790,7 +781,6 @@ async fn upgrade_package(
 
     upgrade_package_with_wallet(
         context,
-        grpc_url,
         package_id,
         upgrade_cap,
         package_bytes,
@@ -878,7 +868,6 @@ async fn copy_upgraded_package(
 
 pub async fn upgrade_package_with_wallet(
     context: &WalletContext,
-    grpc_url: &str,
     package_id: ObjectId,
     upgrade_cap: ObjectId,
     all_module_bytes: Vec<Vec<u8>>,
@@ -886,7 +875,7 @@ pub async fn upgrade_package_with_wallet(
 ) -> (ObjectReference, TransactionDigest) {
     let sender = context.get_addresses()[0];
     let gas_price = context.get_reference_gas_price().await.unwrap();
-    let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();
+    let grpc_client = context.get_grpc_client().await.unwrap();
     let transaction = {
         let package_data = MovePackageData::new(all_module_bytes, dep_ids);
 

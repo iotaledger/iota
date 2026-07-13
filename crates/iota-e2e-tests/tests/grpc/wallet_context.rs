@@ -9,7 +9,6 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn wallet_context_get_grpc_client() {
     let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
         .with_num_validators(1)
         .build()
         .await;
