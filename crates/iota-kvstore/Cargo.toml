@@ -13,7 +13,7 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 futures = { workspace = true, optional = true }
-iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", rev = "7a0328a6e9e536f1c52b4d46b1629aa1683bf45f" }
+iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", tag = "v0.1.2" }
 serde.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
