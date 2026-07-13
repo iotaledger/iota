@@ -82,61 +82,11 @@ impl SyncMethod {
     }
 }
 
-/// Outcome of a successful fetch from one authority, used to feed the
-/// per-peer responsiveness signal.
+/// Outcome of a successful fetch from one authority.
 struct FetchStats {
     latency: Duration,
     requested: usize,
     matched_requested: usize,
-}
-
-/// Records when the transaction synchronizer failed for the last time when
-/// fetching from peers.
-struct LastFailureByPeer {
-    inner: Mutex<Vec<Option<Instant>>>,
-    context: Context,
-}
-
-impl LastFailureByPeer {
-    fn new(context: &Context) -> Arc<Self> {
-        let committee_size = context.committee.size();
-        Arc::new(Self {
-            inner: Mutex::new(vec![None; committee_size]),
-            context: context.clone(),
-        })
-    }
-    fn update_with_new_instant(self: &Arc<Self>, peer: AuthorityIndex, new_instant: Instant) {
-        let mut inner = self.inner.lock();
-        inner[peer] = Some(new_instant);
-    }
-
-    /// Determine which authorities are less reliable to fetch transactions.
-    /// Returns less than f+1 authorities by stake.
-    fn get_excluded_authorities_by_stake(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
-        let last_round_by_peer = { self.inner.lock().clone() };
-
-        let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, last_instant)| {
-                last_instant.map(|last_instant| (AuthorityIndex::from(idx as u8), last_instant))
-            })
-            .collect();
-
-        indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
-
-        let mut excluded_authorities = BTreeSet::new();
-        let mut stake = 0;
-        for (authority_index, _last_instant) in indexed_rounds {
-            stake += self.context.committee.stake(authority_index);
-            if self.context.committee.reached_validity(stake) {
-                break;
-            }
-            excluded_authorities.insert(authority_index);
-        }
-
-        excluded_authorities
-    }
 }
 
 /// Tracks the number of concurrent transaction fetch requests to each peer.
@@ -385,7 +335,6 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     network_client: Arc<C>,
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
-    last_failure_by_peer: Arc<LastFailureByPeer>,
 }
 
 impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
@@ -410,7 +359,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         let mut tasks = JoinSet::new();
         let active_requests = InflightActiveRequests::new();
-        let last_failure_by_peer = LastFailureByPeer::new(&context);
         // Spawn the live fetcher task
         let live_fetcher_async = Self::live_fetcher(
             active_requests.clone(),
@@ -419,7 +367,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             core_dispatcher.clone(),
             live_fetch_receiver,
             inflight_transactions_map.clone(),
-            last_failure_by_peer.clone(),
         );
         tasks.spawn(monitored_future!(live_fetcher_async));
 
@@ -438,7 +385,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 inflight_transactions_map,
                 commands_sender: commands_sender_clone,
                 dag_state,
-                last_failure_by_peer,
             };
             s.run().await;
         }));
@@ -529,7 +475,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         mut receiver: Receiver<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
-        last_failure_by_peer: Arc<LastFailureByPeer>,
     ) {
         let semaphore = Arc::new(Semaphore::new(LIVE_FETCH_TRANSACTIONS_CONCURRENCY));
 
@@ -548,7 +493,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let inflight_transactions_map = inflight_transactions_map.clone();
                     let network_client = network_client.clone();
                     let core_dispatcher = core_dispatcher.clone();
-                    let last_failure_by_peer = last_failure_by_peer.clone();
                     tokio::spawn(async move {
                         Self::fetch_and_process_transactions_from_authorities(
                             context,
@@ -557,7 +501,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             network_client,
                             missing_transactions_block_refs,
                             core_dispatcher,
-                            last_failure_by_peer,
                             SyncMethod::Live,
                         )
                         .await;
@@ -637,7 +580,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let commands_sender = self.commands_sender.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
-        let last_failure_by_round = self.last_failure_by_peer.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -656,7 +598,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     network_client,
                     missing_transactions,
                     core_dispatcher,
-                    last_failure_by_round,
                     SyncMethod::Periodic,
                 )
                 .await;
@@ -681,7 +622,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         network_client: Arc<C>,
         missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         core_dispatcher: Arc<D>,
-        last_failure_by_peer: Arc<LastFailureByPeer>,
         sync_method: SyncMethod,
     ) {
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
@@ -719,20 +659,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
         // Create an iterator over authorities with their corresponding block refs.
-        // Responsiveness ranking is a preference within the eligible set: the
-        // f+1-by-stake failure exclusion is applied first and unchanged, then
-        // responsive acknowledgers are tried earlier. When ranking is disabled
-        // we keep the previous behaviour: a stable order under test, a uniform
-        // shuffle in production.
+        // When ranking is enabled, responsive acknowledgers are tried earlier and
+        // a peer that fails is demoted by the responsiveness tracker's timeout
+        // penalty rather than removed from the set. When ranking is disabled:
+        // a stable order under test, a uniform shuffle in production.
         let iter_authorities: Box<
             dyn Iterator<Item = (AuthorityIndex, BTreeSet<GenericTransactionRef>)>,
         > = if context.parameters.enable_peer_responsiveness_ranking {
-            // Get less than f+1 excluded authorities by stake.
-            let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
-            let mut vec: Vec<_> = blocks_by_authority
-                .into_iter()
-                .filter(|(authority, _)| !excluded_authorities.contains(authority))
-                .collect();
+            let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
             let mut order: Vec<AuthorityIndex> =
                 vec.iter().map(|(authority, _)| *authority).collect();
             context.peer_responsiveness.prioritize(
@@ -748,13 +682,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             // Stable order for tests.
             Box::new(blocks_by_authority.into_iter())
         } else {
-            // Get less than f+1 excluded authorities by stake.
-            let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
-            // Exclude authorities with latest recorded failures.
-            let mut vec: Vec<_> = blocks_by_authority
-                .into_iter()
-                .filter(|(authority, _)| !excluded_authorities.contains(authority))
-                .collect();
+            let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
             vec.shuffle(&mut rng);
             Box::new(vec.into_iter())
         };
@@ -814,8 +742,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // verification. A successful fetch records that latency scaled up by
         // the fraction of requested transactions it returned, so unrelated or
         // partial responses cannot improve a peer's rank. An empty response is
-        // a goodput failure; an error/timeout additionally drives the existing
-        // f+1 exclusion via `last_failure_by_peer`.
+        // a goodput failure; an error or timeout is recorded the same way, so a
+        // failing peer is demoted to a timeout-scale latency and rotated to the
+        // back of subsequent selections without ever being dropped from the set.
         while let Some((peer, result)) = request_futures.next().await {
             match result {
                 Ok(stats) if stats.matched_requested > 0 => {
@@ -835,7 +764,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     );
                 }
                 Err(err) => {
-                    last_failure_by_peer.update_with_new_instant(peer, Instant::now());
                     context.peer_responsiveness.record_failure_with_timeout(
                         DataSource::TransactionSynchronizer,
                         peer,
@@ -2166,70 +2094,6 @@ mod tests {
         drop(all_guards);
 
         assert_eq!(map.num_of_locked_transactions(), 0);
-    }
-
-    #[tokio::test]
-    async fn excluded_authorities_updates_and_results() {
-        telemetry_subscribers::init_for_testing();
-
-        // GIVEN a committee of 7 authorities
-        let (context, _) = Context::new_for_test(7);
-        let context = Arc::new(context);
-
-        let last_failure = LastFailureByPeer::new(&context);
-        let now = Instant::now();
-
-        // WHEN: no updates → excluded set should be empty
-        let mut excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.is_empty(),
-            "Initially no authorities should be excluded"
-        );
-
-        // WHEN: authority 1 fails now
-        last_failure.update_with_new_instant(AuthorityIndex::new_for_test(1), now);
-        excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(1)),
-            "Authority 1 should be excluded after failure"
-        );
-
-        // WHEN: authority 2 fails later
-        last_failure.update_with_new_instant(
-            AuthorityIndex::new_for_test(2),
-            now + Duration::from_millis(50),
-        );
-        excluded = last_failure.get_excluded_authorities_by_stake();
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(2)),
-            "Authority 2 (latest failure) should be excluded"
-        );
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(1)),
-            "Authority 1 should remain excluded as an older failure"
-        );
-
-        // WHEN: authority 3 fails even later (newest)
-        last_failure.update_with_new_instant(
-            AuthorityIndex::new_for_test(3),
-            now + Duration::from_millis(100),
-        );
-        excluded = last_failure.get_excluded_authorities_by_stake();
-
-        // THEN: authority 3 should now be the first excluded one (most recent),
-        // but the total excluded stake must remain below the validity threshold.
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(3)),
-            "Newest failed authority (3) should be excluded"
-        );
-        assert!(
-            excluded.contains(&AuthorityIndex::new_for_test(2)),
-            "Newest failed authority (3) should be excluded"
-        );
-        assert!(
-            excluded.len() <= 2,
-            "Excluded authorities should be strictly less than f+1 stake limit"
-        );
     }
 
     struct MockNetworkClient {
