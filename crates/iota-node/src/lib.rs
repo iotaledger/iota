@@ -118,6 +118,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
     crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
+    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -130,7 +131,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSummaryExt,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        SignedAuthorityCapabilitiesV1,
+        SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
     },
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
@@ -1798,8 +1799,8 @@ impl IotaNode {
     /// This function awaits the completion of checkpoint execution of the
     /// current epoch, after which it initiates reconfiguration of the
     /// entire system. This function also handles role changes for the node when
-    /// epoch changes and advertises capabilities to the committee if the node
-    /// is a validator.
+    /// epoch changes and, if the node is a validator, advertises capabilities
+    /// and submits the local deny rule proposal to consensus.
     pub async fn monitor_reconfiguration(
         self: Arc<Self>,
         mut epoch_store: Arc<AuthorityPerEpochStore>,
@@ -1873,6 +1874,37 @@ impl IotaNode {
                 components
                     .consensus_adapter
                     .submit(transaction, None, &cur_epoch_store)?;
+
+                // Announce the local deny rules. Recorded proposals are
+                // epoch-scoped, so this re-announces on every epoch change.
+                // An empty set is still submitted when a non-empty proposal
+                // is recorded this epoch: in the full-state model that
+                // withdraws the earlier rules after an operator cleared the
+                // local config and restarted.
+                if config.deny_rule_governance() {
+                    let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
+                    let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
+                    let should_submit = proposed_rules != DenyRuleSet::default()
+                        || recorded
+                            .as_ref()
+                            .is_some_and(|p| p.proposed_rules != DenyRuleSet::default());
+                    if should_submit {
+                        let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
+                            TransactionDenyRuleProposal::new(
+                                self.state.name,
+                                proposed_rules,
+                                recorded.map(|p| p.generation),
+                            ),
+                        );
+                        info!(
+                            tracking_id = ?transaction.get_tracking_id(),
+                            "submitting deny rule proposal to consensus"
+                        );
+                        components
+                            .consensus_adapter
+                            .submit(transaction, None, &cur_epoch_store)?;
+                    }
+                }
             } else if self.state.is_active_validator(&cur_epoch_store)
                 && cur_epoch_store
                     .protocol_config()

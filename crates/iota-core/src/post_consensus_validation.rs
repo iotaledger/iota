@@ -75,7 +75,8 @@ use crate::{
 /// # Arguments
 ///
 /// * `authority_state` — Used for cache reads and deny checks.
-/// * `epoch_store` — Current epoch store (protocol config, lock storage).
+/// * `epoch_store` — Current epoch store (protocol config, lock storage,
+///   governance deny rules).
 /// * `transactions` — All sequenced transactions for this consensus commit;
 ///   modified in-place.
 ///
