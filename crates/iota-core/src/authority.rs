@@ -4326,16 +4326,49 @@ impl AuthorityState {
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_input_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        let input_object_keys: Vec<ObjectKey> = effects
+            .modified_at_versions()
+            .into_iter()
+            .map(|(object_id, version)| ObjectKey(object_id, version))
+            .collect();
+        self.multi_get_objects_with_historic_fallback(&input_object_keys, effects)
     }
 
     pub fn get_transaction_output_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_output_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        let output_object_keys: Vec<ObjectKey> = effects
+            .all_changed_objects()
+            .into_iter()
+            .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+            .collect();
+        self.multi_get_objects_with_historic_fallback(&output_object_keys, effects)
+    }
+
+    /// Exact-version reads for response assembly: live table first, historic
+    /// buckets second. A transaction's own commit relocates the versions it
+    /// superseded, so responses assembled after the commit must be able to
+    /// reach them. Read-API only; execution never takes this path.
+    fn multi_get_objects_with_historic_fallback(
+        &self,
+        keys: &[ObjectKey],
+        effects: &TransactionEffects,
+    ) -> anyhow::Result<Vec<Object>> {
+        self.get_object_store()
+            .multi_get_objects_by_key(keys)
+            .into_iter()
+            .zip(keys)
+            .map(|(maybe_object, key)| match maybe_object {
+                Some(object) => Ok(object),
+                None => self.historic_store.get_object(key)?.ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "missing object key {key:?} from tx {}",
+                        effects.transaction_digest()
+                    )
+                }),
+            })
+            .collect()
     }
 
     fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
@@ -6120,8 +6153,17 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        self.get_object_cache_reader()
-            .try_get_object_by_key(&object_id, version)
+        // Exact-version serving read: superseded versions live in the
+        // historic buckets after their checkpoint committed.
+        match self
+            .get_object_cache_reader()
+            .try_get_object_by_key(&object_id, version)?
+        {
+            Some(object) => Ok(Some(object)),
+            None => self
+                .historic_store
+                .get_object(&ObjectKey(object_id, version)),
+        }
     }
 
     #[instrument(skip_all)]
@@ -6129,9 +6171,15 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>> {
-        Ok(self
+        let mut objects = self
             .get_object_cache_reader()
-            .multi_get_objects_by_key(object_keys))
+            .multi_get_objects_by_key(object_keys);
+        for (maybe_object, key) in objects.iter_mut().zip(object_keys) {
+            if maybe_object.is_none() {
+                *maybe_object = self.historic_store.get_object(key)?;
+            }
+        }
+        Ok(objects)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
