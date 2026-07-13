@@ -867,7 +867,7 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     /// The store pruner. The checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed if pruning falls behind.
+    /// after each checkpoint.
     pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
@@ -4350,7 +4350,7 @@ impl AuthorityState {
     }
 
     /// The store pruner; the checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed when pruning falls behind.
+    /// after each checkpoint.
     pub fn pruner(&self) -> &AuthorityStorePruner {
         &self.pruner
     }
