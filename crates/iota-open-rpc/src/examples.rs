@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, gas::GasCostSummary,
 };
@@ -638,7 +638,7 @@ impl RpcExampleProvider {
     }
 
     fn get_protocol_config(&mut self) -> Examples {
-        let version = Some(6);
+        let version = Some(ProtocolVersion::MAX.as_u64());
         Examples::new(
             "iota_getProtocolConfig",
             vec![ExamplePairing::new(
