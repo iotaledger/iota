@@ -130,10 +130,11 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
-        // Apply the protective consensus gRPC resource limits by default. A node
-        // can opt out via the environment variable without a redeploy; these are
-        // local operational parameters, so heterogeneous values across validators
-        // are safe.
+        // Apply the protective consensus gRPC resource limits by default,
+        // filling only the bounds left unconfigured so explicit node config is
+        // respected. A node can opt out via the environment variable without a
+        // redeploy; these are local operational parameters, so heterogeneous
+        // values across validators are safe.
         let parameters = {
             let mut p = parameters;
             if matches!(
