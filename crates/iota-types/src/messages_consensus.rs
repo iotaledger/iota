@@ -258,83 +258,88 @@ pub enum ConsensusTransactionKind {
 }
 
 impl ConsensusTransactionKind {
-    /// The signed data of the underlying user transaction (certified or raw),
+    // NOTE: Keep every match in this impl exhaustive (no `_` arm) so a new
+    // `ConsensusTransactionKind` variant must be classified here rather
+    // than being silently mishandled.
+
+    /// Helper that applies the matching projection to the underlying certified
+    /// or raw user transaction, or `None` for internal consensus messages.
+    fn map_cert_or_raw_user_tx<'a, R>(
+        &'a self,
+        certified: impl FnOnce(&'a CertifiedTransaction) -> R,
+        raw: impl FnOnce(&'a Transaction) -> R,
+    ) -> Option<R> {
+        match self {
+            Self::CertifiedTransaction(c) => Some(certified(c)),
+            Self::UserTransactionV1(t) => Some(raw(t)),
+            Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..) => None,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => None,
+        }
+    }
+
+    /// The signed data of the underlying certified or raw user transaction,
     /// or `None` for internal consensus messages.
     pub fn as_sender_signed_data(&self) -> Option<&SenderSignedData> {
-        // Listed exhaustively (no `_` arm) so a new user-transaction kind must be
-        // classified here. This is the single place the consensus-handling sites
-        // rely on to decide whether a transaction carries user-signed data, so a
-        // new variant is caught once here rather than silently missed at each site.
-        match self {
-            Self::CertifiedTransaction(c) => Some(c.data()),
-            Self::UserTransactionV1(t) => Some(t.data()),
-            Self::CheckpointSignature(_)
-            | Self::EndOfPublish(_)
-            | Self::CapabilityNotificationV1(_)
-            | Self::SignedCapabilityNotificationV1(_)
-            | Self::RandomnessDkgMessage(..)
-            | Self::RandomnessDkgConfirmation(..)
-            | Self::MisbehaviorReport(_)
-            | Self::OverloadNotificationV1(..) => None,
-            #[allow(deprecated)]
-            Self::NewJWKFetchedDeprecated => None,
-        }
+        self.map_cert_or_raw_user_tx(|c| c.data(), |t| t.data())
     }
 
-    /// The (cached) transaction digest if this is a user transaction or
-    /// certificate, else `None`.
+    /// The (cached) transaction digest of the underlying certified or raw
+    /// user transaction, or `None` for internal consensus messages.
     pub fn transaction_digest(&self) -> Option<TransactionDigest> {
-        match self {
-            Self::CertifiedTransaction(c) => Some(*c.digest()),
-            Self::UserTransactionV1(t) => Some(*t.digest()),
-            Self::CheckpointSignature(_)
-            | Self::EndOfPublish(_)
-            | Self::CapabilityNotificationV1(_)
-            | Self::SignedCapabilityNotificationV1(_)
-            | Self::RandomnessDkgMessage(..)
-            | Self::RandomnessDkgConfirmation(..)
-            | Self::MisbehaviorReport(_)
-            | Self::OverloadNotificationV1(..) => None,
-            #[allow(deprecated)]
-            Self::NewJWKFetchedDeprecated => None,
-        }
-    }
-
-    pub fn is_dkg(&self) -> bool {
-        matches!(
-            self,
-            ConsensusTransactionKind::RandomnessDkgMessage(_, _)
-                | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
-        )
+        self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
     }
 
     /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
     /// submitted directly to consensus, or `None` for any other kind. Certified
-    /// user transactions are not included.
+    /// user transactions are not included here.
     pub fn as_user_transaction(&self) -> Option<&Transaction> {
-        // Listed exhaustively (no `_` arm) so a new user-transaction kind must be
-        // classified here rather than silently treated as a non-user transaction.
         match self {
-            ConsensusTransactionKind::UserTransactionV1(tx) => Some(tx),
-            ConsensusTransactionKind::CertifiedTransaction(_)
-            | ConsensusTransactionKind::CheckpointSignature(_)
-            | ConsensusTransactionKind::EndOfPublish(_)
-            | ConsensusTransactionKind::CapabilityNotificationV1(_)
-            | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-            | ConsensusTransactionKind::RandomnessDkgMessage(..)
-            | ConsensusTransactionKind::RandomnessDkgConfirmation(..)
-            | ConsensusTransactionKind::MisbehaviorReport(_)
-            | ConsensusTransactionKind::OverloadNotificationV1(..) => None,
+            Self::UserTransactionV1(tx) => Some(tx),
+            Self::CertifiedTransaction(_)
+            | Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..) => None,
             #[allow(deprecated)]
-            ConsensusTransactionKind::NewJWKFetchedDeprecated => None,
+            Self::NewJWKFetchedDeprecated => None,
         }
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
     /// (`UserTransactionV1`) submitted directly to consensus. Certified user
-    /// transactions are not included - check those with `is_user_certificate`.
+    /// transactions are not included here.
     pub fn is_user_transaction(&self) -> bool {
         self.as_user_transaction().is_some()
+    }
+
+    /// Returns `true` for the randomness DKG messages
+    /// (`RandomnessDkgMessage` and `RandomnessDkgConfirmation`).
+    pub fn is_dkg(&self) -> bool {
+        match self {
+            Self::RandomnessDkgMessage(_, _) | Self::RandomnessDkgConfirmation(_, _) => true,
+            Self::UserTransactionV1(_)
+            | Self::CertifiedTransaction(_)
+            | Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..) => false,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => false,
+        }
     }
 }
 
