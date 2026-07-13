@@ -15,15 +15,10 @@ use iota_types::{
     committee::EpochId,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
-    },
-    storage::{
-        EpochInfoV1Entry, EpochInfoV2,
-        error::{Error as StorageError, Kind as StorageErrorKind},
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary},
+    storage::{EpochInfoV1Entry, EpochInfoV2, error::Error as StorageError},
 };
-use tracing::{info, warn};
+use tracing::warn;
 use typed_store::{Map, TypedStoreError, rocks::DBBatch};
 
 use crate::{authority::AuthorityStore, checkpoints::CheckpointStore};
@@ -87,7 +82,7 @@ impl CheckpointStore {
             return Ok(None); // still in the genesis epoch; no closed epoch
         };
         let highest_indexed = self.highest_indexed_epoch()?;
-        // `<`, not `!=`: a backfill seeded past local execution is a superset.
+        // `<`, not `!=`: rows seeded past local execution are a superset.
         Ok((highest_indexed < Some(last_executed)).then_some((highest_indexed, last_executed)))
     }
 
@@ -112,12 +107,12 @@ impl CheckpointStore {
         }
 
         let Some(start_checkpoint) = self.current_epoch_start_checkpoint(current_epoch)? else {
-            // Skip rather than fail startup; re-seeded once the backfill lands
-            // the previous epoch's row.
+            // Skip rather than fail startup; re-seeded once the previous
+            // epoch's row lands (e.g. from a formal-snapshot restore).
             warn!(
                 epoch = current_epoch,
                 "skipping current-epoch seed: previous epoch's last checkpoint is \
-                 unknown locally; deferring to the snapshot backfill"
+                 unknown locally"
             );
             return Ok(());
         };
@@ -138,136 +133,6 @@ impl CheckpointStore {
             .insert(&epoch_info.epoch, &epoch_info)?;
 
         Ok(())
-    }
-
-    /// Rebuild the closed-epoch `epoch_info` chain from local checkpoints,
-    /// replaying each missing epoch's closing checkpoint above the finalized
-    /// prefix. With no finalized prefix it starts from genesis, seeding epoch
-    /// 0's row from the genesis checkpoint first (the only place epoch 0's
-    /// start state exists).
-    ///
-    /// Called once at startup, after any formal-snapshot restore: on a
-    /// recognized chain it closes the residual tail the published snapshot
-    /// lagged; on an unrecognized network (no snapshot) it rebuilds the whole
-    /// chain from genesis.
-    ///
-    /// Best-effort: stops at the first epoch (or genesis) whose checkpoint data
-    /// is already pruned, leaving the rest unfilled (the caller decides whether
-    /// an unfilled gap is fatal). Must not run concurrently with live indexing,
-    /// like [`Self::insert_epoch_info`].
-    ///
-    /// TODO: <https://github.com/iotaledger/iota/issues/12028> — one-time
-    /// migration aid (with its `try_seed_genesis_epoch` / `assemble_*`
-    /// helpers); remove once every node has backfilled the chain, after
-    /// which it is maintained live and seeded by V2 formal-snapshot
-    /// restore.
-    pub fn backfill_epoch_info_from_local_history(
-        &self,
-        authority_store: &AuthorityStore,
-    ) -> Result<(), StorageError> {
-        let Some(last_executed) = self
-            .first_open_epoch()?
-            .and_then(|open| open.checked_sub(1))
-        else {
-            return Ok(()); // no closed epoch yet
-        };
-        let highest_indexed = self.highest_indexed_epoch()?;
-        if highest_indexed.is_some_and(|highest| highest >= last_executed) {
-            return Ok(()); // chain already complete
-        }
-
-        // Where the replay starts. With a finalized prefix, resume at the
-        // watermark (its row exists). Otherwise start at genesis, which first
-        // needs epoch 0's row seeded from the genesis checkpoint before its
-        // close can be finalized; if genesis data is pruned, nothing local can
-        // seed the prefix and only a snapshot backfill can fill the chain.
-        let start_epoch = match highest_indexed {
-            Some(highest) => highest,
-            None => {
-                if !self.try_seed_genesis_epoch(authority_store)? {
-                    return Ok(());
-                }
-                0
-            }
-        };
-
-        // Replay the closing checkpoints of epochs `[start_epoch,
-        // last_executed]` in order: the first re-finalizes the prefix end (or,
-        // from genesis, finalizes the just-seeded epoch 0) and creates the next
-        // epoch's row (an epoch's start state only exists in the previous
-        // epoch's closing checkpoint), each subsequent one finalizes a missing
-        // row and creates the next.
-        for epoch in start_epoch..=last_executed {
-            let Some(checkpoint_data) = self.assemble_closing_checkpoint(authority_store, epoch)?
-            else {
-                warn!(
-                    epoch,
-                    "cannot index epoch locally (its closing checkpoint's data is pruned); \
-                     stopping the local rebuild here, the remaining epochs stay unfilled"
-                );
-                return Ok(());
-            };
-
-            self.index_epoch_boundary(&checkpoint_data)?;
-        }
-        info!("rebuilt the local epoch_info chain through epoch {last_executed}");
-        Ok(())
-    }
-
-    /// Assemble `epoch`'s closing checkpoint (its boundary tx only) from local
-    /// stores, or `None` when any of it (the summary, contents, or the boundary
-    /// tx's effects/objects) has been pruned.
-    fn assemble_closing_checkpoint(
-        &self,
-        authority_store: &AuthorityStore,
-        epoch: EpochId,
-    ) -> Result<Option<CheckpointData>, StorageError> {
-        // The map is never pruned, but the checkpoint data it points to may be.
-        let Some(seq) = self.get_epoch_last_checkpoint_seq_number(epoch)? else {
-            return Ok(None);
-        };
-        let Some(summary) = self.get_checkpoint_by_sequence_number(seq)? else {
-            return Ok(None);
-        };
-        let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
-            return Ok(None);
-        };
-        match assemble_boundary_checkpoint_data(authority_store, summary, contents) {
-            Ok(data) => Ok(Some(data)),
-            // A pruned-away boundary transaction/effects/objects is the expected
-            // end of what can be rebuilt locally; anything else is a real
-            // storage failure and must propagate.
-            Err(e) if e.kind() == StorageErrorKind::Missing => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Seed epoch 0's row by replaying the genesis checkpoint. Returns whether
-    /// the row is present afterwards (false only when the genesis checkpoint's
-    /// data is unavailable, e.g. pruned).
-    fn try_seed_genesis_epoch(
-        &self,
-        authority_store: &AuthorityStore,
-    ) -> Result<bool, StorageError> {
-        if self.tables.epoch_info.get(&0)?.is_some() {
-            return Ok(true);
-        }
-        let Some(summary) = self.get_checkpoint_by_sequence_number(0)? else {
-            return Ok(false);
-        };
-        let Some(contents) = self.get_checkpoint_contents(&summary.content_digest)? else {
-            return Ok(false);
-        };
-        match assemble_boundary_checkpoint_data(authority_store, summary, contents) {
-            Ok(genesis_data) => {
-                self.index_epoch_boundary(&genesis_data)?;
-                Ok(true)
-            }
-            // Pruned genesis data is the expected "nothing to rebuild locally"
-            // case; anything else is a real storage failure and must propagate.
-            Err(e) if e.kind() == StorageErrorKind::Missing => Ok(false),
-            Err(e) => Err(e),
-        }
     }
 
     /// The current epoch's start checkpoint, or `None` when it can't be derived
@@ -322,8 +187,7 @@ impl CheckpointStore {
             // If no row exists for `prev_epoch`, this node didn't see its
             // start (e.g. bootstrapped mid-epoch). Skip the upsert; the row
             // stays absent and the watermark stays behind, so the snapshot
-            // writer correctly refuses to publish until an external backfill
-            // fills the gap.
+            // writer correctly refuses to publish the incomplete chain.
             if let Some(mut previous_epoch) = self.tables.epoch_info.get(&prev_epoch)? {
                 // The closing checkpoint's last tx is `prev_epoch`'s
                 // epoch-change tx; its effects and the system-state objects it
@@ -408,7 +272,7 @@ impl CheckpointStore {
     ///
     /// Unlike [`Self::try_advance_epoch_info_watermark`] (the live +1 step),
     /// this can jump the watermark across a whole seeded prefix, which is what
-    /// a snapshot backfill needs.
+    /// a snapshot restore needs.
     fn reconcile_epoch_info_watermark(&self) -> Result<(), TypedStoreError> {
         // `[0, watermark]` is already known complete, so resume the scan from
         // `watermark + 1` rather than re-scanning the whole table.
@@ -451,70 +315,6 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
     }
 }
 
-/// Assemble a `CheckpointData` carrying only the checkpoint's *boundary*
-/// transaction — the epoch-change tx (last in `contents`), or the genesis tx
-/// for checkpoint 0. The result is deliberately sparse: `transactions` holds a
-/// single entry while `checkpoint_contents` keeps the full digest list (the
-/// close-of-epoch proof bundle is anchored to it). It is valid only for
-/// epoch-boundary indexing, which reads `transactions.last()` and the boundary
-/// tx's effects/output objects/events.
-///
-/// A pruned boundary transaction, effects, output objects, or events surfaces
-/// as a `Missing` error. The boundary tx's *input* objects are never loaded:
-/// boundary indexing does not read them, and skipping them avoids a spurious
-/// `Missing` when only old input-object versions have been pruned.
-fn assemble_boundary_checkpoint_data(
-    authority_store: &AuthorityStore,
-    summary: VerifiedCheckpoint,
-    contents: CheckpointContents,
-) -> Result<CheckpointData, StorageError> {
-    use iota_types::{
-        effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
-    };
-
-    let inner = contents.transactions();
-    let Some(boundary_digests) = inner.last() else {
-        return Err(StorageError::custom("empty checkpoint contents"));
-    };
-    let tx_digest = boundary_digests.transaction;
-
-    let transaction = authority_store
-        .get_transaction_block(&tx_digest)?
-        .ok_or_else(|| StorageError::missing("missing boundary transaction"))?;
-    let effects = authority_store
-        .get_executed_effects(&tx_digest)?
-        .ok_or_else(|| StorageError::missing("missing boundary transaction effects"))?;
-    let output_objects =
-        iota_types::storage::get_transaction_output_objects(authority_store, &effects)?;
-
-    let events = if effects.events_digest().is_some() {
-        Some(
-            authority_store
-                .get_events(effects.transaction_digest())
-                .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
-                .ok_or_else(|| {
-                    StorageError::missing("missing events for the boundary transaction")
-                })?,
-        )
-    } else {
-        None
-    };
-
-    let boundary_transaction = CheckpointTransaction {
-        transaction: transaction.into(),
-        effects,
-        events,
-        input_objects: Vec::new(),
-        output_objects,
-    };
-
-    Ok(CheckpointData {
-        checkpoint_summary: summary.into(),
-        checkpoint_contents: contents,
-        transactions: vec![boundary_transaction],
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::GasCostSummary;
@@ -525,7 +325,8 @@ mod tests {
         iota_system_state::IotaSystemState,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummary, EndOfEpochData,
+            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+            CheckpointSummary, EndOfEpochData, VerifiedCheckpoint,
         },
     };
     use typed_store::Map;
@@ -727,8 +528,8 @@ mod tests {
     }
 
     /// `epoch_info_gap` flags a contiguous prefix that falls short of the last
-    /// executed closed epoch — and nothing else: no closed epoch yet and a
-    /// backfill seeded past local execution both count as complete.
+    /// executed closed epoch — and nothing else: no closed epoch yet and rows
+    /// seeded past local execution both count as complete.
     #[tokio::test]
     async fn epoch_info_gap_flags_short_prefix_not_overshoot() {
         let store = CheckpointStore::new_for_tests();
@@ -761,7 +562,7 @@ mod tests {
             .unwrap();
         assert_eq!(store.epoch_info_gap().unwrap(), None);
 
-        // A backfill seeded beyond local execution is a superset, not a gap.
+        // Rows seeded beyond local execution are a superset, not a gap.
         store
             .insert_epoch_info(vec![complete_epoch_info(2), complete_epoch_info(3)])
             .unwrap();
