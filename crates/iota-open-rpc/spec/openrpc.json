@@ -1342,6 +1342,7 @@
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
                 "relocate_event_module": true,
+                "report_move_authentication_error": false,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
                 "select_committee_supporting_next_epoch_version": false,

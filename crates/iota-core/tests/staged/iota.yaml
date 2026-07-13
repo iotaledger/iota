@@ -476,6 +476,11 @@ ExecutionError:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      MoveAuthenticationError:
+        STRUCT:
+          - error:
+              TYPENAME: ExecutionError
 ExecutionStatus:
   ENUM:
     0:
