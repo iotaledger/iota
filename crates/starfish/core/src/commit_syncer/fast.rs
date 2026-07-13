@@ -602,31 +602,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 4. Process fetched transactions. Each serialized_transaction is a
         //    SerializedTransactionsV2 containing both the TransactionRef and the actual
         //    transaction data.
-        let mut fetched_transactions = BTreeMap::new();
-        for serialized_transaction in serialized_transactions {
-            if let Ok(tx_v2) = bcs::from_bytes::<SerializedTransactionsV2>(&serialized_transaction)
-            {
-                let transaction_ref = tx_v2.transaction_ref;
-                if !committed_tx_refs.contains(&transaction_ref) {
-                    return Err(ConsensusError::UnexpectedTransactionForCommit {
-                        peer: target_authority,
-                        received: GenericTransactionRef::TransactionRef(transaction_ref),
-                    });
-                }
-                fetched_transactions.insert(
-                    GenericTransactionRef::TransactionRef(transaction_ref),
-                    tx_v2.serialized_transactions,
-                );
-                committed_tx_refs.remove(&transaction_ref);
-            } else {
-                debug!(
-                    "[{}] Failed to deserialize SerializedTransactionsV2: {:?}",
-                    inner.sync_type.as_str(),
-                    serialized_transaction
-                );
-                continue;
-            }
-        }
+        let mut fetched_transactions = process_serialized_transactions(
+            target_authority,
+            serialized_transactions,
+            &mut committed_tx_refs,
+        )?;
 
         // The response may be missing transactions for a suffix of the commits,
         // e.g. when the stream was cut off by the response byte limit or a
@@ -895,6 +875,38 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 }
 
+/// Deserializes fetched transaction entries and keys them by their
+/// `TransactionRef`, consuming the matching refs from `committed_tx_refs`.
+///
+/// Every entry must deserialize and match a committed ref: a malformed entry
+/// is a peer fault, not a benign byte cutoff — skipping it would be
+/// indistinguishable from a truncated response and would let the peer cap
+/// every fetch at one commit of progress via the prefix fallback.
+fn process_serialized_transactions(
+    peer: AuthorityIndex,
+    serialized_transactions: Vec<Bytes>,
+    committed_tx_refs: &mut BTreeSet<TransactionRef>,
+) -> ConsensusResult<BTreeMap<GenericTransactionRef, Bytes>> {
+    let mut fetched_transactions = BTreeMap::new();
+    for serialized_transaction in serialized_transactions {
+        let tx_v2: SerializedTransactionsV2 = bcs::from_bytes(&serialized_transaction)
+            .map_err(ConsensusError::MalformedTransactions)?;
+        let transaction_ref = tx_v2.transaction_ref;
+        if !committed_tx_refs.contains(&transaction_ref) {
+            return Err(ConsensusError::UnexpectedTransactionForCommit {
+                peer,
+                received: GenericTransactionRef::TransactionRef(transaction_ref),
+            });
+        }
+        fetched_transactions.insert(
+            GenericTransactionRef::TransactionRef(transaction_ref),
+            tx_v2.serialized_transactions,
+        );
+        committed_tx_refs.remove(&transaction_ref);
+    }
+    Ok(fetched_transactions)
+}
+
 /// Truncates verified `commits` to the longest prefix whose committed
 /// transactions are all present in `fetched_transactions`, and drops fetched
 /// transactions not referenced by that prefix. Commits verified by
@@ -1151,8 +1163,11 @@ mod tests {
         }
     }
 
-    mod truncate_to_fully_fetched_prefix {
-        use std::{collections::BTreeMap, sync::Arc};
+    mod fetch_response_processing {
+        use std::{
+            collections::{BTreeMap, BTreeSet},
+            sync::Arc,
+        };
 
         use bytes::Bytes;
         use starfish_config::AuthorityIndex;
@@ -1161,9 +1176,12 @@ mod tests {
             BlockRef, Round,
             block_header::{BlockHeaderDigest, TransactionsCommitment},
             commit::{CommitDigest, TrustedCommit},
-            commit_syncer::fast::truncate_to_fully_fetched_prefix,
+            commit_syncer::fast::{
+                process_serialized_transactions, truncate_to_fully_fetched_prefix,
+            },
             context::Context,
             error::ConsensusError,
+            network::SerializedTransactionsV2,
             transaction_ref::{GenericTransactionRef, TransactionRef},
         };
 
@@ -1291,6 +1309,74 @@ mod tests {
 
             assert_eq!(commits, vec![empty]);
             assert!(transactions.is_empty());
+        }
+
+        fn plain_ref(round: Round) -> TransactionRef {
+            TransactionRef {
+                round,
+                author: AuthorityIndex::new_for_test(0),
+                transactions_commitment: TransactionsCommitment::MIN,
+            }
+        }
+
+        fn serialized(tx_ref: TransactionRef) -> Bytes {
+            bcs::to_bytes(&SerializedTransactionsV2 {
+                transaction_ref: tx_ref,
+                serialized_transactions: Bytes::new(),
+            })
+            .unwrap()
+            .into()
+        }
+
+        #[tokio::test]
+        async fn consumes_committed_refs_for_wellformed_entries() {
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
+            let mut committed: BTreeSet<TransactionRef> = [tx_a, tx_b].into_iter().collect();
+
+            let fetched = process_serialized_transactions(
+                AuthorityIndex::new_for_test(1),
+                vec![serialized(tx_a), serialized(tx_b)],
+                &mut committed,
+            )
+            .unwrap();
+
+            assert_eq!(fetched.len(), 2);
+            assert!(committed.is_empty());
+        }
+
+        #[tokio::test]
+        async fn errors_on_malformed_entry() {
+            let tx_a = plain_ref(1);
+            let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
+
+            let result = process_serialized_transactions(
+                AuthorityIndex::new_for_test(1),
+                vec![Bytes::from_static(b"garbage"), serialized(tx_a)],
+                &mut committed,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::MalformedTransactions(_))
+            ));
+        }
+
+        #[tokio::test]
+        async fn errors_on_entry_not_matching_a_committed_ref() {
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
+            let peer = AuthorityIndex::new_for_test(1);
+            let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
+
+            let result =
+                process_serialized_transactions(peer, vec![serialized(tx_b)], &mut committed);
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::UnexpectedTransactionForCommit {
+                    peer: error_peer,
+                    received: GenericTransactionRef::TransactionRef(received),
+                }) if error_peer == peer && received == tx_b
+            ));
         }
     }
 
