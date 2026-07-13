@@ -1292,7 +1292,17 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        let mut localnet_env = IotaEnv::new("localnet", fullnode_handle.rpc_url.clone());
+        if self.fullnode_enable_grpc_api {
+            let grpc_address = fullnode
+                .config()
+                .grpc_api_config
+                .clone()
+                .unwrap_or_default()
+                .address;
+            localnet_env = localnet_env.with_grpc(Some(format!("http://{grpc_address}")));
+        }
+        wallet_conf.add_env(localnet_env);
         wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf

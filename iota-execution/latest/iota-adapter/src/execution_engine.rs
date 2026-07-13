@@ -19,7 +19,8 @@ mod checked {
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, Version,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -30,7 +31,7 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{SequenceNumber, TransactionDigest, TxContext},
+        base_types::{TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
@@ -179,7 +180,7 @@ mod checked {
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -704,7 +705,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -792,7 +793,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1046,7 +1047,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1079,11 +1080,11 @@ mod checked {
                     },
                     None,
                 )),
-                SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
+                Version::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
                     ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
                     None,
                 )),
-                _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
+                _ => panic!("invalid cancellation reason Version: {reason}"),
             }
         } else {
             Ok(())

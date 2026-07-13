@@ -37,8 +37,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -93,6 +91,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -137,8 +136,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -193,6 +190,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -237,8 +235,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -293,6 +289,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -337,8 +334,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -393,6 +388,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -437,8 +433,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -493,6 +487,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -537,8 +532,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -593,6 +586,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:
@@ -637,8 +631,6 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -693,6 +685,7 @@ validator_configs:
       max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
     enable-soft-locking: true
     verifier-signing-config:

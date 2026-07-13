@@ -7506,6 +7506,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
+ "iota-sdk-grpc-client",
  "iota-sdk-types",
  "iota-transaction-builder",
  "iota-types",

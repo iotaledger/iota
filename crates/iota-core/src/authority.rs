@@ -46,7 +46,7 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, TransactionExpiration, TransactionKind, TypeTag,
+    RandomnessRound, StructTag, TransactionExpiration, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -65,9 +65,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{
-        AuthorityName, ConciseableName, ObjectInfo, ObjectType, SequenceNumber, VersionNumber,
-    },
+    base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
@@ -866,7 +864,9 @@ pub struct AuthorityState {
     tx_execution_shutdown: Mutex<Option<oneshot::Sender<()>>>,
 
     pub metrics: Arc<AuthorityMetrics>,
-    _pruner: AuthorityStorePruner,
+    /// The store pruner. The checkpoint executor uses it to nudge the pruner
+    /// after each checkpoint and to be leashed if pruning falls behind.
+    pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
@@ -3283,7 +3283,7 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
-        let _pruner = AuthorityStorePruner::new(
+        let pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             grpc_indexes_store.clone(),
@@ -3329,7 +3329,7 @@ impl AuthorityState {
             transaction_manager,
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
-            _pruner,
+            pruner,
             authority_per_epoch_pruner,
             checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
@@ -4007,7 +4007,7 @@ impl AuthorityState {
     pub fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<PastObjectRead> {
         // Firstly we see if the object ever existed by getting its latest data
         let Some(obj_ref) = self
@@ -4061,7 +4061,7 @@ impl AuthorityState {
     fn read_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
             .get_object_cache_reader()
@@ -4091,11 +4091,7 @@ impl AuthorityState {
         Ok(layout)
     }
 
-    fn get_owner_at_version(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<Owner> {
+    fn get_owner_at_version(&self, object_id: &ObjectId, version: Version) -> IotaResult<Owner> {
         self.get_object_store()
             .try_get_object_by_key(object_id, version)?
             .ok_or_else(|| {
@@ -4345,6 +4341,12 @@ impl AuthorityState {
 
     pub fn get_checkpoint_store(&self) -> &Arc<CheckpointStore> {
         &self.checkpoint_store
+    }
+
+    /// The store pruner; the checkpoint executor uses it to nudge the pruner
+    /// after each checkpoint and to be leashed when pruning falls behind.
+    pub fn pruner(&self) -> &AuthorityStorePruner {
+        &self.pruner
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
@@ -5606,7 +5608,7 @@ impl AuthorityState {
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,
-        auth_account_object_seq_number: Option<SequenceNumber>,
+        auth_account_object_seq_number: Option<Version>,
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,

@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, ObjectReference, RandomnessRound, VersionAssignment};
+use iota_sdk_types::{ObjectId, ObjectReference, RandomnessRound, Version, VersionAssignment};
 use iota_types::{
-    base_types::{AuthorityName, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, TransactionDigest},
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
@@ -50,7 +50,7 @@ pub(crate) struct ConsensusCommitOutput {
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
     // transaction scheduling state
-    next_shared_object_versions: Option<HashMap<ObjectId, SequenceNumber>>,
+    next_shared_object_versions: Option<HashMap<ObjectId, Version>>,
 
     // congestion control state
     // debts for shared objects with no randomness
@@ -174,10 +174,7 @@ impl ConsensusCommitOutput {
         !self.report_state_snapshots.is_empty()
     }
 
-    pub fn set_next_shared_object_versions(
-        &mut self,
-        next_versions: HashMap<ObjectId, SequenceNumber>,
-    ) {
+    pub fn set_next_shared_object_versions(&mut self, next_versions: HashMap<ObjectId, Version>) {
         assert!(self.next_shared_object_versions.is_none());
         self.next_shared_object_versions = Some(next_versions);
     }
@@ -551,7 +548,7 @@ pub(crate) struct ConsensusOutputQuarantine {
     builder_digest_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // Any un-committed next versions are stored here.
-    shared_object_next_versions: RefCountedHashMap<ObjectId, SequenceNumber>,
+    shared_object_next_versions: RefCountedHashMap<ObjectId, Version>,
 
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
@@ -899,8 +896,8 @@ impl ConsensusOutputQuarantine {
     pub(super) fn get_next_shared_object_versions(
         &self,
         tables: &AuthorityEpochTables,
-        objects_to_init: &[(ObjectId, SequenceNumber)],
-    ) -> IotaResult<Vec<Option<SequenceNumber>>> {
+        objects_to_init: &[(ObjectId, Version)],
+    ) -> IotaResult<Vec<Option<Version>>> {
         Ok(do_fallback_lookup(
             objects_to_init,
             |(object_id, _)| {

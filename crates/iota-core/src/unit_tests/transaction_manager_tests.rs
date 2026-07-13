@@ -4,10 +4,9 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{ObjectId, Owner, VersionAssignment};
+use iota_sdk_types::{ObjectId, Owner, Version, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
@@ -751,10 +750,10 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                VersionAssignment::new(shared_object_1.id(), SequenceNumber::CANCELLED_READ),
+                VersionAssignment::new(shared_object_1.id(), Version::CANCELLED_READ),
                 VersionAssignment::new(
                     shared_object_2.id(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
+                    Version::new_congested_with_suggested_gas_price(101).unwrap(),
                 ),
             ],
         )

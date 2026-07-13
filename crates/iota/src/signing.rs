@@ -9,9 +9,10 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, Owner, SharedObjectReference, TypeTag, Version, crypto::Intent,
+};
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::Signature,
     move_authenticator::MoveAuthenticatorV1,
     signature::GenericSignature,
@@ -197,7 +198,7 @@ where
 pub(crate) async fn get_shared_object_version(
     iota_client: &iota_sdk::IotaClient,
     signer_address: &Address,
-) -> Result<SequenceNumber> {
+) -> Result<Version> {
     let object_response = iota_client
         .read_api()
         .get_object_with_options(

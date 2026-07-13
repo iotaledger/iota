@@ -48,7 +48,7 @@ use iota_core::{
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
     setup_db_state,
@@ -141,7 +141,7 @@ async fn make_clients(
     Ok(authority_clients)
 }
 
-type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
+type ObjectVersionResponses = (Option<Version>, Result<ObjectInfoResponse>, f64);
 pub struct ObjectData {
     requested_id: ObjectId,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
@@ -167,7 +167,7 @@ where
 pub struct GroupedObjectOutput {
     pub grouped_results: BTreeMap<
         Option<(
-            Option<SequenceNumber>,
+            Option<Version>,
             ObjectDigest,
             TransactionDigest,
             Owner,
@@ -177,7 +177,7 @@ pub struct GroupedObjectOutput {
     >,
     pub voting_power: Vec<(
         Option<(
-            Option<SequenceNumber>,
+            Option<Version>,
             ObjectDigest,
             TransactionDigest,
             Owner,
@@ -485,7 +485,7 @@ async fn get_object_impl(
     client: &NetworkAuthorityClient,
     id: ObjectId,
     version: Option<u64>,
-) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
+) -> (Option<Version>, Result<ObjectInfoResponse>, f64) {
     let start = Instant::now();
     let resp = client
         .handle_object_info_request(ObjectInfoRequest {
@@ -493,7 +493,7 @@ async fn get_object_impl(
             generate_layout: LayoutGenerationOption::Generate,
             request_kind: match version {
                 None => ObjectInfoRequestKind::LatestObjectInfo,
-                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(SequenceNumber::from_u64(v)),
+                Some(v) => ObjectInfoRequestKind::PastObjectInfoDebug(Version::from_u64(v)),
             },
         })
         .await

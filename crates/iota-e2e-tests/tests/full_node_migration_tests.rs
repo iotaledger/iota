@@ -77,6 +77,10 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
+        // The tx response requests full content (balance/object changes), which
+        // reads input objects at their pre-transaction versions; disable pruning
+        // so those versions are not pruned before the response is built.
+        .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
         .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
@@ -93,7 +97,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // The transaction must be successful
     assert!(confirmed_local_execution.unwrap());
-    assert!(errors.is_empty());
+    assert!(errors.is_empty(), "unexpected tx errors: {errors:?}");
     Ok(())
 }
 
@@ -122,6 +126,10 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
 
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
+        // The tx response requests full content (balance/object changes), which
+        // reads input objects at their pre-transaction versions; disable pruning
+        // so those versions are not pruned before the response is built.
+        .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
         .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()

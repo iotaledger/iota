@@ -17,9 +17,8 @@ use std::{
 };
 
 use iota_grpc_types::v1::transaction as grpc_tx;
-use iota_sdk_types::{Address, ExecutionStatus, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, ExecutionStatus, ObjectId, Owner, StructTag, TypeTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     coin::Coin,
     digests::ObjectDigest,
     effects::{ObjectRemoveKind, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -37,12 +36,12 @@ pub enum DeriveChangesError {
     /// so a miss there indicates a server bug.
     MissingObject {
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     /// An object whose type is a coin had contents that are not a valid coin.
     MalformedCoin {
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
 }
 
@@ -90,7 +89,7 @@ pub struct DerivedBalanceChange {
 pub enum DerivedObjectChange {
     Published {
         package_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
         modules: Vec<String>,
     },
@@ -99,28 +98,28 @@ pub enum DerivedObjectChange {
         owner: Owner,
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
-        previous_version: SequenceNumber,
+        version: Version,
+        previous_version: Version,
         digest: ObjectDigest,
     },
     Deleted {
         sender: Address,
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     Wrapped {
         sender: Address,
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     Unwrapped {
         sender: Address,
         owner: Owner,
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
     Created {
@@ -128,7 +127,7 @@ pub enum DerivedObjectChange {
         owner: Owner,
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
 }
@@ -164,7 +163,7 @@ pub fn derive_balance_changes(
         }]);
     }
 
-    let objects: BTreeMap<(ObjectId, SequenceNumber), &Object> = input_objects
+    let objects: BTreeMap<(ObjectId, Version), &Object> = input_objects
         .iter()
         .chain(output_objects)
         .map(|o| ((o.id(), o.version()), o))
@@ -225,9 +224,9 @@ pub fn derive_balance_changes(
 /// coin. Returns `None` for non-coins; errors if the object is missing from
 /// the set or its coin contents are malformed.
 fn coin_owner_type_value(
-    objects: &BTreeMap<(ObjectId, SequenceNumber), &Object>,
+    objects: &BTreeMap<(ObjectId, Version), &Object>,
     id: ObjectId,
-    version: SequenceNumber,
+    version: Version,
 ) -> Result<Option<(Owner, TypeTag, u64)>, DeriveChangesError> {
     let Some(object) = objects.get(&(id, version)) else {
         return Err(DeriveChangesError::MissingObject {
@@ -280,7 +279,7 @@ pub fn derive_object_changes(
         .into_iter()
         .collect::<BTreeMap<_, _>>();
 
-    let outputs: BTreeMap<(ObjectId, SequenceNumber), &Object> = output_objects
+    let outputs: BTreeMap<(ObjectId, Version), &Object> = output_objects
         .iter()
         .map(|o| ((o.id(), o.version()), o))
         .collect();

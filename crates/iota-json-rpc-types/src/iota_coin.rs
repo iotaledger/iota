@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, ObjectReference};
+use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -100,7 +100,7 @@ pub struct Coin {
     pub coin_object_id: ObjectId,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,

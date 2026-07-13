@@ -404,7 +404,7 @@ impl TransactionBuilder {
     }
 
     /// Helper function to get the latest ObjectReference (ObjectId,
-    /// SequenceNumber, ObjectDigest) and ObjectType for a provided
+    /// Version, ObjectDigest) and ObjectType for a provided
     /// ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,

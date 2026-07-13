@@ -52,7 +52,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TransactionKind,
-    TypeTag,
+    TypeTag, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -65,7 +65,6 @@ use iota_types::{
             AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
         },
     },
-    base_types::SequenceNumber,
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, Field},
@@ -310,6 +309,9 @@ pub enum IotaClientCommands {
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
+        /// Optional gRPC Url, for example http://127.0.0.1:9000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
         #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
@@ -1926,6 +1928,7 @@ impl IotaClientCommands {
                 rpc,
                 graphql,
                 ws,
+                grpc,
                 basic_auth,
                 faucet,
             } => {
@@ -1935,6 +1938,7 @@ impl IotaClientCommands {
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
                     .with_ws(ws)
+                    .with_grpc(grpc)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
 
@@ -2854,7 +2858,7 @@ pub struct NewAddressOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub obj_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2908,7 +2912,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub object_type: String,
 }

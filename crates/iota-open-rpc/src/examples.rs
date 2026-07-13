@@ -25,13 +25,14 @@ use iota_json_rpc_types::{
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, gas::GasCostSummary,
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, Version,
+    gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectType, SequenceNumber, TransactionDigest, random_object_ref},
+    base_types::{ObjectDigest, ObjectType, TransactionDigest, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
     digests::TransactionEventsDigest,
@@ -182,7 +183,7 @@ impl RpcExampleProvider {
                     recipient,
                     ObjectReference::new(
                         object_id,
-                        SequenceNumber::from_u64(1),
+                        Version::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
                     ),
                 )
@@ -194,7 +195,7 @@ impl RpcExampleProvider {
             signer,
             vec![ObjectReference::new(
                 gas_id,
-                SequenceNumber::from_u64(1),
+                Version::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
             )],
             pt,
@@ -327,7 +328,7 @@ impl RpcExampleProvider {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: Some(
                         IotaParsedData::try_from_object(
-                            coin.to_object(SequenceNumber::from_u64(1)),
+                            coin.to_object(Version::from_u64(1)),
                             GasCoin::layout(),
                         )
                         .unwrap(),
@@ -336,7 +337,7 @@ impl RpcExampleProvider {
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id,
-                    version: SequenceNumber::from_u64(1),
+                    version: Version::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
                     type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
@@ -369,7 +370,7 @@ impl RpcExampleProvider {
         let result = IotaPastObjectResponse::VersionFound(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    coin.to_object(SequenceNumber::from_u64(1)),
+                    coin.to_object(Version::from_u64(1)),
                     GasCoin::layout(),
                 )
                 .unwrap(),
@@ -378,7 +379,7 @@ impl RpcExampleProvider {
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id,
-            version: SequenceNumber::from_u64(4),
+            version: Version::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
             type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
@@ -638,7 +639,7 @@ impl RpcExampleProvider {
     }
 
     fn get_protocol_config(&mut self) -> Examples {
-        let version = Some(6);
+        let version = Some(ProtocolVersion::MAX.as_u64());
         Examples::new(
             "iota_getProtocolConfig",
             vec![ExamplePairing::new(
@@ -674,12 +675,12 @@ impl RpcExampleProvider {
         let obj_id = ObjectId::new(self.rng.gen());
         let gas_ref = ObjectReference::new(
             ObjectId::new(self.rng.gen()),
-            SequenceNumber::from_u64(2),
+            Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
         let object_ref = ObjectReference::new(
             obj_id,
-            SequenceNumber::from_u64(2),
+            Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
 
@@ -861,7 +862,7 @@ impl RpcExampleProvider {
             .map(|_| Coin {
                 coin_type: "0x2::iota::IOTA".to_string(),
                 coin_object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(103626),
+                version: Version::from_u64(103626),
                 digest: ObjectDigest::new(self.rng.gen()),
                 balance: 200000000,
                 // locked_until_epoch: None,
@@ -949,7 +950,7 @@ impl RpcExampleProvider {
             .map(|_| Coin {
                 coin_type: coin_type.clone(),
                 coin_object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(103626),
+                version: Version::from_u64(103626),
                 digest: ObjectDigest::new(self.rng.gen()),
                 balance: 200000000,
                 // locked_until_epoch: None,
@@ -1160,7 +1161,7 @@ impl RpcExampleProvider {
                 type_: DynamicFieldType::DynamicField,
                 object_type: "test".to_string(),
                 object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(1),
+                version: Version::from_u64(1),
                 digest: ObjectDigest::new(self.rng.gen()),
             })
             .map(Into::into)
@@ -1204,7 +1205,7 @@ impl RpcExampleProvider {
                     {
                         MoveObject::new_from_execution_with_limit(
                             struct_tag.clone(),
-                            SequenceNumber::from_u64(1),
+                            Version::from_u64(1),
                             contents,
                             100,
                         )
@@ -1224,7 +1225,7 @@ impl RpcExampleProvider {
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id: parent_object_id,
-            version: SequenceNumber::from_u64(1),
+            version: Version::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
             type_: Some(ObjectType::Struct(
                 parse_iota_struct_tag("0x9::test::TestField")
@@ -1274,7 +1275,7 @@ impl RpcExampleProvider {
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id: ObjectId::new(self.rng.gen()),
-                    version: SequenceNumber::from_u64(version),
+                    version: Version::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
                     type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
@@ -1469,8 +1470,8 @@ impl RpcExampleProvider {
     fn iota_try_multi_get_past_objects(&mut self) -> Examples {
         let object_id = ObjectId::new(self.rng.gen());
         let object_id2 = ObjectId::new(self.rng.gen());
-        let version = SequenceNumber::from_u64(4);
-        let version2 = SequenceNumber::from_u64(12);
+        let version = Version::from_u64(4);
+        let version2 = Version::from_u64(12);
         let objects = vec![
             IotaGetPastObjectRequest { object_id, version },
             IotaGetPastObjectRequest {
@@ -1484,7 +1485,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin.to_object(SequenceNumber::from_u64(1)),
+                        coin.to_object(Version::from_u64(1)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
@@ -1493,7 +1494,7 @@ impl RpcExampleProvider {
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: Some(100),
                 object_id,
-                version: SequenceNumber::from_u64(4),
+                version: Version::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
                 type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
@@ -1502,7 +1503,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin2.to_object(SequenceNumber::from_u64(4)),
+                        coin2.to_object(Version::from_u64(4)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
