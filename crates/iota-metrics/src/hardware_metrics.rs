@@ -8,7 +8,7 @@ use std::{
 };
 
 use prometheus_filtered::{
-    IntGauge, Opts,
+    Filter, IntGauge, MetricLevel, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
 };
@@ -22,6 +22,12 @@ pub enum HardwareMetricsErr {
     ErrCreateMetric(prometheus_filtered::Error),
     #[error("Failed registering hardware metrics onto RegistryService: {0}")]
     ErrRegisterHardwareMetrics(prometheus_filtered::Error),
+}
+
+/// Returns whether the hardware metrics should be registered under `filter`:
+/// any effective level for this module except `off` registers them.
+pub fn hardware_metrics_enabled(filter: &Filter) -> bool {
+    filter.is_exposed("hw", module_path!(), MetricLevel::Warn)
 }
 
 /// Register all hardware metrics: CPU specs, Memory specs/usage, Disk

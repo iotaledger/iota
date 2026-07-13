@@ -109,7 +109,10 @@ pub struct MetricGroups {
     pub epoch: MetricLevel,
     /// Host hardware metrics (CPU / memory / disk). Registered as a collector,
     /// so individual metrics cannot be level-filtered: `off` skips the whole
-    /// group and every other level registers it.
+    /// group and every other level registers it, at startup only.
+    ///
+    /// Rendered as an `iota_metrics::hardware_metrics` directive, the module
+    /// where the collector is registered.
     pub hardware: MetricLevel,
 }
 
@@ -133,9 +136,8 @@ impl Default for MetricGroups {
 }
 
 impl MetricGroups {
-    /// Returns the module paths a filter-based group covers, keyed by the
-    /// group's config. `None` for unknown groups and for `hardware`, which is
-    /// not filter-based.
+    /// Returns the module paths a group covers, keyed by the group's config
+    /// key. `None` for unknown groups.
     pub fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
         Some(match group {
             "consensus" => &[
@@ -184,13 +186,13 @@ impl MetricGroups {
                 "iota_core::subscription_handler",
             ],
             "epoch" => &["iota_core::epoch::epoch_metrics"],
+            "hardware" => &["iota_metrics::hardware_metrics"],
             _ => return None,
         })
     }
 
-    /// Maps each filter-based group's configured level to the module paths it
-    /// covers.
-    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 10] {
+    /// Maps each group's configured level to the module paths it covers.
+    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 11] {
         [
             ("consensus", self.consensus),
             ("execution", self.execution),
@@ -202,19 +204,21 @@ impl MetricGroups {
             ("storage", self.storage),
             ("rpc", self.rpc),
             ("epoch", self.epoch),
+            ("hardware", self.hardware),
         ]
         .map(|(group, level)| {
             (
                 level,
-                Self::modules_for_group(group).expect("filter-based group has modules"),
+                Self::modules_for_group(group).expect("group has modules"),
             )
         })
     }
 
     /// Renders the levels into a `METRICS_FILTER`-style directive string: the
     /// `default` threshold as the leading catch-all directive, then one
-    /// directive per group module. Later directives win, so the group levels
-    /// override the catch-all for their modules.
+    /// directive per group module (including the hardware group's). Later
+    /// directives win, so the group levels override the catch-all for their
+    /// modules.
     pub fn to_filter_string(&self) -> String {
         fn token(level: MetricLevel) -> &'static str {
             match level {
@@ -312,19 +316,29 @@ mod tests {
     }
 
     #[test]
-    fn metric_groups_hardware_absent_from_filter() {
+    fn metric_groups_renders_hardware_directive() {
+        use crate::hardware_metrics::hardware_metrics_enabled;
+
         let groups = MetricGroups {
             hardware: MetricLevel::Off,
             ..all_trace()
         };
-        // `hardware` is gated at registration, not via the filter.
-        assert!(!groups.to_filter_string().contains("hardware"));
+        // `hardware` is gated at registration, via the rendered directive.
+        let filter_string = groups.to_filter_string();
+        assert!(filter_string.contains("iota_metrics::hardware_metrics=off"));
+        assert!(!hardware_metrics_enabled(&Filter::parse(&filter_string)));
+        // A `METRICS_FILTER` directive is appended after the config's and
+        // overrides it.
+        let overridden = Filter::parse(&format!(
+            "{filter_string},iota_metrics::hardware_metrics=warn"
+        ));
+        assert!(hardware_metrics_enabled(&overridden));
     }
 
     #[test]
-    fn modules_for_group_covers_filter_based_groups_only() {
-        // Every filter-based group resolves to a non-empty module list; the
-        // rendered filter contains exactly those modules.
+    fn modules_for_group_covers_every_group() {
+        // Every group resolves to a non-empty module list; the rendered
+        // filter contains exactly those modules.
         let filter = MetricGroups::default().to_filter_string();
         for group in [
             "consensus",
@@ -337,6 +351,7 @@ mod tests {
             "storage",
             "rpc",
             "epoch",
+            "hardware",
         ] {
             let modules = MetricGroups::modules_for_group(group)
                 .unwrap_or_else(|| panic!("group {group} has no modules"));
@@ -345,8 +360,7 @@ mod tests {
                 assert!(filter.contains(&format!("{module}=warn")));
             }
         }
-        // `hardware` is not filter-based; unknown names resolve to nothing.
-        assert_eq!(MetricGroups::modules_for_group("hardware"), None);
+        // Unknown names resolve to nothing.
         assert_eq!(MetricGroups::modules_for_group("bogus"), None);
     }
 
