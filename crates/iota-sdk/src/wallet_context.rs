@@ -14,9 +14,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::{Address, ObjectId, StructTag, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
-    base_types::ObjectRef,
     crypto::IotaKeyPair,
     gas_coin::GasCoin,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
@@ -37,6 +36,7 @@ pub struct WalletContext {
     config: PersistedConfig<IotaClientConfig>,
     request_timeout: Option<std::time::Duration>,
     client: Arc<RwLock<Option<IotaClient>>>,
+    grpc_client: Arc<RwLock<Option<iota_grpc_client::Client>>>,
     max_concurrent_requests: Option<u64>,
     env_override: Option<String>,
 }
@@ -74,6 +74,7 @@ impl WalletContext {
             config,
             request_timeout: None,
             client: Default::default(),
+            grpc_client: Default::default(),
             max_concurrent_requests: None,
             env_override: None,
         };
@@ -124,6 +125,20 @@ impl WalletContext {
         })
     }
 
+    /// Get the configured gRPC client, creating and caching it on first use.
+    /// Errors if the active env has no `grpc` URL configured.
+    pub async fn get_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
+        let read = self.grpc_client.read().await;
+
+        Ok(if let Some(client) = read.as_ref() {
+            client.clone()
+        } else {
+            drop(read);
+            let client = self.active_env()?.create_grpc_client()?;
+            self.grpc_client.write().await.insert(client).clone()
+        })
+    }
+
     /// Get the active [`Address`].
     /// If not set, defaults to the first address in the keystore.
     pub fn active_address(&self) -> Result<Address, anyhow::Error> {
@@ -159,7 +174,10 @@ impl WalletContext {
     }
 
     /// Get the latest object reference given a object id.
-    pub async fn get_object_ref(&self, object_id: ObjectId) -> Result<ObjectRef, anyhow::Error> {
+    pub async fn get_object_ref(
+        &self,
+        object_id: ObjectId,
+    ) -> Result<ObjectReference, anyhow::Error> {
         let client = self.get_client().await?;
         Ok(client
             .read_api()
@@ -277,23 +295,23 @@ impl WalletContext {
         )
     }
 
-    /// Get the [`ObjectRef`] for gas objects owned by the provided address.
-    /// Maximum is RPC_QUERY_MAX_RESULT_LIMIT (50 by default).
+    /// Get the [`ObjectReference`] for gas objects owned by the provided
+    /// address. Maximum is RPC_QUERY_MAX_RESULT_LIMIT (50 by default).
     pub async fn get_all_gas_objects_owned_by_address(
         &self,
         address: Address,
-    ) -> anyhow::Result<Vec<ObjectRef>> {
+    ) -> anyhow::Result<Vec<ObjectReference>> {
         self.get_gas_objects_owned_by_address(address, None).await
     }
 
-    /// Get a limited amount of [`ObjectRef`]s for gas objects owned by the
-    /// provided address. Max limit is RPC_QUERY_MAX_RESULT_LIMIT (50 by
+    /// Get a limited amount of [`ObjectReference`]s for gas objects owned by
+    /// the provided address. Max limit is RPC_QUERY_MAX_RESULT_LIMIT (50 by
     /// default).
     pub async fn get_gas_objects_owned_by_address(
         &self,
         address: Address,
         limit: impl Into<Option<usize>>,
-    ) -> anyhow::Result<Vec<ObjectRef>> {
+    ) -> anyhow::Result<Vec<ObjectReference>> {
         let client = self.get_client().await?;
         let results: Vec<_> = client
             .read_api()
@@ -320,7 +338,7 @@ impl WalletContext {
     pub async fn get_one_gas_object_owned_by_address(
         &self,
         address: Address,
-    ) -> anyhow::Result<Option<ObjectRef>> {
+    ) -> anyhow::Result<Option<ObjectReference>> {
         Ok(self
             .get_gas_objects_owned_by_address(address, 1)
             .await?
@@ -328,7 +346,7 @@ impl WalletContext {
     }
 
     /// Return one address and all gas objects owned by that address.
-    pub async fn get_one_account(&self) -> anyhow::Result<(Address, Vec<ObjectRef>)> {
+    pub async fn get_one_account(&self) -> anyhow::Result<(Address, Vec<ObjectReference>)> {
         let address = self.get_addresses().pop().unwrap();
         Ok((
             address,
@@ -337,7 +355,7 @@ impl WalletContext {
     }
 
     /// Return a gas object owned by an arbitrary address managed by the wallet.
-    pub async fn get_one_gas_object(&self) -> anyhow::Result<Option<(Address, ObjectRef)>> {
+    pub async fn get_one_gas_object(&self) -> anyhow::Result<Option<(Address, ObjectReference)>> {
         for address in self.get_addresses() {
             if let Some(gas_object) = self.get_one_gas_object_owned_by_address(address).await? {
                 return Ok(Some((address, gas_object)));
@@ -350,7 +368,7 @@ impl WalletContext {
     /// gas objects.
     pub async fn get_all_accounts_and_gas_objects(
         &self,
-    ) -> anyhow::Result<Vec<(Address, Vec<ObjectRef>)>> {
+    ) -> anyhow::Result<Vec<(Address, Vec<ObjectReference>)>> {
         let mut result = vec![];
         for address in self.get_addresses() {
             let objects = self

@@ -12,8 +12,9 @@ use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
     },
     object::Object,
     transaction::{
@@ -349,7 +350,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         ))],
     );
 
-    let checkpoint_summary = CheckpointSummary::new(
+    let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         0,
         2,

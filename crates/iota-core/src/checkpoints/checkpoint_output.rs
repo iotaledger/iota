@@ -8,10 +8,9 @@ use async_trait::async_trait;
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, SignedCheckpointSummary, VerifiedCheckpoint,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };
@@ -94,7 +93,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
 
         let highest_verified_checkpoint = checkpoint_store
             .get_highest_verified_checkpoint()?
-            .map(|x| *x.sequence_number());
+            .map(|x| x.sequence_number());
 
         if Some(checkpoint_seq) > highest_verified_checkpoint {
             debug!(
@@ -204,7 +203,7 @@ impl CheckpointOutput for LogCheckpointOutput {
             summary.epoch,
             summary.sequence_number,
             summary.previous_digest,
-            contents.size(),
+            contents.len(),
             summary.content_digest,
             summary.end_of_epoch_data,
         );

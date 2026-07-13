@@ -12,7 +12,7 @@ use std::{
 
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
-use iota_macros::fail_point;
+use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
 use serde::{Serialize, de::DeserializeOwned};
@@ -314,7 +314,11 @@ impl Database {
     /// Flush the memtable of a single column family to SST files on disk.
     pub(crate) fn flush_cf(&self, cf: &ColumnFamily) -> Result<(), TypedStoreError> {
         match &self.storage {
-            Storage::Rocks(rocks) => {
+            // A flush blocks on RocksDB background threads; under the simulator it
+            // must run off the test thread, like the opens in `rocks/mod.rs`, or
+            // real flush durations leak into the simulated schedule. No-op outside
+            // msim.
+            Storage::Rocks(rocks) => nondeterministic!({
                 let cf_name = cf.name();
                 if let Some(handle) = rocks.underlying.cf_handle(cf_name) {
                     rocks.underlying.flush_cf(&handle).map_err(|e| {
@@ -324,7 +328,7 @@ impl Database {
                     })?;
                 }
                 Ok(())
-            }
+            }),
             // InMemory databases don't need flushing.
             Storage::InMemory(_) => Ok(()),
         }
@@ -334,7 +338,9 @@ impl Database {
     /// family to SST files on disk.
     pub fn flush_all(&self) -> Result<(), TypedStoreError> {
         match &self.storage {
-            Storage::Rocks(rocks) => {
+            // See `flush_cf` for why the flushes run off the test thread under
+            // the simulator.
+            Storage::Rocks(rocks) => nondeterministic!({
                 for cf_name in &rocks.cf_names {
                     if let Some(cf) = rocks.underlying.cf_handle(cf_name) {
                         rocks.underlying.flush_cf(&cf).map_err(|e| {
@@ -345,7 +351,7 @@ impl Database {
                     }
                 }
                 Ok(())
-            }
+            }),
             // InMemory databases don't need flushing.
             Storage::InMemory(_) => Ok(()),
         }

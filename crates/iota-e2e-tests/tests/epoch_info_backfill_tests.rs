@@ -10,7 +10,7 @@ use iota_types::{
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    messages_checkpoint::CheckpointContents,
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt},
     storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;
@@ -659,7 +659,7 @@ async fn epoch_info_rebuilds_from_local_history() {
         .unwrap()
         .unwrap();
 
-    let mut seqs = vec![0u64, *highest.sequence_number()];
+    let mut seqs = vec![0u64, highest.sequence_number()];
     for epoch in 0..current_epoch {
         let closing = node_checkpoint_store
             .get_epoch_last_checkpoint(epoch)
@@ -668,7 +668,7 @@ async fn epoch_info_rebuilds_from_local_history() {
         target
             .insert_epoch_last_checkpoint(epoch, &closing)
             .unwrap();
-        seqs.push(*closing.sequence_number());
+        seqs.push(closing.sequence_number());
     }
     for seq in seqs {
         let summary = node_checkpoint_store

@@ -23,7 +23,8 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber,
     },
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},
@@ -137,7 +138,7 @@ impl PrimaryWorker {
         } = data;
 
         // Genesis epoch
-        if *checkpoint_summary.sequence_number() == 0 {
+        if checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
             let system_state =
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
@@ -326,10 +327,10 @@ impl PrimaryWorker {
             .enumerate_transactions(checkpoint_summary)
             .map(|(seq, execution_digest)| (execution_digest.transaction, seq));
 
-        if checkpoint_contents.size() != transactions.len() {
+        if checkpoint_contents.len() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
                 "checkpointContents has different size {} compared to Transactions {} for checkpoint {checkpoint_seq}",
-                checkpoint_contents.size(),
+                checkpoint_contents.len(),
                 transactions.len()
             )));
         }
@@ -354,7 +355,7 @@ impl PrimaryWorker {
                 Self::index_transaction_components(
                     tx,
                     tx_sequence_number,
-                    *checkpoint_seq,
+                    checkpoint_seq,
                     checkpoint_summary.timestamp_ms,
                     metrics,
                 )

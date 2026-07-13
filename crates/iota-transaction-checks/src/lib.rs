@@ -15,10 +15,10 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Address, ObjectId, Owner, TransactionKind};
+    use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionKind};
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        base_types::{ObjectRef, SequenceNumber},
+        base_types::SequenceNumber,
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -49,7 +49,7 @@ mod checked {
     // is verified and good to go
     fn get_gas_status(
         objects: &InputObjects,
-        gas: &[ObjectRef],
+        gas: &[ObjectReference],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
@@ -301,7 +301,7 @@ mod checked {
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
-        gas_override: &[ObjectRef],
+        gas_override: &[ObjectReference],
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
@@ -448,7 +448,7 @@ mod checked {
         objects: &InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        gas: &[ObjectRef],
+        gas: &[ObjectReference],
         gas_price: u64,
         transaction_gas_budget: u64,
         authentication_gas_budget: u64,
@@ -854,7 +854,7 @@ mod checked {
     /// In the case of shared objects, the mutability can differ, but the
     /// initial shared version must match. For other object kinds, they must
     /// match exactly.
-    fn checked_input_objects_union(
+    pub fn checked_input_objects_union(
         base_set: CheckedInputObjects,
         other_set: &CheckedInputObjects,
     ) -> IotaResult<CheckedInputObjects> {

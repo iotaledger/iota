@@ -77,24 +77,15 @@ authority-store-pruning-config:
   # config). Set to "null" to disable periodic compaction entirely.
   periodic-compaction-threshold-days: 1
 
-  # Maximum checkpoints processed in a single pruning batch (advanced). Default: 10.
-  max-checkpoints-in-batch: 10
-
-  # Maximum transactions processed in a single pruning batch (advanced). Default: 1000.
-  max-transactions-in-batch: 1000
-
-  # Spread pruning work evenly across the epoch to avoid I/O spikes. Default: true.
-  smooth: true
-
   # Use the RocksDB compaction filter for object-table pruning. When disabled,
   # a range-deletion approach is used. Do not toggle frequently — switching
   # back to range deletion may leave some old versions unpruned. Default: false.
   # enable-compaction-filter: false
-
-  # Delay (seconds) between consecutive pruner runs in aggressive mode
-  # (num-epochs-to-retain: 0). Optional. Default: unset.
-  # pruning-run-delay-seconds: null
 ```
+
+Pruning is driven by checkpoint execution: after each executed checkpoint the
+node prunes data that has aged past the retention window, pacing the work
+against on-chain checkpoint timestamps.
 
 ## Set an Archiving Watermark
 

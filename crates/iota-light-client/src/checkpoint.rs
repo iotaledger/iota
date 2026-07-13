@@ -76,7 +76,7 @@ pub fn write_checkpoint_summary(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
 ) -> Result<()> {
-    let path = config.checkpoint_summary_file_path(*summary.sequence_number());
+    let path = config.checkpoint_summary_file_path(summary.sequence_number());
     bcs::serialize_into(
         &mut fs::File::create(&path)
             .context(format!("error writing summary file '{}'", path.display()))?,
@@ -352,7 +352,7 @@ impl WriteStore for CheckpointSummaryFileStore {
     ) -> iota_types::storage::error::Result<()> {
         let path = self
             .config
-            .checkpoint_summary_file_path(*checkpoint.sequence_number());
+            .checkpoint_summary_file_path(checkpoint.sequence_number());
         info!("Downloading checkpoint summary to '{}'", path.display());
         bcs::serialize_into(
             &mut fs::File::create(&path).expect("error writing file"),
@@ -516,7 +516,9 @@ mod tests {
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{CheckpointContents, CheckpointSummary},
+        messages_checkpoint::{
+            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        },
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
@@ -555,7 +557,7 @@ mod tests {
     fn test_checkpoint_read_write() {
         let (config, _temp_dir) = create_test_config();
         let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             0,

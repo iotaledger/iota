@@ -472,7 +472,8 @@ fn assemble_boundary_checkpoint_data(
         effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     };
 
-    let Some(boundary_digests) = contents.inner().last() else {
+    let inner = contents.transactions();
+    let Some(boundary_digests) = inner.last() else {
         return Err(StorageError::custom("empty checkpoint contents"));
     };
     let tx_digest = boundary_digests.transaction;
@@ -523,7 +524,9 @@ mod tests {
         effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         iota_system_state::IotaSystemState,
         message_envelope::Envelope,
-        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
+        messages_checkpoint::{
+            CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummary, EndOfEpochData,
+        },
     };
     use typed_store::Map;
 

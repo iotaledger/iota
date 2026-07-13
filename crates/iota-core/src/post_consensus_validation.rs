@@ -39,8 +39,9 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_sdk_types::ObjectReference;
 use iota_types::{
-    base_types::{ObjectRef, TransactionDigest},
+    base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, VerifiedTransaction},
@@ -96,14 +97,14 @@ pub async fn validate_and_resolve_conflicts(
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
-    HashMap<ObjectRef, LockDetails>,
+    HashMap<ObjectReference, LockDetails>,
     Vec<TransactionDigest>,
 )> {
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
-    let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
+    let mut current_commit_locks: HashMap<ObjectReference, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
     // All UserTransactionV1 digests seen in this commit (both kept and dropped),
@@ -203,7 +204,7 @@ pub async fn validate_and_resolve_conflicts(
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
-        // Locks are keyed by full ObjectRef (id + version + digest), not just
+        // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
         // versions will NOT conflict here — version freshness is validated
         // later in Check #5 (deny checks load objects from DB and verify
@@ -327,8 +328,8 @@ pub async fn validate_and_resolve_conflicts(
 /// `ObjectLockConflict` for a contender, or `fatal!` if a winner is
 /// out-locked).
 fn find_existing_lock(
-    obj_ref: &ObjectRef,
-    current_commit_locks: &HashMap<ObjectRef, LockDetails>,
+    obj_ref: &ObjectReference,
+    current_commit_locks: &HashMap<ObjectReference, LockDetails>,
     epoch_store: &Arc<AuthorityPerEpochStore>,
 ) -> IotaResult<Option<LockDetails>> {
     if let Some(&locker) = current_commit_locks.get(obj_ref) {
@@ -347,7 +348,7 @@ fn find_existing_lock(
 /// packages) — these are the objects that need lock conflict detection.
 fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
-) -> IotaResult<Vec<ObjectRef>> {
+) -> IotaResult<Vec<ObjectReference>> {
     let transaction_data = match &tx.0.transaction {
         SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(transaction),

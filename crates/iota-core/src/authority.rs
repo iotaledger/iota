@@ -45,8 +45,8 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, Owner, RandomnessRound,
-    StructTag, TransactionExpiration, TransactionKind, TypeTag,
+    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, ObjectReference, Owner,
+    RandomnessRound, StructTag, TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -59,23 +59,20 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::{
-        AuthorityName, ConciseableName, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        VersionNumber,
+        AuthorityName, ConciseableName, ObjectInfo, ObjectType, SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
     digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
-    dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
@@ -86,7 +83,7 @@ use iota_types::{
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::{SIMULATION_GAS_COIN_VALUE, mock_simulation_gas_coin},
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -100,8 +97,8 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointResponse,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
+        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointRequest,
+        CheckpointResponse, CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
         CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
@@ -390,9 +387,6 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
     10.0, 50.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0, 2000.0,
     3000.0, 4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 50000.0, 100000.0, 1000000.0,
 ];
-
-/// Gas coin value used in dev-inspect and dry-runs if no gas coin was provided.
-pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
     pub fn new(registry: &prometheus_filtered::Registry) -> AuthorityMetrics {
@@ -872,7 +866,9 @@ pub struct AuthorityState {
     tx_execution_shutdown: Mutex<Option<oneshot::Sender<()>>>,
 
     pub metrics: Arc<AuthorityMetrics>,
-    _pruner: AuthorityStorePruner,
+    /// The store pruner. The checkpoint executor uses it to nudge the pruner
+    /// after each checkpoint and to be leashed if pruning falls behind.
+    pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
@@ -947,7 +943,7 @@ impl AuthorityState {
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<Vec<ObjectRef>> {
+    ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -1511,7 +1507,7 @@ impl AuthorityState {
             .map(|mut r| r.pop().expect("must return correct number of effects"))
     }
 
-    fn check_owned_locks(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn check_owned_locks(&self, owned_object_refs: &[ObjectReference]) -> IotaResult {
         self.get_object_cache_reader()
             .try_check_owned_objects_are_live(owned_object_refs)
     }
@@ -2069,7 +2065,7 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )> {
@@ -2096,7 +2092,7 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )> {
@@ -2113,7 +2109,7 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )> {
@@ -2346,15 +2342,7 @@ impl AuthorityState {
 
         // Create a mock gas object if one was not provided
         let mock_gas_id = if transaction.gas().is_empty() {
-            let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(
-                    OBJECT_START_VERSION,
-                    ObjectId::MAX,
-                    SIMULATION_GAS_COIN_VALUE,
-                ),
-                Owner::Address(transaction.gas_data().owner),
-                TransactionDigest::GENESIS_MARKER,
-            );
+            let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
             let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
@@ -2456,7 +2444,7 @@ impl AuthorityState {
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
         gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> IotaResult<DevInspectResults> {
@@ -3297,7 +3285,7 @@ impl AuthorityState {
                 .num_latest_epoch_dbs_to_retain,
         )
         .await;
-        let _pruner = AuthorityStorePruner::new(
+        let pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             grpc_indexes_store.clone(),
@@ -3343,7 +3331,7 @@ impl AuthorityState {
             transaction_manager,
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
-            _pruner,
+            pruner,
             authority_per_epoch_pruner,
             checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
@@ -3610,7 +3598,7 @@ impl AuthorityState {
         let highest_locally_built_checkpoint_seq = self
             .checkpoint_store
             .get_latest_locally_computed_checkpoint()?
-            .map(|c| *c.sequence_number())
+            .map(|c| c.sequence_number())
             .unwrap_or(0);
 
         assert!(
@@ -3717,7 +3705,7 @@ impl AuthorityState {
             self.checkpoint_store
                 .get_epoch_last_checkpoint(epoch_store.epoch())
                 .unwrap()
-                .map(|c| *c.sequence_number())
+                .map(|c| c.sequence_number())
                 .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();
@@ -3895,7 +3883,7 @@ impl AuthorityState {
             .expect("storage access failed")
     }
 
-    pub fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
+    pub fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectReference> {
         Ok(self
             .try_get_object(&ObjectId::SYSTEM)?
             .expect("system package should always exist")
@@ -4359,6 +4347,12 @@ impl AuthorityState {
 
     pub fn get_checkpoint_store(&self) -> &Arc<CheckpointStore> {
         &self.checkpoint_store
+    }
+
+    /// The store pruner; the checkpoint executor uses it to nudge the pruner
+    /// after each checkpoint and to be leashed when pruning falls behind.
+    pub fn pruner(&self) -> &AuthorityStorePruner {
+        &self.pruner
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {
@@ -4861,15 +4855,15 @@ impl AuthorityState {
     /// no lock records for the given object can be found.
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if the
     /// object record is at a different version.
-    /// Returns Some(VerifiedEnvelope) if the given ObjectRef is locked by a
-    /// certain transaction. Returns None if the a lock record is
-    /// initialized for the given ObjectRef but not yet locked by any
+    /// Returns Some(VerifiedEnvelope) if the given ObjectReference is locked by
+    /// a certain transaction. Returns None if the a lock record is
+    /// initialized for the given ObjectReference but not yet locked by any
     /// transaction,     or cannot find the transaction in transaction
     /// table, because of data race etc.
     #[instrument(level = "trace", skip_all)]
     pub fn get_transaction_lock(
         &self,
-        object_ref: &ObjectRef,
+        object_ref: &ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<VerifiedSignedTransaction>> {
         let lock_info = self
@@ -4905,13 +4899,13 @@ impl AuthorityState {
     pub fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<Option<ObjectRef>> {
+    ) -> IotaResult<Option<ObjectReference>> {
         self.get_object_cache_reader()
             .try_get_latest_object_ref_or_tombstone(object_id)
     }
 
     /// Non-fallible version of `try_get_object_or_tombstone`.
-    pub fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
+    pub fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectReference> {
         self.try_get_object_or_tombstone(object_id)
             .expect("storage access failed")
     }
@@ -4964,7 +4958,7 @@ impl AuthorityState {
     pub async fn get_available_system_packages(
         &self,
         binary_config: &BinaryConfig,
-    ) -> Vec<ObjectRef> {
+    ) -> Vec<ObjectReference> {
         let mut results = vec![];
 
         let system_packages = BuiltInFramework::iter_system_packages();
@@ -5021,7 +5015,7 @@ impl AuthorityState {
     /// this authority cannot run the upgrade that the network voted on.
     async fn get_system_package_bytes(
         &self,
-        system_packages: Vec<ObjectRef>,
+        system_packages: Vec<ObjectReference>,
         binary_config: &BinaryConfig,
     ) -> Option<Vec<SystemPackage>> {
         let ids: Vec<_> = system_packages
@@ -5104,7 +5098,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectRef>)> {
+    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectReference>)> {
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -5185,7 +5179,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Digest, Vec<ObjectRef>) {
+    ) -> (ProtocolVersion, Digest, Vec<ObjectReference>) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
         let mut protocol_version_digest = current_protocol_digest;
@@ -5694,14 +5688,8 @@ impl AuthorityState {
             );
         }
 
-        let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
-            auth_account_object_id,
-            &AuthenticatorFunctionRefV1Key::tag().into(),
-            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-        )
-        .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
-            account_object_id: auth_account_object_id,
-        })?;
+        let authenticator_function_ref_field_id =
+            derive_authenticator_function_ref_v1_dynamic_field_id(auth_account_object_id)?;
 
         let authenticator_function_ref_field = self
             .get_object_cache_reader()
@@ -5711,25 +5699,10 @@ impl AuthorityState {
             )?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
-            let field_move_object = authenticator_function_ref_field_obj
-                .data
-                .as_opt_struct()
-                .expect("dynamic field should never be a package object");
-
-            let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().map_err(|_| {
-                    UserInputError::InvalidAuthenticatorFunctionRefField {
-                        account_object_id: auth_account_object_id,
-                    }
-                })?;
-
-            Ok(AuthenticatorFunctionRefForExecution::new_v1(
-                field.value,
-                authenticator_function_ref_field_obj.object_ref(),
-                authenticator_function_ref_field_obj.owner,
-                authenticator_function_ref_field_obj.storage_rebate,
-                authenticator_function_ref_field_obj.previous_transaction,
-            ))
+            Ok(authenticator_function_ref_v1_from_dynamic_field_object(
+                auth_account_object_id,
+                &authenticator_function_ref_field_obj,
+            )?)
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,

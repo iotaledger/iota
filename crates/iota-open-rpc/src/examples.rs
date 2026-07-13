@@ -25,15 +25,13 @@ use iota_json_rpc_types::{
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, StructTag, TypeTag, gas::GasCostSummary,
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
-    base_types::{
-        ObjectDigest, ObjectRef, ObjectType, SequenceNumber, TransactionDigest, random_object_ref,
-    },
+    base_types::{ObjectDigest, ObjectType, SequenceNumber, TransactionDigest, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
     digests::TransactionEventsDigest,
@@ -182,7 +180,7 @@ impl RpcExampleProvider {
             builder
                 .transfer_object(
                     recipient,
-                    ObjectRef::new(
+                    ObjectReference::new(
                         object_id,
                         SequenceNumber::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
@@ -194,7 +192,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![ObjectRef::new(
+            vec![ObjectReference::new(
                 gas_id,
                 SequenceNumber::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
@@ -640,7 +638,7 @@ impl RpcExampleProvider {
     }
 
     fn get_protocol_config(&mut self) -> Examples {
-        let version = Some(6);
+        let version = Some(ProtocolVersion::MAX.as_u64());
         Examples::new(
             "iota_getProtocolConfig",
             vec![ExamplePairing::new(
@@ -674,12 +672,12 @@ impl RpcExampleProvider {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
         let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let obj_id = ObjectId::new(self.rng.gen());
-        let gas_ref = ObjectRef::new(
+        let gas_ref = ObjectReference::new(
             ObjectId::new(self.rng.gen()),
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = ObjectRef::new(
+        let object_ref = ObjectReference::new(
             obj_id,
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),

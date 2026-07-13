@@ -17,11 +17,9 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, StructTag};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    digests::ObjectDigest,
-    gas_coin::GAS,
+    base_types::SequenceNumber, digests::ObjectDigest, gas_coin::GAS,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
@@ -107,7 +105,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let ObjectRef { object_id: gas, .. } = cluster
+    let ObjectReference { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -157,11 +155,11 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let ObjectRef {
+    let ObjectReference {
         object_id: gas_to_send,
         ..
     } = gas_objs[0];
-    let ObjectRef {
+    let ObjectReference {
         object_id: gas_to_pay_for_tx,
         ..
     } = gas_objs[1];

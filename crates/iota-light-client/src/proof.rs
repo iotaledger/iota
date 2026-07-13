@@ -3,15 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
-use iota_sdk_types::Event;
+use iota_sdk_types::{Event, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     committee::Committee,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     event::EventID,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, EndOfEpochData,
+    },
     object::Object,
     transaction::Transaction,
 };
@@ -36,7 +37,7 @@ pub struct Proof {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProofTargets {
     /// Objects that need to be certified.
-    pub objects: Vec<(ObjectRef, Object)>,
+    pub objects: Vec<(ObjectReference, Object)>,
 
     /// Events that need to be certified.
     pub events: Vec<(EventID, Event)>,
@@ -56,7 +57,7 @@ impl ProofTargets {
     /// verified proof will ensure that both the reference and content are
     /// correct. Note that some content is metadata such as the transaction
     /// that created this object.
-    pub fn add_object(mut self, object_ref: ObjectRef, object: Object) -> Self {
+    pub fn add_object(mut self, object_ref: ObjectReference, object: Object) -> Self {
         self.objects.push((object_ref, object));
         self
     }
@@ -164,7 +165,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         if !contents_proof
             .checkpoint_contents
             .enumerate_transactions(summary)
-            .any(|x| x.1 == &digests)
+            .any(|x| x.1 == digests)
         {
             // Could not find the digest in the checkpoint contents
             bail!("Transaction digest not found in the checkpoint contents");

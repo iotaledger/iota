@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 30;
+pub const MAX_PROTOCOL_VERSION: u64 = 31;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -173,6 +173,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Expose `is_feature_enabled` and `get_attr<T>` natives to the
 //             iota_system package via a new iota_system::protocol_config
 //             module.
+// Version 31: Rebuild the framework binaries for the latest iota_system
+//             validator set changes.
+//             Enable validator metadata verification v2.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -540,6 +543,10 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true perform consistent verification of metadata
+    #[serde(skip_serializing_if = "is_false")]
+    validator_metadata_verify_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1794,6 +1801,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
+    pub fn validator_metadata_verify_v2(&self) -> bool {
+        self.feature_flags.validator_metadata_verify_v2
+    }
+
     pub fn commits_per_schedule(&self) -> u32 {
         if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
@@ -2963,6 +2974,9 @@ impl ProtocolConfig {
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
                     // iota_system via a new iota_system::protocol_config
                     // module.
+                }
+                31 => {
+                    cfg.feature_flags.validator_metadata_verify_v2 = true;
                 }
                 // Use this template when making changes:
                 //

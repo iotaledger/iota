@@ -31,11 +31,12 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
+    Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
+    StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, TransactionDigest, TxContext},
+    base_types::{ExecutionDigests, SequenceNumber, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -51,7 +52,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
@@ -1270,8 +1271,8 @@ fn create_genesis_checkpoint(
     let checkpoint = CheckpointSummary {
         epoch: 0,
         sequence_number: 0,
-        network_total_transactions: contents.size().try_into().unwrap(),
-        content_digest: *contents.digest(),
+        network_total_transactions: contents.len().try_into().unwrap(),
+        content_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         end_of_epoch_data: None,
@@ -1664,7 +1665,7 @@ pub fn split_timelocks(
     executor: &dyn Executor,
     genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
-    timelocks_to_split: &[(ObjectRef, u64, Address)],
+    timelocks_to_split: &[(ObjectReference, u64, Address)],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(

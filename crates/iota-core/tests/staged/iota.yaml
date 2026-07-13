@@ -130,23 +130,18 @@ CheckpointContents:
     0:
       V1:
         NEWTYPE:
-          TYPENAME: CheckpointContentsV1
+          TUPLE:
+            - SEQ:
+                TYPENAME: Digests
+            - SEQ:
+                SEQ: BYTES
 CheckpointContentsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-CheckpointContentsV1:
-  STRUCT:
-    - transactions:
-        SEQ:
-          TYPENAME: ExecutionDigests
-    - user_signatures:
-        SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
 CheckpointData:
   STRUCT:
     - checkpoint_summary:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
     - checkpoint_contents:
         TYPENAME: CheckpointContents
     - transactions:
@@ -174,8 +169,7 @@ CheckpointSummary:
     - end_of_epoch_data:
         OPTION:
           TYPENAME: EndOfEpochData
-    - version_specific_data:
-        SEQ: U8
+    - version_specific_data: BYTES
 CheckpointTransaction:
   STRUCT:
     - transaction:
@@ -288,6 +282,12 @@ DeleteKind:
       Wrap: UNIT
 Digest:
   NEWTYPESTRUCT: BYTES
+Digests:
+  STRUCT:
+    - transaction:
+        TYPENAME: TransactionDigest
+    - effects:
+        TYPENAME: TransactionEffectsDigest
 EffectsAuxDataDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -337,12 +337,6 @@ ExecutionData:
         TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
-ExecutionDigests:
-  STRUCT:
-    - transaction:
-        TYPENAME: TransactionDigest
-    - effects:
-        TYPENAME: TransactionEffectsDigest
 ExecutionError:
   ENUM:
     0:
@@ -1028,7 +1022,7 @@ VersionAssignment:
     - object_id:
         TYPENAME: ObjectId
     - version: U64
-"iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
+"iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:
         TYPENAME: CheckpointSummary

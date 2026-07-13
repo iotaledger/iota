@@ -6,9 +6,8 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectId, ObjectReference, TypeTag};
 use iota_types::{
-    base_types::ObjectRef,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
@@ -46,7 +45,7 @@ impl<'chk> Extractor<'chk> {
 
     pub(crate) fn iter_removed_objects(
         &'chk self,
-    ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
+    ) -> impl Iterator<Item = (ObjectReference, TransactionDigest)> + 'chk {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
@@ -140,7 +139,7 @@ impl RemovedObject {
     pub fn new(
         checkpoint_sequence_number: CheckpointSequenceNumber,
         transaction_digest: TransactionDigest,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> Self {
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,

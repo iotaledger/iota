@@ -6,13 +6,11 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId,
+    Address, Identifier, ObjectId, ObjectReference,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{
-        AuthorityName, ExecutionDigests, ObjectRef, TransactionDigest, random_object_ref,
-    },
+    base_types::{AuthorityName, ExecutionDigests, TransactionDigest, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
@@ -165,7 +163,7 @@ pub fn create_fake_cert_and_effect_digest<'a>(
 }
 
 pub fn make_transfer_iota_transaction(
-    gas_object: ObjectRef,
+    gas_object: ObjectReference,
     recipient: Address,
     amount: Option<u64>,
     sender: Address,
@@ -184,8 +182,8 @@ pub fn make_transfer_iota_transaction(
 }
 
 pub fn make_pay_iota_transaction(
-    gas_object: ObjectRef,
-    coins: Vec<ObjectRef>,
+    gas_object: ObjectReference,
+    coins: Vec<ObjectReference>,
     recipients: Vec<Address>,
     amounts: Vec<u64>,
     sender: Address,
@@ -201,8 +199,8 @@ pub fn make_pay_iota_transaction(
 }
 
 pub fn make_transfer_object_transaction(
-    object_ref: ObjectRef,
-    gas_object: ObjectRef,
+    object_ref: ObjectReference,
+    gas_object: ObjectReference,
     sender: Address,
     keypair: &AccountKeyPair,
     recipient: Address,
@@ -223,9 +221,9 @@ pub fn make_transfer_object_move_transaction(
     src: Address,
     keypair: &AccountKeyPair,
     dest: Address,
-    object_ref: ObjectRef,
+    object_ref: ObjectReference,
     framework_obj_id: ObjectId,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_budget_in_units: u64,
     gas_price: u64,
 ) -> Transaction {

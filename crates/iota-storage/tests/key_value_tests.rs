@@ -18,8 +18,8 @@ use iota_types::{
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,
@@ -86,7 +86,7 @@ impl MockTxStore {
         self.next_seq_number += 1;
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
@@ -117,7 +117,7 @@ impl MockTxStore {
         self.checkpoint_summaries_by_digest
             .insert(*certified.digest(), certified.clone());
         self.checkpoint_contents_by_digest
-            .insert(*contents.digest(), contents.clone());
+            .insert(contents.digest(), contents.clone());
         (certified, contents)
     }
 }

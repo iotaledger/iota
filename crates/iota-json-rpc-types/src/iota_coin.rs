@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, SequenceNumber, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -113,8 +113,8 @@ pub struct Coin {
 }
 
 impl Coin {
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.coin_object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.coin_object_id, self.version, self.digest)
     }
 }
 

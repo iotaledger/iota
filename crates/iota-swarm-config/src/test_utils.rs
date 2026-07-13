@@ -15,8 +15,8 @@ use iota_types::{
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointTimestamp, CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
 };
 
@@ -112,7 +112,7 @@ impl CommitteeFixture {
             );
         }
 
-        let content_digest = *contents
+        let content_digest = contents
             .clone()
             .into_inner()
             .into_checkpoint_contents()
@@ -192,7 +192,7 @@ impl CommitteeFixture {
         let (ordered_checkpoints, contents): (Vec<_>, Vec<_>) =
             std::iter::successors(Some(first), |prev| {
                 let contents = content_generator();
-                let contents_digest = *contents
+                let contents_digest = contents
                     .clone()
                     .into_inner()
                     .into_checkpoint_contents()
@@ -239,6 +239,42 @@ impl CommitteeFixture {
         )
     }
 
+    /// Builds a chain of empty checkpoints assigning each the given timestamp
+    /// (in order), for tests that need control over checkpoint timestamps.
+    pub fn make_checkpoints_with_timestamps(
+        &self,
+        timestamps_ms: &[CheckpointTimestamp],
+        previous_checkpoint: Option<VerifiedCheckpoint>,
+    ) -> Vec<VerifiedCheckpoint> {
+        let mut prev = previous_checkpoint.unwrap_or_else(|| self.create_root_checkpoint().0);
+        let mut checkpoints = Vec::with_capacity(timestamps_ms.len());
+        for &timestamp_ms in timestamps_ms {
+            let content_digest = empty_contents()
+                .into_inner()
+                .into_checkpoint_contents()
+                .digest();
+            let summary = CheckpointSummary {
+                epoch: self.epoch,
+                sequence_number: prev.sequence_number + 1,
+                network_total_transactions: prev.network_total_transactions,
+                content_digest,
+                previous_digest: Some(*prev.digest()),
+                epoch_rolling_gas_cost_summary: Default::default(),
+                end_of_epoch_data: None,
+                timestamp_ms,
+                version_specific_data: bcs::to_bytes(
+                    &CheckpointVersionSpecificData::empty_for_tests(),
+                )
+                .unwrap(),
+                checkpoint_commitments: Default::default(),
+            };
+            let checkpoint = self.create_certified_checkpoint(summary);
+            prev = checkpoint.clone();
+            checkpoints.push(checkpoint);
+        }
+        checkpoints
+    }
+
     pub fn make_end_of_epoch_checkpoint(
         &self,
         previous_checkpoint: VerifiedCheckpoint,
@@ -252,7 +288,7 @@ impl CommitteeFixture {
             epoch: self.epoch,
             sequence_number: previous_checkpoint.sequence_number + 1,
             network_total_transactions: 0,
-            content_digest: *empty_contents()
+            content_digest: empty_contents()
                 .into_inner()
                 .into_checkpoint_contents()
                 .digest(),

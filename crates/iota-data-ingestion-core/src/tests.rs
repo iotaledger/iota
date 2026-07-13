@@ -14,19 +14,19 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectId, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+    Address, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
@@ -445,7 +445,7 @@ async fn basic_flow_with_custom_callback() {
             randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),
         Address::random(),
-        ObjectRef::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        ObjectReference::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
         0,
         0,
     );
@@ -746,7 +746,7 @@ fn mock_checkpoint_data_bytes_with_opt(
     let mut rng = StdRng::from_seed(RNG_SEED);
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-    let summary = CheckpointSummary::new(
+    let summary = CheckpointSummary::new_with_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         epoch,
         seq_number,

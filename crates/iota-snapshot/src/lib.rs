@@ -34,13 +34,13 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
-    base_types::ObjectRef,
+    base_types::ExecutionDigests,
     committee::{Committee, CommitteeChainVerifier},
     digests::ChainIdentifier,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -131,18 +131,18 @@ use crate::restore::RestoreEpochInfo;
 /// └───────────────┴───────────────────┴──────────────┘
 ///
 /// REFERENCE File Disk Format
-/// ┌──────────────────────────────┐
-/// │  magic(0xDEADBEEF) <4 byte>  │
-/// ├──────────────────────────────┤
-/// │ ┌──────────────────────────┐ │
-/// │ │         ObjectRef 1      │ │
-/// │ ├──────────────────────────┤ │
-/// │ │          ...             │ │
-/// │ ├──────────────────────────┤ │
-/// │ │         ObjectRef N      │ │
-/// │ └──────────────────────────┘ │
-/// └──────────────────────────────┘
-/// ObjectRef (ObjectId, SequenceNumber, ObjectDigest)
+/// ┌────────────────────────────────────┐
+/// │     magic(0xDEADBEEF) <4 byte>     │
+/// ├────────────────────────────────────┤
+/// │ ┌────────────────────────────────┐ │
+/// │ │       ObjectReference 1        │ │
+/// │ ├────────────────────────────────┤ │
+/// │ │              ...               │ │
+/// │ ├────────────────────────────────┤ │
+/// │ │       ObjectReference N        │ │
+/// │ └────────────────────────────────┘ │
+/// └────────────────────────────────────┘
+/// ObjectReference (ObjectId, SequenceNumber, ObjectDigest)
 /// ┌───────────────┬───────────────────┬──────────────┐
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘
@@ -382,7 +382,7 @@ impl VerifiedEpochInfo {
             .map(|(entry, start_system_state)| {
                 let start_checkpoint = previous_end_checkpoint.map_or(0, |seq| seq + 1);
                 previous_end_checkpoint =
-                    Some(*entry.last_checkpoint_summary.data().sequence_number());
+                    Some(entry.last_checkpoint_summary.data().sequence_number());
                 epoch_info_v2_row(entry, start_system_state, start_checkpoint)
             })
             .collect()
@@ -478,19 +478,20 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
 
     // 1. Contents hash to the signed summary.
     anyhow::ensure!(
-        *entry.last_checkpoint_contents.digest() == summary.content_digest,
+        entry.last_checkpoint_contents.digest() == summary.content_digest,
         "last_checkpoint_contents does not hash to the signed content_digest",
     );
 
     // 2. The epoch-change effects are the last tx of the verified contents.
     let expected_execution_digest = entry
         .last_checkpoint_contents
-        .inner()
+        .transactions()
         .last()
+        .map(|info| ExecutionDigests::new(info.transaction, info.effects))
         .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
     let effects = &entry.end_of_epoch_tx_effects;
     anyhow::ensure!(
-        effects.execution_digests() == *expected_execution_digest,
+        effects.execution_digests() == expected_execution_digest,
         "end_of_epoch_tx_effects digest pair does not match the closing checkpoint's last transaction",
     );
 
@@ -510,7 +511,7 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
 
     // 4. Each start-state object's digest is one the effects wrote; `0x5` must
     // be present. Decode `IotaSystemState` only from these verified bytes.
-    let written: HashSet<ObjectRef> = effects
+    let written: HashSet<ObjectReference> = effects
         .all_changed_objects()
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)

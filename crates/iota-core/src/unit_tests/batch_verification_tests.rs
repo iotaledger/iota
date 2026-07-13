@@ -12,7 +12,10 @@ use iota_sdk_types::gas::GasCostSummary;
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
+    },
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
@@ -57,7 +60,7 @@ fn gen_ckpts(
             let name = k.public().into();
             SignedCheckpointSummary::new(
                 committee.epoch,
-                CheckpointSummary::new(
+                CheckpointSummary::new_with_protocol_config(
                     &ProtocolConfig::get_for_max_version_UNSAFE(),
                     committee.epoch,
                     // insert different data for each checkpoint so that we can swap sigs later

@@ -8,9 +8,9 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, SequenceNumber, address_from_iota_pub_key},
+    base_types::{AuthorityName, SequenceNumber, address_from_iota_pub_key},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     digests::TransactionDigest,
@@ -202,14 +202,13 @@ impl InMemoryStore {
         }
 
         self.checkpoint_digest_to_sequence_number
-            .insert(*checkpoint.digest(), *checkpoint.sequence_number());
+            .insert(*checkpoint.digest(), checkpoint.sequence_number());
         self.checkpoints
-            .insert(*checkpoint.sequence_number(), checkpoint);
+            .insert(checkpoint.sequence_number(), checkpoint);
     }
 
     pub fn insert_checkpoint_contents(&mut self, contents: CheckpointContents) {
-        self.checkpoint_contents
-            .insert(*contents.digest(), contents);
+        self.checkpoint_contents.insert(contents.digest(), contents);
     }
 
     pub fn insert_committee(&mut self, committee: Committee) {
@@ -256,7 +255,7 @@ impl InMemoryStore {
     pub fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     ) {
         for deleted_object in deleted_objects {
             self.live_objects.remove(&deleted_object.object_id);
@@ -641,7 +640,7 @@ impl SimulatorStore for InMemoryStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     ) {
         self.update_objects(written_objects, deleted_objects)
     }

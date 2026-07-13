@@ -51,7 +51,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TransactionKind,
+    TypeTag,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -59,12 +60,15 @@ use iota_sdk_types::{
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
+        },
     },
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, DynamicFieldInfo, Field},
+    dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -306,6 +310,9 @@ pub enum IotaClientCommands {
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
+        /// Optional gRPC Url, for example http://127.0.0.1:9000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
         #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
@@ -1922,6 +1929,7 @@ impl IotaClientCommands {
                 rpc,
                 graphql,
                 ws,
+                grpc,
                 basic_auth,
                 faucet,
             } => {
@@ -1931,6 +1939,7 @@ impl IotaClientCommands {
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
                     .with_ws(ws)
+                    .with_grpc(grpc)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
 
@@ -3189,7 +3198,7 @@ pub async fn execute_dry_run(
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3264,7 +3273,7 @@ pub async fn estimate_gas_budget(
     signer: Address,
     kind: TransactionKind,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3317,7 +3326,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
@@ -3516,7 +3525,7 @@ async fn execute_dev_inspect(
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_objects: Vec<ObjectRef>,
+    gas_objects: Vec<ObjectReference>,
     gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
@@ -3808,11 +3817,8 @@ pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
-    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
-        signer,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )?;
+    let authenticator_function_ref_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(signer)?;
 
     let response = client
         .read_api()

@@ -18,20 +18,18 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag, TransactionKind};
+use iota_sdk_types::{ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::{self, Field},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
@@ -1782,7 +1780,7 @@ impl LocalExec {
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
-        let shared_object_refs: Vec<ObjectRef> = effects
+        let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
@@ -1877,7 +1875,7 @@ impl LocalExec {
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
-        let shared_object_refs: Vec<ObjectRef> = effects
+        let shared_object_refs: Vec<ObjectReference> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
@@ -1937,7 +1935,7 @@ impl LocalExec {
     async fn resolve_download_input_objects(
         &mut self,
         tx_info: &OnChainTransactionInfo,
-        deleted_shared_objects: Vec<ObjectRef>,
+        deleted_shared_objects: Vec<ObjectReference>,
     ) -> Result<InputObjects, ReplayEngineError> {
         // Download the input objects
         let mut package_inputs = vec![];
@@ -2089,10 +2087,11 @@ impl LocalExec {
         self.multi_download_and_store(&tx_info.modified_at_versions)
             .await?;
 
-        let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
-            .shared_object_refs
-            .iter()
-            .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
+        let (shared_refs, deleted_shared_refs): (Vec<ObjectReference>, Vec<ObjectReference>) =
+            tx_info
+                .shared_object_refs
+                .iter()
+                .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
         let shared_refs: Vec<_> = shared_refs
@@ -2137,12 +2136,9 @@ impl LocalExec {
                 .object_to_authenticate_components()
                 .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-            let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
-                account_object_id,
-                &AuthenticatorFunctionRefV1Key::tag().into(),
-                &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-            )
-            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+            let authenticator_function_ref_field_id =
+                derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+                    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
             // Get account object version from the already-downloaded objects
             let account_object_version = self
@@ -2176,12 +2172,8 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = dynamic_field::derive_dynamic_field_id(
-        account_object_id,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )
-    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+    let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
+        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
     let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
         err: format!(
@@ -2190,26 +2182,8 @@ fn load_authenticator_function_ref(
         ),
     })?;
 
-    let field_move_object = field_obj
-        .data
-        .as_opt_struct()
-        .expect("dynamic field should never be a package object");
-
-    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
-        .to_rust()
-        .map_err(|e| ReplayEngineError::GeneralError {
-            err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
-            ),
-        })?;
-
-    Ok(AuthenticatorFunctionRefForExecution::new_v1(
-        field.value,
-        field_obj.object_ref(),
-        field_obj.owner,
-        field_obj.storage_rebate,
-        field_obj.previous_transaction,
-    ))
+    authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
+        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
+    ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
     RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
     TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
@@ -22,7 +22,9 @@ use iota_sdk_types::{
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
-    base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
+    base_types::{
+        ExecutionData, ExecutionDigests, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
+    },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
@@ -36,7 +38,8 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
+        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointSummary,
+        FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
@@ -230,6 +233,21 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
         .unwrap();
 
+    // `CheckpointContents` (the SDK type) has a custom (de)serializer, so the
+    // tracer needs a concrete sample rather than a synthesized one. Seed one
+    // carrying a real user signature so its `UserSignature` flag bytes are
+    // available.
+    let checkpoint_contents_sample = CheckpointContents::new_with_digests_and_signatures(
+        [ExecutionDigests::new(
+            TransactionDigest::random(),
+            TransactionEffectsDigest::random(),
+        )],
+        vec![vec![GenericSignature::Signature(sig.clone())]],
+    );
+    tracer
+        .trace_value(&mut samples, &checkpoint_contents_sample)
+        .unwrap();
+
     tracer.trace_value(&mut samples, &sig1).unwrap();
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
@@ -345,7 +363,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+            &CallArg::ImmutableOrOwned(ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -361,7 +379,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+            &CallArg::Receiving(ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
@@ -530,8 +548,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
     tracer.trace_type::<TransactionEffects>(&samples).unwrap();
-
-    tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
     tracer
@@ -553,7 +569,7 @@ fn get_registry() -> Result<Registry> {
                 },
             )]),
             Address::ZERO,
-            vec![iota_types::base_types::ObjectRef::new(
+            vec![ObjectReference::new(
                 ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::default(),

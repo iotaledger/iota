@@ -33,8 +33,8 @@ use iota_types::{
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, ECMHLiveObjectSetDigest,
-        EndOfEpochData, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
+        ECMHLiveObjectSetDigest, EndOfEpochData, SignedCheckpointSummary,
     },
     object::Object,
     storage::EpochInfoV2,
@@ -1091,7 +1091,7 @@ fn epoch_info_v2_row_derives_fields() {
     // `end_*` derived from the signed last-checkpoint summary.
     assert_eq!(
         row.end_checkpoint(),
-        Some(*entry.last_checkpoint_summary.data().sequence_number()),
+        Some(entry.last_checkpoint_summary.data().sequence_number()),
     );
     assert_eq!(
         row.end_timestamp_ms(),

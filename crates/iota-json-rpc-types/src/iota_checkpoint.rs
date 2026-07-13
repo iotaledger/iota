@@ -10,10 +10,9 @@ use iota_types::{
     crypto::AggregateAuthoritySignature,
     digests::{CheckpointDigest, Digest},
     iota_serde::BigInt,
-    message_envelope::Message,
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
+        CheckpointCommitment, CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSummary, CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
     },
 };
 use schemars::JsonSchema;

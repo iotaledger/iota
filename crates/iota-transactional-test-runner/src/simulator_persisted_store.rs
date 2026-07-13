@@ -7,10 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Owner, StructTag};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -235,18 +235,18 @@ impl SimulatorStore for PersistedStore {
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
         self.read_write
             .checkpoint_digest_to_sequence_number
-            .insert(checkpoint.digest(), checkpoint.sequence_number())
+            .insert(checkpoint.digest(), &checkpoint.sequence_number())
             .expect("Fatal: DB write failed");
         self.read_write
             .checkpoints
-            .insert(checkpoint.sequence_number(), checkpoint.serializable_ref())
+            .insert(&checkpoint.sequence_number(), checkpoint.serializable_ref())
             .expect("Fatal: DB write failed");
     }
 
     fn insert_checkpoint_contents(&mut self, contents: CheckpointContents) {
         self.read_write
             .checkpoint_contents
-            .insert(contents.digest(), &contents)
+            .insert(&contents.digest(), &contents)
             .expect("Fatal: DB write failed");
     }
 
@@ -308,7 +308,7 @@ impl SimulatorStore for PersistedStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     ) {
         for object_ref in deleted_objects {
             self.read_write

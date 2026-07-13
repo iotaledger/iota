@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, ObjectReference};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -41,7 +41,7 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -83,10 +83,12 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
+            // disable full node pruning: tests read `balance_changes` / `object_changes` in
+            // which needs historical data.
             let (cluster, store, client) =
                 runtime.block_on(start_test_cluster_with_read_write_indexer(
                     Some("shared_test_indexer_db"),
-                    None,
+                    Some(Box::new(|builder| builder.disable_fullnode_pruning())),
                     None,
                 ));
 
@@ -560,7 +562,7 @@ pub async fn publish_test_move_package(
     address: Address,
     account_keypair: &IotaKeyPair,
     test_package_name: &str,
-) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+) -> Result<(ObjectReference, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK
         .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
         .await
