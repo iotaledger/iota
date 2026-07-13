@@ -36,11 +36,9 @@ impl TestCaseImpl for CoinIndexTest {
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         let account = ctx.get_wallet_address();
         let client = ctx.clone_fullnode_client();
-        let grpc_client = iota_grpc_client::Client::new(
-            ctx.get_fullnode_grpc_url()
-                .expect("coin index test requires a local cluster with the gRPC API enabled"),
-        )
-        .unwrap();
+        let grpc_client = ctx
+            .get_fullnode_grpc_client()
+            .expect("coin index test requires a local cluster with the gRPC API enabled");
         let rgp = ctx.get_reference_gas_price().await;
 
         // 0. Get some coins first
@@ -636,11 +634,9 @@ async fn add_to_envelope(
     coin: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let account = ctx.get_wallet_address();
-    let grpc_client = iota_grpc_client::Client::new(
-        ctx.get_fullnode_grpc_url()
-            .expect("coin index test requires a local cluster with the gRPC API enabled"),
-    )
-    .unwrap();
+    let grpc_client = ctx
+        .get_fullnode_grpc_client()
+        .expect("coin index test requires a local cluster with the gRPC API enabled");
     let rgp = ctx.get_reference_gas_price().await;
     let txn = move_call_tx(
         &grpc_client,
