@@ -33,6 +33,12 @@
 # A config that fails (or is interrupted) does NOT abort the matrix — it's logged
 # and the next config runs. Re-running is safe: run.sh's config gate appends more
 # iterations to an existing label (same config) rather than overwriting.
+#
+# Per-config runs skip aggregate/plots (ANALYZE=false): those tools re-read every
+# accumulated iteration of a label, so invoking them each round costs
+# quadratically over a campaign. One sweep after the last round aggregates +
+# plots every label; if the matrix is interrupted before it, run the sweep
+# manually (see the bottom of this script).
 
 set -uo pipefail
 
@@ -149,7 +155,7 @@ for ((round = 1; round <= ITERS; round++)); do
     echo "[$(date +%H:%M:%S)] ($n/$total) round $round  $label  -> logs/$label.log"
     echo "===== round $round =====" >>"$log"
     # shellcheck disable=SC2086  # $envs is intentionally word-split into KEY=VAL args
-    if env LABEL="$label" ITERS=1 $envs "$SCRIPT_DIR/run.sh" >>"$log" 2>&1; then
+    if env LABEL="$label" ITERS=1 ANALYZE=false $envs "$SCRIPT_DIR/run.sh" >>"$log" 2>&1; then
       echo "    ✓ done"
       ok=$((ok + 1))
     else
@@ -163,6 +169,30 @@ for ((round = 1; round <= ITERS; round++)); do
     sudo find "$SCRIPT_DIR/results/$label" -path '*node-logs/*.log' \
       ! -name '_state.log' ! -name '_crash.log' -exec gzip -f {} + 2>/dev/null
   done
+done
+
+# Aggregate + plot every label ONCE, now that all rounds are in (per-round
+# analysis was skipped via ANALYZE=false above). If the matrix was interrupted
+# before reaching this sweep, run it manually per label:
+#   python3 aggregate.py results/<LABEL> results/<LABEL>/summary.md
+#   .venv/bin/python plot.py --label <LABEL>
+echo
+echo "########## aggregate + plots (all labels) ##########"
+VENV_PY="$SCRIPT_DIR/.venv/bin/python"
+[[ -x "$VENV_PY" ]] ||
+  echo "venv not found ($VENV_PY) — plots will be skipped (pip install matplotlib numpy)"
+for row in "${configs[@]}"; do
+  label="${row%%|*}"
+  label="${label// /}"
+  [[ -n "$FILTER" && "$label" != *"$FILTER"* ]] && continue
+  [[ -d "$SCRIPT_DIR/results/$label" ]] || continue
+  echo "[$(date +%H:%M:%S)] $label"
+  python3 "$SCRIPT_DIR/aggregate.py" "$SCRIPT_DIR/results/$label" "$SCRIPT_DIR/results/$label/summary.md" ||
+    echo "    ✗ aggregate.py failed"
+  if [[ -x "$VENV_PY" ]]; then
+    "$VENV_PY" "$SCRIPT_DIR/plot.py" --label "$label" ||
+      echo "    ✗ plot.py failed"
+  fi
 done
 
 mins=$((($(date +%s) - start) / 60))

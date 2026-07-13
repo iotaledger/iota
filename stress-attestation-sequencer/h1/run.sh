@@ -16,9 +16,12 @@
 #                 Run A's JSON is saved before the reset)
 #   5. capture    save each run's window as a raw timeseries JSON + node logs,
 #                 then stop the network.
-# After all ITERS iterations: aggregate.py pools results/<LABEL>/ into summary.md,
-# plot.py renders per-panel figures across ALL iterations into results/<LABEL>/
-# plots/, and (once) prompts whether to also stop monitoring (Grafana).
+# After all ITERS iterations: aggregate.py pools results/<LABEL>/ into summary.md
+# and plot.py renders per-panel figures across ALL iterations into
+# results/<LABEL>/plots/ — both skipped when ANALYZE=false (matrix.sh sets it:
+# they re-read every accumulated iteration of the label, so per-round invocation
+# grows quadratically over a campaign; the matrix sweeps every label once at the
+# end instead). Finally (once) prompts whether to also stop monitoring (Grafana).
 #
 # Run as a NORMAL user (cargo must not run as root); `sudo` is used internally
 # only for cleanup/bootstrap.
@@ -30,7 +33,7 @@
 #                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, MAX_DEFERRAL_ROUNDS,
 #                 MAX_ACCUMULATED_TXN_COST, MAX_CONGESTION_OVERSHOOT,
 #                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
-#                 TS_STEP, EPOCH_DURATION_MS.
+#                 TS_STEP, EPOCH_DURATION_MS, ANALYZE.
 
 set -euo pipefail
 
@@ -113,6 +116,7 @@ PRE_STOP_WAIT_S="${PRE_STOP_WAIT_S:-2}"           # keep Run A's network up this
 PROM="${PROM:-http://localhost:9090}"
 TS_STEP="${TS_STEP:-1}" # query_range step (s) for the per-run raw timeseries dump
 ITERS="${ITERS:-1}"     # how many times to run the whole experiment; each adds one iter-NNN to results/<LABEL>/
+ANALYZE="${ANALYZE:-true}" # false => skip the post-run aggregate.py/plot.py (matrix.sh sweeps once at campaign end)
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 # iota-benchmark moved to the sibling repo `network-benchmark` (one level up
 # from the iota repo root). Override the repo dir with BENCH_REPO, or point
@@ -493,28 +497,32 @@ for ((_iter = 1; _iter <= ITERS; _iter++)); do
   run_one_iteration
 done
 
-# Aggregate ALL iterations of this label into one summary (not just this run's
-# $ITERS). The config gate guarantees they share a config, so pooling their raw
-# histograms is valid — more iterations => less noise. (Replaces the old per-run
-# archive/ de-mixing.)
-n_iters=$(ls -1d "$EXP_DIR"/iter-*/ 2>/dev/null | wc -l | tr -d ' ')
-banner "== aggregate experiment '$LABEL' (all $n_iters iteration(s)) =="
-python3 "$SCRIPT_DIR/aggregate.py" "$EXP_DIR" "$EXP_DIR/summary.md"
-echo "  - summary -> $(rel "$EXP_DIR/summary.md")"
+if [[ "$ANALYZE" == true ]]; then
+  # Aggregate ALL iterations of this label into one summary (not just this run's
+  # $ITERS). The config gate guarantees they share a config, so pooling their raw
+  # histograms is valid — more iterations => less noise. (Replaces the old per-run
+  # archive/ de-mixing.)
+  n_iters=$(ls -1d "$EXP_DIR"/iter-*/ 2>/dev/null | wc -l | tr -d ' ')
+  banner "== aggregate experiment '$LABEL' (all $n_iters iteration(s)) =="
+  python3 "$SCRIPT_DIR/aggregate.py" "$EXP_DIR" "$EXP_DIR/summary.md"
+  echo "  - summary -> $(rel "$EXP_DIR/summary.md")"
 
-# Render Grafana-style figures across ALL iterations of this label (every iter-NNN
-# under results/<LABEL>/, not just this run) — V1 vs V2, mean/median + variance
-# band — into results/<LABEL>/plots/. Uses the local venv (matplotlib/numpy);
-# non-fatal and skipped with a hint if the venv isn't set up.
-VENV_PY="$SCRIPT_DIR/.venv/bin/python"
-if [[ -x "$VENV_PY" ]]; then
-  echo "  - plots   -> $(rel "$EXP_DIR/plots")/"
-  "$VENV_PY" "$SCRIPT_DIR/plot.py" --label "$LABEL" ||
-    echo "${RED}    - plot.py failed (non-fatal); data + summary are intact.${RESET}"
+  # Render Grafana-style figures across ALL iterations of this label (every iter-NNN
+  # under results/<LABEL>/, not just this run) — V1 vs V2, mean/median + variance
+  # band — into results/<LABEL>/plots/. Uses the local venv (matplotlib/numpy);
+  # non-fatal and skipped with a hint if the venv isn't set up.
+  VENV_PY="$SCRIPT_DIR/.venv/bin/python"
+  if [[ -x "$VENV_PY" ]]; then
+    echo "  - plots   -> $(rel "$EXP_DIR/plots")/"
+    "$VENV_PY" "$SCRIPT_DIR/plot.py" --label "$LABEL" ||
+      echo "${RED}    - plot.py failed (non-fatal); data + summary are intact.${RESET}"
+  else
+    echo "${YELLOW}Skipping plots: venv not found. Set it up once, then re-plot anytime:${RESET}"
+    echo "${YELLOW}  python3 -m venv $SCRIPT_DIR/.venv && $SCRIPT_DIR/.venv/bin/pip install matplotlib numpy${RESET}"
+    echo "${YELLOW}  $VENV_PY $SCRIPT_DIR/plot.py --label $LABEL${RESET}"
+  fi
 else
-  echo "${YELLOW}Skipping plots: venv not found. Set it up once, then re-plot anytime:${RESET}"
-  echo "${YELLOW}  python3 -m venv $SCRIPT_DIR/.venv && $SCRIPT_DIR/.venv/bin/pip install matplotlib numpy${RESET}"
-  echo "${YELLOW}  $VENV_PY $SCRIPT_DIR/plot.py --label $LABEL${RESET}"
+  banner "== ANALYZE=false — skipping aggregate + plots (matrix sweeps all labels at the end) =="
 fi
 
 echo
