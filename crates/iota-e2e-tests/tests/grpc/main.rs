@@ -11,3 +11,4 @@
 mod client;
 mod utils;
 mod v1;
+mod wallet_context;
