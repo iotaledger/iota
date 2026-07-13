@@ -82,10 +82,12 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
+            // disable full node pruning: tests read `balance_changes` / `object_changes` in
+            // which needs historical data.
             let (cluster, store, client) =
                 runtime.block_on(start_test_cluster_with_read_write_indexer(
                     Some("shared_test_indexer_db"),
-                    None,
+                    Some(Box::new(|builder| builder.disable_fullnode_pruning())),
                     None,
                 ));
 
