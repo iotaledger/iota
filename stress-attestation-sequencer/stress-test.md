@@ -61,8 +61,9 @@ Grafana view.
 
 Aggregation and reporting tooling (all under `h1/` directory):
 
-- `make_table.py` generates `results/summary_table.md` (+
-  `results/summary_table.csv`): one row per configuration, an A/B cell per
+- `make_table.py` generates `results/summary_table_n<N>.md` (+
+  `results/summary_table_n<N>.csv`) for one network size at a time (`--net`,
+  default 4): one row per configuration, an A/B cell per
   metric (`mean ± std` over all seconds of all iterations), with the
   network-level series computed exactly as `plot.py` does (rate /
   `histogram_quantile`, per-validator collapse). Bursty queue and shedding
@@ -70,8 +71,9 @@ Aggregation and reporting tooling (all under `h1/` directory):
   percentages) instead report the
   peak: max over time per iteration, averaged across iterations — their mean
   over time would hide the short spikes that actually hit a limit.
-- `summary_plot.py` generates `results/summary_plots/*.png`: grouped A vs B
-  bar charts per metric, configurations on the x-axis, log-scale y.
+- `summary_plot.py` generates `results/summary_plots_n<N>/*.png` (same `--net`
+  switch): grouped A vs B bar charts per metric, configurations on the x-axis,
+  log-scale y.
 
 > [!NOTE]
 > Client-side `settlement_finality_latency` and `submit_transaction_latency` are
@@ -172,7 +174,7 @@ dominate it (462 ms full vs 93 ms dry-run on `f`). A heavy attested
 transaction is still executed twice — once for the dry-run, once for real —
 so it costs the validator roughly double.
 
-![Attestation computation units and dry-run execution latency](h1/results/summary_plots/attestation_latency_exec.png)
+![Attestation computation units and dry-run execution latency](h1/results/summary_plots_n4/attestation_latency_exec.png)
 
 *Computation units, attestation dry-run execution latency (p50/p95), and actual
 execution latency (p95) — findings 1–3. CUs sit at the gas floor for
@@ -233,20 +235,20 @@ than the dry-run itself). The parts do not sum exactly to the full column:
 each column is its own percentile over different transactions, so the split is
 additive at the mean, not per percentile.
 
-![Attestation pool wait latency](h1/results/summary_plots/attestation_latency_wait.png)
+![Attestation pool wait latency](h1/results/summary_plots_n4/attestation_latency_wait.png)
 
 *Attestation pool wait (p99/p95/p50) — how long a dry-run sits queued before a
 `spawn_blocking` pool thread starts it. Grows on the heavy `f` configurations,
 where dry-runs arrive faster than pool threads get CPU.*
 
-![Attestation async resume latency](h1/results/summary_plots/attestation_latency_resume.png)
+![Attestation async resume latency](h1/results/summary_plots_n4/attestation_latency_resume.png)
 
 *Attestation async resume (p99/p95/p50) — how long after the dry-run finishes
 until the waiting async task gets CPU time to continue. The tail grows largest
 on the heavy pinned (`v`) configurations, where the one attesting validator's
 cores are saturated.*
 
-![Full attestation latency](h1/results/summary_plots/attestation_latency_full.png)
+![Full attestation latency](h1/results/summary_plots_n4/attestation_latency_full.png)
 
 *Full attestation latency (p99/p95/p50) — pool wait + dry-run execution +
 async resume, the whole `attest_transaction` span.*
@@ -326,7 +328,7 @@ second full execution before consensus (finding 1) and, under load, the extra
 work compounds through queueing. p95 tracks the same (`slow500-f` 6.2 s →
 14.3 s).
 
-![Receipt → execution latency](h1/results/summary_plots/receipt_to_exec_latency.png)
+![Receipt → execution latency](h1/results/summary_plots_n4/receipt_to_exec_latency.png)
 
 *Validator-internal receipt → executed latency — the pure validator-internal
 pipeline, with no client/fullnode time.*
@@ -367,7 +369,7 @@ enter consensus more slowly and the backlog sits before consensus instead
 does not shrink the total backlog — it moves it from after consensus, where
 checkpoints wait on it, to before consensus.
 
-![Checkpoint creation lag](h1/results/summary_plots/checkpoint_creation_latency.png)
+![Checkpoint creation lag](h1/results/summary_plots_n4/checkpoint_creation_latency.png)
 
 *Checkpoint creation lag (p99/p95/p50) — consensus commit created → checkpoint
 built. Note the heavy pinned (`v`) configurations: A (attestation off) lags far
@@ -413,7 +415,7 @@ an attestation effect: the pass is timed per consensus commit, so heavy configs
 both A and B, from contention on the pass. Attestation's Check #3 is lost in the
 noise; its cost is pre-consensus (finding 1), not here.
 
-![Post-consensus validation latency](h1/results/summary_plots/post_consensus_validation_latency.png)
+![Post-consensus validation latency](h1/results/summary_plots_n4/post_consensus_validation_latency.png)
 
 *Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is
 the attestation-added work on this path.*
@@ -474,7 +476,7 @@ The addition holds at low rate — e.g. `slow500-q200`: 25.5 + 556 ≈ 616, and
 (`slow500-q2000`: 817 + 1287 = 2104 vs 3849 measured) — the extra is queueing
 on the loaded validator beyond the attestation span itself.
 
-![Submit-transaction latency](h1/results/summary_plots/submit_latency.png)
+![Submit-transaction latency](h1/results/summary_plots_n4/submit_latency.png)
 
 *Client submit latency, fullnode path only — finding 7.*
 
@@ -502,7 +504,7 @@ At light load B≈A (≈250 ms, dominated by consensus/finality; attestation is
 negligible). At heavy compute B runs ≈1.5–1.9× A (`slow500` 4.26 s → 8.27 s
 p50), the doubling from finding 4 carried through to what the client observes.
 
-![Settlement finality latency](h1/results/summary_plots/settlement_finality_latency.png)
+![Settlement finality latency](h1/results/summary_plots_n4/settlement_finality_latency.png)
 
 *Client settlement-finality latency, fullnode path only.*
 
@@ -548,7 +550,7 @@ Memory stays small and roughly flat (≈0.7–0.8 GB); attestation barely moves 
 the heavy-config bumps are on ≈0.5–0.9 GB and noisy. Attestation's cost is CPU,
 not memory.
 
-![CPU and memory](h1/results/summary_plots/resources.png)
+![CPU and memory](h1/results/summary_plots_n4/resources.png)
 
 *Whole-machine host CPU and busiest-validator CPU / memory (RSS) — finding 9.*
 
@@ -613,7 +615,7 @@ attestations / sec by path (busiest validator, `qps1000`):
 `consensus_handler_validation_dropped_transactions` is ≈0 on both the attested
 (V2) and unattested (V1) paths, across every configuration.
 
-![Throughput, attestation rate, and validation-drop rate](h1/results/summary_plots/TPS.png)
+![Throughput, attestation rate, and validation-drop rate](h1/results/summary_plots_n4/TPS.png)
 
 *Finalized TPS, attestations / sec, and post-consensus validation-drops / sec —
 findings 10 and 11. TPS is A≈B; no validation drops on either path.*
@@ -649,7 +651,7 @@ pending-transactions outlier (`slow200-v`: peak 1966 pending in A vs 63 in B) �
 the same picture as finding 5: without attestation the pinned validator's
 backlog sits after consensus.
 
-![Execution queues and backpressure](h1/results/summary_plots/queues.png)
+![Execution queues and backpressure](h1/results/summary_plots_n4/queues.png)
 
 *Execution dispatch queue, pending transactions, and execution queue delay
 (p95).*
@@ -691,7 +693,7 @@ that exemption is intentional is not established here — it deserves a look.
 In practice B's overload relief comes from admission instead: attestation
 throttles what enters consensus (finding 5).
 
-![Post-consensus load shedding](h1/results/summary_plots/load_shedding_post_consensus.png)
+![Post-consensus load shedding](h1/results/summary_plots_n4/load_shedding_post_consensus.png)
 
 *Post-consensus load shedding: drops / sec, enforced quorum shed %, and locally
 broadcast shed % (peaks). Drops only ever occur on A (V1).*
@@ -734,12 +736,12 @@ semaphore is reached first and holds `num_inflight` below the 20000 hard limit.
 The totals cross-check: rejections/s (≈193) = graduated + semaphore. A never
 sheds pre-consensus at any configuration.
 
-![Pre-consensus overload sources](h1/results/summary_plots/consensus_overload_sources.png)
+![Pre-consensus overload sources](h1/results/summary_plots_n4/consensus_overload_sources.png)
 
 *Pre-consensus overload rejections by source (graduated / max-pending /
 semaphore). Only B at `slow500-v-qps2000` has data.*
 
-![Pre-consensus load shedding](h1/results/summary_plots/load_shedding_pre_consensus.png)
+![Pre-consensus load shedding](h1/results/summary_plots_n4/load_shedding_pre_consensus.png)
 
 *Pre-consensus rejections / sec, consensus-queue shed % (peak), and consensus
 in-flight transactions (`num_inflight`, peak).*
@@ -800,5 +802,5 @@ is unexplained (finding 10). With the temporary post-consensus fixes in place,
 there are no validation drops or checkpoint forks on either path (finding 11,
 H4 PASS).
 
-Full per-configuration numbers: `h1/results/summary_table.md`. Figures:
-`h1/results/summary_plots/*.png`.
+Full per-configuration numbers: `h1/results/summary_table_n4.md`. Figures:
+`h1/results/summary_plots_n4/*.png`.

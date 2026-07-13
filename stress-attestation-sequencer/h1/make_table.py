@@ -19,7 +19,8 @@ there adds a column here — no edits. --all keeps the Tier-3 flat-zero safety g
 (dropped by default, matching plot.py's SKIP_PANELS).
 
 Usage:
-  .venv/bin/python make_table.py                     # -> results/summary_table.md
+  .venv/bin/python make_table.py                     # n4 -> results/summary_table_n4.md
+  .venv/bin/python make_table.py --net 48            # n48 -> results/summary_table_n48.md
   .venv/bin/python make_table.py --stat median --disp sem
   .venv/bin/python make_table.py --all --csv results/summary_table.csv
 """
@@ -476,6 +477,14 @@ def main():
     )
     ap.add_argument("--label", default=None, help="only this label (default: all)")
     ap.add_argument(
+        "--net",
+        type=int,
+        default=4,
+        help="only configs of this network size (the label's -n<N> suffix; "
+        "labels without a suffix count as 4). Default 4; pass 48 for the "
+        "48-validator campaign, or 0 for all sizes",
+    )
+    ap.add_argument(
         "--stat",
         choices=["mean", "median"],
         default="mean",
@@ -506,7 +515,7 @@ def main():
         "split: separate A and B columns (default combined)",
     )
     ap.add_argument(
-        "--out", default=None, help="output .md (default: results/summary_table.md)"
+        "--out", default=None, help="output .md (default: results/summary_table_n<net>.md)"
     )
     ap.add_argument("--csv", default=None, help="also write a tidy CSV here")
     ap.add_argument(
@@ -518,9 +527,14 @@ def main():
     args = ap.parse_args()
 
     iter_counts = discover_labels(args.root, args.label)  # {label: (n_v1, n_v2)}
+    if args.net:
+        iter_counts = {
+            lab: v for lab, v in iter_counts.items() if sort_key(lab)[0] == args.net
+        }
     if not iter_counts:
         print(
-            f"no <LABEL>/iter-*/run-*-timeseries.json under {args.root}",
+            f"no <LABEL>/iter-*/run-*-timeseries.json under {args.root}"
+            + (f" for network size n{args.net}" if args.net else ""),
             file=sys.stderr,
         )
         sys.exit(1)
@@ -612,7 +626,8 @@ def main():
     disp_idx = 1 if args.disp == "std" else 2  # index into (center,std,sem,n)
 
     # ---- Markdown ------------------------------------------------------------
-    out_path = args.out or os.path.join(args.root, "summary_table.md")
+    suffix = f"_n{args.net}" if args.net else ""
+    out_path = args.out or os.path.join(args.root, f"summary_table{suffix}.md")
     lines = []
     lines.append("# H1 — attestation A/B comparison across configs\n")
     lines.append(

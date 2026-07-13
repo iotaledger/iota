@@ -477,7 +477,17 @@ def make_figure(
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser()
-    ap.add_argument("--csv", default=os.path.join(here, "results", "summary_table.csv"))
+    ap.add_argument(
+        "--net",
+        type=int,
+        default=4,
+        help="which campaign to plot: picks results/summary_table_n<net>.csv and "
+        "writes to results/summary_plots_n<net>/ unless --csv/--outdir override",
+    )
+    ap.add_argument("--csv", default=None, help="tidy CSV from make_table.py "
+        "(default: results/summary_table_n<net>.csv)")
+    ap.add_argument("--outdir", default=None, help="figure output directory "
+        "(default: results/summary_plots_n<net>)")
     ap.add_argument(
         "--metric",
         nargs="+",
@@ -512,10 +522,12 @@ def main():
     )
     args = ap.parse_args()
 
+    if args.csv is None:
+        args.csv = os.path.join(here, "results", f"summary_table_n{args.net}.csv")
     configs = all_configs(args.csv)
     if not configs:
         sys.exit(f"no configs in {args.csv}")
-    outdir = os.path.join(here, "results", "summary_plots")
+    outdir = args.outdir or os.path.join(here, "results", f"summary_plots_n{args.net}")
 
     if args.metric:
         out = args.out or os.path.join(
