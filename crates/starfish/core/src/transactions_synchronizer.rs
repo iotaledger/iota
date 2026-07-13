@@ -666,18 +666,18 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let iter_authorities: Box<
             dyn Iterator<Item = (AuthorityIndex, BTreeSet<GenericTransactionRef>)>,
         > = if context.parameters.enable_peer_responsiveness_ranking {
-            let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
-            let mut order: Vec<AuthorityIndex> =
-                vec.iter().map(|(authority, _)| *authority).collect();
+            let mut order: Vec<AuthorityIndex> = blocks_by_authority.keys().copied().collect();
             context.peer_responsiveness.prioritize(
                 DataSource::TransactionSynchronizer,
                 &mut order,
                 &mut rng,
             );
-            let position: HashMap<AuthorityIndex, usize> =
-                order.iter().enumerate().map(|(i, a)| (*a, i)).collect();
-            vec.sort_by_key(|(authority, _)| position[authority]);
-            Box::new(vec.into_iter())
+            Box::new(order.into_iter().map(move |authority| {
+                let block_refs = blocks_by_authority
+                    .remove(&authority)
+                    .expect("prioritized order is a permutation of the candidate set");
+                (authority, block_refs)
+            }))
         } else if cfg!(test) {
             // Stable order for tests.
             Box::new(blocks_by_authority.into_iter())
