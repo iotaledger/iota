@@ -2452,9 +2452,9 @@ impl<S> Envelope<SenderSignedData, S> {
 }
 
 impl Transaction {
-    pub fn from_data_and_signer<K: Into<IotaKeyPair>>(
+    pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<K>,
+        signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
@@ -2471,10 +2471,10 @@ impl Transaction {
         Self::from_generic_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
     }
 
-    pub fn signature_from_signer<K: Into<IotaKeyPair>>(
+    pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: K,
+        signer: impl Into<IotaKeyPair>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)

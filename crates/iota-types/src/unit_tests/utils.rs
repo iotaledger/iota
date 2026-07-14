@@ -151,9 +151,9 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
     Transaction::from_generic_sig_data(data, signatures)
 }
 
-pub fn to_sender_signed_transaction_with_multi_signers<K: Into<IotaKeyPair>>(
+pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
-    signers: Vec<K>,
+    signers: Vec<impl Into<IotaKeyPair>>,
 ) -> Transaction {
     Transaction::from_data_and_signer(data, signers)
 }
