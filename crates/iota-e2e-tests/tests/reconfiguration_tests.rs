@@ -1091,19 +1091,13 @@ async fn safe_mode_reconfig_test() {
         .build()
         .await;
 
-    let (system_state_version, epoch) = match test_cluster
-        .iota_client()
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await
-        .unwrap()
-    {
-        IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
-        IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
-        _ => unimplemented!(
-            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
-        ),
-    };
+    let (system_state_version, epoch) = test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        (system_state.system_state_version(), system_state.epoch())
+    });
 
     // On startup, we should be at V1.
     assert_eq!(system_state_version, 1);

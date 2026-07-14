@@ -272,8 +272,7 @@ impl TestCluster {
     }
 
     pub async fn get_reference_gas_price(&self) -> u64 {
-        self.iota_client()
-            .governance_api()
+        self.wallet
             .get_reference_gas_price()
             .await
             .expect("failed to get reference gas price")
