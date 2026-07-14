@@ -1010,9 +1010,7 @@ pub trait TransactionCacheRead: Send + Sync {
     /// reconfiguration from ever occurring!
     ///
     /// Returns an error if any of the requested effects have been pruned from
-    /// the database. Use this in paths where effects may not exist. For
-    /// critical paths where effects must exist (e.g. checkpoint building),
-    /// use `notify_read_executed_effects`.
+    /// the database.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -1034,10 +1032,8 @@ pub trait TransactionCacheRead: Send + Sync {
 
     /// Non-fallible version of `try_notify_read_executed_effects`.
     ///
-    /// Panics if any of the requested effects are not found. Use this in
-    /// critical paths where effects are expected to exist (e.g. checkpoint
-    /// building). For paths where effects may have been pruned, use
-    /// `try_notify_read_executed_effects`.
+    /// Panics if any of the requested effects are not found. For paths where
+    /// effects may have been pruned, use `try_notify_read_executed_effects`.
     fn notify_read_executed_effects<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
