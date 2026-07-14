@@ -4,8 +4,11 @@
 //! Tower [`Layer`] that wires the shared [`TrafficController`] into the
 //! gRPC server.
 //!
-//! The layer extracts the client IP via and calls the traffic controller
-//! with a weight derived from the response's gRPC status code.
+//! The layer extracts the client IP and calls the traffic controller with a
+//! weight derived from the response's gRPC status code. Errors that a batch
+//! API embeds inside an otherwise successful response are invisible at this
+//! level; handlers report those through the [`ErrorTallyHandle`] request
+//! extension.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally
@@ -98,6 +101,12 @@ where
             }
         };
 
+        let mut req = req;
+        req.extensions_mut().insert(ErrorTallyHandle {
+            traffic_controller: traffic_controller.clone(),
+            client,
+        });
+
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
         // so call it and leave the clone for the next request.
         let cloned = self.inner.clone();
@@ -112,14 +121,41 @@ where
             if let Ok(response) = &result {
                 let code =
                     Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
-                tally(&traffic_controller, client, code);
+                tally(&traffic_controller, client, code, Weight::one());
             }
             result
         })
     }
 }
 
-fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: Code) {
+/// Request extension through which handlers report application-level errors
+/// that are embedded in an otherwise successful gRPC response (per-item
+/// errors of batch APIs), so they still feed the error policy.
+#[derive(Clone)]
+pub struct ErrorTallyHandle {
+    traffic_controller: Arc<TrafficController>,
+    client: Option<IpAddr>,
+}
+
+impl ErrorTallyHandle {
+    /// Report an application-level error embedded in a successful response.
+    ///
+    /// Uses a zero spam weight: the enclosing request is already spam-tallied
+    /// by the layer when its response completes.
+    pub fn tally_error(&self, code: Code) {
+        if matches!(code, Code::Ok) {
+            return;
+        }
+        tally(&self.traffic_controller, self.client, code, Weight::zero());
+    }
+}
+
+fn tally(
+    traffic_controller: &TrafficController,
+    client: Option<IpAddr>,
+    code: Code,
+    spam_weight: Weight,
+) {
     let error_info = if matches!(code, Code::Ok) {
         None
     } else {
@@ -129,7 +165,7 @@ fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: C
         direct: client,
         through_fullnode: None,
         error_info,
-        spam_weight: Weight::one(),
+        spam_weight,
         timestamp: SystemTime::now(),
     });
 }

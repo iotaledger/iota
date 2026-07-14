@@ -19,7 +19,7 @@ use iota_grpc_types::{
         transaction_execution_service::{
             self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
             ExecuteTransactionsRequest, ExecuteTransactionsResponse, SimulateTransactionsRequest,
-            SimulateTransactionsResponse, execute_transaction_result,
+            SimulateTransactionsResponse, execute_transaction_result, simulate_transaction_result,
         },
     },
 };
@@ -33,7 +33,7 @@ use prost_types::FieldMask;
 use tonic::{Request, Response};
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
-use crate::{error::RpcError, merge::Merge, types::GrpcReader};
+use crate::{error::RpcError, merge::Merge, traffic_control::ErrorTallyHandle, types::GrpcReader};
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -63,6 +63,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<ExecuteTransactionsRequest>,
     ) -> Result<Response<ExecuteTransactionsResponse>, tonic::Status> {
+        let error_tally = request.extensions().get::<ErrorTallyHandle>().cloned();
         let response = execute_transactions(
             &self.reader,
             &self.executor,
@@ -72,6 +73,15 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
+        // Per-item errors are embedded in a successful response, invisible to
+        // the transport-level traffic control; feed them to the error policy.
+        if let Some(error_tally) = &error_tally {
+            for result in &response.get_ref().transaction_results {
+                if let Some(execute_transaction_result::Result::Error(error)) = &result.result {
+                    error_tally.tally_error(tonic::Code::from(error.code));
+                }
+            }
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -79,6 +89,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<SimulateTransactionsRequest>,
     ) -> Result<Response<SimulateTransactionsResponse>, tonic::Status> {
+        let error_tally = request.extensions().get::<ErrorTallyHandle>().cloned();
         let response = simulate::simulate_transactions(
             &self.reader,
             &self.executor,
@@ -88,6 +99,15 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
+        // Per-item errors are embedded in a successful response, invisible to
+        // the transport-level traffic control; feed them to the error policy.
+        if let Some(error_tally) = &error_tally {
+            for result in &response.get_ref().transaction_results {
+                if let Some(simulate_transaction_result::Result::Error(error)) = &result.result {
+                    error_tally.tally_error(tonic::Code::from(error.code));
+                }
+            }
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
