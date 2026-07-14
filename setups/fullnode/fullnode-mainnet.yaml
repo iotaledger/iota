@@ -56,7 +56,9 @@ state-archive-read-config:
 #     authority: warn
 #     traffic-control: warn
 #     network: warn
+#     transport: warn
 #     storage: warn
 #     rpc: warn
 #     epoch: warn
+#     runtime: warn
 #     hardware: warn # set to `off` to disable hardware metrics; takes effect at startup only
