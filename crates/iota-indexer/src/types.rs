@@ -393,9 +393,17 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
+}
+
+impl IndexedPackage {
+    pub(crate) fn new(move_package: MovePackage, checkpoint_sequence_number: u64) -> Self {
+        Self {
+            move_package,
+            checkpoint_sequence_number
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -633,16 +633,14 @@ impl PrimaryWorker {
                 data.transactions
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
-                    .filter_map(|o| {
-                        if let iota_sdk_types::ObjectData::Package(p) = &o.data {
-                            Some(IndexedPackage {
-                                package_id: o.id(),
-                                move_package: p.clone(),
-                                checkpoint_sequence_number,
-                            })
-                        } else {
-                            None
-                        }
+                    .filter_map(|object| {
+                        let iota_sdk_types::ObjectData::Package(package) = object.data() else {
+                            return None;
+                        };
+                        Some(IndexedPackage::new(
+                            package.clone(),
+                            checkpoint_sequence_number,
+                        ))
                     })
                     .collect::<Vec<_>>()
             })
