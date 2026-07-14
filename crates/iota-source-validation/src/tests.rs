@@ -10,12 +10,14 @@ use std::{
 };
 
 use expect_test::expect;
-use iota_json_rpc_types::{get_new_package_ref, get_new_upgrade_cap_ref};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
 use iota_sdk_types::{Address, MovePackageData, ObjectId, ObjectReference};
-use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
+use iota_test_transaction_builder::{
+    get_new_package_ref, get_new_upgrade_cap_ref, make_publish_transaction,
+    make_publish_transaction_with_deps,
+};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, base_types::TransactionDigest, move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,

@@ -5,12 +5,12 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
-use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_sdk::{
-    rpc_types::{IotaObjectDataOptions, get_new_package_ref},
-    wallet_context::WalletContext,
+use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_types::v1::transaction::{
+    ExecutedTransaction, object_change::Kind as ProtoObjectChangeKind,
 };
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
@@ -567,6 +567,41 @@ pub async fn make_publish_transaction_with_deps(
     )
 }
 
+/// The reference of the package published by this transaction, if any.
+pub fn get_new_package_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
+    let changes = tx.object_changes().ok()?;
+    changes.object_changes.iter().find_map(|c| {
+        let ProtoObjectChangeKind::Published(p) = c.kind.as_ref()? else {
+            return None;
+        };
+        Some(ObjectReference::new(
+            p.package_id().ok()?,
+            Version::from_u64(p.version?),
+            p.digest().ok()?,
+        ))
+    })
+}
+
+/// The reference of the `UpgradeCap` created by this transaction, if any.
+pub fn get_new_upgrade_cap_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
+    let changes = tx.object_changes().ok()?;
+    changes.object_changes.iter().find_map(|c| {
+        let ProtoObjectChangeKind::Created(created) = c.kind.as_ref()? else {
+            return None;
+        };
+        let owner = created.owner().ok()?;
+        let object_type = created.object_type().ok()?;
+        if !owner.is_address() || !object_type.as_struct_tag_opt()?.is_upgrade_cap() {
+            return None;
+        }
+        Some(ObjectReference::new(
+            created.object_id().ok()?,
+            Version::from_u64(created.version?),
+            created.digest().ok()?,
+        ))
+    })
+}
+
 pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -655,27 +690,27 @@ pub async fn emit_new_random_u128(
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
-    let client = context.get_client().await.unwrap();
-    let random_obj = client
-        .read_api()
-        .get_object_with_options(
-            ObjectId::RANDOMNESS_STATE,
-            IotaObjectDataOptions::new().with_owner(),
+    let client = context.get_grpc_client().await.unwrap();
+    let objects = client
+        .get_objects(
+            &[(ObjectId::RANDOMNESS_STATE, None)],
+            Some(ReadMask::from(ObjectField::BCS)),
         )
         .await
         .unwrap()
-        .into_object()
+        .into_inner();
+    let random_obj = objects
+        .first()
+        .expect("Expect Randomness object to exist")
+        .object()
         .unwrap();
-    let random_obj_owner = random_obj
-        .owner
-        .expect("Expect Randomness object to have an owner");
 
-    let Owner::Shared(initial_shared_version) = random_obj_owner else {
+    let Owner::Shared(initial_shared_version) = random_obj.owner() else {
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
-        initial_shared_version,
+        *initial_shared_version,
         false,
     ));
 

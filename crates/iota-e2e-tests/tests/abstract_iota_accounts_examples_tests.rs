@@ -2026,7 +2026,7 @@ impl TestEnvironment {
             .execute_transaction_must_succeed(tx)
             .await;
 
-        let pkg_id = iota_json_rpc_types::get_new_package_ref(&resp)
+        let pkg_id = iota_test_transaction_builder::get_new_package_ref(&resp)
             .ok_or_else(|| anyhow::anyhow!("no Published object change in response"))?
             .object_id;
         let metadata_id = move_package::derive_package_metadata_id(pkg_id);

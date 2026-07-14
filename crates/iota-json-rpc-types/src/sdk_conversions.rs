@@ -23,9 +23,7 @@ use iota_grpc_types::v1::{
     },
     types::Digest as ProtoDigest,
 };
-use iota_sdk_types::{
-    MoveObjectType, MoveStruct, Object, ObjectData, ObjectReference, StructTag, Version,
-};
+use iota_sdk_types::{MoveObjectType, MoveStruct, Object, ObjectData, StructTag, Version};
 
 use crate::{BalanceChange, IotaObjectData, IotaTransactionBlockResponse, ObjectChange};
 
@@ -453,44 +451,6 @@ fn proto_object_change_to_json_rpc(
         }),
         _ => Err(SdkConversionError("unknown ObjectChange kind".into())),
     }
-}
-
-/// The reference of the package published by this transaction, if any.
-/// Mirrors `get_new_package_obj_from_response` but reads gRPC's native
-/// `object_changes` instead of the JSON-RPC view.
-pub fn get_new_package_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
-    let changes = tx.object_changes().ok()?;
-    changes.object_changes.iter().find_map(|c| {
-        let ProtoObjectChangeKind::Published(p) = c.kind.as_ref()? else {
-            return None;
-        };
-        Some(ObjectReference::new(
-            p.package_id().ok()?,
-            Version::from_u64(p.version?),
-            p.digest().ok()?,
-        ))
-    })
-}
-
-/// The reference of the `UpgradeCap` created by this transaction, if any.
-/// Mirrors `get_new_package_upgrade_cap_from_response`.
-pub fn get_new_upgrade_cap_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
-    let changes = tx.object_changes().ok()?;
-    changes.object_changes.iter().find_map(|c| {
-        let ProtoObjectChangeKind::Created(created) = c.kind.as_ref()? else {
-            return None;
-        };
-        let owner = created.owner().ok()?;
-        let object_type = created.object_type().ok()?;
-        if !owner.is_address() || !object_type.as_struct_tag_opt()?.is_upgrade_cap() {
-            return None;
-        }
-        Some(ObjectReference::new(
-            created.object_id().ok()?,
-            Version::from_u64(created.version?),
-            created.digest().ok()?,
-        ))
-    })
 }
 
 #[cfg(test)]
