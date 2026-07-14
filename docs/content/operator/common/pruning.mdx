@@ -85,10 +85,6 @@ Pruning is driven by checkpoint execution: after each executed checkpoint the
 node prunes data that has aged past the retention window, pacing the work
 against on-chain checkpoint timestamps.
 
-## Set an Archiving Watermark
-
-If your full node is configured to upload committed information to an archive, you should ensure that pruning does not occur until after the corresponding data is uploaded. To do so, set `use-for-pruning-watermark: true` in the `fullnode.yaml` file as described in [Archival fallback](./archives.mdx#set-up-an-archival-fallback).
-
 ## Configuration Examples
 
 The following examples cover common operator use cases. Each example shows the key parameters for the scenario — parameters not listed use their defaults from the [reference block above](#pruning-parameters).

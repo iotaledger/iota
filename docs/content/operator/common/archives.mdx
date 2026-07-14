@@ -5,9 +5,9 @@ An IOTA archive instance stores the full IOTA transaction history since genesis 
 The current archival storage format doesn't include historic object versions. 
 :::
 
-As a full node operator, you can enable archival fallback for your full node by specifying the URL to upload archival data. To ensure a healthy network, we encourage the IOTA community to set up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
+As a full node operator, you can enable archival fallback for your full node by specifying the URL of a historical checkpoints store to read from. In a typical configuration, that store trails behind the latest checkpoint by approximately 10 minutes.
 
-A full node that starts from scratch can replay, and re-verify, transactions that occurred since IOTA genesis from the given archive via configuring Archival Fallback in the `fullnode.yaml` configuration file to point to the S3 bucket that stores the archive.
+A full node that starts from scratch can replay, and re-verify, transactions that occurred since IOTA genesis from the given store via configuring the Historical Archive Fallback in the `fullnode.yaml` configuration file to point to the historical checkpoints store.
 
 An IOTA full node that fails to retrieve checkpoints from its peers via state sync protocol falls back to downloading the missing checkpoints from its pre-configured archive. This fallback enables a full node to catch up with the rest of the system regardless of the pruning policies of its peers.
 
@@ -21,34 +21,19 @@ An IOTA archive is a history of all transaction data on IOTA, trailing behind th
 
 IOTA Archival nodes (full nodes that write to an archive) don't store historical state on local storage and don't help query historical data. They serve the purpose of enabling peer nodes to catch up to the latest checkpoint and are useful for auditing and verifying the complete history of all transactions on the network.
 
-## Create an Archival Node
+## Set Up a Historical Archive Fallback
 
-To start storing transaction history as an archive, you need to modify your node configuration. Open your `fullnode.yaml` file and add the following configuration.
-
-:::warning
-It is important to prevent pruning until the corresponding data is uploaded. To achieve this, set `use-for-pruning-watermark: true`. This ensures that the node retains the necessary data locally until it has been successfully archived, preventing any loss of important information.
-:::
-
-```yaml
-state-archive-read-config:
-    # Use https://checkpoints.mainnet.iota.cafe for mainnet
-    # Use https://checkpoints.testnet.iota.cafe for testnet
-    - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.cafe"
-      concurrency: 5
-```
-
-## Set Up an Archival Fallback
-
-To enable your node to fallback to an archive in case of lag, add this to your `fullnode.yaml` file:
+To enable your node to fall back to the historical checkpoints store when peers no longer serve the range it needs, add this to your `fullnode.yaml` file:
 
 <Tabs groupId="object-store">
   <TabItem value="s3" label="Amazon S3">
     ```yaml
-    state-archive-read-config:
-      # Use https://checkpoints.mainnet.iota.cafe for mainnet
-      # Use https://checkpoints.testnet.iota.cafe for testnet
-      - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.cafe"
-        concurrency: 5
+    historical-config:
+    # Use https://checkpoints.mainnet.iota.cafe/ingestion/historical for mainnet
+    # Use https://checkpoints.testnet.iota.cafe/ingestion/historical for testnet
+    historical-url: "https://checkpoints.<mainnet|testnet>.iota.cafe/ingestion/historical"
+    # Optional. Number of checkpoints to download in parallel; defaults to 10.
+    batch-size: 5
     ```
   </TabItem>
 </Tabs>
