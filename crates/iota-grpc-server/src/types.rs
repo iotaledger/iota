@@ -16,7 +16,7 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use iota_types::{
     base_types::VersionNumber,
     digests::TransactionDigest,
@@ -53,6 +53,8 @@ pub struct TransactionReadFields {
     pub include_timestamp: bool,
     pub include_input_objects: bool,
     pub include_output_objects: bool,
+    pub include_balance_changes: bool,
+    pub include_object_changes: bool,
 }
 
 impl TransactionReadFields {
@@ -69,6 +71,8 @@ impl TransactionReadFields {
             include_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
             include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name),
             include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name),
+            include_balance_changes: mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name),
+            include_object_changes: mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name),
         }
     }
 }
@@ -429,17 +433,12 @@ impl GrpcReader {
             let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
                 .with_sequence_number(sequence_number);
 
-            let sdk_contents: iota_sdk_types::CheckpointContents = checkpoint_contents
-                .clone()
-                .try_into()
-                .map_err(|e| Status::internal(format!("failed to convert checkpoint contents: {e}")))?;
-
             let sdk_signature = iota_sdk_types::ValidatorAggregatedSignature::from(checkpoint_summary.auth_sig().clone());
 
             // Use Merge to populate based on mask
             Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge summary"))?;
-            Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_contents, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge contents"))?;
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;
@@ -1127,21 +1126,31 @@ impl GrpcReader {
     /// callers to skip unnecessary reads. Effects are fetched when any of
     /// effects/events/input_objects/output_objects are requested since they
     /// provide the digests and references needed to fetch those fields.
+    /// Balance/object changes are derived fields: they additionally force the
+    /// fetch of effects and input/output objects, and object changes force the
+    /// transaction fetch (for the sender). Over-fetched data never leaks into
+    /// the response — the `Merge` impls only populate mask-requested fields.
+    ///
+    /// Errors with `FAILED_PRECONDITION` if a required object is unavailable
+    /// (e.g. pruned): a silently incomplete object set would be undetectable
+    /// by the client and would corrupt derived change fields.
     #[tracing::instrument(skip(self))]
     pub fn get_transaction_read(
         &self,
         digest: &TransactionDigest,
         fields: &TransactionReadFields,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
-        let (transaction, signatures) = if fields.include_transaction || fields.include_signatures {
+        let (transaction, signatures) = if fields.include_transaction
+            || fields.include_signatures
+            || fields.include_object_changes
+        {
             // Get the transaction if transaction data or signatures are requested
             let transaction = self
                 .state_reader
                 .try_get_transaction(digest)?
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
-            let transaction_data = fields
-                .include_transaction
+            let transaction_data = (fields.include_transaction || fields.include_object_changes)
                 .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
@@ -1194,12 +1203,17 @@ impl GrpcReader {
             (None, None)
         };
 
+        // Derived change fields need effects plus the input/output objects
+        let include_derived_changes =
+            fields.include_balance_changes || fields.include_object_changes;
+
         // Get the effects if any of the following are requested: effects, events,
-        // checkpoint/timestamp, input/output objects
+        // checkpoint/timestamp, input/output objects, balance/object changes
         let (effects, events, input_objects, output_objects) = if fields.include_effects
             || fields.include_events
             || fields.include_input_objects
             || fields.include_output_objects
+            || include_derived_changes
         {
             // Effects are required for events and input/output objects, so we fetch them if
             // any of those are requested
@@ -1218,16 +1232,31 @@ impl GrpcReader {
                 None
             };
 
+            // The object sets must be complete: a silently missing object
+            // would shorten the input/output object lists and corrupt any
+            // derived change fields, with no way for the client to detect it
+            let require_object = |object_id: &iota_sdk_types::ObjectId,
+                                  version: Version|
+             -> Result<Object, crate::error::RpcError> {
+                self.state_reader
+                    .try_get_object_by_key(object_id, version)?
+                    .ok_or_else(|| {
+                        crate::error::RpcError::new(
+                            tonic::Code::FailedPrecondition,
+                            format!(
+                                "object {object_id} at version {version} required by the \
+                                 requested fields is unavailable (possibly pruned); narrow the \
+                                 read_mask or fetch objects individually via `get_objects` for best-effort retrieval"
+                            ),
+                        )
+                    })
+            };
+
             // Get input objects only if requested
-            let input_objects = if fields.include_input_objects {
+            let input_objects = if fields.include_input_objects || include_derived_changes {
                 let mut objects = Vec::new();
                 for (object_id, version) in effects.modified_at_versions() {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_id, version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_id, version)?);
                 }
                 Some(objects)
             } else {
@@ -1235,7 +1264,7 @@ impl GrpcReader {
             };
 
             // Get output objects only if requested
-            let output_objects = if fields.include_output_objects {
+            let output_objects = if fields.include_output_objects || include_derived_changes {
                 let mut objects = Vec::new();
                 for (object_ref, _owner) in effects
                     .created()
@@ -1243,12 +1272,7 @@ impl GrpcReader {
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_ref.object_id, object_ref.version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_ref.object_id, object_ref.version)?);
                 }
                 Some(objects)
             } else {
@@ -1370,6 +1394,44 @@ impl Merge<CheckpointTransactionWithContext>
         // Set checkpoint timestamp if requested
         if mask.contains(Self::TIMESTAMP_FIELD.name) {
             self.timestamp = source.checkpoint_timestamp_ms.map(timestamp_ms_to_proto);
+        }
+
+        // Derive balance changes if requested. Checkpoint transactions always
+        // carry effects and input/output objects, so no extra fetches needed.
+        if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
+            self.balance_changes = Some(
+                iota_grpc_types::v1::transaction::BalanceChanges::default().with_balance_changes(
+                    crate::changes::derive_balance_changes(
+                        &source.transaction.effects,
+                        &source.transaction.input_objects,
+                        &source.transaction.output_objects,
+                        None,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
+        // Derive object changes if requested
+        if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
+            use iota_types::transaction::TransactionDataAPI as _;
+
+            let sender = source.transaction.transaction.transaction_data().sender();
+            self.object_changes = Some(
+                iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
+                    crate::changes::derive_object_changes(
+                        sender,
+                        &source.transaction.effects,
+                        &source.transaction.input_objects,
+                        &source.transaction.output_objects,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {

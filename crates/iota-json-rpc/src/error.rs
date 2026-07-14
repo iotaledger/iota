@@ -279,9 +279,9 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use iota_sdk_types::{ObjectId, ObjectReference};
+    use iota_sdk_types::{ObjectId, ObjectReference, Version};
     use iota_types::{
-        base_types::{AuthorityName, SequenceNumber},
+        base_types::AuthorityName,
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
         digests::{ObjectDigest, TransactionDigest},
@@ -292,7 +292,7 @@ mod tests {
     fn test_object_ref() -> ObjectReference {
         ObjectReference::new(
             ObjectId::ZERO,
-            SequenceNumber::from_u64(0),
+            Version::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
     }

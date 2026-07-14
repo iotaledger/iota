@@ -18,7 +18,8 @@ use iota::balance;
 use iota::coin;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq, assert_same_elems};
-use iota::vec_map;
+use iota::vec_map::{Self, VecMap};
+use iota::vec_set::{Self, VecSet};
 use iota_system::staking_pool::StakedIota;
 use iota_system::validator::{Self, ValidatorV1, staking_pool_id};
 use iota_system::validator_set::{
@@ -968,6 +969,7 @@ fun advance_epoch_with_eligible_validators_and_low_stake_params(
     low_stake_threshold: u64,
     very_low_stake_threshold: u64,
     low_stake_grace_period: u64,
+    validator_report_records: &mut VecMap<address, VecSet<address>>,
     scenario: &mut Scenario,
 ) {
     scenario.next_epoch(@0x0);
@@ -980,7 +982,7 @@ fun advance_epoch_with_eligible_validators_and_low_stake_params(
 
     validator_set.advance_epoch(
         &mut dummy_computation_charge,
-        &mut vec_map::empty(),
+        validator_report_records,
         0, // reward_slashing_rate
         low_stake_threshold * NANOS_PER_IOTA,
         very_low_stake_threshold * NANOS_PER_IOTA,
@@ -1013,6 +1015,7 @@ fun advance_epoch_with_dummy_rewards(
         0, // low_stake_threshold
         0, // very_low_stake_threshold
         0, // low_stake_grace_period
+        &mut vec_map::empty(),
         scenario,
     );
 }
@@ -1030,6 +1033,7 @@ fun advance_epoch_with_eligible_validators(
         0, // low_stake_threshold
         0, // very_low_stake_threshold
         0, // low_stake_grace_period
+        &mut vec_map::empty(),
         scenario,
     );
 }
@@ -1055,6 +1059,7 @@ fun advance_epoch_with_low_stake_params(
         low_stake_threshold,
         very_low_stake_threshold,
         low_stake_grace_period,
+        &mut vec_map::empty(),
         scenario,
     );
 }
@@ -1698,6 +1703,7 @@ fun test_eligible_validators_removed_before_committee_selection_falls_back() {
         2000, // low_stake_threshold
         2000, // very_low_stake_threshold
         0,    // low_stake_grace_period
+        &mut vec_map::empty(),
         scenario,
     );
 
@@ -1743,6 +1749,7 @@ fun test_eligible_validators_partially_removed_keeps_remnant_committee() {
         2500, // low_stake_threshold
         2500, // very_low_stake_threshold
         0,    // low_stake_grace_period
+        &mut vec_map::empty(),
         scenario,
     );
 
@@ -1751,4 +1758,128 @@ fun test_eligible_validators_partially_removed_keeps_remnant_committee() {
 
     test_utils::destroy(validator_set);
     scenario_val.end();
+}
+
+/// A report filed between committee members must not freeze `advance_epoch` once one of
+/// the parties rotates out of the committee while staying active. The stale record is
+/// pruned before slashing is computed, and reports between validators that remain in the
+/// committee are preserved.
+#[test]
+fun test_advance_epoch_prunes_report_records_for_rotated_out_committee_validator() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+
+    let v1 = create_validator(@0x1, 8, 1, true, ctx); // 800 IOTA
+    let v2 = create_validator(@0x2, 7, 1, true, ctx); // 700 IOTA
+    let v3 = create_validator(@0x3, 6, 1, true, ctx); // 600 IOTA
+    let v4 = create_validator(@0x4, 5, 1, true, ctx); // 500 IOTA
+    let v5 = create_validator(@0x5, 1, 1, true, ctx); // 100 IOTA
+
+    let committee_size = 4;
+    let mut validator_set = validator_set::new_v2(
+        vector[v1, v2, v3, v4, v5],
+        committee_size,
+        ctx,
+    );
+
+    let mut report_records = vec_map::empty<address, VecSet<address>>();
+
+    // Settle the committee to the top four validators by stake; @0x5 stays active but out.
+    advance_epoch_with_report_records(
+        &mut validator_set,
+        committee_size,
+        &mut report_records,
+        scenario,
+    );
+    assert_same_elems(
+        validator_set.committee_validator_addresses(),
+        vector[@0x1, @0x2, @0x3, @0x4],
+    );
+    assert!(validator_set.is_active_validator_by_iota_address(@0x5));
+
+    // File reports between current committee members. @0x4 will rotate out of the committee.
+    report_records.insert(@0x1, vec_set::singleton(@0x4)); // reporter @0x4 rotates out
+    report_records.insert(@0x4, vec_set::singleton(@0x1)); // reportee @0x4 rotates out
+    // @0x2 stays in the committee and is reported by several validators, with the
+    // rotated-out @0x4 in the middle of the set. Pruning must drop @0x4 while keeping the
+    // committee reporters both before (@0x1) and after (@0x3) it.
+    let mut mixed_reporters = vec_set::empty();
+    mixed_reporters.insert(@0x1);
+    mixed_reporters.insert(@0x4);
+    mixed_reporters.insert(@0x3);
+    report_records.insert(@0x2, mixed_reporters);
+
+    // Raise @0x5 above @0x4 so @0x4 leaves the committee but not the active set.
+    scenario.next_tx(@0x5);
+    {
+        let ctx = scenario.ctx();
+        let stake = validator_set.request_add_stake(
+            @0x5,
+            coin::mint_for_testing(900 * NANOS_PER_IOTA, ctx).into_balance(),
+            ctx,
+        );
+        transfer::public_transfer(stake, @0x5);
+    };
+
+    // First boundary: @0x4 is still a committee member during this transition.
+    advance_epoch_with_report_records(
+        &mut validator_set,
+        committee_size,
+        &mut report_records,
+        scenario,
+    );
+    assert_same_elems(
+        validator_set.committee_validator_addresses(),
+        vector[@0x1, @0x2, @0x3, @0x5],
+    );
+    assert!(validator_set.is_active_validator_by_iota_address(@0x4));
+
+    // Second boundary: @0x4 is active but no longer a committee member. Without pruning,
+    // its stale report record would make `advance_epoch` abort here.
+    advance_epoch_with_report_records(
+        &mut validator_set,
+        committee_size,
+        &mut report_records,
+        scenario,
+    );
+
+    // The reportee @0x4 left the committee, so its whole entry is dropped.
+    assert!(!report_records.contains(&@0x4));
+    // @0x1's only reporter (@0x4) left the committee, so its now-empty entry is dropped.
+    assert!(!report_records.contains(&@0x1));
+    // @0x2 stays in the committee: the non-last rotated-out reporter @0x4 is pruned while
+    // the committee reporters before and after it survive intact.
+    assert!(report_records.contains(&@0x2));
+    assert!(report_records[&@0x2].contains(&@0x1));
+    assert!(report_records[&@0x2].contains(&@0x3));
+    assert!(!report_records[&@0x2].contains(&@0x4));
+    assert!(report_records[&@0x2].size() == 2);
+
+    test_utils::destroy(validator_set);
+    scenario_val.end();
+}
+
+fun advance_epoch_with_report_records(
+    validator_set: &mut ValidatorSetV2,
+    committee_size: u64,
+    validator_report_records: &mut VecMap<address, VecSet<address>>,
+    scenario: &mut Scenario,
+) {
+    // Default: all validators are eligible
+    let eligible_validators = vector::tabulate!(
+        validator_set.active_validators_inner().length(),
+        |i| i,
+    );
+
+    advance_epoch_with_eligible_validators_and_low_stake_params(
+        validator_set,
+        committee_size,
+        eligible_validators,
+        0, // low_stake_threshold
+        0, // very_low_stake_threshold
+        0, // low_stake_grace_period
+        validator_report_records,
+        scenario,
+    );
 }

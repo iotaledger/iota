@@ -32,13 +32,11 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionKind, VersionAssignment,
+    TransactionKind, Version, VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    base_types::{
-        AuthorityName, CommitRound, ConciseableName, EpochId, SequenceNumber, TransactionDigest,
-    },
+    base_types::{AuthorityName, CommitRound, ConciseableName, EpochId, TransactionDigest},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     digests::{ChainIdentifier, TransactionEffectsDigest},
@@ -53,7 +51,8 @@ use iota_types::{
     },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
@@ -803,7 +802,7 @@ pub struct AuthorityEpochTables {
     transaction_cert_signatures: DBMap<TransactionDigest, AuthorityStrongQuorumSignInfo>,
 
     /// Next available shared object versions for each shared object.
-    next_shared_object_versions: DBMap<ObjectId, SequenceNumber>,
+    next_shared_object_versions: DBMap<ObjectId, Version>,
 
     /// Track which transactions have been processed in
     /// handle_consensus_transaction. We must be sure to advance
@@ -1728,7 +1727,7 @@ impl AuthorityPerEpochStore {
         objects: &[InputObjectKind],
     ) -> IotaResult<BTreeSet<InputKey>> {
         let assigned_shared_versions =
-            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, SequenceNumber>>>::new();
+            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, Version>>>::new();
         objects
             .iter()
             .map(|kind| {
@@ -1901,7 +1900,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[cfg(test)]
-    pub fn get_next_object_version(&self, obj: &ObjectId) -> Option<SequenceNumber> {
+    pub fn get_next_object_version(&self, obj: &ObjectId) -> Option<Version> {
         self.tables()
             .expect("test should not cross epoch boundary")
             .next_shared_object_versions
@@ -2004,9 +2003,9 @@ impl AuthorityPerEpochStore {
     // this function completes successfully for each affected object id.
     pub(crate) fn get_or_init_next_object_versions(
         &self,
-        objects_to_init: &[(ObjectId, SequenceNumber)],
+        objects_to_init: &[(ObjectId, Version)],
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult<HashMap<ObjectId, SequenceNumber>> {
+    ) -> IotaResult<HashMap<ObjectId, Version>> {
         // get_or_init_next_object_versions can be called
         // from consensus or checkpoint executor,
         // so we need to protect version assignment with a critical section
@@ -2020,7 +2019,7 @@ impl AuthorityPerEpochStore {
             .read()
             .get_next_shared_object_versions(&tables, objects_to_init)?;
 
-        let uninitialized_objects: Vec<(ObjectId, SequenceNumber)> = next_versions
+        let uninitialized_objects: Vec<(ObjectId, Version)> = next_versions
             .iter()
             .zip(objects_to_init)
             .filter_map(|(next_version, id_and_version)| match next_version {

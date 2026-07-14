@@ -13,9 +13,6 @@ genesis:
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
   num-epochs-to-retain: 18446744073709551615
-  max-checkpoints-in-batch: 5
-  max-transactions-in-batch: 1000
   use-range-deletion: true
-  pruning-run-delay-seconds: 60
 state-debug-dump-config:
   dump-file-directory: /opt/iota/state_debug_dump

@@ -176,6 +176,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 31: Rebuild the framework binaries for the latest iota_system
 //             validator set changes.
 //             Enable validator metadata verification v2.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on non-Mainnet/Testnet chains.
 //             Report a failure of the Move authentication with a distinct
 //             `MoveAuthenticationError` execution error.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -1349,6 +1351,17 @@ pub struct ProtocolConfig {
     /// Minimum interval of commit timestamps between consecutive checkpoints.
     min_checkpoint_interval_ms: Option<u64>,
 
+    /// Number of recent checkpoints over which `min_checkpoint_interval_ms`
+    /// may be amortized. When set, a checkpoint is built once the full
+    /// interval elapsed since the previous checkpoint, or once the checkpoint
+    /// this many back in the current epoch is at least that many intervals
+    /// older. The windowed arm recycles the slack that discrete commit
+    /// timestamps add to the strict arm, holding the sustained rate at the
+    /// ceiling, while the strict arm keeps quiet gaps within one interval.
+    /// The window does not cross epoch boundaries; before it fills — and
+    /// always when unset — only the strict adjacent check applies.
+    checkpoint_rate_window_size: Option<u64>,
+
     /// Version number to use for version_specific_data in `CheckpointSummary`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
@@ -2400,6 +2413,8 @@ impl ProtocolConfig {
 
             min_checkpoint_interval_ms: Some(200),
 
+            checkpoint_rate_window_size: None,
+
             checkpoint_summary_version_specific_data: Some(1),
 
             max_soft_bundle_size: Some(5),
@@ -2993,6 +3008,13 @@ impl ProtocolConfig {
                 }
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
+
+                    // Amortize the minimum checkpoint interval over a sliding
+                    // window so the checkpoint rate holds at the ceiling.
+                    // Enabled on non-Mainnet/Testnet chains only for now.
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.checkpoint_rate_window_size = Some(20);
+                    }
 
                     cfg.feature_flags.report_move_authentication_error = true;
                 }

@@ -44,7 +44,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
-    gas_coin::GasCoin,
+    gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
@@ -75,7 +75,7 @@ use serde_json::json;
 pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore, SIMULATION_GAS_COIN_VALUE,
+        AuthorityState, AuthorityStore,
         authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
@@ -140,7 +140,7 @@ impl TestCallArg {
 
 // TODO break this up into a cleaner set of components. It does a bit too much
 // currently
-async fn construct_shared_object_transaction_with_sequence_number(
+async fn construct_shared_object_transaction_with_version(
     initial_shared_version_override: Option<Version>,
 ) -> (
     Arc<AuthorityState>,
@@ -228,7 +228,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
 #[tokio::test]
 async fn test_dry_run_transaction_block() {
     let (validator, fullnode, transaction, gas_object_id, shared_object_id) =
-        construct_shared_object_transaction_with_sequence_number(None).await;
+        construct_shared_object_transaction_with_version(None).await;
     let initial_shared_object_version = validator.get_object(&shared_object_id).unwrap().version();
 
     let transaction_digest = *transaction.digest();
@@ -967,7 +967,7 @@ async fn test_dev_inspect_on_validator() {
 #[tokio::test]
 async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
-        construct_shared_object_transaction_with_sequence_number(None).await;
+        construct_shared_object_transaction_with_version(None).await;
     let transaction_digest = *transaction.digest();
     let response = validator.dry_exec_transaction(
         transaction.data().intent_message().value.clone(),
@@ -1267,8 +1267,7 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_shared_object_with_max_sequence_number() {
     let (authority, _fullnode, transaction, _, _) =
-        construct_shared_object_transaction_with_sequence_number(Some(Version::MAX_VALID_EXCL))
-            .await;
+        construct_shared_object_transaction_with_version(Some(Version::MAX_VALID_EXCL)).await;
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // Submit the transaction and assemble a certificate.
     let response = authority

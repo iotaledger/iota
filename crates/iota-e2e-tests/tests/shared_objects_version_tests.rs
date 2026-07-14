@@ -5,13 +5,15 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    Version,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::SequenceNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     object::OBJECT_START_VERSION,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -91,7 +93,7 @@ async fn initial_shared_version_mismatch_current_version() {
 async fn shared_object_not_found() {
     let env = TestEnvironment::new().await;
     let nonexistent_id = ObjectId::random();
-    let initial_shared_seq = SequenceNumber::from_u64(42);
+    let initial_shared_seq = Version::from_u64(42);
     assert!(
         env.increment_shared_counter(nonexistent_id, initial_shared_seq)
             .await
@@ -99,7 +101,7 @@ async fn shared_object_not_found() {
     );
 }
 
-fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
+fn is_shared_at(owner: &Owner, version: Version) -> bool {
     matches!(owner, Owner::Shared(initial_shared_version) if *initial_shared_version == version)
 }
 
@@ -203,12 +205,12 @@ impl TestEnvironment {
     async fn increment_shared_counter(
         &self,
         counter: ObjectId,
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
     ) -> anyhow::Result<(ObjectReference, Owner)> {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Shared(SharedObjectRef::new(
+                vec![CallArg::Shared(SharedObjectReference::new(
                     counter,
                     initial_shared_version,
                     true,

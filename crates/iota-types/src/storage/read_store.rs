@@ -4,21 +4,21 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{Address, MoveObjectType, ObjectId};
+use iota_sdk_types::{Address, MoveObjectType, ObjectId, Version};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, ObjectType, SequenceNumber},
+    base_types::{EpochId, ObjectType},
     committee::Committee,
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        FullCheckpointContents, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
@@ -932,7 +932,7 @@ pub struct EpochInfoV1Entry {
 pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub type_: MoveObjectType,
 }
 

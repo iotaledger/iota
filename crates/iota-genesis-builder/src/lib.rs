@@ -32,11 +32,11 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
-    StructTag,
+    StructTag, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{ExecutionDigests, SequenceNumber, TransactionDigest, TxContext},
+    base_types::{ExecutionDigests, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -52,7 +52,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
@@ -1271,8 +1271,8 @@ fn create_genesis_checkpoint(
     let checkpoint = CheckpointSummary {
         epoch: 0,
         sequence_number: 0,
-        network_total_transactions: contents.size().try_into().unwrap(),
-        content_digest: *contents.digest(),
+        network_total_transactions: contents.len().try_into().unwrap(),
+        content_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         end_of_epoch_data: None,
@@ -1301,11 +1301,11 @@ fn create_genesis_transaction(
             .into_iter()
             .map(|mut object| {
                 if let Some(o) = object.data.as_opt_mut_struct() {
-                    o.decrement_version_to(SequenceNumber::MIN_VALID_INCL);
+                    o.decrement_version_to(Version::MIN_VALID_INCL);
                 }
 
                 if let Owner::Shared(initial_shared_version) = &mut object.owner {
-                    *initial_shared_version = SequenceNumber::MIN_VALID_INCL;
+                    *initial_shared_version = Version::MIN_VALID_INCL;
                 }
 
                 let object = object.into_inner();

@@ -12,9 +12,9 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Version as SequenceNumber;
 use iota_sdk_types::{
     Address, Identifier, MoveObjectType, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+    Version,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
@@ -53,7 +53,7 @@ mod base_types_tests;
 
 pub type TxSequenceNumber = u64;
 
-pub type VersionNumber = SequenceNumber;
+pub type VersionNumber = Version;
 
 /// The round number.
 pub type CommitRound = u64;
@@ -68,12 +68,12 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
-pub type VersionDigest = (SequenceNumber, ObjectDigest);
+pub type VersionDigest = (Version, ObjectDigest);
 
 pub fn random_object_ref() -> ObjectReference {
     ObjectReference::new(
         ObjectId::random(),
-        SequenceNumber::default(),
+        Version::default(),
         ObjectDigest::new([0; 32]),
     )
 }
@@ -173,7 +173,7 @@ impl FromStr for ObjectType {
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct ObjectInfo {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub type_: ObjectType,
     pub owner: Owner,

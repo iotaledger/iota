@@ -173,7 +173,7 @@ impl CheckpointWriter {
 
         assert_eq!(
             checkpoint_summary.content_digest,
-            *checkpoint_contents.checkpoint_contents().digest()
+            checkpoint_contents.checkpoint_contents().digest()
         );
 
         let contents_blob = Blob::encode(&checkpoint_contents, BlobEncoding::Bcs)?;

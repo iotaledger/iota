@@ -6,17 +6,16 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction,
+    ProgrammableTransaction, SharedObjectReference, Version,
 };
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -433,7 +432,7 @@ async fn test_tto_invalid_receiving_arguments() {
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, SequenceNumber::MAX_VALID_EXCL, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
@@ -1670,7 +1669,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,
@@ -1692,7 +1691,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,

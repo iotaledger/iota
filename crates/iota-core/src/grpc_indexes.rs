@@ -10,14 +10,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     digests::TransactionDigest,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     move_package::MovePackageExt,
     object::Object,
     storage::{
@@ -162,7 +161,7 @@ pub struct OwnerIndexKey {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OwnerIndexInfo {
     pub object_type: StructTag,
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 /// Type filter for `owner_iter`.

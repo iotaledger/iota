@@ -598,6 +598,9 @@ process_pending_removals
 process_validator_departure
 	fun
 	0x3::validator_set
+clean_report_records_non_committee_validators
+	fun
+	0x3::validator_set
 clean_report_records_leaving_validator
 	fun
 	0x3::validator_set

@@ -26,9 +26,117 @@ use crate::{
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
-    checkpoints::CheckpointStore,
+    checkpoints::{
+        CheckpointStore, FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
+        test_checkpoint_with_contents,
+    },
     global_state_hasher::GlobalStateHasher,
 };
+
+/// The fallback (per-item) load path runs when contents were not synced via
+/// state sync — the validator case. It must populate the contents cache so
+/// state-sync peers can be served without reconstruction.
+#[tokio::test]
+pub async fn test_fallback_load_populates_contents_cache() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    // sync_new_checkpoints persists only the digest-form contents, like a
+    // validator's checkpoint builder, so the executor takes the fallback path.
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+
+    executor.load_checkpoint_transactions(checkpoint.clone());
+
+    let cached = checkpoint_store
+        .get_full_checkpoint_contents_by_sequence_number(seq)
+        .expect("fallback load should populate the contents cache");
+    assert_eq!(
+        cached.checkpoint_contents().digest(),
+        checkpoint.content_digest
+    );
+    // The peer-serving lookup by contents digest must hit too.
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_digest(&checkpoint.content_digest)
+            .is_some()
+    );
+}
+
+/// With the cache disabled (budget 0), the fallback load must not populate it.
+#[tokio::test]
+pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new_with_contents_cache(
+        tmp_dir.path(),
+        FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
+    );
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    executor.load_checkpoint_transactions(checkpoint);
+
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+}
+
+/// During deep catch-up the cache window rides the state-sync frontier far
+/// ahead of the executor; the fallback load must not displace it with entries
+/// that lowest-seq eviction would remove immediately.
+#[tokio::test]
+pub async fn test_fallback_load_skips_contents_cache_below_window() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new_with_contents_cache(
+        tmp_dir.path(),
+        // A 1-byte budget any real entry exceeds, so the cache is at budget
+        // as soon as the frontier entry below lands.
+        FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
+    );
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    // Simulate the state-sync frontier far ahead of the executor.
+    let frontier_seq = 10_000;
+    let frontier_contents = FullCheckpointContents::random_for_testing();
+    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
+    checkpoint_store.cache_full_checkpoint_contents(
+        frontier_checkpoint.sequence_number(),
+        frontier_checkpoint.content_digest,
+        frontier_contents,
+    );
+
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    executor.load_checkpoint_transactions(checkpoint);
+
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(frontier_seq)
+            .is_some()
+    );
+}
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.

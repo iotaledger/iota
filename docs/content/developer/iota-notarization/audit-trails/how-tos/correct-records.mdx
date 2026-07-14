@@ -1,0 +1,199 @@
+---
+title: Correct Records
+sidebar_label: Correct Records
+description: How to append correction records and resolve the current version of an Audit Trail record.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Correct Records
+
+This guide shows how to correct an existing record without mutating or deleting it. A correction appends a new record, links it to the record it supersedes, and lets readers resolve the current version while preserving the full history.
+
+## Prerequisites
+
+- An existing `AuditTrail` object on the IOTA network
+- A capability with `CorrectRecord` permission, such as one issued from a `RecordAdmin` role
+- Familiarity with [adding and reading records](./add-and-read-records.mdx)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a record-admin wallet. The admin creates the trail and grants the record-admin wallet permission to correct records.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L25-L26
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L26-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Trail with an Initial Record
+
+Create a trail that starts with the record you want to correct later. The initial record receives sequence number `0`.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L28-L40
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L29-L36
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Grant Record Correction Permission
+
+Create a `RecordAdmin` role and issue a capability to the record-admin wallet. The standard record-admin permission set includes `CorrectRecord`.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L41-L60
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L38-L46
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Append a Correction Record
+
+Call the correction API with the sequence number of the record being corrected. The original record stays in place, and the correction is appended with a new sequence number.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L62-L80
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L48-L55
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Read the Correction Links
+
+Read the original record, the correction record, and the current version resolved from the original sequence number.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L82-L98
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L57-L75
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Verify the Original Cannot Be Corrected Twice
+
+Attempting to correct an already replaced record fails. To continue a correction chain, correct the latest record returned by `resolve_current` / `resolveCurrent`.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs#L100-L115
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts#L77-L87
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- The correction is appended as a new record with its own sequence number.
+- The original record's correction metadata points to the replacement record.
+- The correction record's metadata lists the sequence number it replaces.
+- Resolving the current record from the original sequence number returns the appended correction.
+- Correcting an already replaced record is rejected.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/12_correct_records.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/12_correct_records.ts
+```
+
+</TabItem>
+</Tabs>

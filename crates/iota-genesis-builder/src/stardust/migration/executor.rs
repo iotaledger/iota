@@ -18,7 +18,7 @@ use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
+    Address, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction, Version,
     move_package::{MovePackage, TypeOrigin},
 };
 use iota_stardust_types::block::output::{
@@ -27,7 +27,7 @@ use iota_stardust_types::block::output::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{SequenceNumber, TxContext},
+    base_types::TxContext,
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -405,7 +405,7 @@ impl Executor {
     pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
-    ) -> Result<(Bag, SequenceNumber, Vec<ObjectId>)> {
+    ) -> Result<(Bag, Version, Vec<ObjectId>)> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {

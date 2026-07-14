@@ -19,7 +19,7 @@ pub use test_effects_builder::TestEffectsBuilder;
 use tracing::instrument;
 
 use crate::{
-    base_types::{ExecutionDigests, SequenceNumber},
+    base_types::ExecutionDigests,
     committee::Committee,
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
@@ -287,7 +287,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
-        lamport_version: SequenceNumber,
+        lamport_version: Version,
         changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
         gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
@@ -312,10 +312,10 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
 
     /// Returns all objects that will become a tombstone after this transaction.
     /// This includes deleted, unwrapped_then_deleted and wrapped objects.
-    fn all_tombstones(&self) -> Vec<(ObjectId, SequenceNumber)>;
+    fn all_tombstones(&self) -> Vec<(ObjectId, Version)>;
 
     /// Returns all objects that were created + wrapped in the same transaction.
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, SequenceNumber)>;
+    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)>;
@@ -496,7 +496,7 @@ impl TransactionEffectsExt for TransactionEffects {
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
-        lamport_version: SequenceNumber,
+        lamport_version: Version,
         changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
         gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
@@ -553,7 +553,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn all_tombstones(&self) -> Vec<(ObjectId, SequenceNumber)> {
+    fn all_tombstones(&self) -> Vec<(ObjectId, Version)> {
         self.deleted()
             .into_iter()
             .chain(self.unwrapped_then_deleted())
@@ -562,7 +562,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, SequenceNumber)> {
+    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)> {
         // Filter `ObjectChange` where:
         // - `input_digest` and `output_digest` are `None`, and
         // - `id_operation` is `Created`.
@@ -630,7 +630,7 @@ impl TransactionEffectsExtForTesting for TransactionEffects {
             vec![],
             BTreeSet::new(),
             transaction_digest,
-            SequenceNumber::default(),
+            Version::default(),
             BTreeMap::new(),
             None,
             None,

@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_types::{Address, ObjectId, ObjectReference};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -41,7 +41,6 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -83,10 +82,12 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
+            // disable full node pruning: tests read `balance_changes` / `object_changes` in
+            // which needs historical data.
             let (cluster, store, client) =
                 runtime.block_on(start_test_cluster_with_read_write_indexer(
                     Some("shared_test_indexer_db"),
-                    None,
+                    Some(Box::new(|builder| builder.disable_fullnode_pruning())),
                     None,
                 ));
 
@@ -147,7 +148,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
-    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
+    let mut builder = TestClusterBuilder::new().disable_fullnode_pruning();
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
@@ -259,7 +260,7 @@ pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestC
 async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectId,
-    sequence_number: SequenceNumber,
+    version: Version,
 ) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -270,7 +271,7 @@ async fn wait_for_object(
 
             if obj_res
                 .data
-                .map(|obj| obj.version == sequence_number)
+                .map(|obj| obj.version == version)
                 .unwrap_or_default()
             {
                 break;
@@ -284,22 +285,14 @@ async fn wait_for_object(
 }
 
 /// Wait for the indexer to catch up to the given object sequence number
-pub async fn indexer_wait_for_object(
-    client: &HttpClient,
-    object_id: ObjectId,
-    sequence_number: SequenceNumber,
-) {
-    wait_for_object(client, object_id, sequence_number)
+pub async fn indexer_wait_for_object(client: &HttpClient, object_id: ObjectId, version: Version) {
+    wait_for_object(client, object_id, version)
         .await
         .expect("timeout waiting for indexer to catchup to given object's sequence number");
 }
 
-pub async fn node_wait_for_object(
-    cluster: &TestCluster,
-    object_id: ObjectId,
-    sequence_number: SequenceNumber,
-) {
-    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
+pub async fn node_wait_for_object(cluster: &TestCluster, object_id: ObjectId, version: Version) {
+    wait_for_object(cluster.rpc_client(), object_id, version)
         .await
         .expect("timeout waiting for node to catchup to given object's sequence number");
 }

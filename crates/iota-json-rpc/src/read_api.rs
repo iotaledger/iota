@@ -28,10 +28,10 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, Version};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
+    base_types::TransactionDigest,
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{
@@ -597,7 +597,7 @@ impl ReadApiServer for ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
-            let version: SequenceNumber = version.into();
+            let version: Version = version.into();
             let state = self.state.clone();
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
@@ -654,7 +654,7 @@ impl ReadApiServer for ReadApi {
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
             .state
@@ -1482,8 +1482,8 @@ mod tests {
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
-            CheckpointSummaryExt,
+            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+            CheckpointDigest, CheckpointSummary, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,
@@ -1597,7 +1597,7 @@ mod tests {
             async fn get_object(
                 &self,
                 object_id: ObjectId,
-                version: SequenceNumber,
+                version: Version,
             ) -> IotaResult<Option<Object>>;
 
             async fn multi_get_objects(

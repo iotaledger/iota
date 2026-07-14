@@ -6,12 +6,12 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, Version};
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{SequenceNumber, TxContext},
+    base_types::TxContext,
     coin::Coin,
     collection_types::Bag,
     id::UID,
@@ -38,7 +38,7 @@ pub fn create_coin(
     owner: Address,
     amount: u64,
     tx_context: &TxContext,
-    version: SequenceNumber,
+    version: Version,
     protocol_config: &ProtocolConfig,
     coin_type: &CoinType,
 ) -> Result<Object> {
@@ -76,7 +76,7 @@ pub trait BasicOutputExt {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object>;
 
@@ -86,7 +86,7 @@ pub trait BasicOutputExt {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object>;
 
@@ -150,7 +150,7 @@ impl BasicOutputExt for BasicOutput {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = {
@@ -179,7 +179,7 @@ impl BasicOutputExt for BasicOutput {
         owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(

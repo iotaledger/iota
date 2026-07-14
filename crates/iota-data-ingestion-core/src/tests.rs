@@ -14,19 +14,19 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+    Address, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind, Version,
+    gas::GasCostSummary,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
@@ -442,10 +442,10 @@ async fn basic_flow_with_custom_callback() {
             epoch: 0,
             randomness_round: 0.into(),
             random_bytes: vec![],
-            randomness_obj_initial_shared_version: SequenceNumber::default(),
+            randomness_obj_initial_shared_version: Version::default(),
         }),
         Address::random(),
-        ObjectReference::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
         0,
         0,
     );

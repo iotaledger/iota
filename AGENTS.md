@@ -150,6 +150,11 @@ When writing or modifying comments, follow the **Comments** rules in [`RUST_CONV
 - Keep them compact and concise; bullet points over full paragraphs.
 - Say at a high level _what_ the change does and _why_ — the code-level details belong in the diff, not the description (see [`REVIEW.md`](REVIEW.md)).
 
+#### Release Notes section
+
+- The change is user-visible in some component → check the matching box(es) and write a one-line note after each colon (a checked box with no note also fails).
+- The change has nothing worth a release note (tests, CI, internal refactors, docs) → **delete the entire "### Release Notes" section** (and the "Breaking Changes Rollout" subsection) from the PR description. Never leave it as the empty template — CI (`scripts/release_notes/release_notes.py check-pr`) rejects a PR whose "Release Notes" section has only unchecked boxes with no notes.
+
 ### Plain language, no coined terms
 
 Applies to all of the above, and to review comments and reports — all prose, not just code.

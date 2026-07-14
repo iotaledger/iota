@@ -50,8 +50,8 @@ use iota_core::{
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
-        CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
-        SubmitCheckpointToConsensus,
+        CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+        FullCheckpointContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
     connection_monitor::ConnectionMonitor,
@@ -448,7 +448,15 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
-        let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new_with_contents_cache(
+            &config.db_path().join("checkpoints"),
+            FullCheckpointContentsCache::new(
+                config
+                    .full_checkpoint_contents_cache_size_mb
+                    .saturating_mul(1024 * 1024),
+                FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
+            ),
+        );
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
@@ -1873,9 +1881,9 @@ impl IotaNode {
     // self.state.db()
     // }
 
-    /// Clone an AuthorityAggregator currently used in this node's
-    /// QuorumDriver, if the node is a fullnode. After reconfig,
-    /// QuorumDriver builds a new AuthorityAggregator. The caller
+    /// Clone the AuthorityAggregator currently used by this node's
+    /// transaction orchestrator, if the node is a fullnode. After reconfig,
+    /// the active driver builds a new AuthorityAggregator. The caller
     /// of this function will mostly likely want to call this again
     /// to get a fresh one.
     pub fn clone_authority_aggregator(
@@ -1897,8 +1905,11 @@ impl IotaNode {
     ) -> Result<tokio::sync::broadcast::Receiver<QuorumDriverEffectsQueueResult>> {
         self.transaction_orchestrator
             .as_ref()
-            .map(|to| to.subscribe_to_effects_queue())
-            .ok_or_else(|| anyhow::anyhow!("Transaction Orchestrator is not enabled in this node."))
+            .ok_or_else(|| {
+                anyhow::anyhow!("Transaction Orchestrator is not enabled in this node.")
+            })?
+            .subscribe_to_effects_queue()
+            .ok_or_else(|| anyhow::anyhow!("Effects queue is not available under the P-COOL flow."))
     }
 
     /// This function awaits the completion of checkpoint execution of the

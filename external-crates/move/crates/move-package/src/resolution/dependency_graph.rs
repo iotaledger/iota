@@ -524,8 +524,19 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
     ) -> Result<Vec<(DependencyGraph, bool, bool, Symbol, Option<Symbol>)>> {
         match dep {
             PM::Dependency::Internal(d) => {
+                // Resolve the dependency against its parent before fetching, so a local
+                // dependency of a git package (e.g. `{ local = "../move-stdlib" }`) becomes
+                // a git dependency into the same repository. The fetch can then materialize
+                // that subdir, which matters for sparse checkouts where the sibling is not on
+                // disk until it is explicitly added.
+                let mut fetch_kind = d.kind.clone();
+                fetch_kind.reroot(parent)?;
                 self.dependency_cache
-                    .download_and_update_if_remote(dep_pkg_name, &d.kind, &mut self.progress_output)
+                    .download_and_update_if_remote(
+                        dep_pkg_name,
+                        &fetch_kind,
+                        &mut self.progress_output,
+                    )
                     .with_context(|| format!("Fetching '{}'", dep_pkg_name))?;
                 let pkg_path = dep_pkg_path.join(local_path(&d.kind));
                 let manifest_string =
@@ -551,8 +562,17 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
                 // save dependency for cycle detection
                 self.visited_dependencies
                     .push_front((resolved_pkg_id, d.clone()));
+                // Parent kind for resolving this dependency's own dependencies. When the
+                // dependency resolved into a git repository, use that git kind so nested
+                // local siblings resolve into -- and are fetched from -- the same repository.
+                // Purely local chains keep the original kind, since rerooting a local parent
+                // accumulates the path and would corrupt nested local paths.
+                let nested_parent = match fetch_kind {
+                    PM::DependencyKind::Git(_) => &fetch_kind,
+                    _ => &d.kind,
+                };
                 let (mut pkg_graph, modified) =
-                    self.get_graph(&d.kind, pkg_path, manifest_string, lock_string)?;
+                    self.get_graph(nested_parent, pkg_path, manifest_string, lock_string)?;
                 self.visited_dependencies.pop_front();
                 // reroot all packages to normalize local paths across all graphs
                 for (_, p) in pkg_graph.package_table.iter_mut() {

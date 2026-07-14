@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{Address, CommandArgumentError, ObjectId, ObjectReference, Owner};
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, ObjectReference, Owner, Version};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -92,7 +92,7 @@ pub enum UserInputError {
     #[error("Could not find the referenced object {object_id} at version {version:?}")]
     ObjectNotFound {
         object_id: ObjectId,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
@@ -100,7 +100,7 @@ pub enum UserInputError {
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectReference,
-        current_version: SequenceNumber,
+        current_version: Version,
     },
     #[error("Package verification failed: {err}")]
     PackageVerificationTimedout { err: String },
@@ -183,8 +183,8 @@ pub enum UserInputError {
     )]
     ObjectSequenceNumberTooHigh {
         object_id: ObjectId,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        asked_version: Version,
+        latest_version: Version,
     },
     #[error("Object deleted at reference {:?}", object_ref)]
     ObjectDeleted { object_ref: ObjectReference },
@@ -299,7 +299,7 @@ pub enum UserInputError {
     )]
     AccountObjectDeleted {
         account_id: ObjectId,
-        account_version: SequenceNumber,
+        account_version: Version,
         transaction_digest: TransactionDigest,
     },
     #[error(
@@ -307,7 +307,7 @@ pub enum UserInputError {
     )]
     AccountObjectInCanceledTransaction {
         account_id: ObjectId,
-        account_version: SequenceNumber,
+        account_version: Version,
     },
     #[error("Account object {object_id} is not a shared or immutable object that is unsupported")]
     AccountObjectNotSupported { object_id: ObjectId },
@@ -316,8 +316,8 @@ pub enum UserInputError {
     )]
     AccountObjectVersionMismatch {
         object_id: ObjectId,
-        expected_version: SequenceNumber,
-        actual_version: SequenceNumber,
+        expected_version: Version,
+        actual_version: Version,
     },
     #[error(
         "The fetched account object digest {actual_digest} does not match the expected digest {expected_digest}, object id: {object_id}"
@@ -334,7 +334,7 @@ pub enum UserInputError {
     MoveAuthenticatorNotFound {
         authenticator_function_ref_id: ObjectId,
         account_object_id: ObjectId,
-        account_object_version: SequenceNumber,
+        account_object_version: Version,
     },
     #[error("Unable to get a `MoveAuthenticator` object ID for account {account_object_id}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectId },

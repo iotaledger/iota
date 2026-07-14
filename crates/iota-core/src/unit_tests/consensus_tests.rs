@@ -7,18 +7,19 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, gas::GasCostSummary};
+use iota_sdk_types::{Identifier, ObjectId, SharedObjectReference, gas::GasCostSummary};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData, TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionData,
+        TransactionDataAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -61,7 +62,7 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectRef::new(
+    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
         shared_object.id(),
         shared_object.version(),
         true,

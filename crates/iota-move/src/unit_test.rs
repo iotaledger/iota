@@ -9,7 +9,8 @@ use clap::Parser;
 use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
     NativesCostTable, authentication_context::AuthenticationContext, object_runtime::ObjectRuntime,
-    test_scenario::InMemoryTestStore, transaction_context::TransactionContext,
+    protocol_config::ProtocolConfigTestOverrides, test_scenario::InMemoryTestStore,
+    transaction_context::TransactionContext,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
@@ -141,6 +142,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
         0, // epoch id
     ));
     ext.add(NativesCostTable::from_protocol_config(&protocol_config));
+    ext.add(ProtocolConfigTestOverrides::default());
     ext.add(AuthenticationContext::new_for_testing(Rc::new(
         RefCell::new(AuthContext::new_for_testing()),
     )));

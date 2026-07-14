@@ -19,12 +19,14 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, StructTag, TransactionKind, TypeTag, Version,
+};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{ObjectInfo, SequenceNumber},
+    base_types::ObjectInfo,
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -68,7 +70,7 @@ pub trait StateRead: Send + Sync {
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead>;
 
     async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>>;
@@ -262,7 +264,7 @@ impl StateRead for AuthorityState {
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead> {
         Ok(self.get_past_object_read(object_id, version)?)
     }
@@ -552,18 +554,14 @@ impl StateRead for AuthorityState {
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         Ok(self.get_past_object_read(id, *version)?.into_object()?)
     }
 
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
@@ -575,11 +573,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
 impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueStore>) {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object_read = self.0.get_past_object_read(id, *version)?;
         match object_read {
             PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..) => {
@@ -595,7 +589,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .0
