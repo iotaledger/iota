@@ -75,10 +75,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Signer address: {}", &address);
 
     let signed_tx = signer.sign_transaction(&transaction, &address).await?;
-    println!(
-        "Signature: {}",
-        Base64::encode(signed_tx.signature.to_bytes())
-    );
+    println!("Signature: {}", signed_tx.signature.to_base64());
 
     Ok(())
 }
