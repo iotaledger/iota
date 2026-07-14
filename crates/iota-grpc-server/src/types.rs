@@ -16,10 +16,9 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag, Version};
 use iota_types::{
     base_types::VersionNumber,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
@@ -332,7 +331,7 @@ impl GrpcReader {
     /// Get checkpoint sequence number by digest
     pub fn get_checkpoint_sequence_number_by_digest(
         &self,
-        digest: &iota_types::digests::CheckpointDigest,
+        digest: &iota_sdk_types::CheckpointDigest,
     ) -> anyhow::Result<Option<u64>> {
         self.state_reader
             .try_get_checkpoint_by_digest(digest)

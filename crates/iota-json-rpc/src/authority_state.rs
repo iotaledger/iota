@@ -20,7 +20,8 @@ use iota_json_rpc_types::{
     IotaObjectDataFilter, TransactionFilter,
 };
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, StructTag, TransactionKind, TypeTag, Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
+    TransactionDigest, TransactionKind, TypeTag, Version,
 };
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -28,7 +29,7 @@ use iota_storage::key_value_store::{
 use iota_types::{
     base_types::ObjectInfo,
     committee::{Committee, EpochId},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     error::{IotaError, UserInputError},
@@ -36,10 +37,7 @@ use iota_types::{
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,

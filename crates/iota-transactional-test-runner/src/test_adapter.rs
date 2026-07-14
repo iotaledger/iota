@@ -33,9 +33,10 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
-    ObjectData, ObjectId, ObjectReference, ProgrammableTransaction, RandomnessRound,
-    TransactionKind, TypeTag, Version, gas::GasCostSummary, move_package::MovePackage,
+    Address, Argument, CheckpointContentsDigest, Command, ConsensusCommitDigest, Event,
+    ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag, Version,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -45,12 +46,9 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -2858,7 +2856,7 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &iota_sdk_types::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor.try_get_checkpoint_by_digest(digest)
     }

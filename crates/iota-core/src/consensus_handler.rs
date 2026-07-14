@@ -13,10 +13,9 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::CancelledTransaction;
+use iota_sdk_types::{CancelledTransaction, ConsensusCommitDigest, TransactionDigest};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    digests::ConsensusCommitDigest,
+    base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},

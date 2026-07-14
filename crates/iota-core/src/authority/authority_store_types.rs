@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectData, Owner, StructTag, move_package::MovePackage};
+use iota_sdk_types::{ObjectData, Owner, StructTag, TransactionDigest, move_package::MovePackage};
 use iota_types::{
-    base_types::TransactionDigest,
     coin::Coin,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,

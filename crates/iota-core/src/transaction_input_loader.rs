@@ -5,9 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::{EpochId, TransactionDigest},
+    base_types::EpochId,
     error::{IotaError, IotaResult, UserInputError},
     storage::ObjectKey,
     transaction::{

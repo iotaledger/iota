@@ -19,12 +19,13 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
-use iota_sdk_types::{Address, Event, ObjectId, TransactionKind};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, Event, ObjectId, TransactionDigest, TransactionKind,
+};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::VersionNumber,
     committee::EpochId,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
@@ -32,7 +33,7 @@ use iota_types::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
         iota_system_state_summary::IotaSystemStateSummary,
     },
-    messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
+    messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
     transaction::{InputObjects, Transaction, TransactionData},
@@ -308,7 +309,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        _digest: &iota_sdk_types::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }

@@ -7,10 +7,11 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::{fatal, sync::notify_read::NotifyRead};
 use iota_config::ExecutionCacheConfig;
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest, Version,
+};
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,

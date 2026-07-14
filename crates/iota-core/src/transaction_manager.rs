@@ -12,11 +12,9 @@ use std::{
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
 use iota_types::{
-    base_types::TransactionDigest,
     committee::EpochId,
-    digests::TransactionEffectsDigest,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     fp_bail, fp_ensure,

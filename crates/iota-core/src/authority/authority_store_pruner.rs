@@ -14,13 +14,12 @@ use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{CheckpointDigest, ObjectId, Version};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
-        CheckpointTimestamp,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
     },
     storage::ObjectKey,
 };
@@ -1059,11 +1058,9 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{ObjectId, ObjectReference, Version};
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
-        base_types::ObjectDigest,
-        digests::TransactionDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
         },

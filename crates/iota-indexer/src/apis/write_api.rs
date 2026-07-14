@@ -25,10 +25,11 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_protocol_config::Chain;
-use iota_sdk_types::{Address, ObjectId, TransactionExpiration, TransactionKind, Version};
+use iota_sdk_types::{
+    Address, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind, Version,
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
-use iota_sdk_types::ObjectId;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use tonic::{Code, Status};
 
 /// Main RPC error type

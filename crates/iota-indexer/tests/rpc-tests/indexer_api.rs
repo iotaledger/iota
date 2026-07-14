@@ -1101,7 +1101,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
 async fn assert_paginated_filtered_transactions(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[iota_sdk_types::TransactionDigest],
     filter: TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1141,7 +1141,7 @@ async fn assert_paginated_filtered_transactions(
 
 async fn assert_paginated_transactions_ascending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[iota_sdk_types::TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1183,7 +1183,7 @@ async fn assert_paginated_transactions_ascending(
 
 async fn assert_paginated_transactions_descending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[iota_sdk_types::TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
