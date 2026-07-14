@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_framework::BuiltInFramework;
-use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::IotaObjectResponse;
+use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 use iota_types::{IOTA_SYSTEM_ADDRESS, digests::TransactionDigest, object::Object};
@@ -19,9 +18,18 @@ async fn test_additional_objects() {
         .build()
         .await;
 
-    let client = cluster.rpc_client();
-    let resp = client.get_object(id, None).await.unwrap();
-    assert!(matches!(resp, IotaObjectResponse { data: Some(_), .. }));
+    let objects = cluster
+        .grpc_client()
+        .get_objects(&[(id, None)], Some(ReadMask::from(ObjectField::REFERENCE)))
+        .await
+        .unwrap()
+        .into_inner();
+    let object_ref = objects
+        .first()
+        .expect("added object should exist")
+        .object_reference()
+        .expect("added object should exist");
+    assert_eq!(object_ref.object_id, id);
 }
 
 #[sim_test]
@@ -29,14 +37,19 @@ async fn test_package_override() {
     // `with_objects` can be used to override existing packages.
     let framework_ref = {
         let default_cluster = TestClusterBuilder::new().build().await;
-        let client = default_cluster.rpc_client();
-        let obj = client.get_object(ObjectId::SYSTEM, None).await.unwrap();
-
-        if let Some(obj) = obj.data {
-            obj.object_ref()
-        } else {
-            panic!("original framework package should exist");
-        }
+        default_cluster
+            .grpc_client()
+            .get_objects(
+                &[(ObjectId::SYSTEM, None)],
+                Some(ReadMask::from(ObjectField::REFERENCE)),
+            )
+            .await
+            .unwrap()
+            .into_inner()
+            .first()
+            .expect("original framework package should exist")
+            .object_reference()
+            .expect("original framework package should exist")
     };
 
     let modified_ref = {
@@ -68,14 +81,19 @@ async fn test_package_override() {
             .build()
             .await;
 
-        let client = modified_cluster.rpc_client();
-        let obj = client.get_object(ObjectId::SYSTEM, None).await.unwrap();
-
-        if let Some(obj) = obj.data {
-            obj.object_ref()
-        } else {
-            panic!("original framework package should exist");
-        }
+        modified_cluster
+            .grpc_client()
+            .get_objects(
+                &[(ObjectId::SYSTEM, None)],
+                Some(ReadMask::from(ObjectField::REFERENCE)),
+            )
+            .await
+            .unwrap()
+            .into_inner()
+            .first()
+            .expect("modified framework package should exist")
+            .object_reference()
+            .expect("modified framework package should exist")
     };
 
     assert_ne!(framework_ref, modified_ref);

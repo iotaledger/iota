@@ -11,7 +11,6 @@ use iota_grpc_types::{
         state_service_client::StateServiceClient,
     },
 };
-use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
@@ -703,18 +702,9 @@ async fn list_owned_objects_filter_by_type() {
         .into_inner();
     assert_eq!(treasury_cap_filtered.objects.len(), 1);
 
-    // Look up the TreasuryCap's ObjectReference so we can pass it to `mint`.
-    let owned = test_cluster
-        .get_owned_objects(sender, Some(IotaObjectDataOptions::full_content()))
-        .await
-        .unwrap();
-    let treasury_cap_ref = owned
-        .iter()
-        .find_map(|resp| {
-            let data = resp.data.as_ref()?;
-            let struct_tag: StructTag = data.type_.clone()?.try_into().ok()?;
-            (struct_tag.to_canonical_string(true) == treasury_cap_type).then(|| data.object_ref())
-        })
+    // Reuse the ObjectReference from the gRPC response above to pass to `mint`.
+    let treasury_cap_ref = treasury_cap_filtered.objects[0]
+        .object_reference()
         .expect("sender should own a TreasuryCap after publish");
 
     // Mint some coins

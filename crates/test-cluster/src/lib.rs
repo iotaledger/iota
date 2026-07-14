@@ -27,8 +27,7 @@ use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
@@ -748,28 +747,18 @@ impl TestCluster {
             .build();
 
         let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+        let tx_digest = *signed_transaction.digest();
 
-        let response = self
-            .iota_client()
-            .quorum_driver_api()
-            .execute_transaction_block(
-                signed_transaction,
-                IotaTransactionBlockResponseOptions::new().with_effects(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
-
-        let object_ref = response
-            .effects
-            .as_ref()
+        let executed = self.execute_transaction(signed_transaction).await;
+        let object_ref = executed
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap()
             .created()
             .first()
             .unwrap()
-            .reference;
-
-        let tx_digest = response.digest;
+            .0;
 
         (object_ref, tx_digest)
     }

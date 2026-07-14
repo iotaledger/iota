@@ -1429,16 +1429,7 @@ async fn publish_init_events_without_local_execution() {
         .await
         .publish(path)
         .build();
-    let tx = test_cluster.sign_transaction(&tx_data);
-    let client = test_cluster.wallet.get_client().await.unwrap();
-    let response = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            tx,
-            IotaTransactionBlockResponseOptions::new().with_events(),
-            Some(ExecuteTransactionRequestType::WaitForEffectsCert),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.events.unwrap().data.len(), 1);
+    let executed = test_cluster.sign_and_execute_transaction(&tx_data).await;
+    let events = executed.events().unwrap().events().unwrap();
+    assert_eq!(events.0.len(), 1);
 }
