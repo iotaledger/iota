@@ -209,7 +209,7 @@ banner() {
 # genesis while every validator warms up on the same machine.
 wait_for_fullnode() {
   echo "${YELLOW}Waiting for fullnode RPC at 127.0.0.1:9000 ...${RESET}"
-  for _ in $(seq 1 300); do
+  for _ in $(seq 1 60); do
     if curl -s -o /dev/null --max-time 2 \
       -X POST -H 'Content-Type: application/json' \
       --data '{"jsonrpc":"2.0","id":1,"method":"iota_getChainIdentifier","params":[]}' \

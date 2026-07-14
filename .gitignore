@@ -90,6 +90,7 @@ lcov.info
 dev-tools/iota-private-network/data
 dev-tools/iota-private-network/configs/validators/validator*
 dev-tools/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/configs/genesis-template-*.yaml
 dev-tools/iota-private-network/configs/temp/
 dev-tools/iota-private-network/experiments/logs/
 dev-tools/iota-private-network/.env.tmp
