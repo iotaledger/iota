@@ -54,6 +54,11 @@ per-run JSON, aggregates, and plots):
 - 5 × 3 × 3 = **45 configurations**, **10 iterations** each; every iteration
   runs Run A (V1, attestation OFF) and Run B (V2, attestation ON).
 
+Unless stated otherwise, every table and figure below shows the `qps1000`
+rate. All three rates were run; the effects barely depend on the rate, so one
+representative rate keeps the tables and figures readable. Where a result does
+depend on the rate, the prose or an extra table says so explicitly.
+
 `run.sh` re-bootstraps a fresh genesis and network (empty DB) between A and B so
 both share the same cold baseline and warmup — only attestation differs. The
 monitoring stack is cycled down (without wiping its volume) and back up too,
@@ -102,9 +107,12 @@ switches them to the standard error of the mean.
 
 In the figures below, blue = **A (V1, attestation off)** and red = **B (V2,
 attestation on)**; the x-axis is one group per configuration
-(`s<size>·q<qps>·<path>`, `f1` = fullnode, `v1` = pinned to one validator,
-`v4` = direct to all 4), with
-dashed separators between computation sizes; the y-axis is log-scaled.
+(`s<size>·<path>`, `f1` = fullnode, `v1` = pinned to one validator,
+`v4` = direct to all 4), with dashed separators between computation sizes; the
+y-axis is log-scaled. To keep the figures readable, the shedding figure shows
+only the heavy sizes (`slow200`/`slow500`) and the client-side figures only
+the fullnode path. The tables and `summary_table_n4.md` carry the full 45
+configurations.
 
 ---
 
@@ -136,7 +144,7 @@ computation cost and tracks the actual execution latency across the whole
 sweep, matching it at the heavy end. The full attestation latency
 (`validator_attestation_latency`) equals the dry-run at light compute, then
 pulls away from `slow200` on — the wait and resume around the dry-run grow
-with load, on every client path. At `qps1000`:
+with load, on every client path:
 
 Fullnode path (`f1`):
 
@@ -191,12 +199,12 @@ so it costs the validator roughly double.
 ![Attestation computation units and dry-run execution latency](h1/results/summary_plots_n4/attestation_latency_exec.png)
 
 *Computation units, attestation dry-run execution latency (p50/p95), and actual
-execution latency (p95) — findings 1–3. CUs sit at the gas floor for
-`slow0`/`slow50` and step up from `slow100`; the dry-run tracks actual
-execution latency across the sweep.*
+execution latency (p95) — findings 1–3. CUs sit at the gas floor for `slow0`
+and `slow50` and step up from `slow100`; the dry-run tracks actual execution
+latency across the sweep.*
 
 The full attestation latency split into its three parts (pool wait + dry-run
-execution + async resume), at `qps1000`:
+execution + async resume):
 
 Fullnode path (`f1`), p50:
 
@@ -306,7 +314,7 @@ others — so they are load noise, not a systematic attestation cost. The
 largest one (`v4` at `slow500`, 1.52) is the contention effect from finding 1:
 B's dry-runs add CPU load that stretches the real execution's wall clock.
 Attestation does not touch the execution path itself; its cost lives in the
-pre-consensus dry-run (finding 1). Execution latency p95 at `qps1000` (CUs are
+pre-consensus dry-run (finding 1). Execution latency p95 (CUs are
 measured on attested transactions, so they exist for B only):
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A | CUs |
@@ -350,7 +358,7 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 `validator_transaction_execution_latency` times the whole internal pipeline on
 the receiving validator — receipt via `submit_tx`, attestation, consensus,
 post-consensus validation, and execution — no client/fullnode time. Median
-(p50) at `qps1000`:
+(p50):
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -390,7 +398,7 @@ consensus.**
 built (values are seconds, despite the help text saying milliseconds). The
 builder can only seal a checkpoint once that commit's transactions have
 executed, so the lag is a direct view of the post-consensus execution backlog.
-p95 at `qps1000`:
+p95:
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -442,7 +450,7 @@ off) lags far more than B, because its backlog sits after consensus.*
 `validate_and_resolve_conflicts` (the post-consensus pass) is where attestation
 adds Check #3 — attestor verification plus cost bounds. But that's a few integer
 comparisons per tx; the pass is dominated by the already-executed cache lookup
-(Check #1) and owned-object lock/conflict resolution. All paths, `qps1000`:
+(Check #1) and owned-object lock/conflict resolution. All paths:
 
 Fullnode path (`f1`):
 
@@ -559,7 +567,7 @@ on the loaded validator beyond the attestation span itself.
 
 `settlement_finality_latency` is the client's submit→finality time (fullnode
 path only). It's the end-to-end view of the internal pipeline (finding 4) plus
-network and finality, so it moves the same way. Fullnode path, `qps1000`:
+network and finality, so it moves the same way. Fullnode path:
 
 | slow_size | p50 A | p50 B | p50 B/A | p95 A | p95 B | p95 B/A |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -588,10 +596,10 @@ p50), the doubling from finding 4 carried through to what the client observes.
 | `node_cpu_seconds_total` | node-exporter (no in-repo help): seconds each CPU spent in each mode | counter; `rate()` over non-idle modes summed to whole-machine busy cores; averaged over all seconds of all iterations |
 
 Per-validator CPU (busiest validator, cadvisor) B/A median = **1.28×** (range
-0.99–2.23×) — e.g. `slow100-f1-q1000` 8.7 → 11.1 cores, `slow500-f1-q1000`
+0.99–2.23×) — e.g. `slow100-f1` 8.7 → 11.1 cores, `slow500-f1`
 20.9 → 24.7 cores. Consistent with the extra dry-run execution.
 
-Busiest-validator CPU (cores) by slow_size at `qps1000`:
+Busiest-validator CPU (cores) by slow_size:
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -608,7 +616,7 @@ spreading that matters, not the fullnode: submitting directly to all 4 keeps
 the busiest validator at fullnode-path levels (B ≈ 24.7 cores at `slow500`,
 matching `f1` and well below `v1`'s 35.9).
 
-Busiest-validator memory RSS (GB) by slow_size at `qps1000`:
+Busiest-validator memory RSS (GB) by slow_size:
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -639,7 +647,7 @@ Finalized TPS (`transactions_included_in_checkpoint`) is statistically
 identical A vs B at normal load — median `(B−A)/A = −0.4 %` across all 45
 configurations, within the few-percent run-to-run noise.
 
-Finalized TPS by slow_size at `qps1000` (A = attestation off, B = on; `slow500`
+Finalized TPS by slow_size (A = attestation off, B = on; `slow500`
 is small and noisy):
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
@@ -663,21 +671,21 @@ paths spread attestation work. On the pinned path (`v1`) one validator attests
 nearly all traffic, so its rate tracks the full transaction rate; on the
 fullnode path (`f1`), the fullnode spreads submissions across the four
 validators, so the busiest one attests only its share — about half the pinned
-rate at light load (`slow0-q1000`: 484 vs 994 /s) and roughly a fifth under
-heavy compute (`slow200-q1000`: 306 vs 1546 /s). `v4` spreads just as evenly
+rate at light load (`slow0`: 484 vs 994 /s) and roughly a fifth under
+heavy compute (`slow200`: 306 vs 1546 /s). `v4` spreads just as evenly
 without a fullnode in the picture (busiest ≈ 500 /s at light load, 426 at
 `slow200`) — the driver's validator selection balances the load on its own.
 Finalized TPS is approximately the same on all paths, so this is about how
 attestation work is spread, not throughput.
 
-attestations / sec by path (busiest validator, `qps1000`):
+attestations / sec by path (busiest validator):
 
 | config          | `f1` | `v1` | `v4` | v1/f1 |
 | ---             | ---  | ---  | ---  | ---   |
-| `slow0-q1000`   | 484  | 994  | 500  | 2.1×  |
-| `slow100-q1000` | 501  | 993  | 503  | 2.0×  |
-| `slow200-q1000` | 306  | 1546 | 426  | 5.0×  |
-| `slow500-q1000` | 74   | 516  | 96   | 7.0×  |
+| `slow0`   | 484  | 994  | 500  | 2.1×  |
+| `slow100` | 501  | 993  | 503  | 2.0×  |
+| `slow200` | 306  | 1546 | 426  | 5.0×  |
+| `slow500` | 74   | 516  | 96   | 7.0×  |
 
 ---
 
@@ -707,7 +715,7 @@ findings 10 and 11. TPS is A≈B; no validation drops on either path.*
 
 Under load, execution work queues up. Headline signal: queue-delay p95 (how long
 a tx waits before executing); dispatch-queue depth and pending-tx count track
-it. `qps1000`:
+it:
 
 | slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -749,12 +757,12 @@ small bursts at `qps2000` (percentages of a few percent, drops up to ≈7/s on
 
 | config | A drops/s | A quorum % | A local % | B drops/s | B quorum % | B local % |
 | --- | --- | --- | --- | --- | --- | --- |
-| `slow200-f1-q1000` | 0    | 0    | 2.2  | 0    | 0    | 1.1  |
-| `slow200-v1-q1000` | 10.2 | 6.5  | 22.7 | 0    | 0    | 20.1 |
-| `slow200-v4-q1000` | 22.2 | 12.2 | 27.9 | 6.9  | 6.3  | 17.7 |
-| `slow500-f1-q1000` | 1.1  | 4.1  | 10.4 | 6.8  | 26.4 | 41.8 |
-| `slow500-v1-q1000` | 13.9 | 30.7 | 45.6 | 2.8  | 17.9 | 60.7 |
-| `slow500-v4-q1000` | 12.1 | 28.4 | 38.6 | 4.8  | 42.4 | 70.2 |
+| `slow200-f1` | 0    | 0    | 2.2  | 0    | 0    | 1.1  |
+| `slow200-v1` | 10.2 | 6.5  | 22.7 | 0    | 0    | 20.1 |
+| `slow200-v4` | 22.2 | 12.2 | 27.9 | 6.9  | 6.3  | 17.7 |
+| `slow500-f1` | 1.1  | 4.1  | 10.4 | 6.8  | 26.4 | 41.8 |
+| `slow500-v1` | 13.9 | 30.7 | 45.6 | 2.8  | 17.9 | 60.7 |
+| `slow500-v4` | 12.1 | 28.4 | 38.6 | 4.8  | 42.4 | 70.2 |
 | `slow200-f1-q2000` | 1.8  | 1.9  | 11.6 | 27.1 | 15.4 | 27.6 |
 | `slow200-v1-q2000` | 71.1 | 27.1 | 31.1 | 3.0  | 2.5  | 24.7 |
 | `slow200-v4-q2000` | 71.3 | 26.2 | 31.5 | 52.3 | 27.4 | 37.1 |
@@ -780,7 +788,8 @@ percentages run higher.
 
 *Post-consensus load shedding: drops / sec, enforced quorum shed %, and locally
 broadcast shed % (peaks). A dominates the drops on the pinned path; B can
-dominate on the fullnode path.*
+dominate on the fullnode path. The largest drops land at `qps2000` (see the
+table above).*
 
 ---
 
@@ -799,19 +808,11 @@ consensus queue is saturated, labeled by which limit tripped: the graduated
 soft band, the `max_pending_transactions` hard limit (20000), or the submit
 semaphore (`max_pending_transactions × 2 / committee size` = 10000 for this
 4-validator network). Across the whole matrix it fired in exactly one
-configuration — B at `slow500-v1-qps2000`. `—` below means the counter never
-incremented, so the series does not exist:
+configuration — B at `slow500-v1-qps2000`; no other configuration, at any
+rate, rejected a single transaction pre-consensus:
 
 | config | A `num_inflight` | B `num_inflight` | B graduated/s | B semaphore/s | B cons-queue % |
 | --- | --- | --- | --- | --- | --- |
-| `slow200-v1-q1000` | 1248 | 2360 | — | —     | 0   |
-| `slow200-v4-q1000` | 649  | 998  | — | —     | 0   |
-| `slow500-v1-q1000` | 1736 | 3047 | — | —     | 0   |
-| `slow500-v4-q1000` | 962  | 917  | — | —     | 0   |
-| `slow200-v1-q2000` | 2282 | 4459 | — | —     | 0   |
-| `slow200-v4-q2000` | 1074 | 1660 | — | —     | 0   |
-| `slow500-f1-q2000` | 1806 | 1707 | — | —     | 0   |
-| `slow500-v4-q2000` | 2068 | 1899 | — | —     | 0   |
 | `slow500-v1-q2000` | 3667 | 9726 | 32.1 | 126.8 | 4.7 |
 
 `num_inflight` (transactions submitted to consensus but not yet sequenced) peaks
@@ -826,16 +827,6 @@ sheds pre-consensus at any configuration, and neither does `v4` at any load:
 spreading the submissions keeps every validator's `num_inflight` at ≈2100 or
 less, far from the semaphore — the pre-consensus limits only come into play
 when the load pins to a single validator.
-
-![Pre-consensus overload sources](h1/results/summary_plots_n4/consensus_overload_sources.png)
-
-*Pre-consensus overload rejections by source (graduated / max-pending /
-semaphore). Only B at `slow500-v1-qps2000` has data.*
-
-![Pre-consensus load shedding](h1/results/summary_plots_n4/load_shedding_pre_consensus.png)
-
-*Pre-consensus rejections / sec, consensus-queue shed % (peak), and consensus
-in-flight transactions (`num_inflight`, peak).*
 
 ---
 

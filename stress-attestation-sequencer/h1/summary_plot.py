@@ -124,7 +124,12 @@ def draw_metric(
     show_legend,
     title=None,
     ylabel=None,
+    fs=None,
 ):
+    # Font sizes scale with the figure's subplot count (see make_figure): a
+    # taller figure is displayed smaller, so its text must be bigger to end up
+    # the same apparent size.
+    fs = fs or {"tick": 9, "title": 11, "legend": 9}
     """Draw one metric's grouped bars on `ax`, reserving one slot per `versions`
     entry (a missing value leaves an empty slot). `title`/`ylabel` override the
     defaults (version tag / metric name)."""
@@ -133,6 +138,11 @@ def draw_metric(
 
     x = 0.0
     xticks, xlabels, centers, slow_separators = [], [], [], []
+    # components constant across the whole figure (e.g. qps on a
+    # single-rate slice, n within one campaign) carry no information —
+    # drop them from the tick labels.
+    show_qps = len({parse_cfg(c)[2] for c in configs}) > 1
+    show_n = len({parse_cfg(c)[0] for c in configs}) > 1
     prev_group, prev_slow = None, None
     for cfg in configs:
         n, slow, qps, wl = parse_cfg(cfg)
@@ -165,26 +175,29 @@ def draw_metric(
             )
             left += W
         xticks.append(x + nbars * W / 2)  # center of the config's bars
-        # n is omitted from the tick label for the common 4-validator runs.
-        xlabels.append(f"s{slow}·q{qps}·{wl}" + (f"·n{n}" if n != 4 else ""))
+        xlabels.append(
+            f"s{slow}" + (f"·q{qps}" if show_qps else "") + f"·{wl}"
+            + (f"·n{n}" if show_n else "")
+        )
         x += nbars * W
 
     for sx in slow_separators:
         ax.axvline(sx, color="#888", linestyle="--", linewidth=0.7, alpha=0.7)
     ax.set_xticks(xticks)
     ax.set_xticklabels(
-        xlabels if show_xlabels else [], rotation=45, ha="right", fontsize=7
+        xlabels if show_xlabels else [], rotation=45, ha="right", fontsize=fs["tick"]
     )
     # sharex=True auto-hides tick labels on non-bottom subplots; force them on so
     # every subplot carries its own x-labels.
     ax.tick_params(axis="x", labelbottom=show_xlabels)
+    ax.tick_params(axis="y", labelsize=fs["tick"])
     ax.set_xlim(-GAP_LARGE, x + GAP_SMALL)
     if ylabel is None:
         ylabel = metric + (f" ({unit})" if unit and unit != "none" else "")
-    ax.set_ylabel(ylabel)
+    ax.set_ylabel(ylabel, fontsize=fs["tick"] + 1)
     ax.set_title(
         title if title is not None else " vs ".join(vi[3] for vi in versions),
-        fontsize=9,
+        fontsize=fs["title"],
     )
     ax.grid(True, axis="y", alpha=0.25)
     if logy:
@@ -206,7 +219,7 @@ def draw_metric(
                     label=DISP_LABEL[disp],
                 )
             )
-        ax.legend(handles=handles, fontsize=8)
+        ax.legend(handles=handles, fontsize=fs["legend"])
 
 
 # subplot title / suptitle helpers for multi-metric figures
@@ -231,6 +244,30 @@ def base_of(metric):
     b = re.sub(r"\s*p\d+\s*", " ", metric)
     b = re.sub(r"\s*\([^)]*\)\s*$", "", b)
     return re.sub(r"\s+", " ", b).strip()
+
+
+# Per-figure config filters keep the x-axis readable: the findings quote
+# qps1000 almost everywhere, slow50 duplicates slow0's gas bucket, so the
+# default view is qps1000 x {0,100,200,500} x all paths (12 groups instead of
+# 45). Figures that need another slice override:
+#   "slow" / "qps" / "paths" — allow-lists applied to parse_cfg's fields.
+# The full 45-config grid stays in summary_table_n<N>.{md,csv}; this trims the
+# FIGURES only.
+DEF_SLOW = (0, 50, 100, 200, 500)
+DEF_QPS = (1000,)
+
+
+def fig_configs(configs, spec):
+    """Filter the global config list down to one figure's slice."""
+    slow = spec.get("slow", DEF_SLOW)
+    qps = spec.get("qps", DEF_QPS)
+    paths = spec.get("paths")
+    out = []
+    for c in configs:
+        n, s, q, wl = parse_cfg(c)
+        if s in slow and q in qps and (paths is None or wl in paths):
+            out.append(c)
+    return out
 
 
 # Default figure set — `summary_plot.py` with no --metric renders all of these,
@@ -314,6 +351,7 @@ FIGURES = [
     },
     {
         "file": "load_shedding_post_consensus",
+        "slow": (200, 500),
         "title": "Post-consensus load shedding",
         "metrics": [
             "post-cons shed drops / sec",
@@ -327,35 +365,8 @@ FIGURES = [
         },
     },
     {
-        "file": "consensus_overload_sources",
-        "title": "Pre-consensus overload sources (rejections by source)",
-        "metrics": [
-            "overload graduated / sec",
-            "overload max-pending / sec",
-            "overload semaphore / sec",
-        ],
-        "subtitles": {
-            "overload graduated / sec": "graduated (soft-limit) rejections / sec",
-            "overload max-pending / sec": "max-pending (hard-limit) rejections / sec",
-            "overload semaphore / sec": "submit-semaphore-exhausted rejections / sec",
-        },
-    },
-    {
-        "file": "load_shedding_pre_consensus",
-        "title": "Pre-consensus load shedding (admission control)",
-        "metrics": [
-            "pre-cons overload rej / sec",
-            "shed % cons-queue",
-            "num_inflight",
-        ],
-        "subtitles": {
-            "pre-cons overload rej / sec": "txns rejected pre-consensus (check_system_overload) / sec",
-            "shed % cons-queue": "consensus-queue graduated shed %",
-            "num_inflight": "peak consensus in-flight transactions (num_inflight)",
-        },
-    },
-    {
         "file": "settlement_finality_latency",
+        "paths": ("f1",),
         "title": "Settlement finality latency (client-side)",
         "metrics": [
             "final. lat. p99 (s)",
@@ -365,6 +376,7 @@ FIGURES = [
     },
     {
         "file": "submit_latency",
+        "paths": ("f1",),
         "title": "Submit-transaction latency (client-side)",
         "metrics": ["submit lat. p95 (s)", "submit lat. p50 (s)"],
     },
@@ -416,7 +428,7 @@ def make_figure(
 
     # Version tag (A vs B) and the composed figure title.
     tag = " vs ".join(vi[3] for vi in versions)
-    composed = f"{title} — {tag}" if title else tag
+    composed = f"{title}:\n{tag}" if title else tag
 
     # A homogeneous percentile family (e.g. attest. lat. p99/p95/p50) gets percentile
     # subplot titles + a shared suptitle; a heterogeneous set (e.g. host/node CPU, mem)
@@ -424,8 +436,13 @@ def make_figure(
     bases = {base_of(m) for m in metrics}
     homogeneous = n > 1 and len(bases) == 1 and all(pct_of(m) for m in metrics)
 
+    # font sizes grow with subplot count so every figure reads the same when
+    # scaled to a common display size (a 4-subplot figure is ~2x taller than a
+    # 2-subplot one and shrinks that much more).
+    tick = round(3 + 2.5 * n)
+    fs = {"tick": tick, "title": tick + 2, "legend": tick}
     fig, axes = plt.subplots(
-        n, 1, sharex=True, figsize=(max(10, len(configs) * 0.95), 3.4 * n + 1.5)
+        n, 1, sharex=True, figsize=(11.4, 3.4 * n + 1.5)
     )
     axes = [axes] if n == 1 else list(axes)
     for i, (ax, metric) in enumerate(zip(axes, metrics)):
@@ -453,17 +470,20 @@ def make_figure(
             show_legend=(i == 0),  # only the top subplot
             title=subplot_title,
             ylabel=ylabel,
+            fs=fs,
         )
 
     if n > 1:
         if title:
             sup = composed
         else:
-            sup = f"{bases.pop()} — {tag}" if homogeneous else tag
-        fig.suptitle(sup, fontsize=11)
+            sup = f"{bases.pop()}:\n{tag}" if homogeneous else tag
+        fig.suptitle(sup, fontsize=fs["title"] + 3)
         # h_pad opens vertical space between stacked subplots so a subplot's title
-        # doesn't read as the x-label of the plot above it.
-        fig.tight_layout(rect=(0, 0, 1, 0.97), h_pad=3.0)
+        # doesn't read as the x-label of the plot above it. The top margin holds
+        # the two-line suptitle: ~2.6 line-heights converted to figure fraction.
+        sup_headroom = 2.6 * (fs["title"] + 3) / 72 / (3.4 * n + 1.5)
+        fig.tight_layout(rect=(0, 0, 1, 1 - sup_headroom), h_pad=3.0)
     else:
         fig.tight_layout()
 
@@ -537,7 +557,7 @@ def main():
         )
         make_figure(
             args.csv,
-            configs,
+            fig_configs(configs, {}),
             args.metric,
             out,
             args.versions,
@@ -546,11 +566,11 @@ def main():
             title=args.title,
         )
     else:
-        # no --metric: render the whole default set.
+        # no --metric: render the whole default set, each on its config slice.
         for spec in FIGURES:
             make_figure(
                 args.csv,
-                configs,
+                fig_configs(configs, spec),
                 spec["metrics"],
                 os.path.join(outdir, spec["file"] + ".png"),
                 spec.get("versions", "auto"),
