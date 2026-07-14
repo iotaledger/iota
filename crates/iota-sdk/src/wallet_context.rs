@@ -19,6 +19,7 @@ use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_types::{Address, Coin, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
     crypto::IotaKeyPair,
+    effects::TransactionEffectsAPI,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use tokio::sync::RwLock;
@@ -35,8 +36,6 @@ const EXECUTE_TRANSACTION_READ_MASK: &str = iota_grpc_types::field_mask!(
     "transaction.digest",
     "effects",
     "events",
-    "input_objects",
-    "output_objects",
     "object_changes",
     "balance_changes",
     "checkpoint",
@@ -113,6 +112,11 @@ impl WalletContext {
         Ok(context)
     }
 
+    /// Set the request timeout for chain-touching calls.
+    ///
+    /// This currently only affects the JSON-RPC backend. The gRPC backend's
+    /// `iota_grpc_client::Client` does not yet expose a request-timeout setter,
+    /// so this value is ignored there until that lands upstream.
     pub fn with_request_timeout(mut self, request_timeout: std::time::Duration) -> Self {
         self.request_timeout = Some(request_timeout);
         self
@@ -405,24 +409,41 @@ impl WalletContext {
         address: Address,
         limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectReference>> {
-        let client = self.get_client().await?;
-        let results: Vec<_> = client
-            .read_api()
-            .get_owned_objects(
-                address,
-                IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                    Some(IotaObjectDataOptions::full_content()),
-                ),
-                None,
-                limit,
-            )
-            .await?
-            .data
-            .into_iter()
-            .filter_map(|r| r.data.map(|o| o.object_ref()))
-            .collect();
-        Ok(results)
+        let limit = limit.into();
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .list_owned_objects(address, Some(StructTag::new_gas_coin()), None, None, None)
+                    .collect(limit.map(|l| l as u32))
+                    .await?
+                    .into_inner();
+                objects
+                    .iter()
+                    .map(|o| o.object_reference().map_err(|e| anyhow!("{e}")))
+                    .collect()
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let results: Vec<_> = client
+                    .read_api()
+                    .get_owned_objects(
+                        address,
+                        IotaObjectResponseQuery::new(
+                            Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                            Some(IotaObjectDataOptions::full_content()),
+                        ),
+                        None,
+                        limit,
+                    )
+                    .await?
+                    .data
+                    .into_iter()
+                    .filter_map(|r| r.data.map(|o| o.object_ref()))
+                    .collect();
+                Ok(results)
+            }
+        }
     }
 
     /// Given an address, return one gas object owned by this address.
@@ -504,9 +525,10 @@ impl WalletContext {
         Transaction::from_data(data.clone(), vec![sig])
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. Also expects the effects status to be
-    /// ExecutionStatus::Success.
+    /// Execute a transaction, wait for the fullnode to observe it, and assert
+    /// the effects status is `ExecutionStatus::Success`. The gRPC backend waits
+    /// for the transaction to be included in a checkpoint; the JSON-RPC backend
+    /// waits for local execution.
     pub async fn execute_transaction_must_succeed(&self, tx: Transaction) -> ExecutedTransaction {
         tracing::debug!("Executing transaction: {:?}", tx);
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
@@ -515,17 +537,18 @@ impl WalletContext {
             .expect("effects missing from execute_transaction response")
             .effects()
             .expect("effects failed to deserialize")
-            .as_v1()
-            .status
+            .status()
             .is_success();
         assert!(status_ok, "Transaction failed: {response:?}");
         response
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. The transaction execution is not guaranteed to succeed and
-    /// may fail. This is usually only needed in non-test environment or the
-    /// caller is explicitly testing some failure behavior.
+    /// Execute a transaction and wait for the fullnode to observe it
+    /// (checkpoint inclusion on the gRPC backend, local execution on the
+    /// JSON-RPC backend). The transaction execution is not guaranteed to
+    /// succeed and may fail. This is usually only needed in non-test
+    /// environment or the caller is explicitly testing some failure
+    /// behavior.
     pub async fn execute_transaction_may_fail(
         &self,
         tx: Transaction,
@@ -554,8 +577,6 @@ impl WalletContext {
                     .execute_transaction_block(
                         tx,
                         IotaTransactionBlockResponseOptions::new()
-                            .with_effects()
-                            .with_input()
                             .with_raw_input()
                             .with_events()
                             .with_object_changes()
@@ -572,8 +593,6 @@ impl WalletContext {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use iota_config::Config;
     use iota_keys::keystore::InMemKeystore;
 
@@ -588,7 +607,7 @@ mod tests {
         let config = IotaClientConfig::new(Keystore::InMem(InMemKeystore::default()))
             .with_envs([env])
             .with_active_env(alias)
-            .persisted(&PathBuf::from("unused-test-config.yaml"));
+            .persisted(&std::env::temp_dir().join("iota-wallet-context-test.yaml"));
         WalletContext {
             config,
             request_timeout: None,

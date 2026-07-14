@@ -29,16 +29,9 @@ use crate::{BalanceChange, IotaObjectData, IotaTransactionBlockResponse, ObjectC
 
 /// Error converting between `iota_json_rpc_types` and `iota-rust-sdk`-native
 /// types.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
 pub struct SdkConversionError(pub String);
-
-impl std::fmt::Display for SdkConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for SdkConversionError {}
 
 impl From<bcs::Error> for SdkConversionError {
     fn from(value: bcs::Error) -> Self {
@@ -301,9 +294,9 @@ impl TryFrom<&IotaTransactionBlockResponse> for ExecutedTransaction {
 /// `TestCluster::execute_transaction`).
 ///
 /// Populates the digest, `effects` (and `raw_effects`), `object_changes`,
-/// `balance_changes`, and `checkpoint` when present on the source;
-/// `transaction`/`raw_transaction`/`events` are left at their zero values,
-/// which no consumer of this direction reads.
+/// `balance_changes`, `checkpoint`, and `timestamp_ms` when present on the
+/// source; `transaction`/`raw_transaction`/`events` are left at their zero
+/// values, which no consumer of this direction reads.
 impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
     type Error = SdkConversionError;
 
@@ -355,7 +348,7 @@ impl TryFrom<&ExecutedTransaction> for IotaTransactionBlockResponse {
             events: None,
             object_changes,
             balance_changes,
-            timestamp_ms: None,
+            timestamp_ms: value.timestamp_ms().ok(),
             confirmed_local_execution: None,
             checkpoint: value.checkpoint,
             errors: vec![],

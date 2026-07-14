@@ -2319,20 +2319,10 @@ impl TestEnvironment {
     }
 
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
-        // `execute_transaction` already asserts a successful effects status
-        // (it wraps `execute_transaction_must_succeed`), so reaching here means
-        // the transaction executed successfully.
-        let transaction_response = self.test_cluster.execute_transaction(tx).await;
-        assert!(
-            transaction_response
-                .effects()
-                .unwrap()
-                .effects()
-                .unwrap()
-                .as_v1()
-                .status
-                .is_success()
-        );
+        // `execute_transaction` already asserts a successful effects status (it
+        // wraps `execute_transaction_must_succeed`), so a successful return here
+        // means the transaction executed successfully.
+        self.test_cluster.execute_transaction(tx).await;
         Ok(())
     }
 
