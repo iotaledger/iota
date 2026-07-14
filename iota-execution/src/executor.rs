@@ -5,7 +5,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ProgrammableTransaction, TransactionKind};
+use iota_sdk_types::{Address, GasPayment, ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -23,7 +23,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData},
+    transaction::CheckedInputObjects,
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -43,7 +43,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -71,7 +71,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -97,7 +97,7 @@ pub trait Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -131,7 +131,7 @@ pub trait Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(

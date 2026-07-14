@@ -45,8 +45,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, TransactionExpiration, TransactionKind, TypeTag, Version,
+    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, GasPayment, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, TransactionExpiration, TransactionKind,
+    TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -2475,7 +2476,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 objects: payment,
                 owner,
                 price,

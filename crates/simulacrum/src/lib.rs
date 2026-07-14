@@ -31,7 +31,9 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{
+    Address, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, TransactionKind,
+};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -58,7 +60,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -448,7 +450,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
-        let gas_data = iota_types::transaction::GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
@@ -889,7 +891,7 @@ impl Simulacrum {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
