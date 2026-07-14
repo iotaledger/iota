@@ -17,9 +17,9 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{SharedObjectReference, 
-    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction, StructTag,
-    TransactionKind,
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, StructTag, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
@@ -27,7 +27,10 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKindExt},
+    transaction::{
+        CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKindExt,
+    },
 };
 
 use crate::{

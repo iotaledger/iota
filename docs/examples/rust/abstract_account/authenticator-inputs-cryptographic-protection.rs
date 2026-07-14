@@ -26,13 +26,12 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{SharedObjectReference, Address, Argument, Identifier, ObjectId, ObjectReference, Owner, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
+};
 use iota_types::{
-    crypto::PublicKey,
-    move_authenticator::MoveAuthenticatorExt,
-    signature::GenericSignature,
-    transaction::{CallArg},
-    utils::MoveAuthenticatorV1,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::GenericSignature,
+    transaction::CallArg, utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
