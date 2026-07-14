@@ -184,8 +184,11 @@ impl Worker for KvWorker {
     }
 }
 
-/// Extracts the information related to an address involved in a transaction as
-/// sender, gas owner, or object owner, from a [`CheckpointData`].
+/// Uses [`CheckpointData`] to map addresses affected by a transaction to the
+/// respective transaction identifiers.
+///
+/// Affected addresses include the sender, and payer of the transaction,
+/// plus the owners of all changed objects.
 pub fn transactions_by_address<'a>(
     checkpoint: &'a CheckpointData,
 ) -> impl Iterator<Item = (Address, TransactionSequenceNumber, TransactionDigest)> + 'a {
