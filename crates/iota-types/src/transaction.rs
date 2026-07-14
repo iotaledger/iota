@@ -18,16 +18,15 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
-    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId,
-    ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
+    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GasPayment,
+    GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
     RandomnessStateUpdate, SharedObjectReference, SplitCoins, TransactionExpiration,
     TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
-    GasPayment as GasData, SystemPackage, Transaction as TransactionData,
-    TransactionV1 as TransactionDataV1,
+    SystemPackage, Transaction as TransactionData, TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -41,8 +40,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
+        Signature, Signer, zero_ed25519_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -973,7 +972,7 @@ pub trait TransactionDataAPI {
 
     /// Returns a reference to the gas data (owner, payment objects, price,
     /// budget).
-    fn gas_data(&self) -> &GasData;
+    fn gas_data(&self) -> &GasPayment;
 
     /// Returns the address that owns the gas payment objects.
     fn gas_owner(&self) -> Address;
@@ -1035,7 +1034,7 @@ pub trait TransactionDataAPI {
     fn sender_mut_for_testing(&mut self) -> &mut Address;
 
     /// Returns a mutable reference to the gas data.
-    fn gas_data_mut(&mut self) -> &mut GasData;
+    fn gas_data_mut(&mut self) -> &mut GasPayment;
 
     /// Returns a mutable reference to the expiration. **Testing only.**
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration;
@@ -1077,11 +1076,11 @@ pub trait TransactionDataAPI {
         gas_sponsor: Address,
     ) -> TransactionData;
 
-    /// Creates a new transaction from a pre-built [`GasData`] struct.
+    /// Creates a new transaction from a pre-built [`GasPayment`] struct.
     fn new_with_gas_data(
         kind: TransactionKind,
         sender: Address,
-        gas_data: GasData,
+        gas_data: GasPayment,
     ) -> TransactionData;
 
     /// Creates a transaction that calls a single Move function with a single
@@ -1246,7 +1245,7 @@ pub trait TransactionDataAPI {
 
     /// Consumes self and returns the transaction kind, sender address, and
     /// gas payment object references as a tuple.
-    fn execution_parts(&self) -> (TransactionKind, Address, GasData);
+    fn execution_parts(&self) -> (TransactionKind, Address, GasPayment);
 }
 
 impl TransactionDataAPI for TransactionData {
@@ -1286,7 +1285,7 @@ impl TransactionDataAPI for TransactionData {
         signers
     }
 
-    fn gas_data(&self) -> &GasData {
+    fn gas_data(&self) -> &GasPayment {
         match self {
             Self::V1(v1) => &v1.gas_payment,
             _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
@@ -1392,7 +1391,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn gas_data_mut(&mut self) -> &mut GasData {
+    fn gas_data_mut(&mut self) -> &mut GasPayment {
         match self {
             Self::V1(v1) => &mut v1.gas_payment,
             _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
@@ -1412,7 +1411,7 @@ impl TransactionDataAPI for TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
                 objects: vec![ObjectReference::new(
@@ -1436,7 +1435,7 @@ impl TransactionDataAPI for TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: gas_price,
                 owner: sender,
                 objects: vec![gas_payment],
@@ -1474,7 +1473,7 @@ impl TransactionDataAPI for TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: gas_price,
                 owner: gas_sponsor,
                 objects: gas_payment,
@@ -1487,7 +1486,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_data(
         kind: TransactionKind,
         sender: Address,
-        gas_data: GasData,
+        gas_data: GasPayment,
     ) -> TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
@@ -1803,7 +1802,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn execution_parts(&self) -> (TransactionKind, Address, GasData) {
+    fn execution_parts(&self) -> (TransactionKind, Address, GasPayment) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
 }
@@ -2456,7 +2455,7 @@ impl<S> Envelope<SenderSignedData, S> {
 impl Transaction {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<&dyn Signer<Signature>>,
+        signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
@@ -2476,7 +2475,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: &dyn Signer<Signature>,
+        signer: impl Into<IotaKeyPair>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)
@@ -2555,12 +2554,7 @@ impl VerifiedTransaction {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
             .pipe(|data| {
-                SenderSignedData::new_from_sender_signature(
-                    data,
-                    Ed25519IotaSignature::from_bytes(&[0; Ed25519IotaSignature::LENGTH])
-                        .unwrap()
-                        .into(),
-                )
+                SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
             })
             .pipe(Transaction::new)
             .pipe(Self::new_from_verified)

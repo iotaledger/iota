@@ -27,8 +27,8 @@ use iota_types::{
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
+        KeypairTraits, Signature, Signer, get_key_pair,
     },
     digests::ConsensusCommitDigest,
     effects::{
@@ -178,7 +178,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig).unwrap();
     // ... and the user signature which does
 
-    let sig: Signature = Signer::sign(&s_kp, b"hello world");
+    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
@@ -578,12 +578,7 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-        vec![GenericSignature::Signature(
-            Signature::Ed25519IotaSignature(
-                Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
-            ),
-        )],
+        vec![GenericSignature::Signature(sig1.clone())],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

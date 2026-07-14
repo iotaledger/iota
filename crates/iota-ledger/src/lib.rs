@@ -16,7 +16,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    crypto::{Ed25519IotaSignature, Signature, SignatureScheme, ToFromBytes},
+    crypto::{Signature, SignatureScheme},
     object::Object,
 };
 
@@ -186,9 +186,8 @@ impl Ledger {
         signature_bytes.extend_from_slice(key_response.public_key.as_ref());
 
         Ok(SignedTransaction {
-            signature: Ed25519IotaSignature::from_bytes(&signature_bytes)
-                .map_err(|_| LedgerError::Serialization)?
-                .into(),
+            signature: Signature::from_bytes(&signature_bytes)
+                .map_err(|_| LedgerError::Serialization)?,
             address: Address::from_bytes(key_response.address)
                 .map_err(|_| LedgerError::Serialization)?,
         })

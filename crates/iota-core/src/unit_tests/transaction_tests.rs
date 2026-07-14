@@ -17,7 +17,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionDataAPI,
