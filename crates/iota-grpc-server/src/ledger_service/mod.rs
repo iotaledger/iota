@@ -17,7 +17,7 @@ use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 
-use crate::types::*;
+use crate::{traffic_control::TallyHandle, types::*};
 
 pub struct LedgerGrpcService {
     pub config: GrpcApiConfig,
@@ -83,9 +83,23 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         &self,
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
-        let response = get_objects::get_objects(self.reader.clone(), request.into_inner())
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let request = request.into_inner();
+        let item_count = request
+            .requests
+            .as_ref()
+            .map_or(0, |batch| batch.requests.len());
+        let response = get_objects::get_objects(self.reader.clone(), request)
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
             .map_err(tonic::Status::from)?;
+        // The batch's items are streamed lazily and invisible to the
+        // transport-level traffic control: charge one request per requested
+        // item so batching cannot dilute the spam rate.
+        if let Some(tally_handle) = &tally_handle {
+            for _ in 0..item_count {
+                tally_handle.tally_item(tonic::Code::Ok);
+            }
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -93,13 +107,24 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         &self,
         request: tonic::Request<grpc_ledger_service::GetTransactionsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetTransactionsStream>, tonic::Status> {
-        let response = get_transactions::get_transactions(
-            self.reader.clone(),
-            self.config.clone(),
-            request.into_inner(),
-        )
-        .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
-        .map_err(tonic::Status::from)?;
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let request = request.into_inner();
+        let item_count = request
+            .requests
+            .as_ref()
+            .map_or(0, |batch| batch.requests.len());
+        let response =
+            get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
+                .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
+                .map_err(tonic::Status::from)?;
+        // The batch's items are streamed lazily and invisible to the
+        // transport-level traffic control: charge one request per requested
+        // item so batching cannot dilute the spam rate.
+        if let Some(tally_handle) = &tally_handle {
+            for _ in 0..item_count {
+                tally_handle.tally_item(tonic::Code::Ok);
+            }
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 

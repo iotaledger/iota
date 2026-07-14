@@ -6,12 +6,13 @@
 //!
 //! The layer extracts the client IP and tallies each request against the
 //! traffic controller, deriving the error weight from the response's gRPC
-//! status code. A batch API's items are invisible at this level: their per-item
-//! errors are embedded in an otherwise successful response, and a batch would
-//! count as a single request regardless of how many items it carries. Handlers
-//! report each item through the [`TallyHandle`] request extension so it counts
-//! individually for the spam policy and feeds the error policy on client
-//! errors.
+//! status code. A batch API's items are invisible at this level: their results
+//! ride in the response body — embedded in a unary response or produced lazily
+//! by a stream — while the layer only inspects the response status, so a batch
+//! would count as a single request regardless of how many items it carries.
+//! Handlers report each item through the [`TallyHandle`] request extension so
+//! it counts individually for the spam policy and feeds the error policy on
+//! client errors.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally

@@ -15,12 +15,16 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use common::{MockGrpcStateReader, start_test_server_with_traffic_controller};
 use iota_core::traffic_controller::TrafficController;
 use iota_grpc_types::v1::{
+    ledger_service::{
+        GetObjectsRequest, ObjectRequest, ObjectRequests,
+        ledger_service_client::LedgerServiceClient,
+    },
     state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
     transaction_execution_service::{
         ExecuteTransactionItem, ExecuteTransactionsRequest, execute_transaction_result,
         transaction_execution_service_client::TransactionExecutionServiceClient,
     },
-    types::Address as ProtoAddress,
+    types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
 };
 use iota_types::{
     digests::TransactionDigest,
@@ -184,6 +188,80 @@ async fn batched_requests_accrue_spam_per_item() {
         // updates the blocklist before the next check.
         tokio::task::yield_now().await;
         if let Err(status) = client.execute_transactions(probe.clone()).await {
+            assert_eq!(
+                status.code(),
+                Code::ResourceExhausted,
+                "unexpected error: {status:?}"
+            );
+            assert!(
+                status.message().contains("Too many requests"),
+                "unexpected block message: {status:?}"
+            );
+            return;
+        }
+    }
+    panic!("expected the batch's items to block the client via the spam policy");
+}
+
+/// A streaming batch read (`get_objects`) must also count each requested item
+/// individually towards the spam policy, charged from the request's item count.
+#[tokio::test]
+async fn batched_reads_accrue_spam_per_item() {
+    let batch_size: usize = 20;
+    let spam_threshold: u64 = 15;
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        spam_policy_type: PolicyType::TestNConnIP(spam_threshold),
+        // Error policy off, so any block is attributable to the spam policy.
+        error_policy_type: PolicyType::NoOp,
+        // Count every tally deterministically.
+        spam_sample_rate: Weight::one(),
+        dry_run: false,
+        ..Default::default()
+    };
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None).await);
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        Arc::new(MockGrpcStateReader::default()),
+        traffic_controller,
+        None,
+    )
+    .await;
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .expect("failed to connect to test gRPC server");
+    let mut client = LedgerServiceClient::new(channel);
+
+    let object_request = |seed: u8| {
+        ObjectRequest::default().with_object_ref(
+            ObjectReference::default()
+                .with_object_id(ProtoObjectId::default().with_object_id(vec![seed; 32])),
+        )
+    };
+
+    // One batch of object lookups: each requested item counts as one request for
+    // the spam policy, charged from the request's item count. The lookups miss
+    // in the mock store, which does not affect the spam count.
+    let batch = GetObjectsRequest::default().with_requests(
+        ObjectRequests::default()
+            .with_requests((0..batch_size).map(|i| object_request(i as u8)).collect()),
+    );
+    client
+        .get_objects(batch)
+        .await
+        .expect("batch request itself should succeed");
+
+    // The single batch already exceeds the spam threshold, so the client must be
+    // blocked within a probe budget kept well below the threshold (the bound a
+    // per-request policy would need to reach the threshold on its own).
+    let probe = GetObjectsRequest::default()
+        .with_requests(ObjectRequests::default().with_requests(vec![object_request(0)]));
+    for _ in 0..10 {
+        // Yield so the background tally task drains the batch's tallies and
+        // updates the blocklist before the next check.
+        tokio::task::yield_now().await;
+        if let Err(status) = client.get_objects(probe.clone()).await {
             assert_eq!(
                 status.code(),
                 Code::ResourceExhausted,
