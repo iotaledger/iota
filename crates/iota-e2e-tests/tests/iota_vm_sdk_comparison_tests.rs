@@ -39,7 +39,6 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn compare_local_vm_staking_against_test_cluster() {
     let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
         .with_num_validators(1)
         .build()
         .await;
@@ -272,7 +271,6 @@ async fn compare_local_vm_receiving_against_test_cluster() {
     const E_UNABLE_TO_RECEIVE_OBJECT: u64 = 3;
 
     let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
         .with_num_validators(1)
         .build()
         .await;

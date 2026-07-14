@@ -6,7 +6,9 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, gas::GasCostSummary,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
@@ -14,7 +16,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas_coin::GAS,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -186,7 +188,7 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     counter_id,
                     counter_initial_shared_version,
                     true,

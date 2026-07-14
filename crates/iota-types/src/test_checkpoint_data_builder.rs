@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    StructTag, TransactionKind, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
@@ -28,10 +28,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 
 /// A builder for creating test checkpoint data.
@@ -435,7 +432,7 @@ impl TestCheckpointDataBuilder {
             };
 
             pt_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     *id,
                     initial_shared_version,
                     input.mutable,

@@ -13,7 +13,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
-use iota_sdk_types::{Event, ExecutionStatus};
+use iota_sdk_types::{Event, ExecutionStatus, SharedObjectReference};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
@@ -21,7 +21,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::TransactionEffectsAPI,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
@@ -324,12 +324,12 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared(SharedObjectRef::new(
+    let counter_object_arg = CallArg::Shared(SharedObjectReference::new(
         counter_id,
         counter_initial_shared_version,
         true,
     ));
-    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef::new(
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectReference::new(
         counter_id,
         counter_initial_shared_version,
         false,

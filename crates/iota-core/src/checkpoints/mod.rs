@@ -1114,14 +1114,21 @@ impl CheckpointBuilder {
             .epoch_store
             .last_built_checkpoint_builder_summary()
             .expect("epoch should not have ended");
-        let mut last_height = summary.clone().and_then(|s| s.checkpoint_height);
-        let mut last_timestamp = summary.map(|s| s.summary.timestamp_ms);
+        let mut last_height = summary.as_ref().and_then(|s| s.checkpoint_height);
+        let mut last_timestamp = summary.as_ref().map(|s| s.summary.timestamp_ms);
+        let mut last_seq = summary.map(|s| s.summary.sequence_number);
 
         let min_checkpoint_interval_ms = self
             .epoch_store
             .protocol_config()
             .min_checkpoint_interval_ms_as_option()
             .unwrap_or_default();
+        // When set, the interval may additionally be amortized over this many
+        // recent checkpoints of the current epoch.
+        let checkpoint_rate_window_size = self
+            .epoch_store
+            .protocol_config()
+            .checkpoint_rate_window_size_as_option();
         let mut grouped_pending_checkpoints = Vec::new();
         let mut checkpoints_iter = self
             .epoch_store
@@ -1130,17 +1137,44 @@ impl CheckpointBuilder {
             .into_iter()
             .peekable();
         while let Some((height, pending)) = checkpoints_iter.next() {
-            // Group PendingCheckpoints until:
-            // - minimum interval has elapsed ...
             let current_timestamp = pending.details().timestamp_ms;
-            let can_build = match last_timestamp {
+            // Strict interval against the immediately preceding checkpoint.
+            let adjacent_interval_elapsed = match last_timestamp {
                 Some(last_timestamp) => {
                     current_timestamp >= last_timestamp + min_checkpoint_interval_ms
                 }
                 None => true,
+            };
+            // Windowed arm: also allow building once the checkpoint `window`
+            // back is at least `window * interval` older. This recycles the
+            // slack the strict arm loses to discrete commit timestamps,
+            // holding the sustained rate at the ceiling, while the strict arm
+            // keeps every quiet gap — and thus checkpoint sizes — within one
+            // interval. Only checkpoints built in the current epoch are
+            // consulted: every validator builds all of them, so the look-back
+            // resolves identically everywhere and the gate stays
+            // deterministic. Until the window fills (epoch start, chain
+            // genesis) the arm is inert.
+            let interval_elapsed = adjacent_interval_elapsed
+                || checkpoint_rate_window_size.is_some_and(|window| {
+                    last_seq
+                        .and_then(|seq| (seq + 1).checked_sub(window))
+                        .and_then(|window_start_seq| {
+                            self.epoch_store
+                                .get_built_checkpoint_summary(window_start_seq)
+                                .expect("epoch store should not error reading a built checkpoint summary")
+                        })
+                        .is_some_and(|window_start| {
+                            current_timestamp
+                                >= window_start.timestamp_ms + window * min_checkpoint_interval_ms
+                        })
+                });
+            // Group PendingCheckpoints until:
+            // - the minimum interval has elapsed ...
+            let can_build = interval_elapsed
                 // - or, next PendingCheckpoint is last-of-epoch (since the last-of-epoch checkpoint
                 //   should be written separately) ...
-            } || checkpoints_iter
+                || checkpoints_iter
                 .peek()
                 .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
                 // - or, we have reached end of epoch.
@@ -1159,6 +1193,7 @@ impl CheckpointBuilder {
             // Min interval has elapsed, we can now coalesce and build a checkpoint.
             last_height = Some(height);
             last_timestamp = Some(current_timestamp);
+            let commits_in_checkpoint = grouped_pending_checkpoints.len();
             debug!(
                 checkpoint_commit_height_from = grouped_pending_checkpoints
                     .first()
@@ -1174,6 +1209,14 @@ impl CheckpointBuilder {
                 .await
             {
                 Ok(seq) => {
+                    // Count only on success; a failed build retries the same
+                    // group and would otherwise double-count it.
+                    self.metrics
+                        .commits_per_checkpoint
+                        .observe(commits_in_checkpoint as f64);
+                    // Advance the window anchor to the highest checkpoint just
+                    // built (a single call may emit several when chunked).
+                    last_seq = Some(seq);
                     self.last_built.send_if_modified(|cur| {
                         // when rebuilding checkpoints at startup, seq can be for an old checkpoint
                         if seq > *cur {
@@ -3038,6 +3081,8 @@ mod tests {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         protocol_config.set_min_checkpoint_interval_ms_for_testing(100);
+        // This test exercises the strict adjacent-checkpoint interval.
+        protocol_config.disable_checkpoint_rate_window_size_for_testing();
         let state = TestAuthorityBuilder::new()
             .with_protocol_config(protocol_config)
             .build()
@@ -3296,6 +3341,170 @@ mod tests {
         let c2sc = certified_result.recv().await.unwrap();
         assert_eq!(c1sc.sequence_number, 0);
         assert_eq!(c2sc.sequence_number, 1);
+    }
+
+    #[sim_test]
+    pub async fn checkpoint_builder_windowed_interval_test() {
+        telemetry_subscribers::init_for_testing();
+
+        // 100ms interval with a window of 3 checkpoints: a checkpoint is built
+        // when either 100ms passed since the previous one or the checkpoint 3
+        // back is >= 300ms older. The windowed arm permits sub-interval bursts
+        // while banked budget lasts; the adjacent arm caps every quiet gap at
+        // one interval regardless of window state.
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_min_checkpoint_interval_ms_for_testing(100);
+        protocol_config.set_checkpoint_rate_window_size_for_testing(3);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+
+        // Distinct real transactions: only build timing is under test, but the
+        // builder pairs each stored transaction with its effects by digest, so
+        // effects must reference the digests of actually stored transactions.
+        let make_tx = |seed: u8| {
+            let mut id = [0u8; 32];
+            id[0] = seed;
+            VerifiedTransaction::new_genesis_transaction(
+                vec![GenesisObject::new(
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
+                    Owner::Immutable,
+                )],
+                vec![],
+            )
+        };
+        let txns: Vec<_> = (1..=8).map(make_tx).collect();
+        let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
+        // Digest for test index `i` (1-based).
+        let d = |i: u8| digests[(i - 1) as usize];
+
+        for tx in &txns {
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .transactions
+                .insert(tx.digest(), tx.serializable_ref())
+                .unwrap();
+        }
+
+        let mut store = HashMap::<TransactionDigest, TransactionEffects>::new();
+        for i in 1..=8 {
+            commit_cert_for_test(
+                &mut store,
+                state.clone(),
+                d(i),
+                vec![],
+                GasCostSummary::new(11, 11, 12, 11, 1),
+            );
+        }
+        let all_digests: Vec<_> = store.keys().copied().collect();
+        for digest in all_digests {
+            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            state
+                .epoch_store_for_testing()
+                .test_insert_user_signature(digest, vec![signature]);
+        }
+
+        let (output, mut result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let store = Arc::new(store);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store,
+            epoch_store.clone(),
+            store,
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        // The windowed arm is inert until 3 checkpoints exist; the first three
+        // build via the adjacent arm, which their spread-out timestamps
+        // (0, 1000, 2000) satisfy while accruing burst budget.
+        // window_ms = 3 * 100 = 300.
+        for (height, root, timestamp_ms) in [(0, 1u8, 0), (1, 2, 1000), (2, 3, 2000)] {
+            checkpoint_service
+                .write_and_notify_checkpoint_for_testing(
+                    &epoch_store,
+                    p(height, vec![d(root)], timestamp_ms),
+                )
+                .unwrap();
+        }
+        // p3 @ 2010: adjacent red (< C2 + 100 = 2100) but windowed green
+        // (>= C0(0) + 300) -> builds, only 10ms after C2. A strict adjacent
+        // rule would instead coalesce it.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(3, vec![d(4)], 2010))
+            .unwrap();
+        // p4 @ 2020: windowed green (>= C1(1000) + 300) -> builds, another
+        // sub-interval burst.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![d(5)], 2020))
+            .unwrap();
+        // Budget now spent: the window covers the tight 2000-2020 cluster.
+        // p5 @ 2030: adjacent red (< C4 + 100 = 2120), windowed red
+        // (< C2(2000) + 300 = 2300) -> coalesced.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![d(6)], 2030))
+            .unwrap();
+        // p6 @ 2130: windowed still red (< 2300), but adjacent green
+        // (>= 2120) -> builds, coalescing p5 and p6. A window-only gate would
+        // keep coalescing until 2300; the adjacent arm caps the gap.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(6, vec![d(7)], 2130))
+            .unwrap();
+        // p7 @ 2300: windowed red (< C3(2010) + 300 = 2310), adjacent green
+        // (>= C5 + 100 = 2230) -> builds.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(7, vec![d(8)], 2300))
+            .unwrap();
+
+        let mut built = Vec::new();
+        for _ in 0..7 {
+            let (contents, summary) = result.recv().await.unwrap();
+            built.push((summary.sequence_number, contents.iter().count()));
+        }
+
+        // Seven checkpoints, contiguous sequence numbers.
+        let sequence_numbers: Vec<_> = built.iter().map(|(seq, _)| *seq).collect();
+        assert_eq!(sequence_numbers, vec![0, 1, 2, 3, 4, 5, 6]);
+        // Bursts (seq 3, 4) stand alone despite sub-interval spacing; once the
+        // budget is spent, pendings coalesce only until the adjacent interval
+        // elapses (seq 5), never longer. A strict adjacent rule would build
+        // [0,1,2] and then coalesce the whole 2010-2130 cluster into one
+        // checkpoint; a window-only rule would coalesce p5-p7 into one
+        // checkpoint at 2300.
+        let sizes: Vec<_> = built.iter().map(|(_, size)| *size).collect();
+        assert_eq!(sizes, vec![1, 1, 1, 1, 1, 2, 1]);
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
