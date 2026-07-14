@@ -21,13 +21,13 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
     GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
-    RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind, TransferObjects,
-    TypeTag, Upgrade, Version,
+    RandomnessStateUpdate, SharedObjectReference, SplitCoins, TransactionExpiration,
+    TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
-    GasPayment as GasData, SharedObjectReference as SharedObjectRef, SystemPackage,
-    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
+    GasPayment as GasData, SystemPackage, Transaction as TransactionData,
+    TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -279,7 +279,7 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(object_ref) => {
                 Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
             }
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -572,7 +572,7 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
@@ -649,7 +649,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedObjectReference { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -668,7 +668,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
             CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
@@ -697,8 +697,8 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
 /// If there is a conflict in mutability, the resulting object will be
 /// mutable. Errors if the id or initial_shared_version do not match.
 fn left_union_shared_input_objects(
-    this: &mut SharedObjectRef,
-    other: &SharedObjectRef,
+    this: &mut SharedObjectReference,
+    other: &SharedObjectReference,
 ) -> UserInputResult<()> {
     fp_ensure!(
         this.object_id == other.object_id,
@@ -730,7 +730,7 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     fn contains_shared_object(&self) -> bool;
     /// Returns an iterator of all shared input objects used by this
     /// transaction.
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> + '_;
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
@@ -780,10 +780,10 @@ impl TransactionKindExt for TransactionKind {
         self.shared_input_objects().next().is_some()
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
-                SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+                SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
             ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
@@ -793,7 +793,7 @@ impl TransactionKindExt for TransactionKind {
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef::new(
+                Either::Left(Either::Left(iter::once(SharedObjectReference::new(
                     ObjectId::RANDOMNESS_STATE,
                     update.randomness_obj_initial_shared_version,
                     true,
@@ -995,7 +995,7 @@ pub trait TransactionDataAPI {
     /// IMPORTANT: This function does not return shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
-    fn shared_input_objects(&self) -> Vec<SharedObjectRef>;
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference>;
 
     /// Returns a list of Move calls as `(package_id, module_name,
     /// function_name)` tuples.
@@ -1316,7 +1316,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         self.kind().shared_input_objects().collect()
     }
 
@@ -1714,11 +1714,13 @@ impl TransactionDataAPI for TransactionData {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
-                    upgrade_capability.object_id,
-                    initial_shared_version,
-                    true,
-                )),
+                Owner::Shared(initial_shared_version) => {
+                    CallArg::Shared(SharedObjectReference::new(
+                        upgrade_capability.object_id,
+                        initial_shared_version,
+                        true,
+                    ))
+                }
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
@@ -2259,7 +2261,7 @@ impl SenderSignedData {
     ///
     /// Panics if there are shared objects with the same ID but different
     /// initial versions.
-    pub fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
+    pub fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
 

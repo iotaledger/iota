@@ -15,8 +15,8 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
     ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
-    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    RandomnessStateUpdate, SharedObjectReference, SimpleSignature, StructTag,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
@@ -46,10 +46,7 @@ use iota_types::{
     object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -373,7 +370,11 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Shared(SharedObjectRef::new(ObjectId::ZERO, 1u64.into(), false)),
+            &CallArg::Shared(SharedObjectReference::new(
+                ObjectId::ZERO,
+                1u64.into(),
+                false,
+            )),
         )
         .unwrap();
     tracer

@@ -10,7 +10,8 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Version,
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
+    Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
@@ -19,7 +20,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, Transaction},
+    transaction::{CallArg, Transaction},
 };
 
 use crate::{
@@ -221,7 +222,7 @@ async fn commit_and_execute_transaction(
     for shared_object in shared_objects {
         args.push(
             txn_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     shared_object.0,
                     shared_object.1,
                     true,

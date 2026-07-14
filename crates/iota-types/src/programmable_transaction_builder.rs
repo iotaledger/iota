@@ -9,11 +9,11 @@ use anyhow::Context;
 use indexmap::IndexMap;
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
-    TypeTag,
+    SharedObjectReference, TypeTag,
 };
 use serde::Serialize;
 
-use crate::transaction::{CallArg, SharedObjectRef};
+use crate::transaction::CallArg;
 
 #[derive(PartialEq, Eq, Hash)]
 enum BuilderArg {
@@ -74,12 +74,12 @@ impl ProgrammableTransactionBuilder {
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
             match (old_value.as_opt_shared(), obj_arg.as_opt_shared()) {
                 (
-                    Some(&SharedObjectRef {
+                    Some(&SharedObjectReference {
                         object_id: id1,
                         initial_shared_version: v1,
                         mutable: mut1,
                     }),
-                    Some(&SharedObjectRef {
+                    Some(&SharedObjectReference {
                         object_id: id2,
                         initial_shared_version: v2,
                         mutable: mut2,
@@ -89,7 +89,7 @@ impl ProgrammableTransactionBuilder {
                         id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    CallArg::Shared(SharedObjectRef::new(id, v2, mut1 || mut2))
+                    CallArg::Shared(SharedObjectReference::new(id, v2, mut1 || mut2))
                 }
                 _ => {
                     anyhow::ensure!(

@@ -44,8 +44,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
@@ -1821,7 +1821,7 @@ impl TestEnvironment {
             ) {
                 // Create the delayed abstract account.
                 let arguments = vec![
-                    builder.obj(CallArg::Shared(SharedObjectRef::new(
+                    builder.obj(CallArg::Shared(SharedObjectReference::new(
                         delayed_aa_ref.object_id,
                         delayed_aa_ref.version,
                         true,
@@ -1936,7 +1936,7 @@ impl TestEnvironment {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
-        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
+        let self_call_arg = CallArg::Shared(SharedObjectReference::new(
             aa_ref.object_id,
             aa_ref.version,
             false,
@@ -1946,7 +1946,7 @@ impl TestEnvironment {
             MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![self_call_arg],
                 vec![],
-                SharedObjectRef::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
+                SharedObjectReference::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
             )
             .into(),
         ))
@@ -1964,7 +1964,7 @@ impl TestEnvironment {
 
         // Random IOTA account command.
         let arguments = vec![
-            builder.obj(CallArg::Shared(SharedObjectRef::new(
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
                 aa_ref.object_id,
                 aa_ref.version,
                 true,
@@ -2034,7 +2034,7 @@ impl TestEnvironment {
         ) {
             // rotate the key in the abstract account.
             let arguments = vec![
-                builder.obj(CallArg::Shared(SharedObjectRef::new(
+                builder.obj(CallArg::Shared(SharedObjectReference::new(
                     aa_ref.object_id,
                     aa_ref.version,
                     true,
@@ -2149,7 +2149,7 @@ impl TestEnvironment {
         let mut b = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            b.obj(CallArg::Shared(SharedObjectRef::new(
+            b.obj(CallArg::Shared(SharedObjectReference::new(
                 aa_ref.object_id,
                 aa_ref.version,
                 true,
@@ -2245,7 +2245,7 @@ impl TestEnvironment {
             MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![],
                 vec![],
-                SharedObjectRef::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
+                SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
             )
             .into(),
         ))

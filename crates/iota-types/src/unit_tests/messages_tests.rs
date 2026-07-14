@@ -13,7 +13,9 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, KeyPair},
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ExecutionStatus, Owner, StructTag, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, ExecutionStatus, Owner, SharedObjectReference, StructTag, gas::GasCostSummary,
+};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -1081,7 +1083,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
+        SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1131,7 +1133,7 @@ fn test_move_input_objects() {
             ])
             .unwrap(),
         builder
-            .input(CallArg::Shared(SharedObjectRef::new(
+            .input(CallArg::Shared(SharedObjectReference::new(
                 shared.object_id,
                 shared.version,
                 true,
@@ -1220,7 +1222,7 @@ fn test_unique_input_objects() {
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Shared(SharedObjectRef::new(
+            .input(CallArg::Shared(SharedObjectReference::new(
                 shared.object_id,
                 shared.version,
                 true,

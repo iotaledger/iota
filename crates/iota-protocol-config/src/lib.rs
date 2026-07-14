@@ -549,6 +549,12 @@ struct FeatureFlags {
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
+
+    // If true, post-consensus deny checks use a consensus-governed deny rule set
+    // (validators announce proposed rules; the active set is their stake-weighted
+    // aggregate) instead of each validator's local `TransactionDenyConfig`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1825,6 +1831,10 @@ impl ProtocolConfig {
         } else {
             self.consensus_commits_per_schedule.unwrap_or(300)
         }
+    }
+
+    pub fn deny_rule_governance(&self) -> bool {
+        self.feature_flags.deny_rule_governance
     }
 }
 
@@ -3253,6 +3263,10 @@ impl ProtocolConfig {
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
+    }
+
+    pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance = val;
     }
 }
 
