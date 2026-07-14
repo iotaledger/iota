@@ -481,12 +481,15 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 // Server setup helpers
 // ---------------------------------------------------------------------------
 
-/// Start a gRPC server backed by the given `MockGrpcStateReader`.
+/// Start a gRPC server backed by the given `MockGrpcStateReader`, with an
+/// optional transaction executor and traffic controller.
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
-pub async fn start_test_server(
+async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    traffic_controller: Option<Arc<iota_core::traffic_controller::TrafficController>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -501,18 +504,29 @@ pub async fn start_test_server(
     let cancellation_token = tokio_util::sync::CancellationToken::new();
     let server_handle = start_grpc_server(
         grpc_reader.clone(),
-        None,
+        executor,
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
         None,
-        None,
+        traffic_controller,
         None,
     )
     .await
     .expect("Failed to start gRPC server");
 
     (server_handle, grpc_reader)
+}
+
+/// Start a gRPC server backed by the given `MockGrpcStateReader`.
+///
+/// Returns the server handle and the `GrpcReader` (callers may need it to
+/// create different client types).
+pub async fn start_test_server(
+    state_reader: Arc<MockGrpcStateReader>,
+    config_customizer: impl FnOnce(&mut GrpcApiConfig),
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(state_reader, None, None, config_customizer).await
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
@@ -524,27 +538,5 @@ pub async fn start_test_server_with_traffic_controller(
     traffic_controller: Arc<iota_core::traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
-    let localhost = local_ip_utils::localhost_for_testing();
-    let port = local_ip_utils::get_available_port(&localhost);
-    let config = GrpcApiConfig {
-        address: format!("{localhost}:{port}").parse().unwrap(),
-        ..GrpcApiConfig::default()
-    };
-
-    let cancellation_token = tokio_util::sync::CancellationToken::new();
-    let server_handle = start_grpc_server(
-        grpc_reader.clone(),
-        executor,
-        config,
-        cancellation_token,
-        iota_types::digests::ChainIdentifier::default(),
-        None,
-        Some(traffic_controller),
-        None,
-    )
-    .await
-    .expect("Failed to start gRPC server");
-
-    (server_handle, grpc_reader)
+    start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
 }

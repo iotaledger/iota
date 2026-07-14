@@ -1,9 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration tests for the traffic-control layer of the gRPC server,
-//! in particular that handler errors — which tonic delivers in the response
-//! *trailers*, not the response headers — feed the error policy.
+//! Integration tests for the traffic-control layer of the gRPC server, in
+//! particular that errors feed the error policy. tonic returns a unary handler
+//! error as a trailers-only response, so its `grpc-status` lands in the HTTP
+//! response headers where the layer already sees it; per-item errors of a batch
+//! API instead ride inside an otherwise successful response and must be
+//! reported explicitly.
 
 mod common;
 
@@ -131,8 +134,9 @@ async fn handler_errors_feed_the_error_policy() {
 async fn successful_requests_do_not_feed_the_error_policy() {
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 120,
-        // Panics inside the traffic controller if any error is ever tallied.
-        error_policy_type: PolicyType::TestPanicOnInvocation,
+        // Block on the first error tally, so a successful request wrongly fed to
+        // the error policy would block the client and fail this test.
+        error_policy_type: PolicyType::TestNConnIP(1),
         dry_run: false,
         ..Default::default()
     };
