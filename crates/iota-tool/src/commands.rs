@@ -792,11 +792,7 @@ impl ToolCommand {
                         .update_log("off")
                         .expect("Failed to update log level");
                 }
-                let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
-                    num_cpus::get()
-                        .checked_sub(1)
-                        .expect("Failed to get number of CPUs")
-                });
+                let num_parallel_downloads = num_parallel_downloads.unwrap_or_default();
                 backfill_checkpoint_summaries(&path, ingestion_url, num_parallel_downloads).await?;
             }
             ToolCommand::DownloadDBSnapshot {

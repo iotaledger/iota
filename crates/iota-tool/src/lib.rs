@@ -626,7 +626,7 @@ fn set_restore_watermarks(
 ///
 /// Summaries are taken as-is from `ingestion_url` without chain verification,
 /// so the bucket is trusted to serve this node's own chain.
-pub async fn backfill_checkpoint_summaries(
+pub(crate) async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,
     num_parallel_downloads: usize,
@@ -686,6 +686,13 @@ pub async fn backfill_checkpoint_summaries(
             let _ = m.println(format!("Checkpoint {sq} summary backfill error: {e}"));
             false
         })
+    };
+    let num_parallel_downloads = if num_parallel_downloads != 0 {
+        num_parallel_downloads
+    } else {
+        num_cpus::get()
+            .checked_sub(1)
+            .expect("Failed to get number of CPUs")
     };
     let all_ok = futures::stream::iter(1..=highest_synced)
         .map(|sq| backfill_one(sq))
