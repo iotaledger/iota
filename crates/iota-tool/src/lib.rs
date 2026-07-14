@@ -697,7 +697,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
     let all_ok = futures::stream::iter(1..=highest_synced)
         .map(|sq| backfill_one(sq))
         .buffer_unordered(num_parallel_downloads)
-        // .all() short-circuits
+        // use .fold() since .all() short-circuits
         .fold(true, |acc, ok| async move { acc && ok })
         .await;
     bar.finish_with_message("Checkpoint summary backfill is complete");
