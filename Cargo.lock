@@ -6791,7 +6791,6 @@ dependencies = [
  "iota-sdk-types",
  "iota-types",
  "object_store 0.13.1",
- "prometheus-filtered",
  "reqwest",
  "roaring",
  "serde",
