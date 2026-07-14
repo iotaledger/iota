@@ -59,10 +59,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -158,10 +155,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -257,10 +251,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -356,10 +347,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -455,10 +443,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -554,10 +539,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -653,10 +635,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    historical-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
