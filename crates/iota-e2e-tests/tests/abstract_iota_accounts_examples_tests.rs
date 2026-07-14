@@ -1207,8 +1207,6 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
 
     // Locate the shared `Account` object created by `init` at publish time.
     let account_type = type_tag(&pkg_id, "account", "Account");
-    let resp = iota_json_rpc_types::IotaTransactionBlockResponse::try_from(&resp)
-        .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse");
     let account_ref = match find_created_shared_in_response(&resp, &account_type) {
         Some(r) => r,
         None => {
@@ -2366,24 +2364,32 @@ fn make_move_authenticator(
 /// and whose `object_type` matches `expected`. Returns the object reference,
 /// or `None` if no match exists.
 fn find_created_shared_in_response(
-    resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
+    resp: &iota_grpc_types::v1::transaction::ExecutedTransaction,
     expected: &TypeTag,
 ) -> Option<ObjectReference> {
+    use iota_grpc_types::v1::transaction::object_change::Kind;
     let expected_struct = match expected {
         TypeTag::Struct(s) => s.as_ref(),
         _ => return None,
     };
-    resp.object_changes.as_ref()?.iter().find_map(|c| match c {
-        iota_json_rpc_types::ObjectChange::Created {
-            owner: Owner::Shared(_),
-            object_type,
-            object_id,
-            version,
-            digest,
-            ..
-        } if object_type == expected_struct => {
-            Some(ObjectReference::new(*object_id, *version, *digest))
-        }
-        _ => None,
-    })
+    resp.object_changes()
+        .ok()?
+        .object_changes
+        .iter()
+        .find_map(|change| {
+            let Kind::Created(created) = change.kind.as_ref()? else {
+                return None;
+            };
+            if !created.owner().ok()?.is_shared() {
+                return None;
+            }
+            if created.object_type().ok()?.as_struct_tag_opt()? != expected_struct {
+                return None;
+            }
+            Some(ObjectReference::new(
+                created.object_id().ok()?,
+                iota_sdk_types::Version::from_u64(created.version?),
+                created.digest().ok()?,
+            ))
+        })
 }

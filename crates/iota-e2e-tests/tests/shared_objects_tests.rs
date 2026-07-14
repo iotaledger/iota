@@ -11,7 +11,6 @@ use std::{
 use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
-use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_sdk_types::{Event, ExecutionStatus, SharedObjectReference};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
@@ -68,17 +67,16 @@ async fn shared_object_deletion() {
         .await
         .call_counter_delete(package_id, counter_id, counter_initial_shared_version)
         .build();
-    let effects = IotaTransactionBlockResponse::try_from(
-        &test_cluster
-            .sign_and_execute_transaction(&transaction)
-            .await,
-    )
-    .unwrap()
-    .effects
-    .unwrap();
+    let effects = test_cluster
+        .sign_and_execute_transaction(&transaction)
+        .await
+        .effects()
+        .unwrap()
+        .effects()
+        .unwrap();
 
     assert_eq!(effects.deleted().len(), 1);
-    assert_eq!(effects.shared_objects().len(), 1);
+    assert_eq!(effects.input_shared_objects().len(), 1);
 
     // assert the shared object was deleted
     let deleted_obj_id = effects.deleted()[0].object_id;
@@ -360,14 +358,13 @@ async fn call_shared_object_contract() {
                 ],
             )
             .build();
-        let effects = IotaTransactionBlockResponse::try_from(
-            &test_cluster
-                .sign_and_execute_transaction(&transaction)
-                .await,
-        )
-        .unwrap()
-        .effects
-        .unwrap();
+        let effects = test_cluster
+            .sign_and_execute_transaction(&transaction)
+            .await
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap();
         // Check that all reads must depend on the creation of the counter, but not to
         // any previous reads.
         assert!(
@@ -389,14 +386,13 @@ async fn call_shared_object_contract() {
         .await
         .call_counter_increment(package_id, counter_id, counter_initial_shared_version)
         .build();
-    let effects = IotaTransactionBlockResponse::try_from(
-        &test_cluster
-            .sign_and_execute_transaction(&transaction)
-            .await,
-    )
-    .unwrap()
-    .effects
-    .unwrap();
+    let effects = test_cluster
+        .sign_and_execute_transaction(&transaction)
+        .await
+        .effects()
+        .unwrap()
+        .effects()
+        .unwrap();
     let increment_transaction = *effects.transaction_digest();
     assert!(
         effects
@@ -434,14 +430,13 @@ async fn call_shared_object_contract() {
                 ],
             )
             .build();
-        let effects = IotaTransactionBlockResponse::try_from(
-            &test_cluster
-                .sign_and_execute_transaction(&transaction)
-                .await,
-        )
-        .unwrap()
-        .effects
-        .unwrap();
+        let effects = test_cluster
+            .sign_and_execute_transaction(&transaction)
+            .await
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap();
         assert!(effects.dependencies().contains(&increment_transaction));
         if let Some(prev) = assert_value_mut_transaction {
             assert!(effects.dependencies().contains(&prev));
@@ -675,17 +670,16 @@ async fn replay_shared_object_transaction() {
 
     let mut version = None;
     for _ in 0..2 {
-        let effects = IotaTransactionBlockResponse::try_from(
-            &test_cluster
-                .execute_transaction(create_counter_transaction.clone())
-                .await,
-        )
-        .unwrap()
-        .effects
-        .unwrap();
+        let effects = test_cluster
+            .execute_transaction(create_counter_transaction.clone())
+            .await
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap();
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.version;
+        let curr = effects.created()[0].0.version;
         if let Some(prev) = version {
             assert_eq!(prev, curr, "Version of shared object did not change.");
         }
