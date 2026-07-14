@@ -324,12 +324,15 @@ impl CommitObserver {
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
         let solidifier_recovery_start = self.last_sent_commit_index.saturating_add(1);
-        // Anchor the ack-tracker seeding to the last delivered (solid) commit, not the
-        // commit tip, so the seed range covers every commit fed to the solidifier below
-        // (which starts at solidifier_recovery_start). A tip-anchored window would skip
-        // a backlog deeper than 2 * gc_depth commits, leaving those transactions with
-        // no acknowledgers to fetch from and stalling commit output
-        // permanently.
+        // Seed 2 * gc_depth below the last delivered (solid) commit — the same window
+        // live eviction retains. This below-solid lookback matters because a
+        // transaction that crosses 2f+1 in a pending commit can have
+        // acknowledgers recorded in earlier, already-delivered commits
+        // (acknowledgments reference earlier rounds but are committed
+        // independently of ancestry). Seeding only the pending range
+        // rebuilds just a subset of those acknowledgers; the full set holds >= f+1
+        // honest holders, so recovering only a subset can leave a transaction with no
+        // reachable holder (some may have crashed) and stall output.
         let recovery_start = self
             .last_sent_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth() * 2)
