@@ -9,7 +9,7 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{inflight_limit, rate_limit};
-use iota_config::{node::HistoricalReaderConfig, p2p::StateSyncConfig};
+use iota_config::{node::HistoricalArchiveConfig, p2p::StateSyncConfig};
 use iota_types::{messages_checkpoint::VerifiedCheckpoint, storage::WriteStore};
 use tap::Pipe;
 use tokio::{
@@ -27,7 +27,7 @@ pub struct Builder<S> {
     store: Option<S>,
     config: Option<StateSyncConfig>,
     metrics: Option<Metrics>,
-    historical_config: Option<HistoricalReaderConfig>,
+    historical_config: Option<HistoricalArchiveConfig>,
 }
 
 impl Builder<()> {
@@ -62,7 +62,7 @@ impl<S> Builder<S> {
         self
     }
 
-    pub fn historical_config(mut self, historical_config: Option<HistoricalReaderConfig>) -> Self {
+    pub fn historical_config(mut self, historical_config: Option<HistoricalArchiveConfig>) -> Self {
         self.historical_config = historical_config;
         self
     }
@@ -189,7 +189,7 @@ pub struct UnstartedStateSync<S> {
     pub(super) peer_heights: Arc<RwLock<PeerHeights>>,
     pub(super) checkpoint_event_sender: broadcast::Sender<VerifiedCheckpoint>,
     pub(super) metrics: Metrics,
-    pub(super) historical_config: Option<HistoricalReaderConfig>,
+    pub(super) historical_config: Option<HistoricalArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }

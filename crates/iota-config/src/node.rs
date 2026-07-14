@@ -184,7 +184,7 @@ pub struct NodeConfig {
     pub state_debug_dump_config: StateDebugDumpConfig,
 
     #[serde(default)]
-    pub historical_config: Option<HistoricalReaderConfig>,
+    pub historical_config: Option<HistoricalArchiveConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -769,7 +769,7 @@ impl NodeConfig {
         (&self.account_key_pair.keypair().public()).into()
     }
 
-    pub fn historical_config(&self) -> Option<&HistoricalReaderConfig> {
+    pub fn historical_config(&self) -> Option<&HistoricalArchiveConfig> {
         self.historical_config.as_ref()
     }
 
@@ -1113,8 +1113,37 @@ pub struct HistoricalReaderConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object_store_config: Option<ObjectStoreConfig>,
     pub concurrency: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ingestion_url: Option<String>,
+}
+
+/// Default download batch size for the historical archive state-sync fallback.
+pub const HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE: usize = 10;
+
+fn default_historical_archive_batch_size() -> usize {
+    HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE
+}
+
+/// Configuration for backfilling checkpoint contents from a historical
+/// checkpoints store when peers no longer serve the required range.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct HistoricalArchiveConfig {
+    /// Number of checkpoints to download in parallel. `0` is treated as the
+    /// default ([`HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE`]).
+    #[serde(default = "default_historical_archive_batch_size")]
+    pub batch_size: usize,
+    /// URL of the historical checkpoints store to backfill from.
+    pub historical_url: String,
+}
+
+impl HistoricalArchiveConfig {
+    /// Download batch size, mapping `0` to the default.
+    pub fn batch_size(&self) -> usize {
+        if self.batch_size == 0 {
+            HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE
+        } else {
+            self.batch_size
+        }
+    }
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

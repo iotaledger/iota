@@ -101,7 +101,7 @@ pub use generated::{
     state_sync_client::StateSyncClient,
     state_sync_server::{StateSync, StateSyncServer},
 };
-use iota_config::node::HistoricalReaderConfig;
+use iota_config::node::HistoricalArchiveConfig;
 use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
 use iota_storage::verify_checkpoint;
 use metrics::Metrics;
@@ -116,9 +116,6 @@ const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 // Periodically prune `peer_heights` so the temp maps don't accumulate the
 // entire sync range.
 const PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL: u64 = 10_000;
-
-// Default batch_size value in case config concurrency value is zero.
-const HISTORICAL_DEFAULT_BATCH_SIZE: usize = 10;
 
 /// A handle to the StateSync subsystem.
 ///
@@ -454,7 +451,7 @@ struct StateSyncEventLoop<S> {
     metrics: Metrics,
 
     sync_checkpoint_from_archive_task: Option<AbortHandle>,
-    historical_config: Option<HistoricalReaderConfig>,
+    historical_config: Option<HistoricalArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
@@ -1247,7 +1244,7 @@ where
 /// checkpoint range is from highest_synced_checkpoint+1 to lowest_checkpoint.
 async fn sync_checkpoint_contents_from_historical_archive<S>(
     network: anemo::Network,
-    historical_config: Option<HistoricalReaderConfig>,
+    historical_config: Option<HistoricalArchiveConfig>,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1269,7 +1266,7 @@ async fn sync_checkpoint_contents_from_historical_archive<S>(
 
 async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
     network: &anemo::Network,
-    historical_config: &Option<HistoricalReaderConfig>,
+    historical_config: &Option<HistoricalArchiveConfig>,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1310,20 +1307,11 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
         let end = lowest_checkpoint_on_peers.unwrap();
 
         let Some(ref historical_config) = historical_config else {
-            warn!("Failed to find an archive reader to complete the state sync request");
+            warn!("Historical archive for state sync is not configured");
             return;
-        };
-        let Some(ref ingestion_url) = historical_config.ingestion_url else {
-            warn!("Historical archive url for state sync is not configured");
-            return;
-        };
-        let batch_size = if historical_config.concurrency != 0 {
-            historical_config.concurrency
-        } else {
-            HISTORICAL_DEFAULT_BATCH_SIZE
         };
         let reader_options = ReaderOptions {
-            batch_size,
+            batch_size: historical_config.batch_size(),
             ..Default::default()
         };
         // Keep separate clones for the completion monitor and the final log;
@@ -1333,7 +1321,7 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
         let Ok((run_future, exit_sender)) = setup_single_workflow(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
-                historical_url: ingestion_url.clone(),
+                historical_url: historical_config.historical_url.clone(),
                 live_url: None,
             },
             start,

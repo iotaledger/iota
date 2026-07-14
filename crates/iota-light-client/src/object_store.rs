@@ -25,7 +25,6 @@ impl CheckpointStore {
         let config = HistoricalReaderConfig {
             object_store_config: Some(checkpoint_store_config),
             concurrency: 5,
-            ingestion_url: None,
         };
 
         Ok(Self {
