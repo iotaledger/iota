@@ -51,7 +51,7 @@ state-archive-read-config:
 #     authority: warn
 #     traffic-control: warn
 #     network: warn
-#     transport: warn
+#     p2p: warn
 #     storage: warn
 #     rpc: warn
 #     epoch: warn

@@ -103,7 +103,7 @@ pub struct MetricGroups {
     /// they can be silenced independently.
     ///
     /// Modules: `iota_metrics::metrics_network`.
-    pub transport: MetricLevel,
+    pub p2p: MetricLevel,
     /// Persistent storage, including archive writes/reads and state snapshot
     /// uploads. The authority object store is part of the `authority` group,
     /// not this one.
@@ -127,7 +127,7 @@ pub struct MetricGroups {
     /// scopes, thread stalls, invariant violations, and tracing span
     /// latencies.
     ///
-    /// Modules: `iota_metrics` (except the `hardware` and `transport` group
+    /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.
     pub runtime: MetricLevel,
     /// Host hardware metrics (CPU / memory / disk). Registered as a collector,
@@ -150,7 +150,7 @@ impl Default for MetricGroups {
             authority: MetricLevel::Warn,
             traffic_control: MetricLevel::Warn,
             network: MetricLevel::Warn,
-            transport: MetricLevel::Warn,
+            p2p: MetricLevel::Warn,
             storage: MetricLevel::Warn,
             rpc: MetricLevel::Warn,
             epoch: MetricLevel::Warn,
@@ -205,7 +205,7 @@ impl MetricGroups {
                 "iota_network::randomness",
                 "iota_network::state_sync",
             ],
-            "transport" => &["iota_metrics::metrics_network"],
+            "p2p" => &["iota_metrics::metrics_network"],
             "storage" => &[
                 "typed_store",
                 "iota_storage",
@@ -235,7 +235,7 @@ impl MetricGroups {
     /// Maps each group's configured level to the filter patterns it covers.
     ///
     /// `runtime` must come first: its `iota_metrics` module prefix also
-    /// matches the `transport` and `hardware` groups' submodules, and only a
+    /// matches the `p2p` and `hardware` groups' submodules, and only a
     /// later directive can override it (last match wins).
     fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
         [
@@ -247,7 +247,7 @@ impl MetricGroups {
             ("authority", self.authority),
             ("traffic-control", self.traffic_control),
             ("network", self.network),
-            ("transport", self.transport),
+            ("p2p", self.p2p),
             ("storage", self.storage),
             ("rpc", self.rpc),
             ("epoch", self.epoch),
@@ -302,7 +302,7 @@ mod tests {
             authority: MetricLevel::Trace,
             traffic_control: MetricLevel::Trace,
             network: MetricLevel::Trace,
-            transport: MetricLevel::Trace,
+            p2p: MetricLevel::Trace,
             storage: MetricLevel::Trace,
             rpc: MetricLevel::Trace,
             epoch: MetricLevel::Trace,
@@ -361,11 +361,11 @@ mod tests {
     #[test]
     fn metric_groups_runtime_prefix_is_overridden_by_submodule_groups() {
         // `runtime` covers the whole `iota_metrics` crate by module prefix,
-        // but the `transport` and `hardware` submodules belong to their own
+        // but the `p2p` and `hardware` submodules belong to their own
         // groups, whose directives render later and win.
         let groups = MetricGroups {
             runtime: MetricLevel::Trace,
-            transport: MetricLevel::Warn,
+            p2p: MetricLevel::Warn,
             hardware: MetricLevel::Off,
             ..all_trace()
         };
@@ -444,7 +444,7 @@ mod tests {
             "authority",
             "traffic-control",
             "network",
-            "transport",
+            "p2p",
             "storage",
             "rpc",
             "epoch",
