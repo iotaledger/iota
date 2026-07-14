@@ -194,17 +194,7 @@ task 24, lines 113-122:
 Response: {
   "data": {
     "transactionBlocks": {
-      "nodes": [
-        {
-          "digest": "8gGsTdQ5LkWFDUhEz6Qp7b6okVijw1tdXX4fh23gg1q2"
-        },
-        {
-          "digest": "6WUKjvngBU6rgEwe8BJPAxQf8C6TUmLQivDf39e8gTpm"
-        },
-        {
-          "digest": "ACqVVgcSRS3QDERCcJm7arkawv2rGbu153oNrTcGTiuy"
-        }
-      ],
+      "nodes": [],
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": false

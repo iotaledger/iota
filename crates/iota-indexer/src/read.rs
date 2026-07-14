@@ -7,6 +7,7 @@ use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
+    ops::Bound,
     sync::{Arc, Mutex},
 };
 
@@ -61,7 +62,7 @@ use crate::{
     apis::GovernanceReadApi,
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
     errors::{Context, IndexerError},
-    historical_fallback::reader::{CheckpointTxCursor, HistoricalFallbackReader},
+    historical_fallback::reader::HistoricalFallbackReader,
     ingestion::common::persist::CommitterTables,
     models::{
         address_metrics::StoredAddressMetrics,
@@ -1292,12 +1293,7 @@ impl IndexerReader {
             (db_res.as_ref(), self.fallback_reader())
         {
             kv_reader
-                .checkpoint_transactions(
-                    cursor.map(CheckpointTxCursor::Digest),
-                    checkpoint_seq,
-                    limit,
-                    is_descending,
-                )
+                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
                 .await
                 .context(&format!("fallback triggered by {err}"))?
         } else {
@@ -1307,22 +1303,22 @@ impl IndexerReader {
             .await
     }
 
-    /// Fetches transactions belonging to a checkpoint, paginated by
-    /// `tx_sequence_number` (exclusive cursor). Falls back to the historical
-    /// storage (when configured) if the checkpoint has been pruned from
-    /// Postgres.
+    /// Fetches transactions belonging to a checkpoint whose
+    /// `tx_sequence_number` falls within the given range. Falls back to the
+    /// historical storage (when configured) if the checkpoint has been pruned
+    /// from Postgres.
     pub async fn query_stored_transactions_by_checkpoint_seq_with_fallback(
         &self,
         checkpoint_seq: u64,
-        cursor_tx_seq: Option<u64>,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
         let db_res = self
             .db()
-            .query_transactions_by_checkpoint_seq_with_seq_cursor(
+            .query_transactions_by_checkpoint_seq_in_range(
                 checkpoint_seq,
-                cursor_tx_seq,
+                tx_seq_range,
                 limit,
                 is_descending,
             )
@@ -1331,9 +1327,9 @@ impl IndexerReader {
             (db_res.as_ref(), self.fallback_reader())
         {
             return kv_reader
-                .checkpoint_transactions(
-                    cursor_tx_seq.map(CheckpointTxCursor::Seq),
+                .checkpoint_transactions_in_seq_range(
                     checkpoint_seq,
+                    tx_seq_range,
                     limit,
                     is_descending,
                 )
@@ -2916,25 +2912,32 @@ impl<'a> DBReader<'a> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
-        let cursor_tx_seq = match cursor {
-            Some(cursor) => Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await? as u64),
-            None => None,
+        let tx_seq_range = match cursor {
+            Some(cursor) => {
+                let cursor_tx_seq = self.resolve_cursor_tx_digest_to_seq_num(cursor).await? as u64;
+                if is_descending {
+                    (Bound::Unbounded, Bound::Excluded(cursor_tx_seq))
+                } else {
+                    (Bound::Excluded(cursor_tx_seq), Bound::Unbounded)
+                }
+            }
+            None => (Bound::Unbounded, Bound::Unbounded),
         };
-        self.query_transactions_by_checkpoint_seq_with_seq_cursor(
+        self.query_transactions_by_checkpoint_seq_in_range(
             checkpoint_seq,
-            cursor_tx_seq,
+            tx_seq_range,
             limit,
             is_descending,
         )
         .await
     }
 
-    /// Same as [`Self::query_transactions_by_checkpoint_seq`], but the cursor
-    /// is a `tx_sequence_number` (exclusive) instead of a transaction digest.
-    async fn query_transactions_by_checkpoint_seq_with_seq_cursor(
+    /// Same as [`Self::query_transactions_by_checkpoint_seq`], but bounded by
+    /// a `tx_sequence_number` range instead of a digest cursor.
+    async fn query_transactions_by_checkpoint_seq_in_range(
         &self,
         checkpoint_seq: u64,
-        cursor_tx_seq: Option<u64>,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
@@ -2965,15 +2968,25 @@ impl<'a> DBReader<'a> {
             .filter(transactions::tx_sequence_number.between(tx_range.0, tx_range.1))
             .into_boxed();
 
-        if let Some(cursor_tx_seq) = cursor_tx_seq {
-            if is_descending {
-                query =
-                    query.filter(transactions::dsl::tx_sequence_number.lt(cursor_tx_seq as i64));
-            } else {
-                query =
-                    query.filter(transactions::dsl::tx_sequence_number.gt(cursor_tx_seq as i64));
+        let (min_tx_seq, max_tx_seq) = tx_seq_range;
+        query = match min_tx_seq {
+            Bound::Included(min) => {
+                query.filter(transactions::dsl::tx_sequence_number.ge(min as i64))
             }
-        }
+            Bound::Excluded(min) => {
+                query.filter(transactions::dsl::tx_sequence_number.gt(min as i64))
+            }
+            Bound::Unbounded => query,
+        };
+        query = match max_tx_seq {
+            Bound::Included(max) => {
+                query.filter(transactions::dsl::tx_sequence_number.le(max as i64))
+            }
+            Bound::Excluded(max) => {
+                query.filter(transactions::dsl::tx_sequence_number.lt(max as i64))
+            }
+            Bound::Unbounded => query,
+        };
         if is_descending {
             query = query.order(transactions::dsl::tx_sequence_number.desc());
         } else {

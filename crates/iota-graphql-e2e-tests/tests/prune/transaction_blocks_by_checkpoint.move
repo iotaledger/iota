@@ -111,9 +111,9 @@ module Test::M {
 }
 
 //# run-graphql --cursors {"c":11,"t":3,"i":false}
-# G: `after` cursor below the checkpoint's transaction range. All of the
-# checkpoint's transactions come back and `hasPreviousPage` is false — there
-# is no transaction at or below the cursor in this checkpoint.
+# G: `after` cursor below the checkpoint's transaction range. No transaction
+# in this checkpoint sits at the cursor, so the bound is invalid and the
+# connection comes back empty, as for other transaction queries.
 {
   transactionBlocks(filter: { atCheckpoint: 11 }, after: "@{cursor_0}") {
     pageInfo { hasPreviousPage hasNextPage }

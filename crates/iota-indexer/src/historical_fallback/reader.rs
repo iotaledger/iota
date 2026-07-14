@@ -9,7 +9,10 @@
 //! the indexer is unable to fetch data from the database, which is especially
 //! useful when pruning is enabled.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Bound, RangeBounds},
+};
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
@@ -25,7 +28,7 @@ use iota_types::{
     },
     object::Object,
 };
-use itertools::{Itertools, izip};
+use itertools::{Either, Itertools, izip};
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use prometheus_filtered::Registry;
 
@@ -51,16 +54,6 @@ use crate::{
 pub type InputObjects = Vec<Object>;
 /// Represents the Output objects of a transaction.
 pub type OutputObjects = Vec<Object>;
-
-/// Which transaction inside a checkpoint the cursor refers to. Used by
-/// [`HistoricalFallbackReader::checkpoint_transactions`].
-#[derive(Clone, Copy)]
-pub enum CheckpointTxCursor {
-    /// The transaction with this digest.
-    Digest(TransactionDigest),
-    /// The transaction with this `tx_sequence_number`.
-    Seq(u64),
-}
 
 /// A high-level client to interact with the historical fallback storage.
 ///
@@ -450,13 +443,75 @@ impl HistoricalFallbackReader {
     /// | `None`     | `true`     | Starts from last transaction in checkpoint  |
     /// | `Some(tx)` | `false`    | Starts after `tx`, ascending                |
     /// | `Some(tx)` | `true`     | Starts after `tx`, descending               |
-    ///
-    /// `tx` is given either by its digest or by its `tx_sequence_number`
-    /// (see [`CheckpointTxCursor`]).
     pub(crate) async fn checkpoint_transactions(
         &self,
-        cursor: Option<CheckpointTxCursor>,
+        cursor: Option<TransactionDigest>,
         checkpoint_sequence_number: CheckpointSequenceNumber,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        if limit == 0 {
+            return Ok(vec![]);
+        }
+
+        let Some(contents) = self
+            .client
+            .multi_get_checkpoints_contents(&[checkpoint_sequence_number])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+        else {
+            return Ok(vec![]);
+        };
+
+        let tx_digests = contents.iter().map(|b| b.transaction);
+
+        // apply ordering
+        let tx_digests = if is_descending {
+            Either::Left(tx_digests.rev())
+        } else {
+            Either::Right(tx_digests)
+        };
+
+        // apply cursor: skip transactions until after the cursor.
+        //
+        // This relies on transactions being ordered within checkpoint contents,
+        // so we can skip until we find the cursor, then skip the cursor itself.
+        let tx_digests = if let Some(cursor) = cursor {
+            Either::Left(
+                tx_digests
+                    .skip_while(move |digest| *digest != cursor)
+                    .skip(1), // skip the cursor itself
+            )
+        } else {
+            Either::Right(tx_digests)
+        };
+
+        // apply limit
+        let tx_digests = tx_digests
+            .into_iter()
+            .take(limit)
+            .collect::<Vec<TransactionDigest>>();
+
+        let transactions = self.transactions(&tx_digests).await?;
+        if transactions.iter().any(|tx| tx.is_none()) {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "KV doesn't have full transaction data for checkpoint {checkpoint_sequence_number}"
+            )));
+        }
+        Ok(transactions.into_iter().flatten().collect())
+    }
+
+    /// Fetches transactions belonging to a specific checkpoint whose
+    /// `tx_sequence_number` falls within the given range.
+    ///
+    /// Returns up to `limit` transactions ordered by `tx_sequence_number`,
+    /// in order determined by `is_descending`.
+    pub(crate) async fn checkpoint_transactions_in_seq_range(
+        &self,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
@@ -476,38 +531,20 @@ impl HistoricalFallbackReader {
             return Ok(vec![]);
         };
 
-        // (seq, digest) pairs sorted by tx_sequence_number, ascending
-        let mut seq_digest_pairs: Vec<(u64, TransactionDigest)> = contents
+        // digests sorted by tx_sequence_number, ascending
+        let in_range = contents
             .enumerate_transactions(&summary)
-            .map(|(seq, exec)| (seq, exec.transaction))
-            .collect();
-        if is_descending {
-            seq_digest_pairs.reverse();
-        }
+            .filter(|(seq, _)| tx_seq_range.contains(seq))
+            .map(|(_, digests)| digests.transaction);
 
-        // Resolve any cursor to a `tx_sequence_number`. A digest cursor that
-        // isn't in this checkpoint results in empty response.
-        let cursor_seq = match cursor {
-            Some(CheckpointTxCursor::Digest(digest)) => {
-                let Some((seq, _)) = seq_digest_pairs.iter().find(|(_, d)| *d == digest) else {
-                    return Ok(vec![]);
-                };
-                Some(*seq)
-            }
-            Some(CheckpointTxCursor::Seq(seq)) => Some(seq),
-            None => None,
+        let tx_digests: Vec<TransactionDigest> = if is_descending {
+            let mut tx_digests: Vec<_> = in_range.collect();
+            tx_digests.reverse();
+            tx_digests.truncate(limit);
+            tx_digests
+        } else {
+            in_range.take(limit).collect()
         };
-
-        let tx_digests: Vec<TransactionDigest> = seq_digest_pairs
-            .into_iter()
-            .filter(|(seq, _)| match cursor_seq {
-                Some(cursor) if is_descending => *seq < cursor,
-                Some(cursor) => *seq > cursor,
-                None => true,
-            })
-            .take(limit)
-            .map(|(_, digest)| digest)
-            .collect();
 
         let transactions = self.transactions(&tx_digests).await?;
         if transactions.iter().any(|tx| tx.is_none()) {

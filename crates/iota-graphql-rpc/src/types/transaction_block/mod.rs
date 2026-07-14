@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Bound,
+};
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
@@ -522,61 +525,37 @@ impl TransactionBlock {
             return Ok(ScanConnection::new(false, false));
         }
 
-        let is_from_front = page.is_from_front();
-        let limit = page.limit();
-        let after_seq = page.after().map(|c| c.tx_sequence_number);
-        let before_seq = page.before().map(|c| c.tx_sequence_number);
-
-        // Fetch the page plus one row on each side, to later compute
-        // `has_next`/`has_prev`. Cursors are exclusive.
-        let fetch_cursor = if is_from_front {
-            after_seq.and_then(|seq| seq.checked_sub(1))
-        } else {
-            before_seq.and_then(|seq| seq.checked_add(1))
-        };
-        let fetched = db
+        // Fetch the page plus the rows at the cursors, to later compute
+        // `has_next`/`has_prev` via `paginate_results`. The bounds are
+        // inclusive so that the cursor rows themselves are fetched.
+        let tx_seq_range = (
+            page.after()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+            page.before()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+        );
+        let mut results = db
             .inner
             .query_stored_transactions_by_checkpoint_seq_with_fallback(
                 at_checkpoint,
-                fetch_cursor,
-                limit + 2,
-                !is_from_front,
+                tx_seq_range,
+                page.limit() + 2,
+                !page.is_from_front(),
             )
             .await
             .map_err(Error::from)?;
-
-        // The inclusive window of rows the client asked for using cursors (cursors are
-        // exclusive).
-        let window_lo = after_seq.map_or(0, |after| after.saturating_add(1));
-        let window_hi = before_seq.map_or(u64::MAX, |before| before.saturating_sub(1));
-
-        // Fill the page with up to `limit` rows. Any row that does
-        // not make it into the page sets `has_prev`/`has_next` accordingly.
-        let mut page_rows: Vec<StoredTransaction> = Vec::with_capacity(limit);
-        let mut has_prev = false;
-        let mut has_next = false;
-        for row in fetched {
-            let seq = row.tx_sequence_number as u64;
-            if seq < window_lo {
-                has_prev = true;
-            } else if seq > window_hi {
-                has_next = true;
-            } else if page_rows.len() < limit {
-                page_rows.push(row);
-            } else if is_from_front {
-                has_next = true;
-            } else {
-                has_prev = true;
-            }
+        if !page.is_from_front() {
+            results.reverse();
         }
 
-        // We always serve the result in ascending order
-        if !is_from_front {
-            page_rows.reverse();
-        }
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
 
-        let mut conn = ScanConnection::new(has_prev, has_next);
-        for stored in page_rows {
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
             conn.edges.push(Edge::new(
