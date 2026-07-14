@@ -16,19 +16,20 @@
 //! the output is always a permutation of the input, and every fetched response
 //! is still fully verified, so a peer that merely appears fast is never trusted
 //! to deliver. A peer that fails or stalls is demoted by a timeout-scale
-//! penalty and rotated to the back rather than excluded, so liveness is
-//! preserved and it recovers as soon as it responds again.
+//! penalty and moved behind every healthy candidate rather than excluded, so
+//! liveness is preserved and it recovers with its next success.
 //!
-//! Selection orders candidates in two tiers. Peers within a fixed ratio of the
-//! fastest candidate form the fast band and are tried first, fastest first;
-//! every slower peer follows in a weighted random order with weight inversely
-//! proportional to its effective latency. So the fastest known peer leads and
-//! clearly-fast peers keep a strict priority, while slower peers still compete
-//! by speed rather than being frozen in a fixed order. An exploration fraction
-//! of selections ignores ranking and shuffles uniformly, and failures set a
-//! timeout-scale score while successes recover through EWMA, so a peer that
-//! stalls or returns nothing after looking fast is quickly demoted and rotated
-//! past.
+//! Selection orders candidates in three tiers. Peers within a fixed ratio of
+//! the fastest healthy candidate form the fast band and are tried first,
+//! fastest first; every slower healthy peer follows in a weighted random order
+//! with weight inversely proportional to its effective latency; peers whose
+//! most recent fetch failed always come last, outside the randomization. So
+//! the fastest known peer leads, clearly-fast peers keep a strict priority,
+//! slower peers still compete by speed rather than being frozen in a fixed
+//! order, and a just-failed peer cannot displace a healthy one. An exploration
+//! fraction of selections ignores ranking (including the failure state) and
+//! shuffles uniformly, so every peer keeps being sampled and a failed peer
+//! re-enters the ranked tiers as soon as a fetch succeeds again.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -79,6 +80,9 @@ struct PeerStat {
     /// Smoothed effective latency in milliseconds; `None` until the first
     /// sample.
     effective_latency_ms: Option<f64>,
+    /// Whether the most recent fetch from this peer failed; cleared by the
+    /// next success.
+    last_fetch_failed: bool,
 }
 
 /// Per-fetch-source per-peer statistics, keyed by the fetch source. Each vector
@@ -129,7 +133,9 @@ impl PeerResponsiveness {
 
     /// Records a failed or timed-out fetch from `peer` for `source`, demoting
     /// it to at least the operation's timeout. Floored at the neutral prior so
-    /// a failure never ranks better than an untried peer.
+    /// a failure never ranks better than an untried peer. Until its next
+    /// success the peer is also ordered behind every non-failed candidate
+    /// (see [`Self::prioritize`]).
     pub(crate) fn record_failure_with_timeout(
         &self,
         source: DataSource,
@@ -154,7 +160,8 @@ impl PeerResponsiveness {
                 Some(prev) => (1.0 - alpha) * prev + alpha * sample,
             };
             stat.effective_latency_ms = Some(new);
-            Self::latency_snapshot(track)
+            stat.last_fetch_failed = false;
+            Self::snapshot(track)
         };
 
         self.publish_expected_latencies(source, &snapshot);
@@ -174,7 +181,8 @@ impl PeerResponsiveness {
                 Some(prev) => prev.max(sample),
             };
             stat.effective_latency_ms = Some(new);
-            Self::latency_snapshot(track)
+            stat.last_fetch_failed = true;
+            Self::snapshot(track)
         };
 
         self.publish_expected_latencies(source, &snapshot);
@@ -184,12 +192,15 @@ impl PeerResponsiveness {
     /// responsive for `source`, keeping the set itself unchanged (the output is
     /// a permutation of the input: never adds or drops a peer).
     ///
-    /// Peers within [`FAST_LATENCY_RATIO`] of the fastest candidate are placed
-    /// first, fastest first (ties, e.g. all-untried, broken at random); every
-    /// slower peer follows in a weighted random order with weight
-    /// `1 / effective_latency`. So the fastest known peer leads unless a
-    /// fraction of calls (see [`EXPLORE_PROBABILITY`]) ignore ranking and
-    /// return a uniform shuffle. `rng` is consumed fresh on every call.
+    /// Peers within [`FAST_LATENCY_RATIO`] of the fastest non-failed candidate
+    /// are placed first, fastest first (ties, e.g. all-untried, broken at
+    /// random); every slower peer follows in a weighted random order with
+    /// weight `1 / effective_latency`. A peer whose most recent fetch failed
+    /// does not take part in the randomization at all: it is ordered behind
+    /// every non-failed candidate (fastest of the failed first) until its next
+    /// success. So the fastest known peer leads and failed peers go last,
+    /// unless a fraction of calls (see [`EXPLORE_PROBABILITY`]) ignore ranking
+    /// and return a uniform shuffle. `rng` is consumed fresh on every call.
     pub(crate) fn prioritize<R: Rng>(
         &self,
         source: DataSource,
@@ -208,11 +219,11 @@ impl PeerResponsiveness {
             return;
         }
 
-        // Snapshot each candidate's effective latency under the lock, then
-        // release it before ordering (parking_lot::Mutex must not be held across
-        // the work). Untried peers use the neutral prior; every sample is floored
-        // so it stays strictly positive.
-        let latencies: Vec<f64> = {
+        // Snapshot each candidate's effective latency and failure state under
+        // the lock, then release it before ordering (parking_lot::Mutex must not
+        // be held across the work). Untried peers use the neutral prior; every
+        // sample is floored so it stays strictly positive.
+        let stats: Vec<(f64, bool)> = {
             let tracks = self.inner.lock();
             let Some(track) = tracks.per_kind.get(&source) else {
                 return;
@@ -220,53 +231,70 @@ impl PeerResponsiveness {
             candidates
                 .iter()
                 .map(|peer| {
-                    track
-                        .get(peer.value())
+                    let stat = track.get(peer.value());
+                    let latency = stat
                         .and_then(|stat| stat.effective_latency_ms)
                         .unwrap_or(NEUTRAL_LATENCY_MS)
-                        .max(MIN_LATENCY_MS)
+                        .max(MIN_LATENCY_MS);
+                    let last_fetch_failed = stat.is_some_and(|stat| stat.last_fetch_failed);
+                    (latency, last_fetch_failed)
                 })
                 .collect()
         };
 
-        let min_latency = latencies.iter().copied().fold(f64::INFINITY, f64::min);
+        // The fast band is defined relative to the fastest non-failed
+        // candidate; a failed peer never widens or defines the band.
+        let min_latency = stats
+            .iter()
+            .filter(|(_, last_fetch_failed)| !*last_fetch_failed)
+            .map(|(latency, _)| *latency)
+            .fold(f64::INFINITY, f64::min);
         let threshold = FAST_LATENCY_RATIO * min_latency;
 
-        // Split into the fast band (within the ratio of the fastest) and the
-        // rest. The fast band is ordered fastest-first, ties broken by a random
-        // key so an all-equal band (e.g. cold start) is shuffled uniformly. The
-        // rest is a weighted random permutation (Efraimidis–Spirakis) with weight
-        // `1 / latency`: the key `u^latency` is monotone with `ln(u) * latency`,
-        // which sorted descending yields `P(peer first) = (1/latency) / Σ`,
-        // extended to a full ordering.
+        // Split into three tiers. The fast band (within the ratio of the
+        // fastest) is ordered fastest-first, ties broken by a random key so an
+        // all-equal band (e.g. cold start) is shuffled uniformly. Slower
+        // non-failed peers follow in a weighted random permutation
+        // (Efraimidis–Spirakis) with weight `1 / latency`: the key `u^latency`
+        // is monotone with `ln(u) * latency`, which sorted descending yields
+        // `P(peer first) = (1/latency) / Σ`, extended to a full ordering.
+        // Peers whose most recent fetch failed always go last, fastest first,
+        // and re-enter the randomized tiers with their next success.
         let mut fast: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
         let mut rest: Vec<(f64, AuthorityIndex)> = Vec::new();
-        for (peer, latency) in candidates.iter().zip(&latencies) {
-            if *latency <= threshold {
+        let mut failed: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
+        for (peer, (latency, last_fetch_failed)) in candidates.iter().zip(&stats) {
+            if *last_fetch_failed {
+                failed.push((*latency, rng.gen::<f64>(), *peer));
+            } else if *latency <= threshold {
                 fast.push((*latency, rng.gen::<f64>(), *peer));
             } else {
                 let u = rng.gen::<f64>().max(f64::MIN_POSITIVE);
                 rest.push((u.ln() * *latency, *peer));
             }
         }
-        fast.sort_by(|a, b| {
-            a.0.partial_cmp(&b.0)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-        });
+        let by_latency_then_key =
+            |a: &(f64, f64, AuthorityIndex), b: &(f64, f64, AuthorityIndex)| {
+                a.0.partial_cmp(&b.0)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            };
+        fast.sort_by(by_latency_then_key);
+        failed.sort_by(by_latency_then_key);
         rest.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
         let ordered = fast
             .into_iter()
             .map(|(_, _, peer)| peer)
-            .chain(rest.into_iter().map(|(_, peer)| peer));
+            .chain(rest.into_iter().map(|(_, peer)| peer))
+            .chain(failed.into_iter().map(|(_, _, peer)| peer));
         for (slot, peer) in candidates.iter_mut().zip(ordered) {
             *slot = peer;
         }
     }
 
-    fn latency_snapshot(track: &[PeerStat]) -> Vec<Option<f64>> {
-        track.iter().map(|stat| stat.effective_latency_ms).collect()
+    fn snapshot(track: &[PeerStat]) -> Vec<PeerStat> {
+        track.to_vec()
     }
 
     /// Recomputes and publishes, for `source`, the expected per-fetch latency
@@ -276,21 +304,38 @@ impl PeerResponsiveness {
     /// weighted` is the latency improvement the ranking buys; equal values mean
     /// peers are homogeneous and ranking is not helping. Untried peers carry no
     /// sample and are excluded.
-    fn publish_expected_latencies(&self, source: DataSource, latencies: &[Option<f64>]) {
-        let measured: Vec<f64> = latencies
+    fn publish_expected_latencies(&self, source: DataSource, stats: &[PeerStat]) {
+        let measured: Vec<(f64, bool)> = stats
             .iter()
-            .filter_map(|latency| *latency)
-            .map(|latency| latency.max(MIN_LATENCY_MS))
+            .filter_map(|stat| {
+                stat.effective_latency_ms
+                    .map(|latency| (latency.max(MIN_LATENCY_MS), stat.last_fetch_failed))
+            })
             .collect();
         if measured.is_empty() {
             return;
         }
 
-        let uniform = measured.iter().sum::<f64>() / measured.len() as f64;
+        let uniform =
+            measured.iter().map(|(latency, _)| latency).sum::<f64>() / measured.len() as f64;
 
-        // Ranking tries the fastest measured peer first, except on the
-        // exploration fraction, which falls back to a uniform draw.
-        let min_latency = measured.iter().copied().fold(f64::INFINITY, f64::min);
+        // Ranking tries the fastest non-failed measured peer first (failed
+        // peers are ordered last), except on the exploration fraction, which
+        // falls back to a uniform draw. With every measured peer failed, the
+        // fastest of them leads.
+        let min_latency = measured
+            .iter()
+            .filter(|(_, last_fetch_failed)| !*last_fetch_failed)
+            .map(|(latency, _)| *latency)
+            .fold(f64::INFINITY, f64::min);
+        let min_latency = if min_latency.is_finite() {
+            min_latency
+        } else {
+            measured
+                .iter()
+                .map(|(latency, _)| *latency)
+                .fold(f64::INFINITY, f64::min)
+        };
         let weighted = (1.0 - EXPLORE_PROBABILITY) * min_latency + EXPLORE_PROBABILITY * uniform;
 
         let gauge = &self
@@ -667,6 +712,56 @@ mod tests {
         assert!(
             unknown_leads as f64 / 10_000.0 > 0.85,
             "unknown peers should lead most ranked transaction rounds: {unknown_leads}"
+        );
+    }
+
+    #[test]
+    fn last_failed_peer_goes_last_until_it_succeeds() {
+        let pr = responsiveness(4);
+        // idx(1) has a fast history but its most recent fetch failed;
+        // idx(2) is a measured slow-but-healthy peer; idx(3) is untried.
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+        pr.record_failure_with_timeout(DataSource::TransactionSynchronizer, idx(1), ms(2_000));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(1_000));
+        let candidates = vec![idx(1), idx(2), idx(3)];
+
+        let trials = 10_000;
+        let count_positions = |seed: u64| {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let mut last = 0usize;
+            let mut first = 0usize;
+            for _ in 0..trials {
+                let mut c = candidates.clone();
+                pr.prioritize(DataSource::TransactionSynchronizer, &mut c, &mut rng);
+                if c[2] == idx(1) {
+                    last += 1;
+                }
+                if c[0] == idx(1) {
+                    first += 1;
+                }
+            }
+            (last, first)
+        };
+
+        // Outside the exploration shuffle the failed peer is always last, and
+        // only exploration can put it first.
+        let (last, first) = count_positions(23);
+        assert!(
+            last as f64 / trials as f64 > 0.93,
+            "failed peer should be pinned last: {last}"
+        );
+        assert!(
+            (first as f64) / (trials as f64) < 0.05,
+            "failed peer should lead only via exploration: {first}"
+        );
+
+        // A single success clears the failure state: the peer competes in the
+        // randomized tiers again and is no longer pinned last.
+        pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+        let (last_after, _) = count_positions(29);
+        assert!(
+            (last_after as f64) / (trials as f64) < 0.8,
+            "recovered peer must not stay pinned last: {last_after}"
         );
     }
 

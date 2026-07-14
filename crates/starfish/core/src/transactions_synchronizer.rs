@@ -659,10 +659,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
         // Create an iterator over authorities with their corresponding block refs.
-        // When ranking is enabled, responsive acknowledgers are tried earlier and
-        // a peer that fails is demoted by the responsiveness tracker's timeout
-        // penalty rather than removed from the set. When ranking is disabled:
-        // a stable order under test, a uniform shuffle in production.
+        // When ranking is enabled, responsive acknowledgers are tried earlier
+        // and a peer whose last fetch failed is ordered behind the healthy
+        // candidates rather than removed from the set. When ranking is
+        // disabled: a stable order under test, a uniform shuffle in production.
         let iter_authorities: Box<
             dyn Iterator<Item = (AuthorityIndex, BTreeSet<GenericTransactionRef>)>,
         > = if context.parameters.enable_peer_responsiveness_ranking {
@@ -743,8 +743,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // the fraction of requested transactions it returned, so unrelated or
         // partial responses cannot improve a peer's rank. An empty response is
         // a goodput failure; an error or timeout is recorded the same way, so a
-        // failing peer is demoted to a timeout-scale latency and rotated to the
-        // back of subsequent selections without ever being dropped from the set.
+        // failing peer is demoted to a timeout-scale latency and ordered behind
+        // healthy peers in subsequent selections without ever being dropped
+        // from the set.
         while let Some((peer, result)) = request_futures.next().await {
             match result {
                 Ok(stats) if stats.matched_requested > 0 => {
