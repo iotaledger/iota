@@ -827,7 +827,7 @@ impl KeyToolCommand {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature =
+                let signature =
                     sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
@@ -836,7 +836,7 @@ impl KeyToolCommand {
                     intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
-                    iota_signature: Base64::encode(iota_signature.to_bytes()),
+                    iota_signature: signature.to_base64(),
                 })
             }
             KeyToolCommand::SignRaw { address, data } => {
@@ -848,7 +848,7 @@ impl KeyToolCommand {
                     _ => bail!("Not a keypair"),
                 };
                 let signature = ikp.sign(&bytes);
-                let iota_signature = Base64::encode(signature.to_bytes());
+                let iota_signature = signature.to_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
                 let signature_hex = Hex::encode_with_format(signature.signature_bytes());
