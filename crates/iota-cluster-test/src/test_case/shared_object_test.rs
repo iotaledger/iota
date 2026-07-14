@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::Owner;
 use iota_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
+use iota_types::effects::TransactionEffectsAPI;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
@@ -42,40 +42,33 @@ impl TestCaseImpl for SharedCounterTest {
             counter_ref.version,
         )
         .await;
-        let response = iota_json_rpc_types::IotaTransactionBlockResponse::try_from(&response)
-            .expect("converting an ExecutedTransaction to IotaTransactionBlockResponse");
-        assert_eq!(
-            *response.effects.as_ref().unwrap().status(),
-            IotaExecutionStatus::Success,
+        let effects = response.effects().unwrap().effects().unwrap();
+        assert!(
+            effects.status().is_success(),
             "increment counter txn failed: {:?}",
-            *response.effects.as_ref().unwrap().status()
+            effects.status()
         );
 
-        response
-            .effects
-            .as_ref()
-            .unwrap()
-            .shared_objects()
+        effects
+            .input_shared_objects()
             .iter()
-            .find(|o| o.object_id == counter_ref.object_id)
+            .find(|shared| shared.id_and_version().0 == counter_ref.object_id)
             .unwrap_or_else(|| panic!("expect obj {} in shared_objects", counter_ref.object_id));
 
-        let counter_version = response
-            .effects
-            .as_ref()
-            .unwrap()
+        let counter_version = effects
             .mutated()
             .iter()
-            .find_map(|obj| {
-                let initial_shared_version = obj.owner.as_opt_shared()?;
-                (obj.reference.object_id == counter_ref.object_id
+            .find_map(|(object_ref, owner)| {
+                let initial_shared_version = owner.as_opt_shared()?;
+                (object_ref.object_id == counter_ref.object_id
                     && *initial_shared_version == counter_ref.version)
-                    .then_some(obj.reference.version)
+                    .then_some(object_ref.version)
             })
             .unwrap_or_else(|| panic!("expect obj {} in mutated", counter_ref.object_id));
 
         // Verify fullnode observes the txn
-        ctx.let_fullnode_sync(vec![response.digest], 5).await;
+        ctx.let_fullnode_sync(vec![response.transaction().unwrap().digest().unwrap()], 5)
+            .await;
 
         let counter_object = ObjectChecker::new(counter_ref.object_id)
             .owner(Owner::Shared(counter_ref.version))
