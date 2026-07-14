@@ -22,17 +22,18 @@ use crate::{IngestionError, IngestionResult};
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store. The scheme of the URL determines the
-///   storage provider:
-///     * `http://` or `https://`: HTTP-based store.
+/// * `url`: The URL of the remote store. The scheme selects the backend:
+///     * `http://` or `https://`: HTTP-based object store.
 ///     * `gs://`: Google Cloud Storage.
-///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
+///     * `s3://`: Amazon S3 (or an S3-compatible endpoint addressed with the
+///       `s3` scheme).
+///     * `file://`: local filesystem.
+///     * any other scheme returns [`IngestionError::Unsupported`].
 /// * `remote_store_options`: A vector of key-value pairs representing
 ///   provider-specific options.
 ///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For HTTP: No options are currently supported. This parameter should be
-///       empty.
+///     * For `http`/`https` and `file`: options are ignored.
 /// * `request_timeout_secs`: The timeout duration (in seconds) for individual
 ///   requests. This timeout is used to set a slightly longer retry timeout
 ///   (request_timeout_secs + 1) internally, even though retries are disabled.
@@ -99,24 +100,25 @@ pub fn create_remote_store_client(
 
 /// Creates a remote store client with configurable retry behavior and options.
 ///
-/// This function constructs a remote store client for various cloud storage
-/// providers (HTTP, Google Cloud Storage, Amazon S3) based on the provided URL
-/// and options. It allows configuring retry behavior through the `retry_config`
+/// This function constructs a remote store client for HTTP, Google Cloud
+/// Storage, Amazon S3, or the local filesystem based on the provided URL and
+/// options. It allows configuring retry behavior through the `retry_config`
 /// argument.
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store.  The scheme of the URL determines the
-///   storage provider:
-///     * `http://` or `https://`:  HTTP-based store.
+/// * `url`: The URL of the remote store. The scheme selects the backend:
+///     * `http://` or `https://`: HTTP-based object store.
 ///     * `gs://`: Google Cloud Storage.
-///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
+///     * `s3://`: Amazon S3 (or an S3-compatible endpoint addressed with the
+///       `s3` scheme).
+///     * `file://`: local filesystem.
+///     * any other scheme returns [`IngestionError::Unsupported`].
 /// * `remote_store_options`: A vector of key-value pairs representing
 ///   provider-specific options.
-///     * For GCS:  See [`object_store::gcp::GoogleConfigKey`] for valid keys.
+///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For HTTP: No options are currently supported. This parameter should be
-///       empty.
+///     * For `http`/`https` and `file`: options are ignored.
 /// * `request_timeout_secs`: The timeout duration (in seconds) for individual
 ///   requests.
 /// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This
