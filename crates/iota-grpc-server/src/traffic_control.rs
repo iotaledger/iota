@@ -4,11 +4,14 @@
 //! Tower [`Layer`] that wires the shared [`TrafficController`] into the
 //! gRPC server.
 //!
-//! The layer extracts the client IP and calls the traffic controller with a
-//! weight derived from the response's gRPC status code. Errors that a batch
-//! API embeds inside an otherwise successful response are invisible at this
-//! level; handlers report those through the [`ErrorTallyHandle`] request
-//! extension.
+//! The layer extracts the client IP and tallies each request against the
+//! traffic controller, deriving the error weight from the response's gRPC
+//! status code. A batch API's items are invisible at this level: their per-item
+//! errors are embedded in an otherwise successful response, and a batch would
+//! count as a single request regardless of how many items it carries. Handlers
+//! report each item through the [`TallyHandle`] request extension so it counts
+//! individually for the spam policy and feeds the error policy on client
+//! errors.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally
@@ -17,7 +20,10 @@ use std::{
     future::Future,
     net::IpAddr,
     pin::Pin,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     task::{Context, Poll},
     time::SystemTime,
 };
@@ -101,10 +107,15 @@ where
             }
         };
 
+        // A batch handler sets this through its `TallyHandle` once it has
+        // accounted for each item, so the layer skips its default
+        // one-tally-per-request accounting below.
+        let per_item_accounted = Arc::new(AtomicBool::new(false));
         let mut req = req;
-        req.extensions_mut().insert(ErrorTallyHandle {
+        req.extensions_mut().insert(TallyHandle {
             traffic_controller: traffic_controller.clone(),
             client,
+            per_item_accounted: per_item_accounted.clone(),
         });
 
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
@@ -119,43 +130,48 @@ where
 
             let result = inner.call(req).await;
             if let Ok(response) = &result {
-                let code =
-                    Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
-                tally(&traffic_controller, client, code, Weight::one());
+                // Batch handlers account for each embedded item themselves; only
+                // tally the request here when a handler didn't.
+                if !per_item_accounted.load(Ordering::Relaxed) {
+                    let code =
+                        Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
+                    tally(&traffic_controller, client, code);
+                }
             }
             result
         })
     }
 }
 
-/// Request extension through which handlers report application-level errors
-/// that are embedded in an otherwise successful gRPC response (per-item
-/// errors of batch APIs), so they still feed the error policy.
+/// Request extension through which a batch handler reports each per-item result
+/// to the traffic controller.
+///
+/// A batch API's items are invisible to the transport-level layer: their
+/// per-item errors are embedded in an otherwise successful response, and a
+/// batch would otherwise count as a single request no matter how many items it
+/// carries. Reporting each item makes it count as one request for the spam
+/// policy and, on a client error, feeds the error policy — so batching cannot
+/// dilute a client's request rate or hide its errors.
 #[derive(Clone)]
-pub struct ErrorTallyHandle {
+pub struct TallyHandle {
     traffic_controller: Arc<TrafficController>,
     client: Option<IpAddr>,
+    per_item_accounted: Arc<AtomicBool>,
 }
 
-impl ErrorTallyHandle {
-    /// Report an application-level error embedded in a successful response.
+impl TallyHandle {
+    /// Account for one item of a batch response: count it as one request for
+    /// the spam policy and, if `code` is a client error, feed the error policy.
     ///
-    /// Uses a zero spam weight: the enclosing request is already spam-tallied
-    /// by the layer when its response completes.
-    pub fn tally_error(&self, code: Code) {
-        if matches!(code, Code::Ok) {
-            return;
-        }
-        tally(&self.traffic_controller, self.client, code, Weight::zero());
+    /// Signals the layer to skip its default per-request tally, so a batch is
+    /// charged per item rather than once.
+    pub fn tally_item(&self, code: Code) {
+        self.per_item_accounted.store(true, Ordering::Relaxed);
+        tally(&self.traffic_controller, self.client, code);
     }
 }
 
-fn tally(
-    traffic_controller: &TrafficController,
-    client: Option<IpAddr>,
-    code: Code,
-    spam_weight: Weight,
-) {
+fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: Code) {
     let error_info = if matches!(code, Code::Ok) {
         None
     } else {
@@ -165,7 +181,7 @@ fn tally(
         direct: client,
         through_fullnode: None,
         error_info,
-        spam_weight,
+        spam_weight: Weight::one(),
         timestamp: SystemTime::now(),
     });
 }

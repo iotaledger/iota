@@ -29,7 +29,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    traffic_control::{PolicyConfig, PolicyType},
+    traffic_control::{PolicyConfig, PolicyType, Weight},
     transaction::TransactionData,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
@@ -126,6 +126,77 @@ async fn handler_errors_feed_the_error_policy() {
         "expected the error policy to block the client within {} requests",
         2 * n
     );
+}
+
+/// Each item of a batch request must count individually towards the spam
+/// policy, so a client cannot dilute its request rate by batching.
+#[tokio::test]
+async fn batched_requests_accrue_spam_per_item() {
+    // The spam policy blocks a client once its request count reaches
+    // `spam_threshold`. A single batch carries more items than the threshold,
+    // so per-item accounting blocks the client while per-request accounting
+    // (one tally per batch) could not.
+    let batch_size: usize = 20;
+    let spam_threshold: u64 = 15;
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 120,
+        spam_policy_type: PolicyType::TestNConnIP(spam_threshold),
+        // Error policy off, so any block is attributable to the spam policy.
+        error_policy_type: PolicyType::NoOp,
+        // Count every tally deterministically.
+        spam_sample_rate: Weight::one(),
+        dry_run: false,
+        ..Default::default()
+    };
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None).await);
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        Arc::new(MockGrpcStateReader::default()),
+        traffic_controller,
+        Some(Arc::new(UnreachableExecutor)),
+    )
+    .await;
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .expect("failed to connect to test gRPC server");
+    let mut client = TransactionExecutionServiceClient::new(channel);
+
+    // One batch of empty items: each fails validation and is reported as an
+    // embedded per-item error, and each counts as one request for the spam
+    // policy.
+    let batch = ExecuteTransactionsRequest::default()
+        .with_transactions(vec![ExecuteTransactionItem::default(); batch_size]);
+    client
+        .execute_transactions(batch)
+        .await
+        .expect("batch request itself should succeed");
+
+    // The single batch already exceeds the spam threshold, so the client must
+    // be blocked within a handful of follow-up requests. The probe budget stays
+    // well below `spam_threshold` so per-request accounting (batch plus probes)
+    // could not reach the threshold on its own.
+    let probe = ExecuteTransactionsRequest::default()
+        .with_transactions(vec![ExecuteTransactionItem::default()]);
+    let probe_budget = 10;
+    for _ in 0..probe_budget {
+        // Yield so the background tally task drains the batch's tallies and
+        // updates the blocklist before the next check.
+        tokio::task::yield_now().await;
+        if let Err(status) = client.execute_transactions(probe.clone()).await {
+            assert_eq!(
+                status.code(),
+                Code::ResourceExhausted,
+                "unexpected error: {status:?}"
+            );
+            assert!(
+                status.message().contains("Too many requests"),
+                "unexpected block message: {status:?}"
+            );
+            return;
+        }
+    }
+    panic!("expected the batch's items to block the client via the spam policy");
 }
 
 /// Successful requests must not count towards the error policy or get

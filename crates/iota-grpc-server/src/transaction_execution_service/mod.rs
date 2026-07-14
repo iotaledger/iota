@@ -33,7 +33,7 @@ use prost_types::FieldMask;
 use tonic::{Request, Response};
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
-use crate::{error::RpcError, merge::Merge, traffic_control::ErrorTallyHandle, types::GrpcReader};
+use crate::{error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader};
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -63,7 +63,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<ExecuteTransactionsRequest>,
     ) -> Result<Response<ExecuteTransactionsResponse>, tonic::Status> {
-        let error_tally = request.extensions().get::<ErrorTallyHandle>().cloned();
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
         let response = execute_transactions(
             &self.reader,
             &self.executor,
@@ -73,13 +73,18 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
-        // Per-item errors are embedded in a successful response, invisible to
-        // the transport-level traffic control; feed them to the error policy.
-        if let Some(error_tally) = &error_tally {
+        // Each batch item is invisible to the transport-level traffic control:
+        // account for every item so a batch is charged per item, and its
+        // embedded per-item errors feed the error policy.
+        if let Some(tally_handle) = &tally_handle {
             for result in &response.get_ref().transaction_results {
-                if let Some(execute_transaction_result::Result::Error(error)) = &result.result {
-                    error_tally.tally_error(tonic::Code::from(error.code));
-                }
+                let code = match &result.result {
+                    Some(execute_transaction_result::Result::Error(error)) => {
+                        tonic::Code::from(error.code)
+                    }
+                    _ => tonic::Code::Ok,
+                };
+                tally_handle.tally_item(code);
             }
         }
         Ok(append_info_headers!(response, self.reader.clone()))
@@ -89,7 +94,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<SimulateTransactionsRequest>,
     ) -> Result<Response<SimulateTransactionsResponse>, tonic::Status> {
-        let error_tally = request.extensions().get::<ErrorTallyHandle>().cloned();
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
         let response = simulate::simulate_transactions(
             &self.reader,
             &self.executor,
@@ -99,13 +104,18 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
-        // Per-item errors are embedded in a successful response, invisible to
-        // the transport-level traffic control; feed them to the error policy.
-        if let Some(error_tally) = &error_tally {
+        // Each batch item is invisible to the transport-level traffic control:
+        // account for every item so a batch is charged per item, and its
+        // embedded per-item errors feed the error policy.
+        if let Some(tally_handle) = &tally_handle {
             for result in &response.get_ref().transaction_results {
-                if let Some(simulate_transaction_result::Result::Error(error)) = &result.result {
-                    error_tally.tally_error(tonic::Code::from(error.code));
-                }
+                let code = match &result.result {
+                    Some(simulate_transaction_result::Result::Error(error)) => {
+                        tonic::Code::from(error.code)
+                    }
+                    _ => tonic::Code::Ok,
+                };
+                tally_handle.tally_item(code);
             }
         }
         Ok(append_info_headers!(response, self.reader.clone()))
