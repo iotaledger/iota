@@ -117,6 +117,9 @@ const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 // entire sync range.
 const PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL: u64 = 10_000;
 
+// Default batch_size value in case config concurrency value is zero.
+const HISTORICAL_DEFAULT_BATCH_SIZE: usize = 10;
+
 /// A handle to the StateSync subsystem.
 ///
 /// This handle can be cloned and shared. Once all copies of a StateSync
@@ -1285,16 +1288,17 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
     let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
-    // Only sync from historical archive when there is at least one checkpoint in the gap
-    // [highest_synced+1, lowest_peer). If highest_synced+1 == lowest_peer the
-    // archive range is empty and there is nothing to do.
-    let sync_from_historical_archive = if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
-        highest_synced
-            .checked_add(1)
-            .is_some_and(|start| start < lowest_checkpoint_on_peers)
-    } else {
-        false
-    };
+    // Only sync from historical archive when there is at least one checkpoint in
+    // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
+    // lowest_peer the archive range is empty and there is nothing to do.
+    let sync_from_historical_archive =
+        if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
+            highest_synced
+                .checked_add(1)
+                .is_some_and(|start| start < lowest_checkpoint_on_peers)
+        } else {
+            false
+        };
     debug!(
         "Syncing checkpoint contents from historical archive: {sync_from_historical_archive},  highest_synced: {highest_synced},  lowest_checkpoint_on_peers: {}",
         lowest_checkpoint_on_peers.map_or_else(|| "None".to_string(), |l| l.to_string())
@@ -1313,13 +1317,19 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
             warn!("Historical archive url for state sync is not configured");
             return;
         };
+        let batch_size = if historical_config.concurrency != 0 {
+            historical_config.concurrency
+        } else {
+            HISTORICAL_DEFAULT_BATCH_SIZE
+        };
         let reader_options = ReaderOptions {
-            batch_size: historical_config.concurrency.into(),
+            batch_size,
             ..Default::default()
         };
-        // Keep a separate clone for the completion monitor; the original is
-        // moved into StateSyncWorker below.
+        // Keep separate clones for the completion monitor and the final log;
+        // the original is moved into StateSyncWorker below.
         let store_for_monitor = store.clone();
+        let store_for_log = store.clone();
         let Ok((run_future, exit_sender)) = setup_single_workflow(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
@@ -1334,33 +1344,57 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
         else {
             return;
         };
-        // The historical archive covers exactly [start, end). Spawn a monitor that cancels
-        // the executor once highest_synced reaches end-1 (the last archived
-        // checkpoint). Without this the reader would spin forever trying to
-        // fetch checkpoint `end` which is not in the archive.
+        // The historical archive is expected to cover [start, end). Spawn a
+        // monitor that cancels the executor once highest_synced reaches end-1
+        // (the last archived checkpoint); without this the reader would wait
+        // forever for checkpoint `end`, which is not in the archive.
+        //
+        // The monitor also gives up if highest_synced makes no progress for
+        // `STALL_TIMEOUT`. The bucket may not hold the full [start, end) range
+        // yet (e.g. it is still catching up), in which case the reader stops
+        // streaming.
+        const STALL_TIMEOUT: Duration = Duration::from_secs(60);
         let archive_end = end - 1;
         let exit_clone = exit_sender.clone();
         let monitor = tokio::spawn(async move {
+            let mut last_synced = store_for_monitor
+                .get_highest_synced_checkpoint()
+                .sequence_number;
+            let mut last_progress = tokio::time::Instant::now();
             while !exit_clone.is_cancelled() {
-                if store_for_monitor
+                let synced = store_for_monitor
                     .get_highest_synced_checkpoint()
-                    .sequence_number
-                    >= archive_end
-                {
+                    .sequence_number;
+                if synced >= archive_end {
+                    exit_clone.cancel();
+                    break;
+                }
+                if synced > last_synced {
+                    last_synced = synced;
+                    last_progress = tokio::time::Instant::now();
+                } else if last_progress.elapsed() >= STALL_TIMEOUT {
+                    warn!(
+                        "State sync from historical archive stalled at checkpoint {synced} (target \
+                         {archive_end}); the archive may not have the full range yet, will retry"
+                    );
                     exit_clone.cancel();
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         });
-        match run_future.await {
+        let run_result = run_future.await;
+        monitor.abort();
+        let highest_synced_now = store_for_log
+            .get_highest_synced_checkpoint()
+            .sequence_number;
+        match run_result {
             Ok(_) => info!(
-                "State sync from archive is complete. Checkpoints downloaded = {:?}",
-                end - start
+                "State sync from historical archive finished. Highest synced checkpoint = \
+                 {highest_synced_now} (target {archive_end})"
             ),
             Err(err) => warn!("State sync from archive failed with error: {:?}", err),
         }
-        monitor.abort();
     }
 }
 
