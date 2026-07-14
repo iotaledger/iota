@@ -13,6 +13,7 @@ use iota_kvstore::{
 use iota_sdk_types::Address;
 use iota_types::{
     digests::TransactionDigest, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
 
@@ -142,7 +143,8 @@ async fn paginates_newest_first() {
 
     let address = Address::random();
     let seqs = [10u64, 20, 30, 40, 50];
-    let digests = std::iter::repeat_n(TransactionDigest::random(), seqs.len())
+    let digests = std::iter::repeat_with(TransactionDigest::random)
+        .take(seqs.len())
         .collect::<Vec<TransactionDigest>>();
     let entries = seqs
         .iter()
@@ -180,7 +182,8 @@ async fn paginates_oldest_first() {
 
     let address = Address::random();
     let seqs = [10u64, 20, 30, 40, 50];
-    let digests = std::iter::repeat_n(TransactionDigest::random(), seqs.len())
+    let digests = std::iter::repeat_with(TransactionDigest::random)
+        .take(seqs.len())
         .collect::<Vec<TransactionDigest>>();
     let entries = seqs
         .iter()
@@ -218,7 +221,8 @@ async fn order_flip_is_exact_reverse() {
 
     let address = Address::random();
     let seqs = [10u64, 20, 30, 50];
-    let digests = std::iter::repeat_n(TransactionDigest::random(), seqs.len())
+    let digests = std::iter::repeat_with(TransactionDigest::random)
+        .take(seqs.len())
         .collect::<Vec<TransactionDigest>>();
     let entries = seqs
         .iter()
