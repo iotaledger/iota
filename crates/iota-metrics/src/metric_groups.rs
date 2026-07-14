@@ -233,9 +233,10 @@ impl MetricGroups {
 
     /// Maps each group's configured level to the filter patterns it covers.
     ///
-    /// `runtime` must come first: its `iota_metrics` module prefix also
-    /// matches the `p2p` and `hardware` groups' submodules, and only a
-    /// later directive can override it (last match wins).
+    /// Directive order does not matter: where one group's module prefix also
+    /// matches another group's submodules (e.g. `runtime`'s `iota_metrics`
+    /// covers the `p2p` and `hardware` groups'), the more specific pattern
+    /// wins.
     fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
         [
             ("runtime", self.runtime),
@@ -261,10 +262,9 @@ impl MetricGroups {
     }
 
     /// Renders the levels into a `METRICS_FILTER`-style directive string: the
-    /// `default` threshold as the leading catch-all directive, then one
-    /// directive per group module (including the hardware group's). Later
-    /// directives win, so the group levels override the catch-all for their
-    /// modules.
+    /// `default` threshold as the catch-all directive, then one directive per
+    /// group module (including the hardware group's). The group levels
+    /// override the catch-all for their modules, being more specific.
     pub fn to_filter_string(&self) -> String {
         fn token(level: MetricLevel) -> &'static str {
             match level {
@@ -309,26 +309,6 @@ impl MetricGroups {
                 None => directives.push(part.to_owned()),
             }
         }
-        let rescued: Vec<String> = directives
-            .iter()
-            .enumerate()
-            .filter(|(i, directive)| {
-                let (pattern, _) = prometheus_filtered::split_directive(directive);
-                !pattern.is_empty()
-                    && directives[i + 1..].iter().any(|later| {
-                        let (later_pattern, _) = prometheus_filtered::split_directive(later);
-                        !later_pattern.is_empty()
-                            && pattern.len() > later_pattern.len()
-                            && pattern.starts_with(later_pattern)
-                    })
-                    // A later directive for the same pattern stays authoritative.
-                    && !directives[i + 1..].iter().any(|later| {
-                        prometheus_filtered::split_directive(later).0 == pattern
-                    })
-            })
-            .map(|(_, directive)| directive.clone())
-            .collect();
-        directives.extend(rescued);
         Ok(directives.join(","))
     }
 }
@@ -470,8 +450,7 @@ mod tests {
         let filter_string = groups.to_filter_string();
         assert!(filter_string.contains("iota_metrics::hardware_metrics=off"));
         assert!(!hardware_metrics_enabled(&Filter::parse(&filter_string)));
-        // A `METRICS_FILTER` directive is appended after the config's and
-        // overrides it.
+        // A later directive with the same pattern overrides the rendered one.
         let overridden = Filter::parse(&format!(
             "{filter_string},iota_metrics::hardware_metrics=warn"
         ));
@@ -545,26 +524,53 @@ mod tests {
     }
 
     #[test]
-    fn expand_directives_keeps_specific_directives_effective() {
-        // `runtime` expands to the `iota_metrics` module prefix, which also
-        // matches the `transport` submodule; the more specific transport
-        // directive must win in either input order.
+    fn expand_directives_is_order_independent() {
+        // A `default` level after a group directive does not cancel it.
         for input in [
-            "transport=warn,runtime=trace",
-            "runtime=trace,transport=warn",
+            "traffic-control=off,default=info",
+            "default=info,traffic-control=off",
         ] {
             let expanded = MetricGroups::expand_directives(input).unwrap();
             let filter = Filter::parse(&expanded);
             assert!(
-                filter.is_exposed("x", "iota_metrics", MetricLevel::Trace),
+                !filter.is_exposed("x", "iota_core::traffic_controller", MetricLevel::Warn),
                 "{input} -> {expanded}"
             );
             assert!(
-                !filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Info),
+                filter.is_exposed("x", "iota_core::authority", MetricLevel::Info),
+                "{input} -> {expanded}"
+            );
+            assert!(
+                !filter.is_exposed("x", "iota_core::authority", MetricLevel::Debug),
                 "{input} -> {expanded}"
             );
         }
-        // A later directive for the same pattern still wins (last match).
+        // With three nested module prefixes, each level applies to its own
+        // subtree: the most specific matching directive wins.
+        let expanded = MetricGroups::expand_directives(
+            "iota_metrics::metrics_network::inbound=off,transport=debug,runtime=trace",
+        )
+        .unwrap();
+        let filter = Filter::parse(&expanded);
+        assert!(
+            !filter.is_exposed(
+                "x",
+                "iota_metrics::metrics_network::inbound",
+                MetricLevel::Warn
+            ),
+            "{expanded}"
+        );
+        assert!(
+            filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Debug),
+            "{expanded}"
+        );
+        assert!(
+            filter.is_exposed("x", "iota_metrics", MetricLevel::Trace),
+            "{expanded}"
+        );
+        // A later directive for the same pattern still wins (last match):
+        // here `runtime` expands to the raw directive's `iota_metrics`
+        // pattern.
         let expanded = MetricGroups::expand_directives("iota_metrics=off,runtime=warn").unwrap();
         let filter = Filter::parse(&expanded);
         assert!(filter.is_exposed("x", "iota_metrics", MetricLevel::Warn));

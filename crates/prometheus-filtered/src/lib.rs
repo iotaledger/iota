@@ -5,16 +5,18 @@
 //! filtering.
 //!
 //! Replace `use prometheus::*` with `use prometheus_filtered::*` to control
-//! which metrics are exposed. The active filter combines the node config's
-//! directives with the `METRICS_FILTER` environment variable's; where both
-//! match the same metric, the env var wins.
+//! which metrics are exposed. The active filter comes from the node config's
+//! directives, unless the `METRICS_FILTER` environment variable is set, in
+//! which case it replaces the config's directives entirely.
 //!
-//! Filter syntax: comma-separated `pattern=LEVEL` directives, last-match
-//! wins, where `LEVEL` is one of `off`, `warn`, `info`, `debug`, `trace`.
-//! A bare `LEVEL` token (no `pattern=`) sets the global default. A pattern
-//! matches if it is a prefix of the metric name OR is a component/prefix of the
-//! calling module path (e.g. `traffic_controller` matches
-//! `iota_core::traffic_controller::metrics`).
+//! Filter syntax: comma-separated `pattern=LEVEL` directives, where `LEVEL`
+//! is one of `off`, `warn`, `info`, `debug`, `trace`. A bare `LEVEL` token
+//! (no `pattern=`) sets the global default. A pattern matches if it is a
+//! prefix of the metric name OR is a component/prefix of the calling module
+//! path (e.g. `traffic_controller` matches
+//! `iota_core::traffic_controller::metrics`). When several directives match
+//! the same metric, the most specific one (longest pattern) wins, regardless
+//! of order; among directives with the same pattern, the last one wins.
 //!
 //! Examples:
 //! - `METRICS_FILTER=off,authority=warn`
@@ -594,26 +596,30 @@ fn render_directives(directives: &[FilterDirective]) -> String {
         .join(",")
 }
 
-/// Evaluates `directives` for a metric, returning the last matching
+/// Evaluates `directives` for a metric, returning the most specific matching
 /// directive's threshold, or [`DEFAULT_THRESHOLD`] when none matches.
 ///
-/// Matching order (last wins):
-/// 1. Empty pattern — global default.
-/// 2. `name.starts_with(pattern)` — metric name prefix.
-/// 3. `module.starts_with(pattern)` — module path prefix.
-/// 4. `module` contains `"::{pattern}"` — exact module component.
+/// A directive matches when its pattern is:
+/// 1. Empty — global default.
+/// 2. A metric name prefix — `name.starts_with(pattern)`.
+/// 3. A module path prefix — `module.starts_with(pattern)`.
+/// 4. An exact module component — `module` contains `"::{pattern}"`.
+///
+/// Among matching directives, the longest pattern wins (so a directive for a
+/// submodule overrides one for its parent, and any pattern overrides the bare
+/// global level); among equal-length patterns, the last one wins.
 fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> u8 {
-    let mut threshold = DEFAULT_THRESHOLD;
+    let mut best: Option<(usize, u8)> = None;
     for dir in directives {
-        if dir.pattern.is_empty()
+        let matches = dir.pattern.is_empty()
             || name.starts_with(dir.pattern.as_str())
             || module.starts_with(dir.pattern.as_str())
-            || module.contains(&format!("::{}", dir.pattern))
-        {
-            threshold = dir.threshold;
+            || module.contains(&format!("::{}", dir.pattern));
+        if matches && best.is_none_or(|(len, _)| dir.pattern.len() >= len) {
+            best = Some((dir.pattern.len(), dir.threshold));
         }
     }
-    threshold
+    best.map_or(DEFAULT_THRESHOLD, |(_, threshold)| threshold)
 }
 
 impl Filter {
@@ -677,16 +683,19 @@ impl Filter {
         *self.runtime.write().unwrap() = None;
     }
 
-    /// Resolves the metrics filter from `fallback` (the node config)
-    /// and the `METRICS_FILTER` env variables. If the same key exists in both,
-    /// the env var takes precedence.
+    /// Resolves the metrics filter from `fallback` (the node config) and the
+    /// `METRICS_FILTER` env variable. A non-blank env var replaces the
+    /// fallback entirely.
     pub fn resolve(fallback: Option<&str>) -> Self {
         let env = std::env::var("METRICS_FILTER").ok();
-        match (fallback, env.as_deref()) {
-            (Some(f), Some(e)) => Self::parse(&format!("{f},{e}")),
-            (Some(f), None) => Self::parse(f),
-            (None, Some(e)) => Self::parse(e),
-            (None, None) => Self::default(),
+        Self::resolve_from(fallback, env.as_deref())
+    }
+
+    fn resolve_from(fallback: Option<&str>, env: Option<&str>) -> Self {
+        let env = env.filter(|s| !s.trim().is_empty());
+        match env.or(fallback) {
+            Some(s) => Self::parse(s),
+            None => Self::default(),
         }
     }
 }
@@ -1183,7 +1192,7 @@ mod tests {
         assert!(!filter.is_exposed("certs_total", "iota_core::authority", Debug));
         assert!(!filter.is_exposed("certs_total", "iota_core::authority_aggregator", Debug));
 
-        // the last matching prefix shadows the previous ones
+        // the longer matching prefix shadows the shorter one
         let filter = super::Filter::parse("authority=off,authority_aggregator=trace");
         assert!(!filter.is_exposed("authority", "iota_core::checkpoints", Debug));
         assert!(filter.is_exposed("authority_aggregator", "iota_core::checkpoints", Debug));
@@ -1212,12 +1221,40 @@ mod tests {
         assert!(!filter.is_exposed("certs_total", "iota_core::authority", Debug));
         assert!(filter.is_exposed("certs_total", "starfish::core", Debug));
 
-        // last-match-wins applies to bare global directives too, and an
-        // explicit permissive default can carry a targeted `off` override.
+        // among directives with the same (here: empty) pattern the last one
+        // wins, and an explicit permissive default can carry a targeted
+        // `off` override.
         assert!(super::Filter::parse("off,trace").is_exposed("authority", "m", Debug));
         let filter = super::Filter::parse("trace,authority=off");
         assert!(filter.is_exposed("certs_total", "m", Debug));
         assert!(!filter.is_exposed("authority", "m", Debug));
+    }
+
+    #[test]
+    fn more_specific_pattern_wins_regardless_of_order() {
+        use super::MetricLevel::{Info, Warn};
+        // A blanket module directive does not shadow a more specific one,
+        // whichever is written first ...
+        for input in [
+            "iota_core::authority=warn,iota_core=off",
+            "iota_core=off,iota_core::authority=warn",
+        ] {
+            let filter = super::Filter::parse(input);
+            assert!(
+                filter.is_exposed("x", "iota_core::authority", Warn),
+                "{input}"
+            );
+            assert!(
+                !filter.is_exposed("x", "iota_core::checkpoints", Warn),
+                "{input}"
+            );
+        }
+        // ... and a trailing bare level does not cancel earlier specific
+        // directives.
+        let filter = super::Filter::parse("authority=off,info");
+        assert!(!filter.is_exposed("authority", "m", Warn));
+        assert!(filter.is_exposed("certs_total", "m", Info));
+        assert!(!filter.is_exposed("certs_total", "m", Debug));
     }
 
     #[test]
@@ -1271,8 +1308,8 @@ mod tests {
     fn resolve_applies_fallback() {
         use super::{Arc, Filter, MetricLevel, Registry};
 
-        // The env var's directives are merged after the fallback's, so the
-        // assertions below only hold when it is unset.
+        // A set env var replaces the fallback, so `Filter::resolve` is only
+        // exercised when it is unset; `resolve_from` covers the set case.
         if std::env::var_os("METRICS_FILTER").is_some() {
             return;
         }
@@ -1290,6 +1327,21 @@ mod tests {
         let registry = Registry::new_custom(None, None, Some(filter.clone())).unwrap();
         let shared = Registry::new_custom(None, None, Some(filter)).unwrap();
         assert!(std::sync::Arc::ptr_eq(&registry.filter(), &shared.filter()));
+    }
+
+    #[test]
+    fn env_replaces_fallback() {
+        use super::{Filter, MetricLevel};
+
+        // A set env var replaces the fallback entirely: the fallback's more
+        // specific directive does not survive the override.
+        let filter = Filter::resolve_from(Some("off,iota_core::authority=off"), Some("trace"));
+        assert!(filter.is_exposed("x", "iota_core::authority", MetricLevel::Trace));
+        assert!(filter.is_exposed("x", "iota_core::checkpoints", MetricLevel::Trace));
+
+        // A blank env var counts as unset: the fallback still applies.
+        let filter = Filter::resolve_from(Some("off"), Some(" "));
+        assert!(!filter.is_exposed("x", "m", MetricLevel::Warn));
     }
 
     #[test]
