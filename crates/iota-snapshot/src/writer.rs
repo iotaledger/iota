@@ -507,14 +507,14 @@ impl StateSnapshotWriterV1 {
             None => Err(anyhow!(
                 "Snapshot V2 writer: the epoch_info completeness watermark is \
                  absent — no epoch_info rows have been finalized on this node \
-                 yet. Run the epoch_info backfill before publishing the first \
-                 V2 snapshot, or wait until at least epoch 0 closes under live \
-                 indexing."
+                 yet. Wait until at least epoch 0 closes under live indexing, \
+                 or restore this node from a formal snapshot."
             )),
             Some(h) if h < epoch => Err(anyhow!(
                 "Snapshot V2 writer: the epoch_info completeness watermark is at \
-                 epoch {h}, but snapshot_epoch is {epoch}. Run the epoch_info \
-                 backfill on this node before publishing."
+                 epoch {h}, but snapshot_epoch is {epoch}. The chain is \
+                 incomplete; restore this node from a formal snapshot or resync \
+                 it from genesis before publishing."
             )),
             Some(_) => Ok(()),
         }
