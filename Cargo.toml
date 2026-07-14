@@ -403,9 +403,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -444,10 +444,10 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "46a2543b107877b53b51ac063fa5f3d7496e63e3", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce1201d4bb70432fb4f1cb9082fef21d176c96e5", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
