@@ -515,9 +515,16 @@ def main():
         "split: separate A and B columns (default combined)",
     )
     ap.add_argument(
-        "--out", default=None, help="output .md (default: results/summary_table_n<net>.md)"
+        "--out",
+        default=None,
+        help="output .md (default: results/summary_table_n<net>.md)",
     )
-    ap.add_argument("--csv", default=None, help="also write a tidy CSV here")
+    ap.add_argument(
+        "--csv",
+        default=None,
+        help="tidy CSV path (default: results/summary_table_n<net>.csv, "
+        "always written — summary_plot.py reads it)",
+    )
     ap.add_argument(
         "--jobs",
         type=int,
@@ -694,30 +701,30 @@ def main():
         f.write("\n".join(lines) + "\n")
     print(f"wrote {out_path}  ({len(labels)} rows x {len(cols)} metrics)")
 
-    # ---- tidy CSV (optional) -------------------------------------------------
-    if args.csv:
-        import csv
+    # ---- tidy CSV (always written — summary_plot.py reads it) -----------------
+    import csv
 
-        with open(args.csv, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(
-                [
-                    "config",
-                    "metric",
-                    "unit",
-                    "version",
-                    "center",
-                    "std",
-                    "sem",
-                    "n_iters",
-                ]
-            )
-            for label in labels:
-                for col in cols:
-                    for side, ver in (("A", "V1"), ("B", "V2")):
-                        c, s, sem, n = rows[label][col["key"]][side]
-                        w.writerow([label, col["key"], col["unit"], ver, c, s, sem, n])
-        print(f"wrote {args.csv}")
+    csv_path = args.csv or os.path.join(args.root, f"summary_table{suffix}.csv")
+    with open(csv_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(
+            [
+                "config",
+                "metric",
+                "unit",
+                "version",
+                "center",
+                "std",
+                "sem",
+                "n_iters",
+            ]
+        )
+        for label in labels:
+            for col in cols:
+                for side, ver in (("A", "V1"), ("B", "V2")):
+                    c, s, sem, n = rows[label][col["key"]][side]
+                    w.writerow([label, col["key"], col["unit"], ver, c, s, sem, n])
+    print(f"wrote {csv_path}")
 
 
 if __name__ == "__main__":
