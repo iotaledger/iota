@@ -49,9 +49,9 @@ impl Metrics {
         }
     }
 
-    pub fn update_checkpoints_synced_from_archive(&self) {
+    pub fn update_checkpoints_synced_from_historical_archive(&self) {
         if let Some(inner) = &self.0 {
-            inner.checkpoints_synced_from_archive.inc();
+            inner.checkpoints_synced_from_historical_archive.inc();
         }
     }
 
@@ -67,7 +67,7 @@ struct Inner {
     highest_known_checkpoint: IntGauge,
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
-    checkpoints_synced_from_archive: IntCounter,
+    checkpoints_synced_from_historical_archive: IntCounter,
     checkpoint_summary_age: Histogram,
 }
 
@@ -98,9 +98,9 @@ impl Inner {
             )
             .unwrap(),
 
-            checkpoints_synced_from_archive: register_int_counter_with_registry!(
-                "checkpoints_synced_from_archive",
-                "Checkpoints synced from archive",
+            checkpoints_synced_from_historical_archive: register_int_counter_with_registry!(
+                "checkpoints_synced_from_historical_archive",
+                "Checkpoints synced from historical archive",
                 registry
             )
             .unwrap(),
