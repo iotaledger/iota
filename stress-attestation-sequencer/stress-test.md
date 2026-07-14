@@ -54,6 +54,22 @@ per-run JSON, aggregates, and plots):
 - 5 × 3 × 3 = **45 configurations**, **10 iterations** each; every iteration
   runs Run A (V1, attestation OFF) and Run B (V2, attestation ON).
 
+The same matrix was then re-run on a **48-validator** network (plus 1
+fullnode) on the same machine, to check how the overhead changes when
+attestation spreads across a large committee instead of concentrating on 4
+validators. Differences from the 4-validator campaign:
+
+- the all-validators path becomes `v48` (`DIRECT=true
+  NUM_TARGET_VALIDATORS=48`); configuration labels carry the network size as
+  an `-n48` suffix (`-n4` for the 4-validator matrix);
+- the host needed tuning to hold 49 node containers: larger kernel neighbor
+  table limits, static container hostnames via `extra_hosts` (docker's
+  embedded DNS drops lookups under the churn of that many peers), and larger
+  UDP buffers.
+
+Its results land in `results/summary_table_n48.{md,csv}` and
+`results/summary_plots_n48/` (`--net 48` on the tooling below).
+
 Unless stated otherwise, every table and figure below shows the `qps1000`
 rate. All three rates were run; the effects barely depend on the rate, so one
 representative rate keeps the tables and figures readable. Where a result does
@@ -63,9 +79,9 @@ depend on the rate, the prose or an extra table says so explicitly.
 both share the same cold baseline and warmup — only attestation differs. The
 monitoring stack is cycled down (without wiping its volume) and back up too,
 since leaving Prometheus up across the reset would give Run B a longer warmup.
-In unattended runs the TSDB is additionally wiped between A and B (Run A's JSON
-is saved first); run interactively it is kept, so both windows coexist in one
-Grafana view.
+In unattended runs the TSDB is additionally wiped between A and B (Run A's
+JSON is saved first); in interactive runs, it is kept, so both runs' windows
+coexist in one Grafana view.
 
 Aggregation and reporting tooling (all under `h1/` directory):
 
@@ -97,22 +113,19 @@ Numbers below are means over all seconds of all iterations, except the bursty
 queue/shedding gauges, which report peaks (see the tooling note above).
 Per-configuration means are steady at light and moderate load — they vary a
 few percent from run to run — and noisier on the heavy-compute configurations,
-where throughput is small (up to tens of percent). 10 iterations still pin
-down every effect below: the effects reported are far larger than that noise.
-Where A and B come out almost equal, such as throughput, the gap is smaller
-than the run-to-run noise: we can't tell them apart, which is exactly the
-point — attestation makes no measurable difference there. Figure error bars
-are ±1 std (signal variability) by default; `summary_plot.py --disp sem`
-switches them to the standard error of the mean.
+where throughput is small (up to tens of percent). Figure error bars are
+±1 std (signal variability) by default; `summary_plot.py --disp sem` switches
+them to the standard error of the mean.
 
 In the figures below, blue = **A (V1, attestation off)** and red = **B (V2,
 attestation on)**; the x-axis is one group per configuration
 (`s<size>·<path>`, `f1` = fullnode, `v1` = pinned to one validator,
-`v4` = direct to all 4), with dashed separators between computation sizes; the
-y-axis is log-scaled. To keep the figures readable, the shedding figure shows
-only the heavy sizes (`slow200`/`slow500`) and the client-side figures only
-the fullnode path. The tables and `summary_table_n4.md` carry the full 45
-configurations.
+`v4`/`v48` = direct to all validators), with dashed separators between
+computation sizes; the y-axis is log-scaled. To keep the figures readable,
+the shedding figure shows only the heavy sizes (`slow200`/`slow500`) and the
+client-side figures only the fullnode path. The tables and
+`summary_table_n4.md` / `summary_table_n48.md` carry the full 45
+configurations of each campaign.
 
 ---
 
