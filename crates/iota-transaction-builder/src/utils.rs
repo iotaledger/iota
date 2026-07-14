@@ -13,8 +13,8 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
-    move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    StructTag, TypeTag, move_package::MovePackage,
 };
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},
@@ -24,7 +24,7 @@ use iota_types::{
     move_package::MovePackageExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -123,7 +123,7 @@ impl TransactionBuilder {
             return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 is_mutable_ref,

@@ -4,11 +4,13 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Version,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef, Transaction},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
@@ -81,7 +83,7 @@ impl TxGenerator for MoveTxGenerator {
                         Identifier::from_static("benchmark"),
                         Identifier::from_static("increment_shared_counter"),
                         vec![],
-                        vec![CallArg::Shared(SharedObjectRef::new(
+                        vec![CallArg::Shared(SharedObjectReference::new(
                             shared_object.0,
                             shared_object.1,
                             true,
