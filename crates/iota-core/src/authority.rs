@@ -619,7 +619,8 @@ impl AuthorityMetrics {
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             transaction_overload_sources: register_int_counter_vec_with_registry!(

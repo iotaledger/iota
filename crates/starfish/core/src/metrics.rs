@@ -473,7 +473,8 @@ impl NodeMetrics {
                 "core_skipped_proposals",
                 "Number of proposals skipped in the Core, per reason",
                 &["reason"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             highest_accepted_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_accepted_authority_round",
@@ -1073,7 +1074,8 @@ impl NodeMetrics {
             commit_sync_quorum_index: register_int_gauge_with_registry!(
                 "commit_sync_quorum_index",
                 "The maximum commit index voted by a quorum of authorities",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_highest_synced_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_fetched_index",
@@ -1090,7 +1092,8 @@ impl NodeMetrics {
             commit_sync_local_index: register_int_gauge_with_registry!(
                 "commit_sync_local_index",
                 "The local commit index",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_gap_on_processing: register_int_counter_vec_with_registry!(
                 "commit_sync_gap_on_processing",

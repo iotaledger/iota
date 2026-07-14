@@ -48,7 +48,8 @@ impl CheckpointExecutorMetrics {
             last_executed_checkpoint_timestamp_ms: register_int_gauge_with_registry!(
                 "last_executed_checkpoint_timestamp_ms",
                 "Last executed checkpoint timestamp ms",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             checkpoint_exec_errors: register_int_counter_with_registry!(
@@ -105,7 +106,8 @@ impl CheckpointExecutorMetrics {
                 "last_executed_checkpoint_age",
                 "Age of the last executed checkpoint",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             checkpoint_executor_validator_path: register_int_gauge_with_registry!(
