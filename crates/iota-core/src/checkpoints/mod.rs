@@ -2961,7 +2961,6 @@ mod tests {
     };
     use iota_types::{
         base_types::TransactionEffectsDigest,
-        crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,
@@ -3194,7 +3193,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);
@@ -3415,7 +3414,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);

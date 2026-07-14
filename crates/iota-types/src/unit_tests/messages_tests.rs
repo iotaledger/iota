@@ -24,8 +24,8 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, IotaSignatureInner,
-        Secp256k1IotaSignature, VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
+        VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
@@ -716,7 +716,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: &dyn Signer<Signature>,
+    signer: impl Into<IotaKeyPair>,
 ) -> Signature {
     let intent_msg = IntentMessage::new(intent, data);
     Signature::new_secure(&intent_msg, signer)
@@ -982,7 +982,10 @@ fn verify_sender_signature_correctly_with_flag() {
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(s.scheme().flag(), Secp256k1IotaSignature::SCHEME.flag());
+    assert_eq!(
+        s.signature_scheme().flag(),
+        SignatureScheme::Secp256k1.flag()
+    );
 
     // authority accepts signs tx after verification
     assert!(
@@ -1012,7 +1015,7 @@ fn verify_sender_signature_correctly_with_flag() {
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.scheme().flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(s.signature_scheme().flag(), SignatureScheme::ED25519.flag());
 
     // signature verified
     assert!(

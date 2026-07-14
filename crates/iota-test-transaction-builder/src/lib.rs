@@ -21,7 +21,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
@@ -411,7 +411,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: &dyn Signer<Signature>) -> Transaction {
+    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }
 

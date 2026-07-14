@@ -41,8 +41,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
+        Signature, Signer, zero_ed25519_signature,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -2456,7 +2456,7 @@ impl<S> Envelope<SenderSignedData, S> {
 impl Transaction {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<&dyn Signer<Signature>>,
+        signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
@@ -2476,7 +2476,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: &dyn Signer<Signature>,
+        signer: impl Into<IotaKeyPair>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)
@@ -2555,12 +2555,7 @@ impl VerifiedTransaction {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
             .pipe(|data| {
-                SenderSignedData::new_from_sender_signature(
-                    data,
-                    Ed25519IotaSignature::from_bytes(&[0; Ed25519IotaSignature::LENGTH])
-                        .unwrap()
-                        .into(),
-                )
+                SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
             })
             .pipe(Transaction::new)
             .pipe(Self::new_from_verified)
