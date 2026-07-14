@@ -69,10 +69,10 @@ Never commit your credentials file to version control. Always keep it secure and
 
 - install `gcloud` CLI tool: https://cloud.google.com/sdk/docs/install
 
-- install the `cbt` CLI tool
+- install the `cbt` CLI tool and the Bigtable emulator
 
 ```sh
-gcloud components install cbt
+gcloud components install cbt bigtable
 ```
 
 - start the emulator
@@ -91,7 +91,9 @@ $(gcloud beta emulators bigtable env-init)
 
 ### Testing
 
-The integration tests require the `gcloud` and `cbt` CLI tools to be installed.
+The integration tests need the same tools as [local development](#local-development): `gcloud` (used to locate the SDK root), the Bigtable emulator binary (`cbtemulator`, resolved under the SDK root since it is not on `PATH`), and `cbt` (used to create the tables and column family).
+
+Unlike the local development flow, the tests are self-contained: each test spawns its own emulator on a random free port, creates the required tables, and kills the emulator when done. There is no need to start the emulator manually, set `BIGTABLE_EMULATOR_HOST`, or run `./init.sh`.
 
 ```shell
 cargo test --features integration_tests

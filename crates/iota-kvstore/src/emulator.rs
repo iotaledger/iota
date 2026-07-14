@@ -2,28 +2,37 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Provides a `BigTableEmulator` that manages the emulator lifecycle (spawn,
-//! table creation, teardown) for use in integration tests across crates.
+//! Test-only lifecycle management for the Google Cloud Bigtable emulator.
 //!
-//! Requires `gcloud`, `cbt`, and the BigTable emulator on PATH.
+//! [`BigTableEmulator::start`] spawns a `cbtemulator` process on a random
+//! free port, creates every [`Table`] (with the `iota` column family) in it,
+//! and kills the process on drop. Integration tests in this and other crates
+//! use it to run against a real Bigtable API without a cloud instance.
+//!
+//! # Dependencies
+//!
+//! Three tools from the Google Cloud SDK are involved:
+//!
+//! - `gcloud`: must be on `PATH`. Only used to locate the SDK root. Install https://cloud.google.com/sdk/docs/install
+//! - `cbtemulator`: the emulator binary itself. It is shipped with the SDK but
+//!   *not* installed on `PATH`, so it is resolved relative to the SDK root
+//!   reported by `gcloud` (see [`cbtemulator_path`]). Install with `gcloud
+//!   components install bigtable`.
+//! - `cbt`: the Bigtable CLI, used to create tables and column families in the
+//!   emulator. Must be on `PATH`. Install with `gcloud components install cbt`.
 
 use std::{
-    net::{Ipv4Addr, SocketAddr},
+    net::Ipv4Addr,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::OnceLock,
-    time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use futures::future::try_join_all;
 use iota_bigtable::BigTableClient;
 use strum::IntoEnumIterator;
-use tokio::{
-    net::TcpStream,
-    process::Command as TokioCommand,
-    time::{interval, timeout},
-};
+use tokio::process::Command as TokioCommand;
 
 use crate::Table;
 
@@ -50,36 +59,12 @@ impl BigTableEmulator {
             .stderr(Stdio::null())
             .stdout(Stdio::null())
             .spawn()
-            .context("Failed to spawn BigTable emulator")?;
+            .context("failed to spawn BigTable emulator")?;
 
         let host = format!("localhost:{port}");
-        // Construct first so Drop kills the child if the readiness wait fails.
-        let mut emulator = Self { child, host };
-        emulator.wait_until_ready(port).await?;
+        let emulator = Self { child, host };
         create_tables(emulator.host(), INSTANCE_ID).await?;
         Ok(emulator)
-    }
-
-    /// Waits until the emulator accepts TCP connections on `port`.
-    ///
-    /// Fails if the process exits during startup or the timeout elapses.
-    async fn wait_until_ready(&mut self, port: u16) -> Result<()> {
-        const TIMEOUT: Duration = Duration::from_secs(10);
-        let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let mut poll = interval(Duration::from_millis(50));
-        timeout(TIMEOUT, async {
-            loop {
-                poll.tick().await;
-                if let Some(status) = self.child.try_wait()? {
-                    bail!("BigTable emulator exited during startup: {status}");
-                }
-                if TcpStream::connect(addr).await.is_ok() {
-                    return Ok(());
-                }
-            }
-        })
-        .await
-        .map_err(|_| anyhow!("BigTable emulator not ready on port {port} after {TIMEOUT:?}"))?
     }
 
     /// Returns the host string for the emulator, e.g. `localhost:12345`.
@@ -107,22 +92,23 @@ impl Drop for BigTableEmulator {
 /// the caller to reuse it with `SO_REUSEADDR`.
 fn get_available_port() -> Result<u16> {
     let listener = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .context("Failed to bind to ephemeral port")?;
+        .context("failed to bind to ephemeral port")?;
     let addr = listener
         .local_addr()
-        .context("Failed to get local address")?;
-    _ = std::net::TcpStream::connect(addr).context("Failed to connect to ephemeral port")?;
-    _ = listener.accept().context("Failed to accept connection")?;
+        .context("failed to get local address")?;
+    _ = std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
+    _ = listener.accept().context("failed to accept connection")?;
     Ok(addr.port())
 }
 
-/// Resolve the path to `cbtemulator` relative to the gcloud SDK root.
+/// Resolves the path to the `cbtemulator` binary.
 ///
-/// Works regardless of whether gcloud was installed via apt, brew, or the
-/// standalone installer.
+/// `cbtemulator` is not on `PATH`, so it is located at a fixed path under
+/// the gcloud SDK root, which is queried from `gcloud` itself. This makes
+/// the lookup independent of how the SDK was installed (apt, brew,
+/// standalone installer).
 ///
-/// The lookup shells out to `gcloud`, so a successful result is cached for
-/// the lifetime of the process.
+/// A successful lookup is cached for the lifetime of the process.
 pub fn cbtemulator_path() -> Result<&'static Path> {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
     if let Some(path) = PATH.get() {
@@ -152,10 +138,12 @@ pub fn cbtemulator_path() -> Result<&'static Path> {
     Ok(PATH.get_or_init(|| path))
 }
 
-/// Checks whether the BigTable emulator is available on the local machine.
+/// Checks that both `cbtemulator` and `cbt` are available on this machine,
+/// returning an error naming the missing component otherwise.
 ///
-/// The availability probe spawns a `cbt` subprocess, so its outcome is cached
-/// for the lifetime of the process.
+/// `cbtemulator` is checked via [`cbtemulator_path`]. The `cbt` CLI is probed
+/// by spawning `cbt version`, and that outcome is cached for the lifetime of
+/// the process.
 pub fn require_bigtable_emulator() -> Result<()> {
     static IS_CBT_AVAILABLE: OnceLock<bool> = OnceLock::new();
     cbtemulator_path()?;
@@ -181,7 +169,7 @@ pub async fn create_tables(host: &str, instance_id: &str) -> Result<()> {
             .env("BIGTABLE_EMULATOR_HOST", host)
             .output()
             .await
-            .with_context(|| format!("Failed to run cbt createtable {table}"))?;
+            .with_context(|| format!("failed to run cbt createtable {table}"))?;
         if !output.status.success() {
             bail!(
                 "cbt createtable {table} failed: {}",
@@ -195,7 +183,7 @@ pub async fn create_tables(host: &str, instance_id: &str) -> Result<()> {
             .env("BIGTABLE_EMULATOR_HOST", host)
             .output()
             .await
-            .with_context(|| format!("Failed to run cbt createfamily {table}"))?;
+            .with_context(|| format!("failed to run cbt createfamily {table}"))?;
         if !output.status.success() {
             bail!(
                 "cbt createfamily {table} failed: {}",
