@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::{Address, StructTag, TypeTag, crypto::HashingIntentScope};
+use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -16,7 +16,6 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     MoveTypeTagTrait, ObjectId, Version,
-    base_types::ObjectDigest,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,

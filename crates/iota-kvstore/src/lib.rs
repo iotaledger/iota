@@ -6,9 +6,8 @@ use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, CheckpointDigest, TransactionDigest};
 use iota_types::{
-    digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{

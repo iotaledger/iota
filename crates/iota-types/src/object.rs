@@ -11,8 +11,8 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, MoveObjectType, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
-    Version, move_package::MovePackage,
+    Address, MoveObjectType, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
 pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner};
 use move_binary_format::CompiledModule;
@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::TransactionDigest,
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{
@@ -888,13 +887,7 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
-
-    use crate::{
-        base_types::TransactionDigest,
-        gas_coin::GasCoin,
-        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
-    };
+    use super::*;
 
     // Ensure that object digest computation and bcs serialized format are not
     // inadvertently changed.

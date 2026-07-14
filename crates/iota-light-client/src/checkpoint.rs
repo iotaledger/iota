@@ -422,7 +422,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _: &iota_types::digests::CheckpointDigest,
+        _: &iota_sdk_types::CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
@@ -436,7 +436,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _: &iota_types::digests::CheckpointContentsDigest,
+        _: &iota_sdk_types::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -454,7 +454,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &iota_sdk_types::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         unimplemented!()
@@ -462,14 +462,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction_effects(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &iota_sdk_types::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
         unimplemented!()
     }
 
     fn try_get_events(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &iota_sdk_types::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
@@ -485,7 +485,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _: &iota_types::digests::CheckpointContentsDigest,
+        _: &iota_sdk_types::CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {

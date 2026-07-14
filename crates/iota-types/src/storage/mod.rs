@@ -16,7 +16,9 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, ObjectReference, Version, move_package::MovePackage};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, Version, move_package::MovePackage,
+};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -33,7 +35,7 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{TransactionDigest, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},

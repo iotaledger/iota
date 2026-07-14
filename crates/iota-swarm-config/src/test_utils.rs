@@ -5,7 +5,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_config::genesis::Genesis;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    CheckpointDigest,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_types::{
     base_types::{AuthorityName, ExecutionData},
     committee::{Committee, EpochId, StakeUnit},
@@ -14,7 +17,7 @@ use iota_types::{
         KeypairTraits,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointSummary,
         CheckpointTimestamp, CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents,
         VerifiedCheckpoint, VerifiedCheckpointContents,
     },

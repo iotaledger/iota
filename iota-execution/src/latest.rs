@@ -15,7 +15,7 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ProgrammableTransaction, TransactionKind};
+use iota_sdk_types::{Address, ProgrammableTransaction, TransactionDigest, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -23,7 +23,6 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    digests::TransactionDigest,
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},

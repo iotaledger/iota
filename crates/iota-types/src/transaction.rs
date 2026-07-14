@@ -17,12 +17,13 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
-    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId,
-    ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
-    RandomnessStateUpdate, SharedObjectReference, SplitCoins, TransactionExpiration,
-    TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
+    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
+    EndOfEpochTransactionKind, Event, GenesisObject, GenesisTransaction, Identifier, Input,
+    MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -44,7 +45,6 @@ use crate::{
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
         IotaSignatureInner, Signature, Signer, ToFromBytes,
     },
-    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,

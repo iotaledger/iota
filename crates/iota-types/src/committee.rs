@@ -11,7 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 pub use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::validator::ValidatorCommitteeMember;
+use iota_sdk_types::{TransactionDigest, validator::ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,

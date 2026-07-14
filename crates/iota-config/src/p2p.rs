@@ -4,10 +4,8 @@
 
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
-use iota_types::{
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    multiaddr::Multiaddr,
-};
+use iota_sdk_types::CheckpointDigest;
+use iota_types::{messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

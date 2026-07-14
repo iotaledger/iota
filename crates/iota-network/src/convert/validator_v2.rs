@@ -3,8 +3,8 @@
 
 //! Conversions between `iota.validator.v2` proto types and native `iota-types`.
 
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     messages_grpc::{
@@ -304,8 +304,8 @@ impl From<api::HealthCheckResponse> for ValidatorHealthResponse {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
     use iota_types::{
-        digests::{TransactionDigest, TransactionEffectsDigest},
         error::IotaError,
         messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusUpdate},
         transaction::Transaction,

@@ -32,11 +32,11 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
-    StructTag, Version,
+    StructTag, TransactionDigest, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{ExecutionDigests, TransactionDigest, TxContext},
+    base_types::{ExecutionDigests, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,

@@ -216,7 +216,7 @@ pub(crate) fn try_construct_object(
 
 #[cfg(test)]
 mod tests {
-    use iota_types::base_types::TransactionDigest;
+    use iota_sdk_types::TransactionDigest;
 
     use super::*;
 

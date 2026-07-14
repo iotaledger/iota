@@ -21,14 +21,13 @@ use iota_sdk::{
     },
     types::{
         crypto::SignatureScheme::ED25519,
-        digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData, TransactionDataAPI},
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Address, Argument, Command, ObjectId, crypto::Intent};
+use iota_sdk_types::{Address, Argument, Command, ObjectId, TransactionDigest, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
