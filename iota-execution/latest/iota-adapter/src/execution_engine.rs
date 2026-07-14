@@ -20,7 +20,7 @@ mod checked {
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
         ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
-        TransactionKind, Version, gas::GasCostSummary,
+        SystemPackage, TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -49,9 +49,7 @@ mod checked {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
-        transaction::{
-            CallArg, CheckedInputObjects, InputObjects, SystemPackage, TransactionKindExt,
-        },
+        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;

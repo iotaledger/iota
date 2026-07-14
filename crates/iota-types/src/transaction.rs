@@ -25,9 +25,7 @@ use iota_sdk_types::{
     TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-pub use iota_sdk_types::{
-    SystemPackage, Transaction as TransactionData, TransactionV1 as TransactionDataV1,
-};
+pub use iota_sdk_types::{Transaction as TransactionData, TransactionV1 as TransactionDataV1};
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
