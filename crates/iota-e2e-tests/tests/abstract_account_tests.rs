@@ -1672,12 +1672,14 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         summary.status.is_failure(),
         "Expected TX to fail post-consensus due to the sender's MA failure"
     );
+    let (error, _) = summary.status.unwrap_err();
     assert!(
         matches!(
-            summary.status.unwrap_err().0,
-            ExecutionError::MoveAbort { .. }
+            &error,
+            ExecutionError::MoveAuthenticationError { error }
+            if matches!(&**error, ExecutionError::MoveAbort { .. })
         ),
-        "Expected a Move abort from the failed ED25519 authentication"
+        "Expected a Move authentication error wrapping the failed ED25519 authentication's abort, got: {error:?}"
     );
 
     // Even though the TX failed, the sponsor must have paid gas. Verify that
