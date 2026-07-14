@@ -2386,4 +2386,74 @@ mod object_cost_tests {
             }
         }
     }
+
+    // A commit mixing shared-object and owned-object-only transactions with a
+    // single execution worker: the worker constraint binds both kinds, and a
+    // shared-object transaction shed purely by the worker pool reports no
+    // congested objects.
+    #[test]
+    fn test_execution_worker_congestion_mixed_commit() {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,    // congestion_control_min_free_execution_slot
+            Some(2), // max_execution_duration_per_commit (two tx-count slots)
+            None,    // max_congestion_limit_overshoot_per_commit
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+        let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            Vec::new(),
+            congestion_control_parameters,
+        );
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+        let shared_obj_a = ObjectId::random();
+        let shared_obj_b = ObjectId::random();
+
+        // Shared-object tx on A: worker and object both free, scheduled at 0.
+        let tx0 = build_transaction(&[(shared_obj_a, true)], 0, TEST_ONLY_GAS_PRICE);
+        tracker.initialize_object_execution_slots(&tx0.shared_input_objects());
+        assert!(matches!(
+            tracker.try_schedule(&tx0, &previously_deferred, 0),
+            SequencingResult::Schedule(0)
+        ));
+        tracker.bump_object_execution_slots(&tx0, 0);
+
+        // Owned-object-only tx: the worker is busy on [0, 1), so it is pushed
+        // to start time 1, which still fits the per-commit limit of 2.
+        let tx1 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        assert!(matches!(
+            tracker.try_schedule(&tx1, &previously_deferred, 0),
+            SequencingResult::Schedule(1)
+        ));
+        tracker.bump_object_execution_slots(&tx1, 1);
+
+        // Another owned-object-only tx: the worker is now busy on [0, 2), the
+        // whole per-commit limit, so it is shed for worker congestion.
+        let tx2 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        match tracker.try_schedule(&tx2, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(congested_objects.is_empty());
+            }
+            SequencingResult::Schedule(_) => panic!("expected the owned-object-only tx to be shed"),
+        }
+
+        // Shared-object tx on the untouched object B: B's slots are completely
+        // free, but no worker is available within the per-commit limit — the
+        // worker pool is the bottleneck, so no congested object is reported.
+        let tx3 = build_transaction(&[(shared_obj_b, true)], 0, TEST_ONLY_GAS_PRICE);
+        tracker.initialize_object_execution_slots(&tx3.shared_input_objects());
+        match tracker.try_schedule(&tx3, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(
+                    congested_objects.is_empty(),
+                    "worker-bound shed of a shared-object tx should not report \
+                    congested objects, got {congested_objects:?}"
+                );
+            }
+            SequencingResult::Schedule(_) => panic!("expected the shared-object tx to be shed"),
+        }
+    }
 }

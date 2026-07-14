@@ -1419,17 +1419,15 @@ impl AuthorityState {
         if !certificate.contains_shared_object()
             && epoch_store
                 .protocol_config()
-                .max_concurrent_execution_workers_as_option()
+                .concurrent_execution_workers()
                 .is_none()
         {
             // Shared object transactions need to be sequenced by the consensus before
             // enqueueing for execution, done in
             // AuthorityPerEpochStore::handle_consensus_transaction(). For owned
-            // object transactions, they can be enqueued for execution immediately.
-            //
-            // When we limit the number of concurrent execution workers, owned-object-only
-            // transactions are also sequenced by consensus (and scheduled by the
-            // execution-worker congestion tracker), so this fast path is disabled.
+            // object transactions, they can be enqueued for execution immediately —
+            // unless the execution-worker count is limited, in which case they are
+            // also sequenced by consensus and this fast path is disabled.
             self.enqueue_certificates_for_execution(vec![certificate.clone()], epoch_store);
         }
 

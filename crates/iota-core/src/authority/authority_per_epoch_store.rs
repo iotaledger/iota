@@ -258,8 +258,7 @@ impl CongestionControlParameters {
                 .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
-            max_concurrent_execution_workers: protocol_config
-                .max_concurrent_execution_workers_as_option(),
+            max_concurrent_execution_workers: protocol_config.concurrent_execution_workers(),
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
@@ -336,9 +335,9 @@ impl CongestionControlParameters {
     }
 
     /// The execution-worker concurrency cap, or `None` when execution-worker
-    /// congestion control is not active. It is active when the worker cap is
-    /// set and per-object congestion control is enabled — independent of the
-    /// white-flag flow.
+    /// congestion control is not active. Active only when the cap is set and
+    /// per-object congestion control is enabled; the protocol config
+    /// guarantees the white-flag flow is enabled whenever the cap is set.
     pub(super) fn max_concurrent_execution_workers(&self) -> Option<u16> {
         if self.is_congestion_control_enabled() {
             self.max_concurrent_execution_workers
@@ -992,12 +991,8 @@ pub struct AuthorityEpochTables {
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
     /// Execution-worker debt carried over from the latest commit
-    /// (singleton, keyed by `SINGLETON_KEY`).
+    /// (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
     congestion_control_worker_debt: DBMap<u64, CongestionWorkerDebt>,
-
-    /// Execution-worker debt carried over for randomness transactions
-    /// (singleton, keyed by `SINGLETON_KEY`).
-    congestion_control_randomness_worker_debt: DBMap<u64, CongestionWorkerDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -3748,8 +3743,9 @@ impl AuthorityPerEpochStore {
         // current_commit_sequenced_consensus_transactions to preserve consensus
         // DAG ordering during conflict resolution. The deferred-loading paths
         // below do the same. After validate_and_resolve_conflicts runs on the
-        // combined list, we partition back into regular/randomness for downstream
-        // processing (separate reordering and congestion tracking).
+        // combined list, we partition back into regular/randomness — unless a
+        // single tracker schedules all transactions, in which case the list
+        // stays combined and only the outputs are split.
         let total_user_tx_count = current_commit_sequenced_consensus_transactions.len()
             + current_commit_sequenced_randomness_transactions.len()
             + previously_deferred_tx_digests.len();
@@ -3831,6 +3827,15 @@ impl AuthorityPerEpochStore {
         // already have persistent locks, giving them natural precedence.
         // Also collects all UserTransactionV1 digests for soft lock release
         // after the consensus output is quarantined.
+        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
+
+        // When execution-worker congestion control is active, a single tracker
+        // schedules ALL transactions (regular and randomness-using) from a
+        // single, combined list in one gas-price order.
+        let single_congestion_tracker = congestion_control_parameters
+            .max_concurrent_execution_workers()
+            .is_some();
+
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
@@ -3868,20 +3873,37 @@ impl AuthorityPerEpochStore {
                     .inc_by(dropped.len() as u64);
             }
 
-            // Split back for downstream processing (separate reordering
-            // and congestion tracking).
-            let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
-                .into_iter()
-                .partition(|tx| !tx.0.is_user_tx_with_randomness());
-            sequenced_transactions = regular;
-            sequenced_randomness_transactions = randomness;
+            // Split back for downstream processing (separate reordering and
+            // congestion tracking) — unless a single tracker schedules all
+            // transactions, in which case the combined, conflict-resolved list
+            // continues through scheduling as-is.
+            if !single_congestion_tracker {
+                let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
+                    .into_iter()
+                    .partition(|tx| !tx.0.is_user_tx_with_randomness());
+                sequenced_transactions = regular;
+                sequenced_randomness_transactions = randomness;
+            }
         }
+        // A single tracker implies the white-flag flow (enforced by the
+        // protocol config), under which all user transactions are in
+        // `sequenced_transactions` and the partition-back is skipped.
+        debug_assert!(
+            !single_congestion_tracker || sequenced_randomness_transactions.is_empty(),
+            "with a single congestion tracker all transactions are scheduled from the combined list"
+        );
 
-        // Save roots for checkpoint generation. One set for most tx, one for randomness
-        // tx.
+        // Save roots for checkpoint generation. One set for most tx, one for
+        // randomness tx. Classified per transaction because with a single
+        // tracker, randomness transactions are scheduled from the combined
+        // list but still belong in the randomness checkpoint.
         let mut roots: BTreeSet<_> = system_transactions
             .iter()
-            .chain(sequenced_transactions.iter())
+            .chain(
+                sequenced_transactions
+                    .iter()
+                    .filter(|transaction| !transaction.0.is_user_tx_with_randomness()),
+            )
             // no need to include end_of_publish_transactions here because they would be
             // filtered out below by `executable_transaction_digest` anyway
             .filter_map(|transaction| {
@@ -3892,8 +3914,10 @@ impl AuthorityPerEpochStore {
                     .map(TransactionKey::Digest)
             })
             .collect();
-        let mut randomness_roots: BTreeSet<_> = sequenced_randomness_transactions
+        let mut randomness_roots: BTreeSet<_> = sequenced_transactions
             .iter()
+            .filter(|transaction| transaction.0.is_user_tx_with_randomness())
+            .chain(sequenced_randomness_transactions.iter())
             .filter_map(|transaction| {
                 transaction
                     .0
@@ -3903,7 +3927,8 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        // We always order transactions using randomness last.
+        // Order transactions by gas price. With a single congestion tracker
+        // this is one order across regular and randomness-using transactions.
         PostConsensusTxReorder::reorder(
             &mut sequenced_transactions,
             self.protocol_config.consensus_transaction_ordering(),
@@ -3912,11 +3937,6 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
-
-        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
-
-        // We track transaction shared object congestion separately for regular
-        // transactions and transactions using randomness.
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
@@ -3924,27 +3944,27 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            self.consensus_quarantine.read().load_initial_worker_debt(
-                self,
-                consensus_commit_info.round,
-                false,
-            )?,
+            self.consensus_quarantine
+                .read()
+                .load_initial_worker_debt(self, consensus_commit_info.round)?,
             congestion_control_parameters.clone(),
         );
-        let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.consensus_quarantine.read().load_initial_object_debts(
-                self,
-                consensus_commit_info.round,
-                true,
-                &sequenced_randomness_transactions,
-            )?,
-            self.consensus_quarantine.read().load_initial_worker_debt(
-                self,
-                consensus_commit_info.round,
-                true,
-            )?,
-            congestion_control_parameters,
-        );
+        let shared_object_using_randomness_congestion_tracker = if single_congestion_tracker {
+            None
+        } else {
+            Some(SharedObjectCongestionTracker::new(
+                self.consensus_quarantine.read().load_initial_object_debts(
+                    self,
+                    consensus_commit_info.round,
+                    true,
+                    &sequenced_randomness_transactions,
+                )?,
+                // No worker debt: worker congestion control implies a single
+                // tracker, so the randomness tracker never carries one.
+                Vec::new(),
+                congestion_control_parameters,
+            ))
+        };
 
         system_transactions.extend(sequenced_transactions);
         let sequenced_non_randomness_transactions = system_transactions;
@@ -4373,6 +4393,9 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
         output: &mut ConsensusCommitOutput,
+        // With a single congestion tracker, this contains ALL transactions
+        // (including those using randomness) and `randomness_transactions` is
+        // empty. The returned lists are always split by randomness use.
         non_randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
@@ -4387,7 +4410,10 @@ impl AuthorityPerEpochStore {
         randomness_round: Option<RandomnessRound>,
         authority_metrics: &Arc<AuthorityMetrics>,
         mut shared_object_congestion_tracker: SharedObjectCongestionTracker,
-        mut shared_object_using_randomness_congestion_tracker: SharedObjectCongestionTracker,
+        // `None` when a single tracker schedules all transactions.
+        mut shared_object_using_randomness_congestion_tracker: Option<
+            SharedObjectCongestionTracker,
+        >,
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>, // non-randomness transactions to schedule
         Vec<VerifiedExecutableTransaction>, // randomness transactions to schedule
@@ -4429,8 +4455,10 @@ impl AuthorityPerEpochStore {
                 .clone(),
             self.reference_gas_price(),
         );
+        // Only used when a separate randomness tracker exists (both trackers
+        // share the same congestion control parameters).
         let mut suggested_gas_price_calculator_for_randomness = SuggestedGasPriceCalculator::new(
-            shared_object_using_randomness_congestion_tracker
+            shared_object_congestion_tracker
                 .congestion_control_parameters()
                 .clone(),
             self.reference_gas_price(),
@@ -4456,16 +4484,21 @@ impl AuthorityPerEpochStore {
             .map(Either::Left)
             .chain(randomness_transactions.iter().map(Either::Right))
         {
-            let (tx, congestion_tracker, sgp_calculator, sequenced_txns) = match entry {
+            let (tx, congestion_tracker, sgp_calculator) = match entry {
                 Either::Left(tx) => (
                     tx,
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
-                    &mut sequenced_non_randomness,
                 ),
+                // Only reached in the two-tracker mode.
                 Either::Right(tx) => (
                     tx,
-                    &mut shared_object_using_randomness_congestion_tracker,
+                    shared_object_using_randomness_congestion_tracker
+                        .as_mut()
+                        .expect(
+                            "randomness transactions are processed separately only when the \
+                            randomness congestion tracker exists",
+                        ),
                     if self
                         .protocol_config
                         .separate_gas_price_feedback_mechanism_for_randomness()
@@ -4474,7 +4507,6 @@ impl AuthorityPerEpochStore {
                     } else {
                         &mut suggested_gas_price_calculator
                     },
-                    &mut sequenced_randomness,
                 ),
             };
             let key = tx.0.transaction.key();
@@ -4501,7 +4533,14 @@ impl AuthorityPerEpochStore {
                     start_time,
                 } => {
                     notifications.push(key.clone());
-                    sequenced_txns.push((transaction, start_time));
+                    // Transactions using randomness execute in the separate
+                    // randomness phase and checkpoint, whichever list they
+                    // were scheduled from.
+                    if transaction.uses_randomness() {
+                        sequenced_randomness.push((transaction, start_time));
+                    } else {
+                        sequenced_non_randomness.push((transaction, start_time));
+                    }
                 }
                 ConsensusTransactionResult::Deferred {
                     deferral_key,
@@ -4527,8 +4566,12 @@ impl AuthorityPerEpochStore {
                             .insert(*transaction.digest(), reason)
                             .is_none()
                     );
-                    sequenced_txns
-                        .push((transaction, congestion_tracker.max_occupied_slot_end_time()));
+                    let start_time = congestion_tracker.max_occupied_slot_end_time();
+                    if transaction.uses_randomness() {
+                        sequenced_randomness.push((transaction, start_time));
+                    } else {
+                        sequenced_non_randomness.push((transaction, start_time));
+                    }
                 }
                 ConsensusTransactionResult::Dropped { transaction, error } => {
                     notifications.push(key.clone());
@@ -4626,13 +4669,12 @@ impl AuthorityPerEpochStore {
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
             .set(shared_object_congestion_tracker.max_occupied_slot_end_time() as i64);
-        authority_metrics
-            .consensus_handler_max_object_costs
-            .with_label_values(&["randomness_commit"])
-            .set(
-                shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_time()
-                    as i64,
-            );
+        if let Some(randomness_tracker) = &shared_object_using_randomness_congestion_tracker {
+            authority_metrics
+                .consensus_handler_max_object_costs
+                .with_label_values(&["randomness_commit"])
+                .set(randomness_tracker.max_occupied_slot_end_time() as i64);
+        }
 
         // Record accumulated debts from this consensus commit following sequencing.
         // This output will be written to consensus quarantine so the debts can be
@@ -4649,19 +4691,15 @@ impl AuthorityPerEpochStore {
             {
                 output.set_congestion_control_worker_debt(debt);
             }
-            if let Some(debt) = shared_object_using_randomness_congestion_tracker
-                .accumulated_worker_debt(max_execution_duration_per_commit)
-            {
-                output.set_congestion_control_randomness_worker_debt(debt);
-            }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
                     .accumulated_object_debts(max_execution_duration_per_commit),
             );
-            output.set_congestion_control_randomness_object_debts(
-                shared_object_using_randomness_congestion_tracker
-                    .accumulated_object_debts(max_execution_duration_per_commit),
-            );
+            if let Some(randomness_tracker) = shared_object_using_randomness_congestion_tracker {
+                output.set_congestion_control_randomness_object_debts(
+                    randomness_tracker.accumulated_object_debts(max_execution_duration_per_commit),
+                );
+            }
         }
 
         // Advance the DKG state machine on every commit while it is still
@@ -5309,19 +5347,14 @@ impl AuthorityPerEpochStore {
                                 deferral_key,
                                 suggested_gas_price,
                             }
-                        } else if self.protocol_config.enable_pcool_flow()
-                            && self
-                                .protocol_config
-                                .max_concurrent_execution_workers_as_option()
-                                .is_some()
+                        } else if self
+                            .protocol_config
+                            .concurrent_execution_workers()
+                            .is_some()
                         {
-                            // Under the white-flag flow with execution-worker
-                            // congestion control active, a transaction shed for
-                            // congestion is dropped rather than checkpointed: it is
-                            // not executed, and the submitter is notified out-of-band
-                            // with a suggested gas price and must resubmit a new
-                            // transaction. Its owned-object soft locks are released by
-                            // the normal post-quarantine soft-lock release.
+                            // Drop the shed transaction instead of checkpointing
+                            // it: it is not executed, and the submitter is notified
+                            // out-of-band with a suggested gas price.
                             let suggested_gas_price =
                                 suggested_gas_price.unwrap_or_else(|| self.reference_gas_price());
                             debug!(
@@ -5330,7 +5363,7 @@ impl AuthorityPerEpochStore {
                                     {congested_objects:?}: actual gas price: {}, suggested gas \
                                     price: {suggested_gas_price}",
                                 verified_executable_tx.digest(),
-                                verified_executable_tx.transaction_data().gas_price(),
+                                verified_executable_tx.transaction().gas_price(),
                             );
 
                             ConsensusTransactionResult::Dropped {

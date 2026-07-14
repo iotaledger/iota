@@ -1454,12 +1454,11 @@ pub struct ProtocolConfig {
     max_congestion_limit_overshoot_per_commit: Option<u64>,
 
     /// Maximum number of transactions from a single consensus commit that may
-    /// be scheduled to execute concurrently (overlapping in time) by the
-    /// congestion tracker — i.e. the size of the execution-worker pool.
-    /// `Some(n)` activates execution-worker congestion control, capping
-    /// concurrency at `n` transactions so that owned-object-only transactions
-    /// are also scheduled, deferred and shed by the tracker; `None` disables it
-    /// and owned-object-only transactions bypass the tracker as before.
+    /// be scheduled to execute concurrently (the execution-worker pool size).
+    /// `Some` activates execution-worker congestion control, under which
+    /// owned-object-only transactions are also scheduled, deferred and shed
+    /// by the congestion tracker; `None` disables it. Requires
+    /// `enable_pcool_flow`.
     max_concurrent_execution_workers: Option<u16>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
@@ -1983,6 +1982,15 @@ impl ProtocolConfig {
             "report_move_authentication_error requires enable_move_authentication to be set"
         );
         report_move_authentication_error
+    }
+
+    pub fn concurrent_execution_workers(&self) -> Option<u16> {
+        let res = self.max_concurrent_execution_workers;
+        assert!(
+            res.is_none() || self.enable_pcool_flow(),
+            "max_concurrent_execution_workers requires enable_pcool_flow to be enabled"
+        );
+        res
     }
 }
 

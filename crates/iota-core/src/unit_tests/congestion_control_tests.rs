@@ -14,18 +14,22 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
+    base_types::{SequenceNumber, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{InputSharedObject, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionEnvelope},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionEnvelope},
 };
 
 use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::CongestionControlParameters,
+        authority_test_utils::{init_state_with_ids, init_transfer_transaction},
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             execute_programmable_transaction, send_and_confirm_transaction_,
@@ -38,6 +42,8 @@ use crate::{
         suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
     move_call,
     test_utils::set_scheduler_env,
 };
@@ -930,5 +936,111 @@ async fn test_congestion_control_debt_tracking() {
         assert_eq!(commit_round, 7);
     } else {
         panic!("Unexpected debt stored in consensus quarantine.");
+    }
+}
+
+// Tests the end-to-end shed path for owned-object-only transactions under
+// execution-worker congestion control: a transaction that cannot be scheduled
+// within the execution-worker limit is deferred and, once past the deferral
+// limit, dropped — it is not executed, and the submitter is notified
+// out-of-band with a suggested gas price to resubmit at.
+#[sim_test]
+async fn test_execution_worker_congestion_drops_owned_object_only_tx() {
+    telemetry_subscribers::init_for_testing();
+
+    // One execution worker and a per-commit limit of one transaction, so only
+    // one transaction can be scheduled per commit; no deferral allowance, so
+    // the transaction that does not fit is dropped immediately. The drop path
+    // requires the white-flag (P-COOL) flow.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_1_id = ObjectId::random();
+    let object_2_id = ObjectId::random();
+    let gas_1_id = ObjectId::random();
+    let gas_2_id = ObjectId::random();
+    let authority = init_state_with_ids(vec![
+        (sender, object_1_id),
+        (sender, object_2_id),
+        (sender, gas_1_id),
+        (sender, gas_2_id),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    // Two owned-object-only transfer transactions with no object overlap.
+    let mut transactions = Vec::new();
+    for (object_id, gas_id) in [(object_1_id, gas_1_id), (object_2_id, gas_2_id)] {
+        let object = authority.get_object(&object_id).await.unwrap();
+        let gas = authority.get_object(&gas_id).await.unwrap();
+        transactions.push(init_transfer_transaction(
+            &authority,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            object.object_ref(),
+            gas.object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        ));
+    }
+
+    let sequenced_transactions = transactions
+        .iter()
+        .map(|tx| {
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                tracking_id: Default::default(),
+            })
+        })
+        .collect();
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_transactions,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Exactly one of the two transactions fits the single execution worker;
+    // the other is shed and dropped (not executed, not checkpointed).
+    assert_eq!(executable_transactions.len(), 1);
+    let scheduled_digest = *executable_transactions[0].digest();
+    let dropped_digest = *transactions
+        .iter()
+        .map(|tx| tx.digest())
+        .find(|digest| **digest != scheduled_digest)
+        .unwrap();
+
+    // The submitter is notified of the drop with a suggested gas price for
+    // resubmission.
+    let error = epoch_store
+        .notify_read_dropped_digests(dropped_digest)
+        .await;
+    match error {
+        IotaError::ValidatorTransactionCongested {
+            suggested_gas_price,
+        } => {
+            assert!(suggested_gas_price > 0);
+        }
+        other => panic!("expected ValidatorTransactionCongested, got {other:?}"),
     }
 }

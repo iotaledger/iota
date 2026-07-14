@@ -338,17 +338,26 @@ impl ValidatorService {
 
         if !wait_for_effects {
             // It is useful to enqueue owned object transaction for execution locally,
-            // even when we are not returning effects to user
-            let certificates_without_shared_objects = verified_certificates
-                .iter()
-                .filter(|certificate| !certificate.contains_shared_object())
-                .cloned()
-                .collect::<Vec<_>>();
-            if !certificates_without_shared_objects.is_empty() {
-                self.state.enqueue_certificates_for_execution(
-                    certificates_without_shared_objects,
-                    epoch_store,
-                );
+            // even when we are not returning effects to user — unless the
+            // execution-worker count is limited, in which case this would bypass
+            // the congestion tracker (the certificates were submitted to consensus
+            // above and are scheduled there).
+            if epoch_store
+                .protocol_config()
+                .concurrent_execution_workers()
+                .is_none()
+            {
+                let certificates_without_shared_objects = verified_certificates
+                    .iter()
+                    .filter(|certificate| !certificate.contains_shared_object())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if !certificates_without_shared_objects.is_empty() {
+                    self.state.enqueue_certificates_for_execution(
+                        certificates_without_shared_objects,
+                        epoch_store,
+                    );
+                }
             }
             return Ok((None, Weight::zero()));
         }
