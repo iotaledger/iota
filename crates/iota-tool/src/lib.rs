@@ -39,6 +39,7 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     storage::RocksDbStore,
 };
+use iota_data_ingestion_core::{create_remote_store_client, reader::fetch_from_object_store};
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
@@ -67,6 +68,7 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::MoveStructExt,
+    storage::WriteStore,
 };
 use itertools::Itertools;
 use prometheus_filtered::Registry;
@@ -77,10 +79,8 @@ use typed_store::rocks::bulk_ingestion_options;
 pub mod commands;
 pub mod db_tool;
 pub mod fire_drill;
-mod formal_snapshot_util;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
-use crate::formal_snapshot_util::read_summaries_for_list_no_verify;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
@@ -630,8 +630,8 @@ pub async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,
     num_parallel_downloads: usize,
-) -> Result<(), anyhow::Error> {
-    let m = MultiProgress::new();
+) -> anyhow::Result<()> {
+    let m = &MultiProgress::new();
 
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
@@ -645,7 +645,7 @@ pub async fn backfill_checkpoint_summaries(
     let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
     let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
     let state_sync_store =
-        RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
+        &RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
 
     let highest_synced = checkpoint_store
         .get_highest_synced_checkpoint()?
@@ -661,28 +661,53 @@ pub async fn backfill_checkpoint_summaries(
 
     // Download summaries for the contiguous range `[1, highest_synced]`; genesis
     // (0) is the chain root and is already present.
-    // `read_summaries_for_list_no_verify` only inserts checkpoints (it never
-    // touches a watermark), and re-inserting an already-present summary is a
-    // no-op, so this fills in the missing historical summaries below the node's
+    // This fills in the missing historical summaries below the node's
     // watermarks without moving any of them.
-    let summaries: Vec<_> = (1..=highest_synced).collect();
     let bar = m.add(ProgressBar::new(highest_synced).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
     ));
-    let counter = Arc::new(AtomicU64::new(0));
+    let counter = &Arc::new(AtomicU64::new(0));
     spawn_rate_ticker(bar.clone(), counter.clone(), "checkpoints per sec");
-    read_summaries_for_list_no_verify(
-        ingestion_url,
-        num_parallel_downloads,
-        state_sync_store,
-        summaries,
-        counter,
-    )
-    .await?;
+    let client = &create_remote_store_client(ingestion_url, vec![], 60)?;
+    let backfill_one = |sq| async move {
+        async {
+            let (checkpoint, _) = fetch_from_object_store(client, sq).await?;
+            let summary = Arc::try_unwrap(checkpoint)
+                .map(|chk| chk.checkpoint_summary)
+                .unwrap_or_else(|chk| chk.checkpoint_summary.clone());
+            state_sync_store
+                .try_insert_checkpoint(&VerifiedCheckpoint::new_unchecked(summary))
+                .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))?;
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(true)
+        }
+        .await
+        .unwrap_or_else(|e: anyhow::Error| {
+            let _ = m.println(format!("Checkpoint {sq} summary backfill error: {e}"));
+            false
+        })
+    };
+    let all_ok = futures::stream::iter(1..=highest_synced)
+        .map(|sq| backfill_one(sq))
+        .buffer_unordered(num_parallel_downloads)
+        // .all() short-circuits
+        .fold(true, |acc, ok| async move { acc && ok })
+        .await;
     bar.finish_with_message("Checkpoint summary backfill is complete");
 
-    println!("Backfilled checkpoint summaries up to checkpoint {highest_synced}");
-    Ok(())
+    if all_ok {
+        m.println(format!(
+            "Successfully backfilled checkpoint summaries up to checkpoint {highest_synced}"
+        ))?;
+        Ok(())
+    } else {
+        m.println(format!(
+            "Backfilled checkpoint summaries up to checkpoint {highest_synced} with errors"
+        ))?;
+        Err(anyhow::anyhow!(
+            "Some checkpoint summaries were not backfilled"
+        ))
+    }
 }
 
 /// Spawn a background task that, once per second until `bar` finishes, mirrors

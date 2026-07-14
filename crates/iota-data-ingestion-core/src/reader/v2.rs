@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -11,7 +10,7 @@ use std::{
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
 use iota_config::{
-    node::ArchiveReaderConfig,
+    node::HistoricalReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_grpc_client::Client as GrpcClient;
@@ -132,7 +131,7 @@ impl RemoteStore {
                         ..Default::default()
                     }
                 };
-                let config = ArchiveReaderConfig {
+                let config = HistoricalReaderConfig {
                     download_concurrency: NonZeroUsize::new(batch_size)
                         .expect("batch size must be greater than zero"),
                     remote_store_config,

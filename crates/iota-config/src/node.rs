@@ -4,7 +4,6 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -185,7 +184,7 @@ pub struct NodeConfig {
     pub state_debug_dump_config: StateDebugDumpConfig,
 
     #[serde(default)]
-    pub state_archive_read_config: Vec<StateArchiveConfig>,
+    pub historical_config: Option<HistoricalReaderConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -737,10 +736,6 @@ impl NodeConfig {
         self.db_path.join("db_checkpoints")
     }
 
-    pub fn archive_path(&self) -> PathBuf {
-        self.db_path.join("archive")
-    }
-
     pub fn snapshot_path(&self) -> PathBuf {
         self.db_path.join("snapshot")
     }
@@ -774,15 +769,8 @@ impl NodeConfig {
         (&self.account_key_pair.keypair().public()).into()
     }
 
-    pub fn archive_reader_config(&self) -> Option<ArchiveReaderConfig> {
-        self.state_archive_read_config
-            .first()
-            .map(|config| ArchiveReaderConfig {
-                ingestion_url: config.ingestion_url.clone(),
-                download_concurrency: NonZeroUsize::new(config.concurrency)
-                    .unwrap_or(NonZeroUsize::new(5).unwrap()),
-                remote_store_config: ObjectStoreConfig::default(),
-            })
+    pub fn historical_config(&self) -> Option<&HistoricalReaderConfig> {
+        self.historical_config.as_ref()
     }
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
@@ -1119,16 +1107,9 @@ pub struct DBCheckpointConfig {
     pub prune_and_compact_before_upload: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ArchiveReaderConfig {
-    pub remote_store_config: ObjectStoreConfig,
-    pub download_concurrency: NonZeroUsize,
-    pub ingestion_url: Option<String>,
-}
-
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct StateArchiveConfig {
+pub struct HistoricalReaderConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object_store_config: Option<ObjectStoreConfig>,
     pub concurrency: usize,

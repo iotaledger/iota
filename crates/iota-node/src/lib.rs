@@ -1049,7 +1049,7 @@ impl IotaNode {
         let (state_sync, state_sync_server) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
-            .archive_config(config.archive_reader_config())
+            .historical_config(config.historical_config().cloned())
             .with_metrics(prometheus_registry)
             .build();
 

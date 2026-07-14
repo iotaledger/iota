@@ -13,12 +13,10 @@
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
 
-use std::{num::NonZeroUsize, ops::Range};
+use std::ops::Range;
 
 use bytes::Bytes;
-use iota_config::{
-    node::ArchiveReaderConfig as HistoricalReaderConfig, object_storage_config::ObjectStoreConfig,
-};
+use iota_config::{node::HistoricalReaderConfig, object_storage_config::ObjectStoreConfig};
 use iota_storage::{
     compute_sha3_checksum, compute_sha3_checksum_for_bytes,
     object_store::{
@@ -182,11 +180,11 @@ pub async fn write_manifest<S: ObjectStorePutExt>(
 
 pub async fn verify_historical_checkpoints_with_checksums(
     remote_store_config: ObjectStoreConfig,
-    concurrency: usize,
+    download_concurrency: usize,
 ) -> Result<()> {
     let config = HistoricalReaderConfig {
-        remote_store_config,
-        download_concurrency: NonZeroUsize::new(concurrency).unwrap(),
+        object_store_config: Some(remote_store_config),
+        concurrency: download_concurrency,
         ingestion_url: None,
     };
     // Gets the Manifest from the remote store.

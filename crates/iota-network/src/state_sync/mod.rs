@@ -101,7 +101,7 @@ pub use generated::{
     state_sync_client::StateSyncClient,
     state_sync_server::{StateSync, StateSyncServer},
 };
-use iota_config::node::ArchiveReaderConfig;
+use iota_config::node::HistoricalReaderConfig;
 use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
 use iota_storage::verify_checkpoint;
 use metrics::Metrics;
@@ -451,7 +451,7 @@ struct StateSyncEventLoop<S> {
     metrics: Metrics,
 
     sync_checkpoint_from_archive_task: Option<AbortHandle>,
-    archive_config: Option<ArchiveReaderConfig>,
+    historical_config: Option<HistoricalReaderConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
@@ -514,9 +514,9 @@ where
         // of peers. Once the discovery mechanism can dynamically identify and
         // connect to other peers on the network, we will rely on sync from
         // archive as a fall back.
-        let task = sync_checkpoint_contents_from_archive(
+        let task = sync_checkpoint_contents_from_historical_archive(
             self.network.clone(),
-            self.archive_config.clone(),
+            self.historical_config.clone(),
             self.store.clone(),
             self.peer_heights.clone(),
             self.metrics.clone(),
@@ -1239,12 +1239,12 @@ where
     Ok(())
 }
 
-/// Syncs checkpoint contents from one of the archive_readers if the
+/// Syncs checkpoint contents from historical archive if the
 /// highest_synced_checkpoint < lowest_checkpoint among peers. The requesting
 /// checkpoint range is from highest_synced_checkpoint+1 to lowest_checkpoint.
-async fn sync_checkpoint_contents_from_archive<S>(
+async fn sync_checkpoint_contents_from_historical_archive<S>(
     network: anemo::Network,
-    archive_config: Option<ArchiveReaderConfig>,
+    historical_config: Option<HistoricalReaderConfig>,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1252,9 +1252,9 @@ async fn sync_checkpoint_contents_from_archive<S>(
     S: WriteStore + Clone + Send + Sync + 'static,
 {
     loop {
-        sync_checkpoint_contents_from_archive_iteration(
+        sync_checkpoint_contents_from_historical_archive_iteration(
             &network,
-            &archive_config,
+            &historical_config,
             store.clone(),
             peer_heights.clone(),
             metrics.clone(),
@@ -1264,9 +1264,9 @@ async fn sync_checkpoint_contents_from_archive<S>(
     }
 }
 
-async fn sync_checkpoint_contents_from_archive_iteration<S>(
+async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
     network: &anemo::Network,
-    archive_config: &Option<ArchiveReaderConfig>,
+    historical_config: &Option<HistoricalReaderConfig>,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1285,10 +1285,10 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
     let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
-    // Only sync from archive when there is at least one checkpoint in the gap
+    // Only sync from historical archive when there is at least one checkpoint in the gap
     // [highest_synced+1, lowest_peer). If highest_synced+1 == lowest_peer the
     // archive range is empty and there is nothing to do.
-    let sync_from_archive = if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
+    let sync_from_historical_archive = if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
         highest_synced
             .checked_add(1)
             .is_some_and(|start| start < lowest_checkpoint_on_peers)
@@ -1296,25 +1296,25 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         false
     };
     debug!(
-        "Syncing checkpoint contents from archive: {sync_from_archive},  highest_synced: {highest_synced},  lowest_checkpoint_on_peers: {}",
+        "Syncing checkpoint contents from historical archive: {sync_from_historical_archive},  highest_synced: {highest_synced},  lowest_checkpoint_on_peers: {}",
         lowest_checkpoint_on_peers.map_or_else(|| "None".to_string(), |l| l.to_string())
     );
-    if sync_from_archive {
+    if sync_from_historical_archive {
         let start = highest_synced
             .checked_add(1)
             .expect("Checkpoint seq num overflow");
         let end = lowest_checkpoint_on_peers.unwrap();
 
-        let Some(ref archive_config) = archive_config else {
+        let Some(ref historical_config) = historical_config else {
             warn!("Failed to find an archive reader to complete the state sync request");
             return;
         };
-        let Some(ref ingestion_url) = archive_config.ingestion_url else {
-            warn!("Archival ingestion url for state sync is not configured");
+        let Some(ref ingestion_url) = historical_config.ingestion_url else {
+            warn!("Historical archive url for state sync is not configured");
             return;
         };
         let reader_options = ReaderOptions {
-            batch_size: archive_config.download_concurrency.into(),
+            batch_size: historical_config.concurrency.into(),
             ..Default::default()
         };
         // Keep a separate clone for the completion monitor; the original is
@@ -1334,7 +1334,7 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         else {
             return;
         };
-        // The archive covers exactly [start, end). Spawn a monitor that cancels
+        // The historical archive covers exactly [start, end). Spawn a monitor that cancels
         // the executor once highest_synced reaches end-1 (the last archived
         // checkpoint). Without this the reader would spin forever trying to
         // fetch checkpoint `end` which is not in the archive.

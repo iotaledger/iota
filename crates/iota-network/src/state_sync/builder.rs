@@ -9,7 +9,7 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{inflight_limit, rate_limit};
-use iota_config::{node::ArchiveReaderConfig, p2p::StateSyncConfig};
+use iota_config::{node::HistoricalReaderConfig, p2p::StateSyncConfig};
 use iota_types::{messages_checkpoint::VerifiedCheckpoint, storage::WriteStore};
 use tap::Pipe;
 use tokio::{
@@ -27,7 +27,7 @@ pub struct Builder<S> {
     store: Option<S>,
     config: Option<StateSyncConfig>,
     metrics: Option<Metrics>,
-    archive_config: Option<ArchiveReaderConfig>,
+    historical_config: Option<HistoricalReaderConfig>,
 }
 
 impl Builder<()> {
@@ -37,7 +37,7 @@ impl Builder<()> {
             store: None,
             config: None,
             metrics: None,
-            archive_config: None,
+            historical_config: None,
         }
     }
 }
@@ -48,7 +48,7 @@ impl<S> Builder<S> {
             store: Some(store),
             config: self.config,
             metrics: self.metrics,
-            archive_config: self.archive_config,
+            historical_config: self.historical_config,
         }
     }
 
@@ -62,8 +62,8 @@ impl<S> Builder<S> {
         self
     }
 
-    pub fn archive_config(mut self, archive_config: Option<ArchiveReaderConfig>) -> Self {
-        self.archive_config = archive_config;
+    pub fn historical_config(mut self, historical_config: Option<HistoricalReaderConfig>) -> Self {
+        self.historical_config = historical_config;
         self
     }
 }
@@ -125,7 +125,7 @@ where
             store,
             config,
             metrics,
-            archive_config,
+            historical_config,
         } = self;
         let store = store.unwrap();
         let config = config.unwrap_or_default();
@@ -172,7 +172,7 @@ where
                 peer_heights,
                 checkpoint_event_sender,
                 metrics,
-                archive_config,
+                historical_config,
                 genesis_checkpoint,
             },
             server,
@@ -189,7 +189,7 @@ pub struct UnstartedStateSync<S> {
     pub(super) peer_heights: Arc<RwLock<PeerHeights>>,
     pub(super) checkpoint_event_sender: broadcast::Sender<VerifiedCheckpoint>,
     pub(super) metrics: Metrics,
-    pub(super) archive_config: Option<ArchiveReaderConfig>,
+    pub(super) historical_config: Option<HistoricalReaderConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
@@ -208,7 +208,7 @@ where
             peer_heights,
             checkpoint_event_sender,
             metrics,
-            archive_config,
+            historical_config,
             genesis_checkpoint,
         } = self;
 
@@ -226,7 +226,7 @@ where
                 checkpoint_event_sender,
                 network,
                 metrics,
-                archive_config,
+                historical_config,
                 sync_checkpoint_from_archive_task: None,
                 genesis_checkpoint,
             },

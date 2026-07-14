@@ -6,7 +6,7 @@ use std::{ops::Range, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{Stream, StreamExt, TryStreamExt};
-use iota_config::node::ArchiveReaderConfig as HistoricalReaderConfig;
+use iota_config::node::HistoricalReaderConfig;
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
     object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
@@ -31,6 +31,9 @@ use crate::{
     },
 };
 
+// Default value in case concurrency config value is 0.
+const HISTORICAL_DEFAULT_CONCURRENCY: usize = 4;
+
 #[derive(Clone)]
 pub struct HistoricalReader {
     concurrency: usize,
@@ -45,20 +48,28 @@ pub struct HistoricalReader {
 
 impl HistoricalReader {
     pub fn new(config: HistoricalReaderConfig) -> Result<Self> {
-        let remote_object_store = if config.remote_store_config.no_sign_request {
-            config.remote_store_config.make_http()?
+        let remote_store_config = config
+            .object_store_config
+            .ok_or_else(|| anyhow::anyhow!("remote store config not set"))?;
+        let remote_object_store = if remote_store_config.no_sign_request {
+            remote_store_config.make_http()?
         } else {
-            config.remote_store_config.make().map(Arc::new)?
+            remote_store_config.make().map(Arc::new)?
         };
         let (sender, recv) = oneshot::channel();
         let manifest = Arc::new(Mutex::new(Manifest::new(0)));
         // Start a background tokio task to keep local manifest in sync with remote
         Self::spawn_manifest_sync_task(remote_object_store.clone(), manifest.clone(), recv);
+        let concurrency = if config.concurrency != 0 {
+            config.concurrency
+        } else {
+            HISTORICAL_DEFAULT_CONCURRENCY
+        };
         Ok(Self {
             manifest,
             sender: Arc::new(sender),
             remote_object_store,
-            concurrency: config.download_concurrency.get(),
+            concurrency,
         })
     }
 

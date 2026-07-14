@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::num::NonZeroUsize;
-
 use anyhow::{Result, anyhow, bail};
-use iota_config::node::ArchiveReaderConfig;
+use iota_config::node::HistoricalReaderConfig;
 use iota_data_ingestion_core::history::reader::HistoricalReader;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
@@ -24,9 +22,9 @@ impl CheckpointStore {
             bail!("missing checkpoint store config");
         };
 
-        let config = ArchiveReaderConfig {
-            remote_store_config: checkpoint_store_config,
-            download_concurrency: NonZeroUsize::new(5).unwrap(),
+        let config = HistoricalReaderConfig {
+            object_store_config: Some(checkpoint_store_config),
+            concurrency: 5,
             ingestion_url: None,
         };
 
