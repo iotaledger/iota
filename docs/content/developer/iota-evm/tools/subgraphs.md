@@ -79,6 +79,12 @@ enhancing application security and resilience.
 
 ## Subgraph Providers
 
+### Envio
+
+[Envio](https://envio.dev/?utm_source=iota-evm&utm_medium=partner-docs) is a high-performance indexing framework that turns smart contract events into a queryable GraphQL API, with managed hosting on Envio Cloud. It supports IOTA EVM through [HyperSync](https://docs.envio.dev/docs/HyperSync/overview?utm_source=iota-evm&utm_medium=partner-docs), which serves as the default data source and syncs historical data up to 2000x faster than traditional RPC.
+
+You can auto-generate an indexer from any verified contract, write event handlers in TypeScript, JavaScript, or ReScript, and deploy on Envio Cloud or self-host. See the [HyperIndex quickstart](https://docs.envio.dev/docs/HyperIndex/quickstart?utm_source=iota-evm&utm_medium=partner-docs) to get started.
+
 ### Goldsky
 
 [Goldsky](https://goldsky.com/products/subgraphs) [supports IOTA EVM](https://docs.goldsky.com/chains/iota).
