@@ -264,10 +264,10 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
-/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
-/// parallel PTB `--publish` / `--upgrade` tests don't race on the
-/// shared on-disk `build/` and `Move.lock`. The caller must keep the
-/// returned `TempDir` alive (drop deletes it).
+/// Copy an in-tree Move package into a fresh `TempDir` so parallel
+/// tests publishing the same package don't race on the shared on-disk
+/// `build/` and `Move.lock`. The caller must keep the returned
+/// `TempDir` alive (drop deletes it).
 fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
@@ -6626,12 +6626,16 @@ async fn setup_move_authenticator_account(
         .unwrap()
         .coin_object_id;
 
-    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+    let src_pkg = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()
         .unwrap()
         .parent()
         .unwrap()
         .join(package_relative_path);
+    // Publish from an isolated copy: the publish flow rewrites the package's
+    // `Move.lock`, and concurrent tests publishing the same in-tree package
+    // race on it.
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
 
