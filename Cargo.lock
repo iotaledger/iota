@@ -6761,7 +6761,6 @@ name = "iota-ledger"
 version = "1.28.0-alpha"
 dependencies = [
  "anyhow",
- "base64 0.21.7",
  "bcs",
  "bip32",
  "clap",
@@ -6782,10 +6781,10 @@ name = "iota-ledger-signer"
 version = "1.28.0-alpha"
 dependencies = [
  "anyhow",
- "base64 0.21.7",
  "bcs",
  "bip32",
  "clap",
+ "fastcrypto",
  "iota-ledger",
  "iota-sdk",
  "iota-sdk-types",
