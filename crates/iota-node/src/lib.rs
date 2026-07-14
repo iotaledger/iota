@@ -27,7 +27,6 @@ use iota_config::{
     ConsensusConfig, NodeConfig,
     node::{DBCheckpointConfig, RunWithRange},
     node_config_metrics::NodeConfigMetrics,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_core::{
     authority::{
