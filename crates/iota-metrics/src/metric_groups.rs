@@ -283,6 +283,54 @@ impl MetricGroups {
         }
         directives.join(",")
     }
+
+    /// Expands group names in a `pattern=LEVEL` directive string into the
+    /// groups' filter patterns; other directives pass through unchanged.
+    pub fn expand_directives(filter: &str) -> Result<String, String> {
+        let mut directives: Vec<String> = Vec::new();
+        for part in prometheus_filtered::directive_parts(filter) {
+            prometheus_filtered::validate_directive(part)?;
+            let (pattern, level) = prometheus_filtered::split_directive(part);
+            if pattern == "hardware" || pattern == "iota_metrics::hardware_metrics" {
+                return Err(
+                    "the hardware group is registered once at startup and cannot be \
+                            changed at runtime"
+                        .into(),
+                );
+            }
+            if pattern == "default" {
+                directives.push(level.to_owned());
+                continue;
+            }
+            match Self::modules_for_group(pattern) {
+                Some(modules) => {
+                    directives.extend(modules.iter().map(|module| format!("{module}={level}")));
+                }
+                None => directives.push(part.to_owned()),
+            }
+        }
+        let rescued: Vec<String> = directives
+            .iter()
+            .enumerate()
+            .filter(|(i, directive)| {
+                let (pattern, _) = prometheus_filtered::split_directive(directive);
+                !pattern.is_empty()
+                    && directives[i + 1..].iter().any(|later| {
+                        let (later_pattern, _) = prometheus_filtered::split_directive(later);
+                        !later_pattern.is_empty()
+                            && pattern.len() > later_pattern.len()
+                            && pattern.starts_with(later_pattern)
+                    })
+                    // A later directive for the same pattern stays authoritative.
+                    && !directives[i + 1..].iter().any(|later| {
+                        prometheus_filtered::split_directive(later).0 == pattern
+                    })
+            })
+            .map(|(_, directive)| directive.clone())
+            .collect();
+        directives.extend(rescued);
+        Ok(directives.join(","))
+    }
 }
 
 #[cfg(test)]
@@ -459,6 +507,67 @@ mod tests {
         }
         // Unknown names resolve to nothing.
         assert_eq!(MetricGroups::modules_for_group("bogus"), None);
+    }
+
+    #[test]
+    fn expand_directives_expands_groups_and_passes_raw_patterns() {
+        assert_eq!(
+            MetricGroups::expand_directives("checkpoints=off,epoch=debug").unwrap(),
+            "iota_core::checkpoints=off,iota_core::epoch::epoch_metrics=debug,\
+             iota_current_protocol_version=debug,iota_binary_max_protocol_version=debug,\
+             iota_configured_max_protocol_version=debug"
+        );
+        // Raw module paths, metric-name prefixes, and bare global levels are
+        // kept verbatim; level validity is checked up front.
+        assert_eq!(
+            MetricGroups::expand_directives("typed_store=warn, uptime=off ,trace").unwrap(),
+            "typed_store=warn,uptime=off,trace"
+        );
+        assert_eq!(MetricGroups::expand_directives("").unwrap(), "");
+        // The `default` group becomes the bare catch-all level.
+        assert_eq!(
+            MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
+            "info,iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
+        );
+    }
+
+    #[test]
+    fn expand_directives_rejects_invalid_input() {
+        // The hardware group is rejected under both the group name and its
+        // module path: the collector is registered once at startup, so the
+        // directive would be a no-op.
+        MetricGroups::expand_directives("consensus=off,hardware=off").unwrap_err();
+        MetricGroups::expand_directives("iota_metrics::hardware_metrics=off").unwrap_err();
+        // An invalid level fails up front, citing the directive as the
+        // caller wrote it — not its expansion.
+        let err = MetricGroups::expand_directives("consensus=bogus").unwrap_err();
+        assert!(err.contains("consensus=bogus"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn expand_directives_keeps_specific_directives_effective() {
+        // `runtime` expands to the `iota_metrics` module prefix, which also
+        // matches the `transport` submodule; the more specific transport
+        // directive must win in either input order.
+        for input in [
+            "transport=warn,runtime=trace",
+            "runtime=trace,transport=warn",
+        ] {
+            let expanded = MetricGroups::expand_directives(input).unwrap();
+            let filter = Filter::parse(&expanded);
+            assert!(
+                filter.is_exposed("x", "iota_metrics", MetricLevel::Trace),
+                "{input} -> {expanded}"
+            );
+            assert!(
+                !filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Info),
+                "{input} -> {expanded}"
+            );
+        }
+        // A later directive for the same pattern still wins (last match).
+        let expanded = MetricGroups::expand_directives("iota_metrics=off,runtime=warn").unwrap();
+        let filter = Filter::parse(&expanded);
+        assert!(filter.is_exposed("x", "iota_metrics", MetricLevel::Warn));
     }
 
     #[test]

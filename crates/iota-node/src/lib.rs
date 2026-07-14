@@ -2340,6 +2340,11 @@ impl IotaNode {
         self.randomness_handle.clone()
     }
 
+    /// Returns the metrics filter shared by the node's Prometheus registries.
+    pub fn metrics_filter(&self) -> Arc<prometheus_filtered::Filter> {
+        self.registry_service.default_registry().filter()
+    }
+
     /// Sends signed capability notification to committee validators for
     /// non-committee validators. This method implements retry logic to handle
     /// failed attempts to send the notification. It will retry sending the

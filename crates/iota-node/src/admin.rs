@@ -13,6 +13,7 @@ use axum::{
 };
 use base64::Engine;
 use humantime::parse_duration;
+use iota_metrics::MetricGroups;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
@@ -76,6 +77,22 @@ use crate::IotaNode;
 // Reconfigure traffic control policy
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
+//
+// View the current Prometheus metrics filter.
+//
+//   $ curl 'http://127.0.0.1:1337/metrics/filters'
+//
+// Change which metrics the /metrics endpoint exposes. Patterns may be group
+// names from the `metrics.groups` config section (`default` included) or raw
+// METRICS_FILTER-style patterns. The only
+// exception is the `hardware` group, whose collector is only registered at
+// startup and is therefore rejected.
+//
+//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
+//
+// Reset the metrics filter to the startup configuration.
+//
+//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters/reset'
 
 const LOGGING_ROUTE: &str = "/logging";
 const TRACING_ROUTE: &str = "/enable-tracing";
@@ -90,6 +107,8 @@ const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-s
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
 const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
 const TRAFFIC_CONTROL: &str = "/traffic-control";
+const METRICS_FILTER_ROUTE: &str = "/metrics/filters";
+const METRICS_FILTER_RESET_ROUTE: &str = "/metrics/filters/reset";
 
 struct AppState {
     node: Arc<IotaNode>,
@@ -135,6 +154,9 @@ pub async fn run_admin_server(
         )
         .route(FLAMEGRAPH_ROUTE, get(flamegraph))
         .route(TRAFFIC_CONTROL, post(traffic_control))
+        .route(METRICS_FILTER_ROUTE, get(get_metrics_filter))
+        .route(METRICS_FILTER_ROUTE, post(set_metrics_filter))
+        .route(METRICS_FILTER_RESET_ROUTE, post(reset_metrics_filter))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -581,4 +603,40 @@ async fn traffic_control(
         ),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     }
+}
+
+async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    (
+        StatusCode::OK,
+        state.node.metrics_filter().runtime_filter_string(),
+    )
+}
+
+async fn set_metrics_filter(
+    State(state): State<Arc<AppState>>,
+    new_filter: String,
+) -> (StatusCode, String) {
+    let expanded = match MetricGroups::expand_directives(&new_filter) {
+        Ok(expanded) => expanded,
+        Err(err) => return (StatusCode::BAD_REQUEST, format!("{err}\n")),
+    };
+    match state.node.metrics_filter().set_runtime_filter(&expanded) {
+        Ok(()) => {
+            info!(filter =% expanded, "Metrics filter updated");
+            (
+                StatusCode::OK,
+                format!("metrics filter set to {expanded:?}\n"),
+            )
+        }
+        Err(err) => (StatusCode::BAD_REQUEST, format!("{err}\n")),
+    }
+}
+
+async fn reset_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    state.node.metrics_filter().reset_runtime_filter();
+    info!("Metrics filter reset to startup configuration");
+    (
+        StatusCode::OK,
+        "metrics filter reset to startup configuration\n".into(),
+    )
 }
