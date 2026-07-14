@@ -71,7 +71,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     handle
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     // Transaction Orchestrator proactivcely executes txn locally

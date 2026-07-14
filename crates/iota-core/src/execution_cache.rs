@@ -1034,7 +1034,7 @@ pub trait TransactionCacheRead: Send + Sync {
     ///
     /// Panics if any of the requested effects are not found. For paths where
     /// effects may have been pruned, use `try_notify_read_executed_effects`.
-    fn notify_read_executed_effects<'a>(
+    fn notify_read_executed_effects_for_testing<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffects>> {
