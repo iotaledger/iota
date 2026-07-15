@@ -206,18 +206,22 @@ The following steps can be used to restore a node from a Formal snapshot:
 
 ### Backfilling the full checkpoint summary history
 
-A node restored from a formal snapshot holds only the end-of-epoch checkpoint summaries (one per epoch). That is enough to run, but the node cannot serve historical checkpoint queries below its restore point, nor act as a complete summary source for peers syncing the header chain. To fill in every intermediate summary from the checkpoint archive, stop the node and run:
+A node restored from a formal snapshot holds only the end-of-epoch checkpoint summaries (one per epoch). That is enough to run, but the node cannot serve historical checkpoint queries below its restore point, nor act as a complete summary source for peers syncing the header chain. To fill in every intermediate summary from a checkpoints store, stop the node and run:
 
 ```shell
 iota-tool backfill-checkpoint-summaries \
    --path "<PATH-TO-NODE-DB>/live" \
+   --ingestion-url "https://checkpoints.<network>.iota.cafe/ingestion/historical" \
    --num-parallel-downloads 50 \
    --verbose
 ```
 
-   - `--path`: The node's live database directory (the one containing `checkpoints/`, `store/`, and `epochs/`). The network — and thus the archive bucket — is derived from the node's own genesis checkpoint, so no genesis file or network flag is needed. Override the bucket with the `CUSTOM_ARCHIVE_BUCKET` environment variables for a custom network.
+   - `--path`: The node's live database directory (the one containing `checkpoints/`, `store/`, and `epochs/`).
+   - `--ingestion-url`: URL of the checkpoints store to download summaries from — the same store the node's state-sync historical fallback reads from (for example `https://checkpoints.<network>.iota.cafe/ingestion/historical`).
+   - `--num-parallel-downloads`: Number of summaries to download in parallel. Defaults to a value based on the number of available cores.
+   - `--verbose`: Enable verbose logging.
 
-Each downloaded summary is verified against the committee chain before it is stored. This only adds historical summaries below the node's existing watermarks — it never changes how far the node has synced or executed, and it never overwrites the summaries the node already has. It is safe to re-run.
+Summaries are taken as-is from `--ingestion-url` without chain verification, so point it at a store you trust to serve this node's own chain. This only adds historical summaries below the node's existing watermarks — it never changes how far the node has synced or executed, and it never overwrites the summaries the node already has. It is safe to re-run.
 
 ## IOTA Foundation managed snapshots
 
