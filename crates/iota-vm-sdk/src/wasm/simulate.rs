@@ -17,12 +17,13 @@ use wasm_bindgen::prelude::*;
 
 use super::{
     b64_decode, err_to_js,
+    store::CallbackStore,
     types::{
         ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, OwnerInfo,
         SimulateRequest, SimulateResult, move_value_to_json,
     },
 };
-use crate::{ChainContext, ExecuteOptions, LocalVm, SignatureStatus, wasm_store::CallbackStore};
+use crate::{ChainContext, ExecuteOptions, LocalVm, SignatureStatus};
 
 /// Run a [`SimulateRequest`] through the local Move VM and return a
 /// [`SimulateResult`].

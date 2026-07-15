@@ -22,6 +22,7 @@
 //! - [`simulate`] — the [`simulate`](simulate::simulate) entry point.
 
 mod simulate;
+mod store;
 mod types;
 
 use base64::Engine;

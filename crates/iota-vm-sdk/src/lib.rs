@@ -47,9 +47,6 @@ pub mod graphql;
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm;
 
-#[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
-mod wasm_store;
-
 pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
 pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
 pub use executor::{

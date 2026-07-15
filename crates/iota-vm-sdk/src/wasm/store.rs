@@ -37,7 +37,7 @@ use crate::{
 /// (e.g. a blocking `XMLHttpRequest`). A callback that throws, or returns
 /// anything other than a base-64 `Object` or null, fails the lookup with a
 /// [`StoreError`] — only null reads as "object doesn't exist".
-pub(crate) struct CallbackStore {
+pub(super) struct CallbackStore {
     cache: RefCell<InMemoryStore>,
     /// Lookups the callback returned null for; skip re-fetching them.
     unresolved: RefCell<HashSet<(ObjectId, Option<u64>)>>,
@@ -46,7 +46,7 @@ pub(crate) struct CallbackStore {
 
 impl CallbackStore {
     /// Create a store that resolves misses through `fetch_object`.
-    pub(crate) fn new(fetch_object: Function) -> Self {
+    pub(super) fn new(fetch_object: Function) -> Self {
         Self {
             cache: RefCell::new(InMemoryStore::with_framework()),
             unresolved: RefCell::new(HashSet::new()),
@@ -56,7 +56,7 @@ impl CallbackStore {
 
     /// Seed the cache with objects supplied up front (optional; the store can
     /// resolve everything on demand, but a caller may pre-load known objects).
-    pub(crate) fn seed<I: IntoIterator<Item = Object>>(&self, objects: I) {
+    pub(super) fn seed<I: IntoIterator<Item = Object>>(&self, objects: I) {
         let mut cache = self.cache.borrow_mut();
         for obj in objects {
             cache.insert(obj);
