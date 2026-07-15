@@ -20,6 +20,8 @@
 //! - [`types`] — the serde request/result types for
 //!   [`simulate`](simulate::simulate).
 //! - [`simulate`] — the [`simulate`](simulate::simulate) entry point.
+//!
+//! [`store`] is internal: the on-demand object store backing a run.
 
 mod simulate;
 mod store;
