@@ -5,12 +5,15 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    Version,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     object::OBJECT_START_VERSION,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -207,7 +210,7 @@ impl TestEnvironment {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Shared(SharedObjectRef::new(
+                vec![CallArg::Shared(SharedObjectReference::new(
                     counter,
                     initial_shared_version,
                     true,

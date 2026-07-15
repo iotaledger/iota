@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Version,
+    ProgrammableTransaction, SharedObjectReference, Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
@@ -15,7 +15,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -1669,7 +1669,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,
@@ -1691,7 +1691,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,

@@ -54,6 +54,7 @@ feature_flags:
   pre_consensus_sponsor_only_move_authentication: true
   always_advance_dkg_to_resolution: true
   validator_metadata_verify_v2: true
+  package_metadata_with_dynamic_module_metadata: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -330,6 +331,7 @@ consensus_max_transactions_in_block_bytes: 524288
 consensus_max_num_transactions_in_block: 512
 max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
+checkpoint_rate_window_size: 20
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10

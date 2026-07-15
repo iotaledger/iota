@@ -184,7 +184,9 @@ impl Cluster for LocalNewCluster {
         let mut cluster_builder = TestClusterBuilder::new()
             .enable_fullnode_events()
             .with_data_ingestion_dir(data_ingestion_path.clone())
-            .with_fullnode_enable_grpc_api(true);
+            // disable full node pruning: tests read `balance_changes` /
+            // `object_changes` which needs historical data.
+            .disable_fullnode_pruning();
 
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {

@@ -50,8 +50,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        TransactionData, TransactionDataAPI, auth_digest_for_sig,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI, auth_digest_for_sig,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -834,7 +834,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
     let propose_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let acc_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: account_ref.object_id,
                 initial_shared_version: account_ref.version,
                 mutable: true,
@@ -1148,9 +1148,9 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         .keystore()
         .sign_hashed(&signer, &tx_digest)
         .expect("ed25519 sign should not fail");
-    // `Signature::as_ref()` returns `flag || sig || pk` — keep only the
+    // `Signature::to_bytes()` returns `flag || sig || pk` — keep only the
     // raw 64-byte signature, which is what the Move authenticator expects.
-    let sig_bytes = signature_full.as_ref();
+    let sig_bytes = signature_full.to_bytes();
     assert!(sig_bytes.len() > Ed25519Signature::LENGTH);
     let signature: Vec<u8> = sig_bytes[1..1 + Ed25519Signature::LENGTH].to_vec();
 
@@ -1222,7 +1222,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
     let link_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let acc_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: account_ref.object_id,
                 initial_shared_version: account_ref.version,
                 mutable: true,
@@ -1290,7 +1290,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
         CallArg::Pure(bcs::to_bytes(&vec![vec![0xAA_u8], vec![0xBB_u8, 0xCC]]).unwrap()),
         CallArg::Pure(bcs::to_bytes(&"test".to_string()).unwrap()),
         CallArg::Pure(bcs::to_bytes(&Some(vec![0xDE_u8, 0xAD])).unwrap()),
-        CallArg::Shared(SharedObjectRef {
+        CallArg::Shared(SharedObjectReference {
             object_id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: false,
@@ -1456,7 +1456,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
     let admin_setup_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let sponsor_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: sponsor_account_ref.object_id,
                 initial_shared_version: sponsor_account_ref.version,
                 mutable: true,
@@ -1534,7 +1534,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         // authenticator's PTB scan matches on the first command and the
         // subsequent commands are cheap byte-compares.
         let sponsor_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: sponsor_account_ref.object_id,
                 initial_shared_version: sponsor_account_ref.version,
                 mutable: true,
@@ -1549,7 +1549,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         );
 
         let clock = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: IOTA_CLOCK_OBJECT_ID,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: false,
@@ -1749,7 +1749,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
             .keystore()
             .sign_hashed(&env.owner, &sponsor_msg)
             .expect("ed25519 sign should not fail");
-        let bytes = raw.as_ref();
+        let bytes = raw.to_bytes();
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     };
     let sponsor_auth = match make_move_authenticator(
@@ -2065,8 +2065,8 @@ impl TestEnvironment {
             .keystore()
             .sign_hashed(&self.owner, digest)
             .expect("ed25519 sign should not fail");
-        // `Signature::as_ref()` yields `flag || sig || pk`.
-        let bytes = sig.as_ref();
+        // `Signature::to_bytes()` yields `flag || sig || pk`.
+        let bytes = sig.to_bytes();
         assert!(bytes.len() > Ed25519Signature::LENGTH);
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     }
@@ -2240,7 +2240,7 @@ async fn run_simple_auth_ed25519(
     let extra_args = match args {
         AuthCallArgs::Ed25519Only => vec![CallArg::Pure(bcs::to_bytes(&signature)?)],
         AuthCallArgs::ClockThenEd25519 => vec![
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id: IOTA_CLOCK_OBJECT_ID,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: false,
@@ -2264,7 +2264,7 @@ async fn run_simple_auth_ed25519(
 fn simple_sender_clock_ptb() -> ProgrammableTransaction {
     let mut b = ProgrammableTransactionBuilder::new();
     let clock = b
-        .obj(CallArg::Shared(SharedObjectRef {
+        .obj(CallArg::Shared(SharedObjectReference {
             object_id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: false,

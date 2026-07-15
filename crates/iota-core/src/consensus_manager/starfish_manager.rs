@@ -13,7 +13,6 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use prometheus_filtered::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
@@ -164,7 +163,10 @@ impl ConsensusManagerTrait for StarfishManager {
             p
         };
 
-        let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        let registry = self
+            .registry_service
+            .new_registry_custom(Some("consensus".to_string()), None)
+            .unwrap();
 
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 

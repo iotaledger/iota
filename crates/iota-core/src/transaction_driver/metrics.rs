@@ -4,7 +4,7 @@
 
 use iota_metrics::COUNT_BUCKETS;
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, Registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
 };
@@ -44,7 +44,8 @@ impl TransactionDriverMetrics {
                 "transaction_driver_settlement_finality_latency",
                 "Settlement finality latency observed from transaction driver",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             drive_transaction_errors: register_int_counter_vec_with_registry!(
@@ -111,7 +112,8 @@ impl TransactionDriverMetrics {
             effects_digest_mismatches: register_int_counter_with_registry!(
                 "transaction_driver_effects_digest_mismatches",
                 "Number of effects digest mismatches detected by the transaction driver",
-                registry,
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             transaction_retries: register_histogram_vec_with_registry!(

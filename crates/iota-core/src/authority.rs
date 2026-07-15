@@ -45,8 +45,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, TransactionExpiration, TransactionKind, TypeTag, Version,
+    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, GasPayment, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionExpiration,
+    TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -128,8 +129,8 @@ use move_core_types::{
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
-    register_histogram_vec_with_registry, register_histogram_with_registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel,
+    Registry, register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
@@ -393,7 +394,8 @@ impl AuthorityMetrics {
             "Latency of executing certificates, including waiting for inputs",
             &["tx_type"],
             LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Info,
         )
         .unwrap();
 
@@ -406,13 +408,15 @@ impl AuthorityMetrics {
             tx_orders: register_int_counter_with_registry!(
                 "total_transaction_orders",
                 "Total number of transaction orders",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             total_certs: register_int_counter_with_registry!(
                 "total_transaction_certificates",
                 "Total number of transaction certificates handled",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             total_cert_attempts: register_int_counter_with_registry!(
@@ -432,7 +436,8 @@ impl AuthorityMetrics {
             shared_obj_tx: register_int_counter_with_registry!(
                 "num_shared_obj_tx",
                 "Number of transactions involving shared objects",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
 
@@ -529,13 +534,15 @@ impl AuthorityMetrics {
             transaction_manager_num_pending_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_pending_certificates",
                 "Number of certificates pending in TransactionManager, with at least 1 missing input object",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             transaction_manager_num_executing_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_executing_certificates",
                 "Number of executing certificates, including queued and actually running certificates",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             transaction_manager_num_ready: register_int_gauge_with_registry!(
@@ -559,12 +566,14 @@ impl AuthorityMetrics {
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
-                registry)
+                registry;
+                MetricLevel::Info,)
                 .unwrap(),
             local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
                 "This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
-                registry)
+                registry;
+                MetricLevel::Info,)
                 .unwrap(),
             consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_queue_load_shedding_percentage",
@@ -611,7 +620,8 @@ impl AuthorityMetrics {
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             transaction_overload_sources: register_int_counter_vec_with_registry!(
@@ -623,7 +633,8 @@ impl AuthorityMetrics {
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             execution_driver_dispatch_queue: register_int_gauge_with_registry!(
@@ -717,13 +728,15 @@ impl AuthorityMetrics {
                 "validator_scoreboard_scores",
                 "Per-authority validator scores published by the local Scoreboard after each consensus commit. Range [0, MAX_SCORE].",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             invalid_misbehavior_reports_by_authority: register_int_gauge_vec_with_registry!(
                 "invalid_misbehavior_reports_by_authority",
                 "Cumulative count of invalid misbehavior reports received from each reporting authority in the current epoch. Bumped when a `MisbehaviorReport` consensus transaction fails sender/authority match or payload validation. Snapshot republished after each consensus commit.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_deferred_transactions",
@@ -865,7 +878,7 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     /// The store pruner. The checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed if pruning falls behind.
+    /// after each checkpoint.
     pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
@@ -2475,7 +2488,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 objects: payment,
                 owner,
                 price,
@@ -4344,7 +4357,7 @@ impl AuthorityState {
     }
 
     /// The store pruner; the checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed when pruning falls behind.
+    /// after each checkpoint.
     pub fn pruner(&self) -> &AuthorityStorePruner {
         &self.pruner
     }

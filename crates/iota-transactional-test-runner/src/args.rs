@@ -1,17 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Address, Argument, Owner, Version};
+use iota_sdk_types::{Address, Argument, Owner, SharedObjectReference, Version};
 use iota_types::{
-    move_package::UpgradePolicy,
-    object::Object,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef},
+    move_package::UpgradePolicy, object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -47,6 +45,8 @@ pub struct IotaPublishArgs {
     pub upgradeable: bool,
     #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
+    #[arg(long = "view-functions", num_args(1..))]
+    pub view_functions: Vec<String>,
     #[arg(long)]
     pub gas_price: Option<u64>,
 }
@@ -85,6 +85,8 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub grpc_api_url: Option<String>,
+    #[clap(long = "module-metadata-dynamic")]
+    pub package_metadata_with_dynamic_module_metadata: Option<bool>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -553,7 +555,7 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared(SharedObjectRef::new(
+            Ok(CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 false,
@@ -571,11 +573,9 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef::new(
-                id,
-                initial_shared_version,
-                true,
-            ))),
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(
+                SharedObjectReference::new(id, initial_shared_version, true),
+            )),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.object_ref();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))

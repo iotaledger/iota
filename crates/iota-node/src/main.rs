@@ -8,6 +8,7 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
+use iota_metrics::hardware_metrics::{hardware_metrics_enabled, register_hardware_metrics};
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
     committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
@@ -73,12 +74,31 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
+    // Apply the configured metric group levels; an omitted `metrics.groups`
+    // section behaves like the default config (dashboard metrics only).
+    let metric_groups = config
+        .metrics
+        .as_ref()
+        .and_then(|m| m.groups.clone())
+        .unwrap_or_default();
+    let metrics_filter =
+        prometheus_filtered::Filter::resolve(Some(&metric_groups.to_filter_string()));
+
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
-    let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
-    let prometheus_registry = registry_service.default_registry();
+    let registry_service =
+        iota_metrics::start_prometheus_server_with_filter(config.metrics_address, metrics_filter);
+
+    // The hardware collector bypasses gather-time filtering, so its level is
+    // applied here, once at startup: `off` skips the group, any other level
+    // registers it.
+    if hardware_metrics_enabled(&registry_service.default_registry().filter()) {
+        register_hardware_metrics(&registry_service, &config.db_path)
+            .expect("Failed registering hardware metrics");
+    }
 
     // Initialize logging
+    let prometheus_registry = registry_service.default_registry();
     let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)

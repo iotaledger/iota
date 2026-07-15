@@ -6,11 +6,13 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, TypeTag, Version};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
+};
 use iota_types::{
     base_types::EpochId,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -141,7 +143,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> Transac
                 "deny_list_v1_remove"
             },
             vec![
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     ObjectId::DENY_LIST,
                     test_env.deny_list_object_init_version,
                     true,

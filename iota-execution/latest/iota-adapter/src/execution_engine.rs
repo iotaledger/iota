@@ -18,9 +18,9 @@ mod checked {
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, Version,
-        gas::GasCostSummary,
+        EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
+        ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
+        SystemPackage, TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -49,10 +49,7 @@ mod checked {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
-        transaction::{
-            CallArg, CheckedInputObjects, GasData, InputObjects, SharedObjectRef, SystemPackage,
-            TransactionKindExt,
-        },
+        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
@@ -83,7 +80,7 @@ mod checked {
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -302,7 +299,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -492,7 +489,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -1932,7 +1929,7 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         ObjectId::RANDOMNESS_STATE,
                         update.randomness_obj_initial_shared_version,
                         true,
@@ -1994,7 +1991,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(gas_data: &GasData, transaction_signer: &Address) -> Option<Address> {
+    fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None
