@@ -10,9 +10,11 @@
 //! ride in the response body — embedded in a unary response or produced lazily
 //! by a stream — while the layer only inspects the response status, so a batch
 //! would count as a single request regardless of how many items it carries.
-//! Handlers report each item through the [`TallyHandle`] request extension so
-//! it counts individually for the spam policy and feeds the error policy on
-//! client errors.
+//! Handlers report each item through the [`TallyHandle`] request extension: an
+//! item counts as one request for the spam policy, and a per-item client error
+//! additionally feeds the error policy. Handlers that account eagerly from the
+//! request's item count (the streaming reads, whose items are produced lazily)
+//! report each item as `Code::Ok`, so they contribute to the spam policy only.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally
@@ -163,6 +165,8 @@ pub struct TallyHandle {
 impl TallyHandle {
     /// Account for one item of a batch response: count it as one request for
     /// the spam policy and, if `code` is a client error, feed the error policy.
+    /// Passing `Code::Ok` (e.g. when accounting eagerly from a request's item
+    /// count) contributes to the spam policy only.
     ///
     /// Signals the layer to skip its default per-request tally, so a batch is
     /// charged per item rather than once.
