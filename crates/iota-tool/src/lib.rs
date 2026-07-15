@@ -690,10 +690,10 @@ pub(crate) async fn backfill_checkpoint_summaries(
     let num_parallel_downloads = if num_parallel_downloads != 0 {
         num_parallel_downloads
     } else {
-        num_cpus::get().checked_sub(1).unwrap_or_default().max(1)
+        num_cpus::get().saturating_sub(1).max(1)
     };
     let all_ok = futures::stream::iter(1..=highest_synced)
-        .map(|sq| backfill_one(sq))
+        .map(backfill_one)
         .buffer_unordered(num_parallel_downloads)
         // use .fold() since .all() short-circuits
         .fold(true, |acc, ok| async move { acc && ok })
