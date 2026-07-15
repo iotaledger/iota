@@ -22,6 +22,7 @@ use crate::{
         checkpoints::StoredChainIdentifier,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+        packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore},
@@ -33,7 +34,7 @@ use crate::{
 struct ObjectDerivedData {
     hasher: Sha3_256,
     displays: BTreeMap<String, StoredDisplay>,
-    packages: Vec<IndexedPackage>,
+    packages: Vec<StoredPackage>,
 }
 
 impl ObjectDerivedData {
@@ -43,10 +44,8 @@ impl ObjectDerivedData {
             self.displays.insert(display.object_type.clone(), display);
         }
         if let iota_sdk_types::ObjectData::Package(package) = object.data() {
-            self.packages.push(IndexedPackage::new(
-                package.clone(),
-                checkpoint_sequence_number,
-            ));
+            self.packages
+                .push(IndexedPackage::new(package.clone(), checkpoint_sequence_number).into());
         }
     }
 }

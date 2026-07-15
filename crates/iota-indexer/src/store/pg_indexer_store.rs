@@ -70,7 +70,7 @@ use crate::{
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, TxIndex,
+        IndexedTransaction, TxIndex,
     },
 };
 
@@ -793,18 +793,22 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError> {
-        if packages.is_empty() {
-            return Ok(());
-        }
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_packages
-            .start_timer();
-        let packages = packages
+    async fn persist_packages_in_chunks(
+        &self,
+        packages: Vec<StoredPackage>,
+    ) -> Result<(), IndexerError> {
+        let chunks = chunk!(packages, self.config.parallel_objects_chunk_size);
+        let persist_tasks = chunks
             .into_iter()
-            .map(StoredPackage::from)
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_packages(&c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .inspect_err(|e| tracing::error!("failed to join persist_packages futures: {e}"))?
+            .into_iter()
+            .collect()
+    }
+
+    fn persist_packages(&self, packages: &[StoredPackage]) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -824,13 +828,6 @@ impl PgIndexerStore {
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted {} packages", packages.len());
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to persist packages with error: {e}");
-        })
     }
 
     async fn persist_event_indices_chunk(
@@ -1997,12 +1994,35 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError> {
+    async fn persist_packages(&self, packages: Vec<StoredPackage>) -> Result<(), IndexerError> {
         if packages.is_empty() {
             return Ok(());
         }
-        self.execute_in_blocking_worker(move |this| this.persist_packages(packages))
-            .await
+        let len = packages.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_packages
+            .start_timer();
+        let persist_result = if len <= self.config.parallel_objects_chunk_size {
+            self.execute_in_blocking_worker(move |this| this.persist_packages(&packages))
+                .await
+        } else {
+            self.persist_packages_in_chunks(packages)
+                .await
+                .map_err(|e| {
+                    IndexerError::PostgresWrite(format!(
+                        "Failed to persist all packages chunks: {e:?}"
+                    ))
+                })
+        };
+        persist_result
+            .tap_ok(|_| {
+                let elapsed = guard.stop_and_record();
+                info!(elapsed, "Persisted {len} packages");
+            })
+            .tap_err(|e| {
+                tracing::error!("failed to persist packages with error: {e}");
+            })
     }
 
     async fn persist_event_indices(&self, indices: Vec<EventIndex>) -> Result<(), IndexerError> {

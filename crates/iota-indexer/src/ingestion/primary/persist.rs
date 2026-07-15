@@ -168,7 +168,8 @@ impl PrimaryWriter {
                 self.state.persist_events(events_batch),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(displays_batch),
-                self.state.persist_packages(packages_batch),
+                self.state
+                    .persist_packages(packages_batch.into_iter().map(Into::into).collect()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
                 Box::pin({
