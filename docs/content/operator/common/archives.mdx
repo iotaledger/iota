@@ -28,12 +28,12 @@ To enable your node to fall back to the historical checkpoints store when peers 
 <Tabs groupId="object-store">
   <TabItem value="s3" label="Amazon S3">
     ```yaml
-    historical-config:
+    checkpoint-archive-config:
     # Use https://checkpoints.mainnet.iota.cafe/ingestion/historical for mainnet
     # Use https://checkpoints.testnet.iota.cafe/ingestion/historical for testnet
-    historical-url: "https://checkpoints.<mainnet|testnet>.iota.cafe/ingestion/historical"
+    url: "https://checkpoints.<mainnet|testnet>.iota.cafe/ingestion/historical"
     # Optional. Number of checkpoints to download in parallel; defaults to 10.
-    batch-size: 5
+    download-concurrency: 5
     ```
   </TabItem>
 </Tabs>
