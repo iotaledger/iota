@@ -51,11 +51,15 @@ use crate::{
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Table {
-    /// Stores a mapping of [`ObjectKey`] to [`Object`] for every object.
+    /// Stores a mapping of [`ObjectKey`](iota_types::storage::ObjectKey) to
+    /// [`Object`](iota_types::object::Object) for every object.
     Objects,
-    /// Stores a mapping of [`TransactionDigest`] to
-    /// [`Transaction`], [`TransactionEffects`], [`TransactionEvents`] and
-    /// [`CheckpointSequenceNumber`] for every transaction.
+    /// Stores a mapping of
+    /// [`TransactionDigest`](iota_types::base_types::TransactionDigest) to
+    /// [`Transaction`](iota_types::transaction::Transaction),
+    /// [`TransactionEffects`](iota_types::effects::TransactionEffects),
+    /// [`TransactionEvents`](iota_types::effects::TransactionEvents) and
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber) for every transaction.
     Transactions,
     /// Stores a mapping of ( [`Address`], [`TransactionSequenceNumber`] ) to
     /// [`TransactionDigest`] for every affected address.
@@ -63,11 +67,14 @@ pub enum Table {
     /// An address is considered "affected" if it appears as the sender, a
     /// recipient, or the gas payer.
     TransactionsByAddress,
-    /// Stores a mapping of [`CheckpointSequenceNumber`] to
-    /// [`CheckpointContents`] and [`CertifiedCheckpointSummary`] for every
-    /// checkpoint.
+    /// Stores a mapping of
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
+    /// to [`CheckpointContents`](iota_types::messages_checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
+    /// every checkpoint.
     Checkpoints,
-    /// Stores a mapping of [`CheckpointDigest`] to [`CheckpointSequenceNumber`]
+    /// Stores a mapping of
+    /// [`CheckpointDigest`](iota_types::digests::CheckpointDigest) to
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
     /// for every checkpoint.
     CheckpointsByDigest,
 }

@@ -13,7 +13,7 @@
 //!
 //! Three tools from the Google Cloud SDK are involved:
 //!
-//! - `gcloud`: must be on `PATH`. Only used to locate the SDK root. Install https://cloud.google.com/sdk/docs/install
+//! - `gcloud`: must be on `PATH`. Only used to locate the SDK root. Install <https://cloud.google.com/sdk/docs/install>
 //! - `cbtemulator`: the emulator binary itself. It is shipped with the SDK but
 //!   *not* installed on `PATH`, so it is resolved relative to the SDK root
 //!   reported by `gcloud` (see [`cbtemulator_path`]). Install with `gcloud
