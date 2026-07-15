@@ -47,6 +47,13 @@ RE_BREAKING = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
+# Tooling attribution footer appended to PR descriptions. Parsing stops here so
+# the footer isn't absorbed into the last release note, even when no blank line
+# separates it from the preceding note.
+RE_TOOL_FOOTER = re.compile(
+    r"🤖 Generated with \[Claude Code\]",
+)
+
 RE_BREAKING_CRATE = re.compile(
     r"^\s*#####\s+([^\n#]+)$",
     re.MULTILINE,
@@ -447,6 +454,13 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
     notes = strip_html_comments(notes)
+
+    # Drop the tooling attribution footer before parsing so it can't be read as
+    # release note or rollout content.
+    footer = RE_TOOL_FOOTER.search(notes)
+    if footer:
+        notes = notes[: footer.start()]
+
     result = {}
     rollout = extract_rollout(notes, crate_names)
 
