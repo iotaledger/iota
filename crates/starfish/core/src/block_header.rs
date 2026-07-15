@@ -13,6 +13,7 @@ use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
@@ -42,6 +43,58 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
+
+/// BCS-serialized size of a [`BlockRef`]: `round` (u32, 4) + `author`
+/// (`AuthorityIndex`, 1) + `digest` (32). Pinned by
+/// `max_signed_block_header_bytes_bounds_maximal_header`.
+pub(crate) const SERIALIZED_BLOCK_REF_BYTES: usize = 37;
+
+/// ULEB128 byte length of `value`, matching how BCS frames sequence and
+/// variant lengths.
+pub(crate) const fn uleb128_len(mut value: usize) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+/// Upper bound on the BCS-serialized size of a [`SignedBlockHeader`] for a
+/// committee of `committee_size` authorities.
+///
+/// `BlockHeaderV2` is the largest header variant; its size is dominated by two
+/// committee-sized vectors. Layout:
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
+///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
+///   plus the sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
+///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
+///   + `AuthoritySet` bitmask (32).
+///
+/// The [`SignedBlockHeader`] wrapper adds the `BlockHeader` enum tag (1), the
+/// signature length prefix (1), and the 64-byte signature.
+pub(crate) fn max_signed_block_header_bytes(committee_size: usize) -> usize {
+    const FIXED_HEADER_BYTES: usize = 55;
+    const STRONG_VOTE_BYTES: usize = 34;
+    const COMMIT_VOTE_BYTES: usize = 36;
+    // BlockHeader enum tag (1) + signature length prefix (1) + signature (64).
+    const SIGNATURE_FRAME_BYTES: usize = 1 + 1 + 64;
+
+    let max_refs = committee_size.saturating_mul(3);
+    let references =
+        uleb128_len(max_refs).saturating_add(max_refs.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let commit_votes = uleb128_len(committee_size)
+        .saturating_add(committee_size.saturating_mul(COMMIT_VOTE_BYTES));
+
+    FIXED_HEADER_BYTES
+        .saturating_add(references)
+        .saturating_add(commit_votes)
+        .saturating_add(STRONG_VOTE_BYTES)
+        .saturating_add(SIGNATURE_FRAME_BYTES)
+}
 
 /// IOTA transaction is considered as serialised bytes inside consensus
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
@@ -612,6 +665,12 @@ impl fmt::Debug for BlockRef {
     }
 }
 
+/// Formats a slice of block references as a comma-separated list of their
+/// short `Display` form, for debug/log output.
+pub(crate) fn format_block_digests(blocks: &[BlockRef]) -> String {
+    blocks.iter().map(|b| b.to_string()).join(", ")
+}
+
 impl Hash for BlockRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.digest.0[..8]);
@@ -686,8 +745,7 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is disabled.
-/// Contains block reference and separate transaction commitment field.
+/// Legacy shard format retained for deserialization and enum-tag stability.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV1 {
     pub(crate) shard: Shard,
@@ -696,8 +754,7 @@ pub(crate) struct ShardWithProofV1 {
     pub(crate) block_ref: BlockRef,
 }
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is enabled.
-/// Contains transaction reference which includes the transaction commitment.
+/// Current shard format using a transaction reference.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
     pub(crate) shard: Shard,
@@ -724,34 +781,22 @@ pub(crate) enum ShardWithProof {
 }
 
 impl ShardWithProof {
-    /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
-    /// V1.
+    /// Creates a new ShardWithProof.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if consensus_fast_commit_sync {
-            ShardWithProof::V2(ShardWithProofV2 {
-                shard,
-                proof,
-                transaction_ref: TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: transaction_commitment,
-                },
-            })
-        } else {
-            ShardWithProof::V1(ShardWithProofV1 {
-                shard,
-                transaction_commitment,
-                proof,
-                block_ref,
-            })
-        }
+        ShardWithProof::V2(ShardWithProofV2 {
+            shard,
+            proof,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: transaction_commitment,
+            },
+        })
     }
 }
 
@@ -1240,11 +1285,11 @@ impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}({}ms;{:?}r;{:?}a;{}c)",
+            "{:?}({}ms;[{}]r;[{}]a;{}c)",
             self.reference(),
             self.timestamp_ms(),
-            self.ancestors(),
-            self.acknowledgments(),
+            format_block_digests(self.ancestors()),
+            format_block_digests(self.acknowledgments()),
             self.commit_votes().len(),
         )
     }
@@ -1259,10 +1304,10 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// Present (`Some`) whenever the block header is available at
-    /// construction time, regardless of the `consensus_fast_commit_sync` flag.
-    /// `None` only when transactions were received without an accompanying
-    /// block header (e.g., fast sync or store loading via TransactionRef).
+    /// Present (`Some`) whenever the block header is available at construction
+    /// time. `None` only when transactions were received without an
+    /// accompanying block header (e.g., fast sync or store loading via
+    /// TransactionRef).
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
@@ -1649,11 +1694,37 @@ mod tests {
     use crate::{
         BlockHeaderAPI,
         block_header::{
-            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+            BlockHeader, BlockHeaderDigest, BlockHeaderV2, BlockRef, SignedBlockHeader, StrongVote,
+            TestBlockHeader, genesis_block_headers, max_signed_block_header_bytes,
         },
+        commit::{CommitDigest, CommitRef},
         context::Context,
         error::ConsensusError,
     };
+
+    /// Pins the `BlockHeaderV2` wire layout that
+    /// `max_signed_block_header_bytes` is derived from: a header carrying
+    /// the maximal `3 * committee_size` references, one commit vote per
+    /// authority, and a strong vote must serialize to exactly the computed
+    /// bound. Fails if the BCS framing or any of `BlockRef` / `CommitVote`
+    /// / `StrongVote` / `SignedBlockHeader` layout changes.
+    #[tokio::test]
+    async fn max_signed_block_header_bytes_bounds_maximal_header() {
+        let (context, key_pairs) = Context::new_for_test(4);
+        let n = context.committee.size();
+
+        let header = BlockHeader::V2(BlockHeaderV2 {
+            references: vec![BlockRef::MAX; 3 * n],
+            commit_votes: vec![CommitRef::new(u32::MAX, CommitDigest::MIN); n],
+            strong_vote: Some(StrongVote::default()),
+            ..Default::default()
+        });
+        let signed =
+            SignedBlockHeader::new(header, &key_pairs[0].1).expect("signing should succeed");
+        let serialized = bcs::to_bytes(&signed).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_signed_block_header_bytes(n));
+    }
 
     #[tokio::test]
     async fn test_sign_and_verify() {

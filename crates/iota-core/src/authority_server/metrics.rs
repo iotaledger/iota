@@ -3,10 +3,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{
-    Gauge, Histogram, IntCounter, IntCounterVec, Registry, register_gauge_with_registry,
+use prometheus_filtered::{
+    Gauge, Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_gauge_with_registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 
 /// Metrics for the validator service.
@@ -35,6 +35,8 @@ pub struct ValidatorServiceMetrics {
     pub forwarded_header_not_included: IntCounter,
     pub client_id_source_config_mismatch: IntCounter,
     pub x_forwarded_for_num_hops: Gauge,
+    pub num_rejected_tx_soft_lock_conflict: IntCounter,
+    pub soft_lock_table_size: IntGauge,
 }
 
 impl ValidatorServiceMetrics {
@@ -190,6 +192,18 @@ impl ValidatorServiceMetrics {
             x_forwarded_for_num_hops: register_gauge_with_registry!(
                 "validator_service_x_forwarded_for_num_hops",
                 "Number of hops in x-forwarded-for header",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_soft_lock_conflict: register_int_counter_with_registry!(
+                "validator_service_num_rejected_tx_soft_lock_conflict",
+                "Number of transactions rejected due to pre-consensus soft lock conflict on owned objects",
+                registry,
+            )
+                .unwrap(),
+            soft_lock_table_size: register_int_gauge_with_registry!(
+                "validator_service_soft_lock_table_size",
+                "Current number of object refs held in the pre-consensus soft lock table",
                 registry,
             )
                 .unwrap(),

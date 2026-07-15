@@ -17,7 +17,7 @@ use iota_data_ingestion_core::{
 use iota_grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker, Table};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
@@ -68,6 +68,8 @@ struct IndexerConfig {
     remote_store_url: Option<RemoteStoreUrl>,
     #[serde(default = "default_remote_read_batch_size")]
     remote_read_batch_size: usize,
+    #[serde(default = "default_remote_read_timeout_secs")]
+    remote_read_timeout_secs: u64,
     #[serde(default = "default_metrics_host")]
     metrics_host: String,
     #[serde(default = "default_metrics_port")]
@@ -84,6 +86,15 @@ fn default_metrics_port() -> u16 {
 
 fn default_remote_read_batch_size() -> usize {
     100
+}
+
+/// Returns the default remote read timeout in seconds.
+///
+/// This targets primarily the hybrid historical store.
+///
+/// The default value is 120 seconds.
+fn default_remote_read_timeout_secs() -> u64 {
+    120
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -299,6 +310,7 @@ async fn main() -> Result<()> {
 
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
+        timeout_secs: config.remote_read_timeout_secs,
         ..Default::default()
     };
 

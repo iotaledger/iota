@@ -25,7 +25,7 @@ use iota_types::{
     object::Object, supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
@@ -185,16 +185,39 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub async fn build(self) -> Arc<AuthorityState> {
-        let mut local_network_config_builder =
-            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
-                .with_accounts(self.accounts)
-                .with_reference_gas_price(self.reference_gas_price.unwrap_or(500));
-        if let Some(protocol_config) = &self.protocol_config {
-            local_network_config_builder =
-                local_network_config_builder.with_protocol_version(protocol_config.version);
-        }
+        let protocol_config = self.protocol_config.clone();
 
-        let local_network_config = local_network_config_builder.build();
+        // Genesis must build the system framework at the binary format version it was
+        // compiled with. A test override that lowers `move_binary_format_version`
+        // must not apply while genesis verifies the system packages.
+        // Build genesis with the framework's binary format version
+        // restored, then apply the unmodified override below for transaction
+        // execution.
+        let local_network_config = {
+            let _genesis_guard = protocol_config.clone().map(|mut config| {
+                let framework_binary_format_version =
+                    ProtocolConfig::get_for_version(config.version, Chain::Unknown)
+                        .move_binary_format_version();
+                config.set_move_binary_format_version_for_testing(framework_binary_format_version);
+                ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone())
+            });
+
+            let mut local_network_config_builder =
+                iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                    .with_accounts(self.accounts)
+                    .with_reference_gas_price(self.reference_gas_price.unwrap_or(500));
+            if let Some(protocol_config) = &self.protocol_config {
+                local_network_config_builder =
+                    local_network_config_builder.with_protocol_version(protocol_config.version);
+            }
+            local_network_config_builder.build()
+        };
+
+        // `_guard` must be declared here so it is not dropped before
+        // `AuthorityPerEpochStore::new` is called
+        let _guard = protocol_config
+            .map(|config| ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone()));
+
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
         let storage_dir = self
@@ -250,11 +273,6 @@ impl<'a> TestAuthorityBuilder<'a> {
         let name: AuthorityName = secret.public().into();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
-        // `_guard` must be declared here so it is not dropped before
-        // `AuthorityPerEpochStore::new` is called
-        let _guard = self
-            .protocol_config
-            .map(|config| ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone()));
         let epoch_flags = EpochFlag::default_flags_for_new_epoch(&config);
         let epoch_start_configuration = EpochStartConfiguration::new(
             genesis.iota_system_object().into_epoch_start_state(),
@@ -415,9 +433,11 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            let batch = state
-                .get_cache_commit()
-                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+            let batch = state.get_cache_commit().build_db_batch(
+                epoch_store.epoch(),
+                genesis.checkpoint().sequence_number,
+                &[*genesis.transaction().digest()],
+            );
 
             state.get_cache_commit().commit_transaction_outputs(
                 epoch_store.epoch(),

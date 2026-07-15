@@ -27,7 +27,6 @@ itertools.workspace = true
 lru.workspace = true
 nom = "7.1.3"
 parking_lot.workspace = true
-prometheus.workspace = true
 prost.workspace = true
 rand.workspace = true
 reed-solomon-simd = { version = "3.0.1" }
@@ -57,6 +56,7 @@ iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-tls.workspace = true
+prometheus-filtered.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
 

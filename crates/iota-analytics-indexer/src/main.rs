@@ -9,7 +9,7 @@ use iota_analytics_indexer::{
     make_analytics_processor,
 };
 use iota_data_ingestion_core::{ReaderOptions, reader::v2::RemoteUrl, setup_single_workflow};
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::signal;
 use tracing::info;
 

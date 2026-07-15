@@ -83,9 +83,7 @@ pub(super) fn verify_basic_output(
 
         ensure!(
             label == expected_label,
-            "timelock label mismatch: found {}, expected {}",
-            label,
-            expected_label
+            "timelock label mismatch: found {label}, expected {expected_label}"
         );
 
         ensure!(

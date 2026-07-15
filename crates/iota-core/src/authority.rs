@@ -111,7 +111,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{
         MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
@@ -132,7 +132,7 @@ use move_core_types::{
     account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::ModuleId,
 };
 use parking_lot::Mutex;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
@@ -180,7 +180,10 @@ use crate::{
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
+    overload_monitor::{
+        AuthorityOverloadInfo, compute_graduated_load_shedding_percentage,
+        overload_monitor_accept_tx,
+    },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
     traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
@@ -292,17 +295,22 @@ pub struct AuthorityMetrics {
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
     pub(crate) authority_overload_status: IntGauge,
-    pub(crate) authority_load_shedding_percentage: IntGauge,
+    /// Percentage of transactions shed due to consensus queue length.
+    pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
+    /// This authority's locally computed load shedding percentage, taken as the
+    /// max of its latency/rate-based, transaction-manager-queue-based, and
+    /// writeback-cache-backpressure signals.
+    pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
-    /// Post processing metrics
+    // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_indexed: IntCounter,
     post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
-    /// Consensus handler metrics
+    // Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
     pub consensus_handler_transaction_sizes: HistogramVec,
     pub consensus_handler_num_low_scoring_authorities: IntGauge,
@@ -310,7 +318,20 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit because
+    /// post-consensus conflict/lock validation rejected them. Distinct from
+    /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit by
+    /// post-consensus load shedding, i.e. probabilistically rejected at the
+    /// quorum `consensus_handler_load_shedding_percentage` rate.
+    pub consensus_handler_load_shedding_dropped_transactions: IntCounter,
+    /// Stake-weighted quorum (2f+1) load shedding percentage enforced on user
+    /// transactions in the most recent consensus commit. This is the cluster
+    /// value actually applied post-consensus, as opposed to this authority's
+    /// own `authority_load_shedding_percentage`. 0 when the P-COOL flow is
+    /// disabled.
+    pub consensus_handler_load_shedding_percentage: IntGauge,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -374,7 +395,7 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
 pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
-    pub fn new(registry: &prometheus::Registry) -> AuthorityMetrics {
+    pub fn new(registry: &prometheus_filtered::Registry) -> AuthorityMetrics {
         let execute_certificate_latency = register_histogram_vec_with_registry!(
             "authority_state_execute_certificate_latency",
             "Latency of executing certificates, including waiting for inputs",
@@ -548,9 +569,14 @@ impl AuthorityMetrics {
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry)
                 .unwrap(),
-            authority_load_shedding_percentage: register_int_gauge_with_registry!(
+            local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
-                "The percentage of transactions is shed when the authority is in load shedding mode.",
+                "This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
+                registry)
+                .unwrap(),
+            consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_queue_load_shedding_percentage",
+                "Percentage of transactions shed due to consensus queue length. Separate admission-control signal, not an input to authority_load_shedding_percentage.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
@@ -725,6 +751,16 @@ impl AuthorityMetrics {
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_load_shedding_dropped_transactions",
+                "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_handler_load_shedding_percentage",
+                "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the P-COOL flow is disabled.",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
@@ -981,9 +1017,7 @@ impl AuthorityState {
                 move_authenticators
                     .iter()
                     .zip(per_authenticator_checked_inputs.iter())
-                    .find(|(move_authenticator, _)| {
-                        move_authenticator.address().ok().as_ref() == Some(&address)
-                    })
+                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
                     .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
             });
 
@@ -1180,42 +1214,110 @@ impl AuthorityState {
             .check_system_overload_at_execution
     }
 
+    /// Checks system overload conditions before accepting a transaction.
+    ///
+    /// In certificate-less (P-COOL) mode: only checks consensus
+    /// queue overload, since execution-based overload will be handled
+    /// post-consensus.
+    ///
+    /// In certificate mode: runs all checks — authority overload
+    /// (execution latency), transaction manager (execution queue),
+    /// consensus adapter (queue limit), and writeback cache backpressure.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx_data: &SenderSignedData,
         do_authority_overload_check: bool,
+        pcool_flow_enabled: bool,
     ) -> IotaResult {
-        if do_authority_overload_check {
-            self.check_authority_overload(tx_data).tap_err(|_| {
-                self.update_overload_metrics("execution_queue");
-            })?;
-        }
-        self.transaction_manager
-            .check_execution_overload(self.overload_config(), tx_data)
-            .tap_err(|_| {
-                self.update_overload_metrics("execution_pending");
-            })?;
-        consensus_adapter.check_consensus_overload().tap_err(|_| {
-            self.update_overload_metrics("consensus");
-        })?;
+        if pcool_flow_enabled {
+            // Graduated shedding: 0% to 100% as consensus queue fills from soft
+            // to hard limit.
+            self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("consensus");
+                })?;
 
-        let pending_tx_count = self
-            .get_cache_commit()
-            .approximate_pending_transaction_count();
-        if pending_tx_count
-            > self
-                .config
-                .execution_cache_config
-                .writeback_cache
-                .backpressure_threshold_for_rpc()
-        {
-            return Err(IotaError::ValidatorOverloadedRetryAfter {
-                retry_after_secs: 10,
-            });
+            // NOTE: graduated shedding at 100% already rejects everything at or above
+            // `max_pending_transactions`, so the queue-length part of the check below
+            // is redundant but harmless. But `check_consensus_overload()` should be
+            // kept here because it also verifies that `submit_semaphore` has permits
+            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
+            // separate concurrency limit not covered by the graduated shedding.
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
+            })?;
+        } else {
+            if do_authority_overload_check {
+                self.check_authority_overload(tx_data).tap_err(|_| {
+                    self.update_overload_metrics("execution_queue");
+                })?;
+            }
+            self.transaction_manager
+                .check_execution_overload(self.overload_config(), tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("execution_pending");
+                })?;
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
+            })?;
+
+            let pending_tx_count = self
+                .get_cache_commit()
+                .approximate_pending_transaction_count();
+            if pending_tx_count
+                > self
+                    .config
+                    .execution_cache_config
+                    .writeback_cache
+                    .backpressure_threshold_for_rpc()
+            {
+                return Err(IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 10,
+                });
+            }
         }
 
         Ok(())
+    }
+
+    /// Rejects `tx_data` via graduated shedding based on consensus queue
+    /// length. Scales from 0% at the soft limit to 100% at
+    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
+    /// for probabilistic rejection (shedding percentage < 100%, via
+    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
+    /// for unconditional rejection (shedding percentage >= 100%). Updates
+    /// `consensus_queue_load_shedding_percentage` metric.
+    fn check_consensus_queue_graduated_limits(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx_data: &SenderSignedData,
+    ) -> IotaResult {
+        let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
+
+        let shedding_pct = compute_graduated_load_shedding_percentage(
+            num_inflight_txs,
+            consensus_adapter.max_pending_transactions(),
+            consensus_adapter.graduated_load_shedding_soft_limit_pct(),
+        );
+
+        self.metrics
+            .consensus_queue_load_shedding_percentage
+            .set(shedding_pct as i64);
+
+        if shedding_pct == 0 {
+            return Ok(());
+        }
+
+        // At/above the hard limit, rejection is unconditional (not
+        // probabilistic), so the seed-rotation retry hint of
+        // `ValidatorOverloadedRetryAfter` doesn't apply - return the
+        // capacity-bound error instead.
+        if shedding_pct >= 100 {
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
+        }
+
+        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
     }
 
     fn check_authority_overload(&self, tx_data: &SenderSignedData) -> IotaResult {
@@ -1225,7 +1327,7 @@ impl AuthorityState {
 
         let load_shedding_percentage = self
             .overload_info
-            .load_shedding_percentage
+            .local_load_shedding_percentage
             .load(Ordering::Relaxed);
         overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
     }
@@ -1803,7 +1905,7 @@ impl AuthorityState {
                             auth_account_object_digest,
                         ) = move_authenticator.object_to_authenticate_components()?;
 
-                        let signer = move_authenticator.address()?;
+                        let signer = move_authenticator.address();
 
                         let authenticator_function_ref_for_execution = self.check_move_account(
                             auth_account_object_id,
@@ -1884,7 +1986,7 @@ impl AuthorityState {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -2810,7 +2912,7 @@ impl AuthorityState {
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
-        let Some(move_object) = o.data.as_struct_opt().cloned() else {
+        let Some(move_object) = o.data.as_opt_struct().cloned() else {
             return Ok(None);
         };
 
@@ -2881,7 +2983,7 @@ impl AuthorityState {
                     (
                         object.version(),
                         object.digest(),
-                        object.data.object_type().unwrap().clone(),
+                        object.data.opt_object_type().unwrap().clone(),
                     )
                 } else {
                     // If not found, try to find it in the database.
@@ -2894,7 +2996,7 @@ impl AuthorityState {
                         })?;
                     let version = object.version();
                     let digest = object.digest();
-                    let object_type = object.data.object_type().unwrap().clone();
+                    let object_type = object.data.opt_object_type().unwrap().clone();
                     (version, digest, object_type)
                 };
 
@@ -3041,8 +3143,7 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                self.try_get_object_or_tombstone(request.object_id)
-                    .await?
+                self.try_get_object_or_tombstone(request.object_id)?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
                             object_id: request.object_id,
@@ -3065,7 +3166,7 @@ impl AuthorityState {
             })?;
 
         let layout = if let (LayoutGenerationOption::Generate, Some(move_obj)) =
-            (request.generate_layout, object.data.as_struct_opt())
+            (request.generate_layout, object.data.as_opt_struct())
         {
             Some(into_struct_layout(
                 epoch_store
@@ -3081,8 +3182,7 @@ impl AuthorityState {
             // Only address owned objects have locks.
             None
         } else {
-            self.get_transaction_lock(&object.object_ref(), &epoch_store)
-                .await?
+            self.get_transaction_lock(&object.object_ref(), &epoch_store)?
                 .map(|s| s.into_inner())
         };
 
@@ -3783,23 +3883,21 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
+    pub fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
         self.get_object_store()
             .try_get_object(object_id)
             .map_err(Into::into)
     }
 
     /// Non-fallible version of `try_get_object`.
-    pub async fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
+    pub fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
         self.try_get_object(object_id)
-            .await
             .expect("storage access failed")
     }
 
-    pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
+    pub fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&ObjectId::SYSTEM)
-            .await?
+            .try_get_object(&ObjectId::SYSTEM)?
             .expect("system package should always exist")
             .object_ref())
     }
@@ -3901,7 +3999,7 @@ impl AuthorityState {
         T: DeserializeOwned,
     {
         let o = self.get_object_read(object_id)?.into_object()?;
-        if let Some(move_object) = o.data.as_struct_opt() {
+        if let Some(move_object) = o.data.as_opt_struct() {
             Ok(bcs::from_bytes(move_object.contents()).map_err(|e| {
                 IotaError::ObjectDeserialization {
                     error: format!("{e}"),
@@ -3953,7 +4051,7 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.digest.is_object_alive() {
+        if !obj_ref.digest.is_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
@@ -3993,7 +4091,7 @@ impl AuthorityState {
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
-            .as_struct_opt()
+            .as_opt_struct()
             .map(|object| {
                 into_struct_layout(
                     self.load_epoch_store_one_call_per_task()
@@ -4072,7 +4170,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_move_objects<T>(&self, owner: Address, tag: StructTag) -> IotaResult<Vec<T>>
+    pub fn get_move_objects<T>(&self, owner: Address, tag: StructTag) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
     {
@@ -4097,7 +4195,7 @@ impl AuthorityState {
                     version: Some(id.1),
                 })
             })?;
-            let move_object = object.data.as_struct_opt().ok_or_else(|| {
+            let move_object = object.data.as_opt_struct().ok_or_else(|| {
                 IotaError::from(UserInputError::MovePackageAsObject { object_id: id.0 })
             })?;
             move_objects.push(bcs::from_bytes(move_object.contents()).map_err(|e| {
@@ -4558,19 +4656,16 @@ impl AuthorityState {
         Ok(events)
     }
 
-    pub async fn insert_genesis_object(&self, object: Object) {
+    pub fn insert_genesis_object(&self, object: Object) {
         self.get_reconfig_api()
             .try_insert_genesis_object(object)
             .expect("Cannot insert genesis object")
     }
 
-    pub async fn insert_genesis_objects(&self, objects: &[Object]) {
-        futures::future::join_all(
-            objects
-                .iter()
-                .map(|o| self.insert_genesis_object(o.clone())),
-        )
-        .await;
+    pub fn insert_genesis_objects(&self, objects: &[Object]) {
+        for o in objects {
+            self.insert_genesis_object(o.clone());
+        }
     }
 
     /// Make a status response for a transaction
@@ -4772,7 +4867,7 @@ impl AuthorityState {
     /// transaction,     or cannot find the transaction in transaction
     /// table, because of data race etc.
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_transaction_lock(
+    pub fn get_transaction_lock(
         &self,
         object_ref: &ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
@@ -4797,18 +4892,17 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
+    pub fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
     /// Non-fallible version of `try_get_objects`.
-    pub async fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
+    pub fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
         self.try_get_objects(objects)
-            .await
             .expect("storage access failed")
     }
 
-    pub async fn try_get_object_or_tombstone(
+    pub fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectId,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -4817,9 +4911,8 @@ impl AuthorityState {
     }
 
     /// Non-fallible version of `try_get_object_or_tombstone`.
-    pub async fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
+    pub fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
         self.try_get_object_or_tombstone(object_id)
-            .await
             .expect("storage access failed")
     }
 
@@ -4935,7 +5028,7 @@ impl AuthorityState {
             .iter()
             .map(|object_ref| object_ref.object_id)
             .collect();
-        let objects = self.get_objects(&ids).await;
+        let objects = self.get_objects(&ids);
 
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
@@ -5620,7 +5713,7 @@ impl AuthorityState {
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             let field_move_object = authenticator_function_ref_field_obj
                 .data
-                .as_struct_opt()
+                .as_opt_struct()
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
@@ -5716,7 +5809,7 @@ impl AuthorityState {
                         auth_account_object_digest,
                     ) = move_authenticator.object_to_authenticate_components()?;
 
-                    let signer = move_authenticator.address()?;
+                    let signer = move_authenticator.address();
 
                     // Make sure the signer is a Move account.
                     let AuthenticatorFunctionRefForExecution {
@@ -5817,7 +5910,7 @@ impl RandomnessRoundReceiver {
             tokio::select! {
                 maybe_recv = self.randomness_rx.recv() => {
                     if let Some((epoch, round, bytes)) = maybe_recv {
-                        self.handle_new_randomness(epoch, round, bytes);
+                        self.handle_new_randomness(epoch, round, bytes).await;
                     } else {
                         break;
                     }
@@ -5829,7 +5922,9 @@ impl RandomnessRoundReceiver {
     }
 
     #[instrument(level = "debug", skip_all, fields(?epoch, ?round))]
-    fn handle_new_randomness(&self, epoch: EpochId, round: RandomnessRound, bytes: Vec<u8>) {
+    async fn handle_new_randomness(&self, epoch: EpochId, round: RandomnessRound, bytes: Vec<u8>) {
+        fail_point_async!("randomness-delay");
+
         let epoch_store = self.authority_state.load_epoch_store_one_call_per_task();
         if epoch_store.epoch() != epoch {
             warn!(

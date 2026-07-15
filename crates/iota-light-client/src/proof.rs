@@ -130,9 +130,9 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         };
 
         // Extract the end of epoch committee
-        let new_committee = Committee::new(
+        let new_committee = Committee::from_committee_members(
             summary.epoch().checked_add(1).unwrap(),
-            next_epoch_committee.iter().cloned().collect(),
+            next_epoch_committee,
         );
 
         if new_committee != *committee {

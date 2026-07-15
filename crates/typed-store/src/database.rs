@@ -13,7 +13,7 @@ use std::{
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
 use iota_macros::fail_point;
-use prometheus::{Histogram, HistogramTimer};
+use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
@@ -32,7 +32,7 @@ use crate::{
         safe_iter::{SafeIter, SafeRevIter},
     },
     traits::{Map, TableSummary},
-    util::{be_fix_int_ser, iterator_bounds, iterator_bounds_with_range},
+    util::{be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds},
 };
 
 #[derive(Clone)]
@@ -311,14 +311,63 @@ impl Database {
         }
     }
 
+    /// Flush the memtable of a single column family to SST files on disk.
+    pub(crate) fn flush_cf(&self, cf: &ColumnFamily) -> Result<(), TypedStoreError> {
+        match &self.storage {
+            Storage::Rocks(rocks) => {
+                let cf_name = cf.name();
+                if let Some(handle) = rocks.underlying.cf_handle(cf_name) {
+                    rocks.underlying.flush_cf(&handle).map_err(|e| {
+                        TypedStoreError::RocksDB(format!(
+                            "Failed to flush column family {cf_name}: {e}"
+                        ))
+                    })?;
+                }
+                Ok(())
+            }
+            // InMemory databases don't need flushing.
+            Storage::InMemory(_) => Ok(()),
+        }
+    }
+
+    /// Iterate all column families and flush the memtables of every column
+    /// family to SST files on disk.
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
+        match &self.storage {
+            Storage::Rocks(rocks) => {
+                for cf_name in &rocks.cf_names {
+                    if let Some(cf) = rocks.underlying.cf_handle(cf_name) {
+                        rocks.underlying.flush_cf(&cf).map_err(|e| {
+                            TypedStoreError::RocksDB(format!(
+                                "Failed to flush column family {cf_name}: {e}"
+                            ))
+                        })?;
+                    }
+                }
+                Ok(())
+            }
+            // InMemory databases don't need flushing.
+            Storage::InMemory(_) => Ok(()),
+        }
+    }
+
     pub fn write(&self, batch: StorageWriteBatch) -> Result<(), TypedStoreError> {
+        self.write_opt(batch, &rocksdb::WriteOptions::default())
+    }
+
+    pub fn write_opt(
+        &self,
+        batch: StorageWriteBatch,
+        write_options: &rocksdb::WriteOptions,
+    ) -> Result<(), TypedStoreError> {
         fail_point!("batch-write-before");
         let ret = match (&self.storage, batch) {
             (Storage::Rocks(rocks), StorageWriteBatch::Rocks(batch)) => rocks
                 .underlying
-                .write(batch)
+                .write_opt(batch, write_options)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), StorageWriteBatch::InMemory(batch)) => {
+                // InMemory doesn't support write options.
                 db.write(batch);
                 Ok(())
             }
@@ -527,6 +576,17 @@ impl<K, V> DBMap<K, V> {
         )
     }
 
+    /// Flush the memtable of this table's column family to SST files on disk.
+    pub fn flush(&self) -> Result<(), TypedStoreError> {
+        self.db.flush_cf(&self.column_family)
+    }
+
+    /// Iterate all column families and flush the memtables of every column
+    /// family to SST files on disk.
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
+        self.db.flush_all()
+    }
+
     pub fn compact_range<J: Serialize>(&self, start: &J, end: &J) -> Result<(), TypedStoreError> {
         let from_buf = be_fix_int_ser(start);
         let to_buf = be_fix_int_ser(end);
@@ -665,58 +725,149 @@ impl<K, V> DBMap<K, V> {
         )
     }
 
-    /// Creates a safe reversed iterator with optional bounds.
-    /// Both upper bound and lower bound are included.
-    #[allow(clippy::complexity)]
-    pub fn reversed_safe_iter_with_bounds(
-        &self,
-        lower_bound: Option<K>,
-        upper_bound: Option<K>,
-    ) -> Result<DbIterator<'_, (K, V)>, TypedStoreError>
+    /// Shared rocksdb `SafeIter` construction (raw iterator + scan metrics)
+    /// used by both the forward and reverse raw iterators.
+    fn rocks_safe_iter<'a>(&self, db: &'a RocksDB, readopts: ReadOptions) -> SafeIter<'a, K, V>
     where
-        K: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
     {
-        let (it_lower_bound, it_upper_bound) = iterator_bounds_with_range::<K>((
-            lower_bound
-                .as_ref()
-                .map(Bound::Included)
-                .unwrap_or(Bound::Unbounded),
-            upper_bound
-                .as_ref()
-                .map(Bound::Included)
-                .unwrap_or(Bound::Unbounded),
-        ));
+        let db_iter = db
+            .underlying
+            .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name()), readopts);
+        let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
+        SafeIter::new(
+            self.cf_name().to_string(),
+            db_iter,
+            _timer,
+            _perf_ctx,
+            bytes_scanned,
+            keys_scanned,
+            Some(self.db_metrics.clone()),
+        )
+    }
+
+    /// Forward iterator over the raw byte bounds `[lower_bound, upper_bound)`;
+    /// both bounds (already serialized, `upper_bound` exclusive) are applied to
+    /// the read options.
+    fn iter_forward_raw(
+        &self,
+        lower_bound: Option<Vec<u8>>,
+        upper_bound: Option<Vec<u8>>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
         match &self.db.storage {
             Storage::Rocks(db) => {
-                let readopts = rocks_util::apply_range_bounds(
-                    self.opts.readopts(),
-                    it_lower_bound,
-                    it_upper_bound,
-                );
-                let upper_bound_key = upper_bound.as_ref().map(|k| be_fix_int_ser(&k));
-                let db_iter = db
-                    .underlying
-                    .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name()), readopts);
-                let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
-                let iter = SafeIter::new(
-                    self.cf_name().to_string(),
-                    db_iter,
-                    _timer,
-                    _perf_ctx,
-                    bytes_scanned,
-                    keys_scanned,
-                    Some(self.db_metrics.clone()),
-                );
-                Ok(Box::new(SafeRevIter::new(iter, upper_bound_key)))
+                let readopts =
+                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
+                Box::new(self.rocks_safe_iter(db, readopts))
             }
-            Storage::InMemory(db) => Ok(db.iterator(
-                self.column_family.name(),
-                it_lower_bound,
-                it_upper_bound,
-                true,
-            )),
+            Storage::InMemory(db) => {
+                db.iterator(self.column_family.name(), lower_bound, upper_bound, false)
+            }
         }
+    }
+
+    /// Reverse counterpart of [`Self::iter_forward_raw`], yielding the same
+    /// keys in descending order. Only the lower bound is applied to the
+    /// read options; the (exclusive) `upper_bound` is enforced by
+    /// [`SafeRevIter`]'s initial seek, because setting an
+    /// iterate-upper-bound would stop `seek_for_prev` from landing on the
+    /// boundary key.
+    fn iter_reversed_raw(
+        &self,
+        lower_bound: Option<Vec<u8>>,
+        upper_bound: Option<Vec<u8>>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        match &self.db.storage {
+            Storage::Rocks(db) => {
+                let readopts =
+                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, None);
+                Box::new(SafeRevIter::new(
+                    self.rocks_safe_iter(db, readopts),
+                    upper_bound,
+                ))
+            }
+            Storage::InMemory(db) => {
+                db.iterator(self.column_family.name(), lower_bound, upper_bound, true)
+            }
+        }
+    }
+
+    /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
+    /// of `safe_range_iter(range)` in descending order.
+    ///
+    /// Both directions derive their bounds from the same
+    /// `iterator_bounds_with_range`, so they are guaranteed to cover the
+    /// identical set of keys regardless of the bound inclusivity.
+    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)>
+    where
+        K: Serialize + DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+        self.iter_reversed_raw(lower_bound, upper_bound)
+    }
+
+    /// Forward iterator over every entry whose key begins with `prefix`.
+    ///
+    /// `prefix` is serialized with `be_fix_int_ser` and must form a prefix of
+    /// the column family's key encoding — typically the leading field(s) of a
+    /// tuple key. This avoids constructing artificial maximum keys to bound a
+    /// composite-key scan.
+    pub fn safe_iter_with_prefix<P>(&self, prefix: &P) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
+        self.iter_forward_raw(lower_bound, upper_bound)
+    }
+
+    /// Forward iterator over entries whose key begins with `prefix`, starting
+    /// at `prefix ++ cursor` rather than at the first key under the prefix.
+    ///
+    /// `cursor` is **not** a full key — it is the remainder of the key that
+    /// follows `prefix` (typically the trailing field(s) of a tuple key). Both
+    /// `prefix` and `cursor` are serialized with `be_fix_int_ser` and
+    /// concatenated, mirroring how a composite key is encoded; the scan then
+    /// covers `[prefix ++ cursor, end-of-prefix)`. This lets a paginated scan
+    /// resume from a cursor without an artificial maximum key for the upper
+    /// bound.
+    pub fn safe_iter_with_prefix_from<P, C>(&self, prefix: &P, cursor: &C) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        C: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
+        let lower_bound = lower_bound.map(|mut lower| {
+            lower.extend_from_slice(&be_fix_int_ser(cursor));
+            lower
+        });
+        self.iter_forward_raw(lower_bound, upper_bound)
+    }
+
+    /// Reverse counterpart of [`Self::safe_iter_with_prefix`]: the matching
+    /// entries in descending key order (e.g. for "latest entry under a
+    /// prefix").
+    pub fn safe_iter_with_prefix_reversed<P>(&self, prefix: &P) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
+        self.iter_reversed_raw(lower_bound, upper_bound)
     }
 }
 
@@ -734,7 +885,7 @@ impl<K, V> DBMap<K, V> {
 /// use core::fmt::Error;
 /// use std::sync::Arc;
 ///
-/// use prometheus::Registry;
+/// use prometheus_filtered::Registry;
 /// use tempfile::tempdir;
 /// use typed_store::{Map, metrics::DBMetrics, rocks::*};
 ///
@@ -817,6 +968,13 @@ impl DBBatch {
     /// Consume the batch and write its operations to the database
     #[instrument(level = "trace", skip_all, err)]
     pub fn write(self) -> Result<(), TypedStoreError> {
+        self.write_opt(&rocksdb::WriteOptions::default())
+    }
+
+    /// Consume the batch and write its operations to the database with custom
+    /// write options
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn write_opt(self, write_options: &rocksdb::WriteOptions) -> Result<(), TypedStoreError> {
         let db_name = self.database.db_name();
         let timer = self
             .db_metrics
@@ -831,7 +989,7 @@ impl DBBatch {
         } else {
             None
         };
-        self.database.write(self.batch)?;
+        self.database.write_opt(self.batch, write_options)?;
         self.db_metrics
             .op_metrics
             .rocksdb_batch_commit_bytes
@@ -1130,7 +1288,7 @@ where
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let first_key = self.safe_iter().next().transpose()?.map(|(k, _v)| k);
         let last_key = self
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(k, _v)| k);
@@ -1173,55 +1331,16 @@ where
         lower_bound: Option<K>,
         upper_bound: Option<K>,
     ) -> DbIterator<'a, (K, V)> {
-        let (lower_bound, upper_bound) = iterator_bounds(lower_bound, upper_bound);
-        match &self.db.storage {
-            Storage::Rocks(db) => {
-                let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
-                let db_iter = db
-                    .underlying
-                    .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name()), readopts);
-                let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
-                Box::new(SafeIter::new(
-                    self.cf_name().to_string(),
-                    db_iter,
-                    _timer,
-                    _perf_ctx,
-                    bytes_scanned,
-                    keys_scanned,
-                    Some(self.db_metrics.clone()),
-                ))
-            }
-            Storage::InMemory(db) => {
-                db.iterator(self.column_family.name(), lower_bound, upper_bound, false)
-            }
-        }
+        let range = (
+            lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded),
+            upper_bound.map(Bound::Excluded).unwrap_or(Bound::Unbounded),
+        );
+        self.safe_range_iter(range)
     }
 
     fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
         let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
-        match &self.db.storage {
-            Storage::Rocks(db) => {
-                let readopts =
-                    rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
-                let db_iter = db
-                    .underlying
-                    .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name()), readopts);
-                let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
-                Box::new(SafeIter::new(
-                    self.cf_name().to_string(),
-                    db_iter,
-                    _timer,
-                    _perf_ctx,
-                    bytes_scanned,
-                    keys_scanned,
-                    Some(self.db_metrics.clone()),
-                ))
-            }
-            Storage::InMemory(db) => {
-                db.iterator(self.column_family.name(), lower_bound, upper_bound, false)
-            }
-        }
+        self.iter_forward_raw(lower_bound, upper_bound)
     }
 
     /// Returns a vector of values corresponding to the keys provided.

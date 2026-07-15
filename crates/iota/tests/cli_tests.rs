@@ -1812,7 +1812,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectId> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1950,7 +1950,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectId> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -2088,7 +2088,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectId> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -5324,10 +5324,10 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
-    let prom_registry = prometheus::Registry::new();
+    let prom_registry = prometheus_filtered::Registry::new();
     let config = iota_faucet::FaucetConfig::default();
 
-    let prometheus_registry = prometheus::Registry::new();
+    let prometheus_registry = prometheus_filtered::Registry::new();
     let app_state = std::sync::Arc::new(iota_faucet::AppState {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
@@ -5382,13 +5382,13 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
-    let prom_registry = prometheus::Registry::new();
+    let prom_registry = prometheus_filtered::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
         ..Default::default()
     };
 
-    let prometheus_registry = prometheus::Registry::new();
+    let prometheus_registry = prometheus_filtered::Registry::new();
     let app_state = std::sync::Arc::new(iota_faucet::AppState {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
@@ -5509,13 +5509,13 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
-    let prom_registry = prometheus::Registry::new();
+    let prom_registry = prometheus_filtered::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
         ..Default::default()
     };
 
-    let prometheus_registry = prometheus::Registry::new();
+    let prometheus_registry = prometheus_filtered::Registry::new();
     let app_state = std::sync::Arc::new(iota_faucet::AppState {
         faucet: iota_faucet::SimpleFaucet::new(
             context,

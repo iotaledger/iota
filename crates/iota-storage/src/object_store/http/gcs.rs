@@ -13,7 +13,7 @@ use reqwest::{Client, ClientBuilder};
 
 use crate::object_store::{
     ObjectStoreGetExt,
-    http::{DEFAULT_USER_AGENT, get},
+    http::{DEFAULT_USER_AGENT, exists, get},
 };
 
 #[derive(Debug)]
@@ -38,6 +38,11 @@ impl GoogleCloudStorageClient {
     async fn get(&self, path: &Path) -> Result<GetResult> {
         let url = self.object_url(path);
         get(&url, "gcs", path, &self.client).await
+    }
+
+    async fn exists(&self, path: &Path) -> Result<bool> {
+        let url = self.object_url(path);
+        exists(&url, "gcs", path, &self.client).await
     }
 
     fn object_url(&self, path: &Path) -> String {
@@ -76,5 +81,9 @@ impl ObjectStoreGetExt for GoogleCloudStorage {
         let result = self.client.get(location).await?;
         let bytes = result.bytes().await?;
         Ok(bytes)
+    }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        self.client.exists(location).await
     }
 }

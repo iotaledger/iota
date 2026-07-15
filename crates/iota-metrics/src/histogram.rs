@@ -11,7 +11,7 @@ use std::{
 
 use futures::FutureExt;
 use parking_lot::Mutex;
-use prometheus::{
+use prometheus_filtered::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
@@ -102,9 +102,10 @@ struct HistogramLabelsInner {
 /// Histogram.
 ///
 /// On the bright side, this histogram exports less data to Prometheus comparing
-/// to prometheus::Histogram, it exports each requested percentile into separate
-/// prometheus gauge, while original implementation creates gauge per bucket.
-/// It also exports _sum and _count aggregates same as original implementation.
+/// to prometheus_filtered::Histogram, it exports each requested percentile into
+/// separate prometheus gauge, while original implementation creates gauge per
+/// bucket. It also exports _sum and _count aggregates same as original
+/// implementation.
 ///
 /// It is ok to measure timings for things like network latencies and expensive
 /// crypto operations. However as a rule of thumb this histogram should not be
@@ -402,7 +403,7 @@ impl Drop for HistogramTimerGuard<'_> {
 
 #[cfg(test)]
 mod tests {
-    use prometheus::proto::MetricFamily;
+    use prometheus_filtered::proto::MetricFamily;
 
     use super::*;
 

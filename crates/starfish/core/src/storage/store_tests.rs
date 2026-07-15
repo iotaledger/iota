@@ -21,67 +21,37 @@ use crate::{
 /// Test fixture for store tests. Wraps around various store implementations.
 #[expect(clippy::large_enum_variant)]
 enum TestStore {
-    RocksDB((RocksDBStore, TempDir, bool)),
-    Mem(MemStore, bool),
+    RocksDB((RocksDBStore, TempDir)),
+    Mem(MemStore),
 }
 
 impl TestStore {
     fn store(&self) -> &dyn Store {
         match self {
-            TestStore::RocksDB((store, _, _)) => store,
-            TestStore::Mem(store, _) => store,
+            TestStore::RocksDB((store, _)) => store,
+            TestStore::Mem(store) => store,
         }
-    }
-
-    fn consensus_fast_commit_sync(&self) -> bool {
-        match self {
-            TestStore::RocksDB((_, _, enabled)) => *enabled,
-            TestStore::Mem(_, enabled) => *enabled,
-        }
-    }
-
-    /// Creates a context with the same configuration as the store.
-    fn context(&self) -> Arc<Context> {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(self.consensus_fast_commit_sync());
-        context.parameters.enable_fast_commit_syncer = self.consensus_fast_commit_sync();
-        Arc::new(context)
     }
 }
 
-fn new_rocksdb_teststore(consensus_fast_commit_sync: bool) -> TestStore {
-    let (mut context, _) = Context::new_for_test(4);
-    context
-        .protocol_config
-        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-    context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+fn new_rocksdb_teststore() -> TestStore {
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
         RocksDBStore::new(temp_dir.path().to_str().unwrap()),
         temp_dir,
-        consensus_fast_commit_sync,
     ))
 }
 
-fn new_mem_teststore(consensus_fast_commit_sync: bool) -> TestStore {
-    let (mut context, _) = Context::new_for_test(4);
-    context
-        .protocol_config
-        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-    context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-    TestStore::Mem(MemStore::new(), consensus_fast_commit_sync)
+fn new_mem_teststore() -> TestStore {
+    TestStore::Mem(MemStore::new())
 }
 
 #[rstest]
 #[tokio::test]
 async fn read_and_contain_block_headers(
-    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-
-    let (context, _) = Context::new_for_test(4);
 
     let written_blocks: Vec<VerifiedBlock> = vec![
         VerifiedBlock::new_for_test(TestBlockHeader::new(1, 1).build()),
@@ -99,7 +69,6 @@ async fn read_and_contain_block_headers(
                     .map(|b| b.verified_block_header.clone())
                     .collect(),
             ),
-            Arc::from(context),
         )
         .unwrap();
 
@@ -186,23 +155,9 @@ async fn read_and_contain_block_headers(
 #[rstest]
 #[tokio::test]
 async fn scan_block_headers(
-    #[values(
-        new_rocksdb_teststore(false),
-        new_mem_teststore(false),
-        new_rocksdb_teststore(true),
-        new_mem_teststore(true)
-    )]
-    test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let (mut context, _) = crate::context::Context::new_for_test(4);
-    // Match the flag used to create the store
-    let consensus_fast_commit_sync = test_store.consensus_fast_commit_sync();
-    context
-        .protocol_config
-        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-    context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-    let context = Arc::new(context);
 
     let written_blocks = [
         VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
@@ -231,7 +186,6 @@ async fn scan_block_headers(
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
                 ),
-            context.clone(),
         )
         .unwrap();
 
@@ -278,7 +232,6 @@ async fn scan_block_headers(
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
                 ),
-            context.clone(),
         )
         .unwrap();
     {
@@ -300,7 +253,7 @@ async fn scan_block_headers(
 
     {
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None, context.clone())
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
         assert_eq!(
@@ -309,7 +262,7 @@ async fn scan_block_headers(
         );
 
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None, context)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 0);
     }
@@ -318,13 +271,7 @@ async fn scan_block_headers(
 #[rstest]
 #[tokio::test]
 async fn read_and_contain_transactions(
-    #[values(
-        new_rocksdb_teststore(false),
-        new_mem_teststore(false),
-        new_rocksdb_teststore(true),
-        new_mem_teststore(true)
-    )]
-    test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
 
@@ -336,24 +283,13 @@ async fn read_and_contain_transactions(
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
     ];
-    let (mut context, _) = Context::new_for_test(4);
-    // Match the flag used to create the store
-    let consensus_fast_commit_sync = test_store.consensus_fast_commit_sync();
-    context
-        .protocol_config
-        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-    context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-    let context = Arc::new(context);
     // Write transactions to store
     let written_transactions: Vec<_> = written_blocks
         .iter()
         .map(|b| b.verified_transactions.clone())
         .collect();
     store
-        .write(
-            WriteBatch::default().transactions(written_transactions),
-            context.clone(),
-        )
+        .write(WriteBatch::default().transactions(written_transactions))
         .unwrap();
     // Also write headers since we read transaction commitment from headers now
     let written_headers = written_blocks
@@ -361,28 +297,14 @@ async fn read_and_contain_transactions(
         .map(|b| b.verified_block_header.clone())
         .collect();
     store
-        .write(
-            WriteBatch::default().block_headers(written_headers),
-            context,
-        )
+        .write(WriteBatch::default().block_headers(written_headers))
         .unwrap();
 
     // Test reading all transactions
-    let refs: Vec<_> = if consensus_fast_commit_sync {
-        // When flag is enabled, use TransactionRef
-        written_blocks
-            .iter()
-            .map(|b| {
-                GenericTransactionRef::TransactionRef(b.verified_block_header.transaction_ref())
-            })
-            .collect()
-    } else {
-        // When flag is disabled, use BlockRef
-        written_blocks
-            .iter()
-            .map(|b| GenericTransactionRef::from(b.reference()))
-            .collect()
-    };
+    let refs: Vec<_> = written_blocks
+        .iter()
+        .map(|b| GenericTransactionRef::TransactionRef(b.verified_block_header.transaction_ref()))
+        .collect();
     let read_txs = store
         .read_verified_transactions(&refs)
         .expect("Read txs should not fail");
@@ -393,17 +315,10 @@ async fn read_and_contain_transactions(
         let actual = tx_opt.as_ref().unwrap();
         assert_eq!(actual, expected);
 
-        if !consensus_fast_commit_sync {
-            assert_eq!(
-                tx_opt.as_ref().unwrap().block_ref().unwrap(),
-                written_blocks[i].reference()
-            );
-        } else {
-            assert_eq!(
-                tx_opt.as_ref().unwrap().transaction_ref(),
-                written_blocks[i].verified_block_header.transaction_ref()
-            );
-        }
+        assert_eq!(
+            tx_opt.as_ref().unwrap().transaction_ref(),
+            written_blocks[i].verified_block_header.transaction_ref()
+        );
     }
 
     // Test reading subset of transactions
@@ -452,7 +367,7 @@ async fn read_and_contain_transactions(
 #[rstest]
 #[tokio::test]
 async fn read_and_scan_commits(
-    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
     let (context, _) = Context::new_for_test(4);
@@ -520,10 +435,7 @@ async fn read_and_scan_commits(
         ),
     ];
     store
-        .write(
-            WriteBatch::default().commits(written_commits.clone()),
-            context,
-        )
+        .write(WriteBatch::default().commits(written_commits.clone()))
         .unwrap();
 
     {
@@ -578,10 +490,9 @@ async fn read_and_scan_commits(
 #[rstest]
 #[tokio::test]
 async fn test_voting_block_headers_storage(
-    #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let context = test_store.context();
 
     // Create blocks with commit votes
     let voting_blocks: Vec<VerifiedBlock> = vec![
@@ -610,7 +521,7 @@ async fn test_voting_block_headers_storage(
     // Write to voting storage using WriteBatch
     let write_batch = WriteBatch::default().voting_block_headers(voting_headers.clone());
     store
-        .write(write_batch, context)
+        .write(write_batch)
         .expect("Write voting block headers should not fail");
 
     // Read back
@@ -657,10 +568,9 @@ async fn test_voting_block_headers_storage(
 #[rstest]
 #[tokio::test]
 async fn test_read_highest_commit_index_with_votes(
-    #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let context = test_store.context();
 
     // Create blocks voting on commits at indexes 1, 2, 5, 10 (with gaps at 3, 4,
     // 6-9)
@@ -696,7 +606,6 @@ async fn test_read_highest_commit_index_with_votes(
                     .map(|b| b.verified_block_header.clone())
                     .collect(),
             ),
-            context,
         )
         .expect("Write should not fail");
 
@@ -759,7 +668,7 @@ async fn test_read_highest_commit_index_with_votes(
 #[rstest]
 #[tokio::test]
 async fn scan_misbehavior_counts(
-    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     use std::collections::BTreeMap;
 
@@ -790,10 +699,7 @@ async fn scan_misbehavior_counts(
     .into_iter()
     .collect();
     store
-        .write(
-            WriteBatch::default().misbehavior_counts(metrics_to_write.clone()),
-            test_store.context(),
-        )
+        .write(WriteBatch::default().misbehavior_counts(metrics_to_write.clone()))
         .unwrap();
 
     let scanned = store
@@ -806,10 +712,7 @@ async fn scan_misbehavior_counts(
         .into_iter()
         .collect();
     store
-        .write(
-            WriteBatch::default().misbehavior_counts(overwrite),
-            test_store.context(),
-        )
+        .write(WriteBatch::default().misbehavior_counts(overwrite))
         .unwrap();
 
     let scanned = store

@@ -27,7 +27,7 @@ async fn test_profiler() {
     // HINT: if the test is flaky, update this tx_digest to a more recent one.
     // Just pick a random transaction from a recent checkpoint, involving shared
     // objects, or simply run "update_profiler_tx.sh" script.
-    let tx_digest = "BKUBrYxQsatsPFj9z9fNFaChYkLX6rCFoSpPxnVh7ESr".to_string();
+    let tx_digest = "Gy4C8t2GXEype8GpyQvGbjs52MwNjFEen6NjfECwJ5t8".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,

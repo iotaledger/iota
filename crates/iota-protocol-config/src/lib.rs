@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 29;
+pub const MAX_PROTOCOL_VERSION: u64 = 30;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -166,6 +166,13 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+// Version 30: Extend the protocol_config framework module with a generic
+//             `get_attr<T>` native that lets Move code read any numeric or
+//             boolean protocol parameter by name, returning T directly and
+//             aborting on error.
+//             Expose `is_feature_enabled` and `get_attr<T>` natives to the
+//             iota_system package via a new iota_system::protocol_config
+//             module.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1400,6 +1407,10 @@ pub struct ProtocolConfig {
     // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    /// Number of committed subdags between leader-schedule recomputations.
+    /// When unset, defaults to 300.
+    consensus_commits_per_schedule: Option<u32>,
 }
 
 // feature flags
@@ -1546,19 +1557,11 @@ impl ProtocolConfig {
     }
 
     pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            2 * committee_size
-        } else {
-            self.consensus_max_acknowledgments_per_block_or_default() as usize
-        }
+        2 * committee_size
     }
 
     pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            committee_size
-        } else {
-            100
-        }
+        committee_size
     }
 
     pub fn variant_nodes(&self) -> bool {
@@ -1789,6 +1792,15 @@ impl ProtocolConfig {
 
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn commits_per_schedule(&self) -> u32 {
+        if cfg!(msim) {
+            // Exercise faster leader-schedule rotation in simtests.
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300))
+        } else {
+            self.consensus_commits_per_schedule.unwrap_or(300)
+        }
     }
 }
 
@@ -2390,6 +2402,7 @@ impl ProtocolConfig {
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
+            consensus_commits_per_schedule: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2942,6 +2955,15 @@ impl ProtocolConfig {
                     // manager.
                     cfg.feature_flags.consensus_block_restrictions = true;
                 }
+                30 => {
+                    // Extend the protocol_config framework module with
+                    // `get_attr<T>`, a generic native that lets Move code
+                    // read any numeric or boolean protocol parameter by name,
+                    // returning T directly and aborting on error.
+                    // Also expose `is_feature_enabled` and `get_attr<T>` to
+                    // iota_system via a new iota_system::protocol_config
+                    // module.
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3191,6 +3213,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
+        self.consensus_commits_per_schedule = Some(val);
     }
 }
 

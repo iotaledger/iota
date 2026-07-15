@@ -2175,7 +2175,7 @@ impl IndexerReader {
         }
 
         let object: Object = stored_object.try_into()?;
-        let Some(move_object) = object.data.as_struct_opt().cloned() else {
+        let Some(move_object) = object.data.as_opt_struct().cloned() else {
             return Err(IndexerError::ResolveMoveStruct(
                 "Object is not a MoveObject".to_string(),
             ));
@@ -2233,7 +2233,7 @@ impl IndexerReader {
                         ))
                     })?;
 
-                let object_type = object.data.object_type().unwrap().clone();
+                let object_type = object.data.opt_object_type().unwrap().clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,

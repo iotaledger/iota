@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::gas::GasCostSummary;
+use iota_sdk_types::{gas::GasCostSummary, validator::ValidatorCommitteeMember};
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     committee::{EpochId, StakeUnit},
@@ -190,8 +190,14 @@ impl From<EndOfEpochDataSchema> for EndOfEpochData {
             epoch_supply_change,
         } = iota_data;
         EndOfEpochData {
-            next_epoch_committee: next_epoch_committee.into_iter().collect(),
-            next_epoch_protocol_version,
+            next_epoch_committee: next_epoch_committee
+                .into_iter()
+                .map(|(public_key, stake)| ValidatorCommitteeMember {
+                    public_key: public_key.into(),
+                    stake,
+                })
+                .collect(),
+            next_epoch_protocol_version: next_epoch_protocol_version.as_u64(),
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
             epoch_supply_change,
         }
@@ -207,8 +213,11 @@ impl From<EndOfEpochData> for EndOfEpochDataSchema {
             epoch_supply_change,
         } = data;
         EndOfEpochDataSchema {
-            next_epoch_committee: next_epoch_committee.into_iter().collect(),
-            next_epoch_protocol_version,
+            next_epoch_committee: next_epoch_committee
+                .into_iter()
+                .map(|member| (member.public_key.into(), member.stake))
+                .collect(),
+            next_epoch_protocol_version: ProtocolVersion::new(next_epoch_protocol_version),
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
             epoch_supply_change,
         }
@@ -250,7 +259,9 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
     fn from(iota_commitment: CheckpointCommitmentSchema) -> Self {
         match iota_commitment {
             CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitment::ECMHLiveObjectSetDigest(digest)
+                CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: digest.digest,
+                }
             }
         }
     }
@@ -259,9 +270,12 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
 impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
     fn from(commitment: CheckpointCommitment) -> Self {
         match commitment {
-            CheckpointCommitment::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest)
+            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
+                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest {
+                    digest,
+                })
             }
+            _ => unimplemented!("a new CheckpointCommitment variant was added and must be handled"),
         }
     }
 }
@@ -336,5 +350,14 @@ impl From<CheckpointSequenceNumber> for CheckpointId {
 impl From<CheckpointDigest> for CheckpointId {
     fn from(digest: CheckpointDigest) -> Self {
         Self::Digest(digest)
+    }
+}
+
+impl std::fmt::Display for CheckpointId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CheckpointId::SequenceNumber(seq) => write!(f, "SequenceNumber({seq})"),
+            CheckpointId::Digest(digest) => write!(f, "Digest({digest})"),
+        }
     }
 }

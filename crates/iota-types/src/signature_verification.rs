@@ -12,7 +12,7 @@ use nonempty::NonEmpty;
 #[cfg(not(target_arch = "wasm32"))]
 use parking_lot::RwLock;
 #[cfg(not(target_arch = "wasm32"))]
-use prometheus::IntCounter;
+use prometheus_filtered::IntCounter;
 
 use crate::{
     error::{IotaError, IotaResult},

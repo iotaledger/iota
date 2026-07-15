@@ -51,7 +51,7 @@ impl ReadApi {
         match self.inner.get_checkpoint_with_fallback(id).await {
             Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
-                "Checkpoint {id:?} not found"
+                "Checkpoint {id} not found"
             ))),
             Err(e) => Err(e),
         }

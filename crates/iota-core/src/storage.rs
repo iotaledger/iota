@@ -294,9 +294,10 @@ impl WriteStore for RocksDbStore {
             ..
         }) = checkpoint.end_of_epoch_data.as_ref()
         {
-            let next_committee = next_epoch_committee.iter().cloned().collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                next_epoch_committee,
+            );
             self.try_insert_committee(committee)?;
         }
 
@@ -519,6 +520,16 @@ impl GrpcStateReader for GrpcReadStore {
         self.rocks
             .checkpoint_store
             .get_epoch_last_checkpoint(epoch_id)
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
+    fn get_epoch_info(
+        &self,
+        epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::EpochInfoV2>> {
+        self.rocks
+            .checkpoint_store
+            .get_epoch_info(epoch)
             .map_err(iota_types::storage::error::Error::custom)
     }
 

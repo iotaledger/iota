@@ -34,6 +34,7 @@ use crate::{
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     parse_iota_struct_tag,
     signature::GenericSignature,
@@ -137,7 +138,7 @@ impl ObjectType {
 impl From<&Object> for ObjectType {
     fn from(o: &Object) -> Self {
         o.data
-            .object_type()
+            .opt_object_type()
             .map(|t| ObjectType::Struct(t.clone()))
             .unwrap_or(ObjectType::Package)
     }
@@ -257,7 +258,9 @@ impl TryFrom<&GenericSignature> for Address {
                 })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(Address::from(s.public_key())),
-            GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
+            GenericSignature::MoveAuthenticator(move_authenticator) => {
+                Ok(move_authenticator.address())
+            }
         }
     }
 }

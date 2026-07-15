@@ -34,11 +34,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -63,7 +59,6 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -119,11 +114,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -141,7 +132,6 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -176,9 +166,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         sender,
         49999, // We need 50000
     );
-    authority_state
-        .insert_genesis_object(gas_object.clone())
-        .await;
+    authority_state.insert_genesis_object(gas_object.clone());
 
     const N: usize = 10;
     let mut builder = ProgrammableTransactionBuilder::new();

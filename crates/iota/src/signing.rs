@@ -9,13 +9,13 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, TypeTag, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag, crypto::Intent};
 use iota_types::{
     base_types::SequenceNumber,
     crypto::Signature,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::MoveAuthenticatorV1,
     signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use serde::Serialize;
 
@@ -89,15 +89,16 @@ pub(crate) async fn sign_transaction(
                 get_shared_object_version(&iota_client, signer_address).await?;
 
             Ok(GenericSignature::MoveAuthenticator(
-                MoveAuthenticator::new_v1(
+                MoveAuthenticatorV1::new_with_shared_account_object(
                     auth_call_args,
                     auth_type_args,
-                    CallArg::Shared(SharedObjectRef::new(
-                        ObjectId::from(*signer_address),
+                    SharedObjectReference::new(
+                        (*signer_address).into(),
                         initial_shared_version,
                         false,
-                    )),
-                ),
+                    ),
+                )
+                .into(),
             ))
         }
         StoredKey::KeyPair(_) => {

@@ -17,7 +17,6 @@ use iota_types::{
     digests::TransactionDigest,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
-    iota_system_state::IotaSystemStateTrait,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     move_package::MovePackageExt,
     object::Object,
@@ -27,12 +26,14 @@ use iota_types::{
         TransactionInfo, error::Error as StorageError,
     },
 };
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    rocks::{
+        DBMap, DBMapTableConfigMap, MetricConf, bulk_ingestion_options,
+        bulk_ingestion_write_options,
+    },
     traits::Map,
 };
 
@@ -56,10 +57,16 @@ struct MetadataInfo {
     version: u64,
 }
 
-/// Checkpoint watermark type
+/// Watermark type for the gRPC indexes store.
+///
+/// The variants are keys into the shared `watermark` column family
+/// (`DBMap<Watermark, CheckpointSequenceNumber>`), each storing a checkpoint
+/// sequence number.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Watermark {
+    /// Highest checkpoint sequence number indexed.
     Indexed,
+    /// Highest checkpoint sequence number pruned.
     Pruned,
 }
 
@@ -338,12 +345,12 @@ struct IndexStoreTables {
     /// enabled again so that the tables can be reinitialized.
     watermark: DBMap<Watermark, CheckpointSequenceNumber>,
 
-    /// An index of extra metadata for Epochs.
-    ///
-    /// Only contains entries for epochs which have yet to be pruned from the
-    /// main database.
-    // TODO: https://github.com/iotaledger/iota/issues/10957
-    epochs: DBMap<EpochId, EpochInfo>,
+    /// Deprecated: per-epoch metadata moved to the CheckpointStore's
+    /// `epoch_info` table. Active on released gRPC nodes, so it is dropped on
+    /// open here; not migrated.
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    epochs: Option<DBMap<EpochId, EpochInfo>>,
 
     /// Maps transaction digests to the checkpoint that contains them.
     ///
@@ -398,21 +405,26 @@ impl IndexStoreTables {
     fn open_with_options<P: Into<PathBuf>>(
         path: P,
         options: typed_store::rocksdb::Options,
+        table_options: Option<DBMapTableConfigMap>,
     ) -> Self {
         IndexStoreTables::open_tables_read_write(
             path.into(),
             MetricConf::new("grpc-index"),
             Some(options),
-            None,
+            table_options,
         )
     }
 
     fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
-        (match self.meta.get(&()) {
+        // Schema mismatch (or unreadable meta) -> migration may be pending
+        // and the watermark CF may be from an incompatible schema.
+        let schema_mismatch = match self.meta.get(&()) {
             Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
             Ok(None) => true,
             Err(_) => true,
-        }) || self.is_indexed_watermark_out_of_date(checkpoint_store)
+        };
+
+        schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)
     }
 
     // Check if the index watermark is behind the highest_executed_checkpoint.
@@ -425,76 +437,107 @@ impl IndexStoreTables {
         watermark < highest_executed_checkpoint
     }
 
+    /// Range of checkpoints that transaction-digest indexing can cover.
+    /// Returns `None` when there is nothing to do (no executed checkpoints,
+    /// or the lower bound has overtaken the upper).
+    fn transaction_index_range(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
+    ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
+        let lowest = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .map(|c| c.saturating_add(1))
+            .unwrap_or(0);
+        Ok(highest_executed_checkpoint
+            .and_then(|highest| (lowest <= highest).then_some(lowest..=highest)))
+    }
+
+    /// See [`GrpcIndexesStore::live_object_restorer`].
+    fn live_object_restorer(&self, batch_size_limit: usize) -> GrpcLiveObjectRestorer<'_> {
+        GrpcLiveObjectRestorer {
+            tables: self,
+            coin_index: Mutex::new(HashMap::new()),
+            batch_size_limit,
+        }
+    }
+
+    /// Phase 2 of `init`: rebuild the live-state indexes by scanning the
+    /// current live object set in parallel. Must re-run on any drift to keep
+    /// them consistent.
+    fn index_live_object_set(
+        &self,
+        authority_store: &AuthorityStore,
+        batch_size_limit: usize,
+    ) -> Result<(), StorageError> {
+        let restorer = self.live_object_restorer(batch_size_limit);
+        crate::par_index_live_object_set::par_index_live_object_set(authority_store, &restorer)?;
+        restorer.finish()?;
+        Ok(())
+    }
+
+    /// Runs only when `needs_to_do_initialization` is true (fresh DB, schema
+    /// mismatch, crashed mid-init, or the index watermark falling behind
+    /// `highest_executed_checkpoint`).
+    /// The on-disk DB needs to be wiped before this is called, so `init` always
+    /// starts from an empty store.
     #[tracing::instrument(skip_all)]
     fn init(
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
+        batch_size_limit: usize,
     ) -> Result<(), StorageError> {
         info!("Initializing gRPC indexes");
 
         let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
-        let lowest_available_checkpoint = checkpoint_store
-            .get_highest_pruned_checkpoint_seq_number()?
-            .map(|c| c.saturating_add(1))
-            .unwrap_or(0);
-        let lowest_available_checkpoint_objects = authority_store
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()?
-            .map(|c| c.saturating_add(1))
-            .unwrap_or(0);
 
-        // Doing backfill requires processing objects so we have to restrict our
-        // backfill range to the range of checkpoints that we have objects for.
-        let lowest_available_checkpoint =
-            lowest_available_checkpoint.max(lowest_available_checkpoint_objects);
+        // Phase 1 — history-derived indexes. Transactions need only
+        // `CheckpointContents`, so they span `transaction_index_range`
+        // (checkpoint-store pruning).
+        let tx_range =
+            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
 
-        let checkpoint_range = highest_executed_checkpoint.map(|highest_executed_checkpoint| {
-            lowest_available_checkpoint..=highest_executed_checkpoint
-        });
-
-        if let Some(checkpoint_range) = checkpoint_range {
-            self.index_existing_transactions(authority_store, checkpoint_store, checkpoint_range)?;
+        // `tx_range` is `None` only when no checkpoints have ever been executed
+        // on this node, so skipping phase-1 indexing entirely is correct.
+        if let Some(range) = tx_range {
+            self.index_historical_checkpoints(checkpoint_store, range)?;
         }
 
-        self.initialize_current_epoch(authority_store, checkpoint_store)?;
+        // Phase 2 — live-state indexes from the current live object set.
+        self.index_live_object_set(authority_store, batch_size_limit)?;
 
-        let coin_index = Mutex::new(HashMap::new());
-
-        let make_live_object_indexer = GrpcParLiveObjectSetIndexer {
-            tables: self,
-            coin_index: &coin_index,
-        };
-
-        crate::par_index_live_object_set::par_index_live_object_set(
-            authority_store,
-            &make_live_object_indexer,
-        )?;
-
-        self.coin.multi_insert(coin_index.into_inner().unwrap())?;
-
-        self.watermark.insert(
-            &Watermark::Indexed,
-            &highest_executed_checkpoint.unwrap_or(0),
-        )?;
-
-        self.meta.insert(
-            &(),
-            &MetadataInfo {
-                version: CURRENT_DB_VERSION,
-            },
-        )?;
+        self.finalize(highest_executed_checkpoint.unwrap_or(0))?;
 
         info!("Finished initializing gRPC indexes");
 
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, authority_store, checkpoint_store))]
-    fn index_existing_transactions(
-        &mut self,
-        authority_store: &AuthorityStore,
+    /// Mark the store fully initialized: set `Watermark::Indexed` to
+    /// `indexed_checkpoint` and write `meta` last, so a crash before the
+    /// `meta` write leaves a store the next `new` call wipes and re-inits.
+    /// The final step of both `init` and a formal-snapshot restore.
+    fn finalize(
+        &self,
+        indexed_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<(), TypedStoreError> {
+        self.watermark
+            .insert(&Watermark::Indexed, &indexed_checkpoint)?;
+        self.meta.insert(
+            &(),
+            &MetadataInfo {
+                version: CURRENT_DB_VERSION,
+            },
+        )
+    }
+
+    /// Index transaction digests by replaying the `CheckpointContents` of
+    /// every checkpoint in `checkpoint_range` in order.
+    #[tracing::instrument(skip(self, checkpoint_store))]
+    fn index_historical_checkpoints(
+        &self,
         checkpoint_store: &CheckpointStore,
         checkpoint_range: std::ops::RangeInclusive<u64>,
     ) -> Result<(), StorageError> {
@@ -504,17 +547,28 @@ impl IndexStoreTables {
         );
         let start_time = Instant::now();
 
-        checkpoint_range.into_par_iter().try_for_each(|seq| {
-            let checkpoint_data =
-                sparse_checkpoint_data_for_backfill(authority_store, checkpoint_store, seq)?;
+        for checkpoint_sequence_number in checkpoint_range {
+            let summary = checkpoint_store
+                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!(
+                        "missing checkpoint {checkpoint_sequence_number}"
+                    ))
+                })?;
+            let contents = checkpoint_store
+                .get_checkpoint_contents(&summary.content_digest)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!(
+                        "missing checkpoint {checkpoint_sequence_number}"
+                    ))
+                })?;
 
             let mut batch = self.transaction_checkpoints.batch();
-
-            self.index_epoch(&checkpoint_data, &mut batch)?;
-            self.index_transactions(&checkpoint_data, &mut batch)?;
-
-            batch.write().map_err(StorageError::from)
-        })?;
+            self.index_transactions(checkpoint_sequence_number, &contents, &mut batch)?;
+            batch
+                .write_opt(&bulk_ingestion_write_options())
+                .map_err(StorageError::from)?;
+        }
 
         info!(
             "Indexing checkpoints took {} seconds",
@@ -556,8 +610,11 @@ impl IndexStoreTables {
 
         let mut batch = self.transaction_checkpoints.batch();
 
-        self.index_epoch(checkpoint, &mut batch)?;
-        self.index_transactions(checkpoint, &mut batch)?;
+        self.index_transactions(
+            checkpoint.checkpoint_summary.sequence_number,
+            &checkpoint.checkpoint_contents,
+            &mut batch,
+        )?;
         self.index_objects(checkpoint, &mut batch)?;
 
         batch.insert_batch(
@@ -576,145 +633,18 @@ impl IndexStoreTables {
         Ok(batch)
     }
 
-    fn index_epoch(
-        &self,
-        checkpoint: &CheckpointData,
-        batch: &mut typed_store::rocks::DBBatch,
-    ) -> Result<(), StorageError> {
-        let Some(epoch_info) = checkpoint.epoch_info()? else {
-            return Ok(());
-        };
-
-        // We need to handle closing the previous epoch by updating the entry for it, if
-        // it exists.
-        if epoch_info.epoch > 0 {
-            let prev_epoch = epoch_info.epoch - 1;
-
-            if let Some(mut previous_epoch) = self.epochs.get(&prev_epoch)? {
-                previous_epoch.end_timestamp_ms = Some(epoch_info.start_timestamp_ms);
-                previous_epoch.end_checkpoint = Some(epoch_info.start_checkpoint - 1);
-                batch.insert_batch(&self.epochs, [(prev_epoch, previous_epoch)])?;
-            }
-        }
-
-        // Insert the current epoch info
-        batch.insert_batch(&self.epochs, [(epoch_info.epoch, epoch_info)])?;
-
-        Ok(())
-    }
-
-    // After attempting to reindex past epochs, ensure that the current epoch is at
-    // least partially initialized
-    fn initialize_current_epoch(
-        &mut self,
-        authority_store: &AuthorityStore,
-        checkpoint_store: &CheckpointStore,
-    ) -> Result<(), StorageError> {
-        let Some(checkpoint) = checkpoint_store.get_highest_executed_checkpoint()? else {
-            return Ok(());
-        };
-
-        if self.epochs.get(&checkpoint.epoch)?.is_some() {
-            // no need to initialize if it already exists
-            return Ok(());
-        }
-
-        let system_state = iota_types::iota_system_state::get_iota_system_state(authority_store)
-            .map_err(|e| StorageError::custom(format!("Failed to find system state: {e}")))?;
-
-        // Determine the start checkpoint of the current epoch
-        let start_checkpoint = if checkpoint.epoch != 0 {
-            let previous_epoch = checkpoint.epoch - 1;
-
-            // Find the last checkpoint of the previous epoch
-            if let Some(previous_epoch_info) = self.epochs.get(&previous_epoch)? {
-                if let Some(end_checkpoint) = previous_epoch_info.end_checkpoint {
-                    end_checkpoint + 1
-                } else {
-                    // Fall back to scanning checkpoints if the end_checkpoint is None
-                    self.scan_for_epoch_start_checkpoint(
-                        checkpoint_store,
-                        checkpoint.sequence_number,
-                        previous_epoch,
-                    )?
-                }
-            } else {
-                // Fall back to scanning checkpoints if the previous epoch info is missing
-                self.scan_for_epoch_start_checkpoint(
-                    checkpoint_store,
-                    checkpoint.sequence_number,
-                    previous_epoch,
-                )?
-            }
-        } else {
-            // First epoch starts at checkpoint 0
-            0
-        };
-
-        let epoch_info = EpochInfo {
-            epoch: checkpoint.epoch,
-            protocol_version: system_state.protocol_version(),
-            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
-            end_timestamp_ms: None,
-            start_checkpoint,
-            end_checkpoint: None,
-            reference_gas_price: system_state.reference_gas_price(),
-            system_state,
-        };
-
-        self.epochs.insert(&epoch_info.epoch, &epoch_info)?;
-
-        Ok(())
-    }
-
-    fn scan_for_epoch_start_checkpoint(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        current_checkpoint_seq_number: u64,
-        previous_epoch: EpochId,
-    ) -> Result<u64, StorageError> {
-        // Scan from current checkpoint backwards to 0 to find the start of this epoch.
-        let mut last_checkpoint_seq_number_of_prev_epoch = None;
-        for seq in (0..=current_checkpoint_seq_number).rev() {
-            let Some(chkpt) = checkpoint_store
-                .get_checkpoint_by_sequence_number(seq)
-                .ok()
-                .flatten()
-            else {
-                // continue if there is a gap in the checkpoints
-                continue;
-            };
-
-            if chkpt.epoch < previous_epoch {
-                // we must stop searching if we are past the previous epoch
-                break;
-            }
-
-            if chkpt.epoch == previous_epoch && chkpt.end_of_epoch_data.is_some() {
-                // We found the checkpoint with end of epoch data for the previous epoch
-                last_checkpoint_seq_number_of_prev_epoch = Some(chkpt.sequence_number);
-                break;
-            }
-        }
-
-        let last_checkpoint_seq_number_of_prev_epoch = last_checkpoint_seq_number_of_prev_epoch
-            .ok_or(StorageError::custom(format!(
-                "Failed to get the last checkpoint of the previous epoch {previous_epoch}",
-            )))?;
-
-        Ok(last_checkpoint_seq_number_of_prev_epoch + 1)
-    }
-
     fn index_transactions(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint_seq_number: CheckpointSequenceNumber,
+        contents: &CheckpointContents,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
-        let seq = checkpoint.checkpoint_summary.sequence_number;
-        for tx in &checkpoint.transactions {
-            let digest = tx.transaction.digest();
-            batch.insert_batch(&self.transaction_checkpoints, [(digest, seq)])?;
-        }
+        batch.insert_batch(
+            &self.transaction_checkpoints,
+            contents
+                .iter()
+                .map(|d| (d.transaction, checkpoint_seq_number)),
+        )?;
 
         Ok(())
     }
@@ -835,10 +765,6 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
-        self.epochs.get(&epoch)
-    }
-
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -888,11 +814,9 @@ impl IndexStoreTables {
         cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
-        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectId::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectId::MAX);
         let iter = self
             .dynamic_field
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
+            .safe_iter_with_prefix_from(&parent, &cursor.unwrap_or(ObjectId::ZERO))
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -912,17 +836,9 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        let lower_bound = PackageVersionKey {
-            original_package_id,
-            version: cursor.unwrap_or(0),
-        };
-        let upper_bound = PackageVersionKey {
-            original_package_id,
-            version: u64::MAX,
-        };
         Ok(self
             .package_version
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
+            .safe_iter_with_prefix_from(&original_package_id, &cursor.unwrap_or(0)))
     }
 }
 
@@ -943,22 +859,44 @@ impl GrpcIndexesStore {
             // If the index tables are uninitialized or on an older version then we need to
             // populate them
             if tables.needs_to_do_initialization(checkpoint_store) {
+                let batch_size_limit;
                 let mut tables = {
                     drop(tables);
                     typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
                         .await
                         .expect("unable to destroy old gRPC index db");
 
-                    // Open the empty DB with `unordered_write`s enabled in order to get a ~3x
-                    // speedup when indexing
-                    let mut options = typed_store::rocksdb::Options::default();
-                    options.set_unordered_write(true);
-                    IndexStoreTables::open_with_options(&path, options)
+                    // Open the empty DB with tuned bulk ingestion options to
+                    // speed up the initial indexing. The DB is reopened with default options
+                    // afterwards.
+                    let bulk_options = bulk_ingestion_options();
+                    batch_size_limit = bulk_options.batch_size_limit;
+
+                    // Apply the per-column-family bulk options to every table.
+                    let mut table_config = BTreeMap::new();
+                    for table_name in IndexStoreTables::describe_tables().into_keys() {
+                        table_config.insert(table_name, bulk_options.column_family_options.clone());
+                    }
+
+                    IndexStoreTables::open_with_options(
+                        &path,
+                        bulk_options.db_options,
+                        Some(DBMapTableConfigMap::new(table_config)),
+                    )
                 };
 
                 tables
-                    .init(&authority_store, checkpoint_store)
+                    .init(&authority_store, checkpoint_store, batch_size_limit)
                     .expect("unable to initialize gRPC index");
+
+                // Flush all data to disk before dropping tables. This is critical because
+                // WAL is disabled for the bulk writes during initialization. Flushing any
+                // table flushes every column family of the shared underlying database, so
+                // one call covers all tables.
+                tables
+                    .meta
+                    .flush_all()
+                    .expect("gRPC index DB should be flushable after bulk ingestion");
 
                 let weak_db = Arc::downgrade(&tables.meta.db);
                 drop(tables);
@@ -975,7 +913,22 @@ impl GrpcIndexesStore {
                 }
 
                 // Reopen the DB with default options (eg without `unordered_write`s enabled)
-                IndexStoreTables::open(&path)
+                let reopened_tables = IndexStoreTables::open(&path);
+
+                // Sanity check: verify the database version was persisted correctly, i.e.
+                // the WAL-disabled bulk writes were flushed before the reopen.
+                let stored_version = reopened_tables
+                    .meta
+                    .get(&())
+                    .expect("reopened gRPC index DB should expose readable metadata")
+                    .expect("metadata should have been written before flush and reopen");
+                assert_eq!(
+                    stored_version.version, CURRENT_DB_VERSION,
+                    "database version mismatch after flush and reopen: expected {}, found {}",
+                    CURRENT_DB_VERSION, stored_version.version
+                );
+
+                reopened_tables
             } else {
                 tables
             }
@@ -989,6 +942,8 @@ impl GrpcIndexesStore {
         }
     }
 
+    /// Open the store without the wipe/init logic of [`Self::new`] — for the
+    /// restore tool, which populates and finalizes the store itself.
     pub fn new_without_init(path: PathBuf) -> Self {
         let tables = Arc::new(IndexStoreTables::open(path));
 
@@ -1051,10 +1006,6 @@ impl GrpcIndexesStore {
         Ok(batch.write()?)
     }
 
-    pub fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
-        self.tables.get_epoch_info(epoch)
-    }
-
     pub fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -1098,6 +1049,28 @@ impl GrpcIndexesStore {
         self.tables
             .package_versions_iter(original_package_id, cursor)
     }
+
+    /// Restorer that builds the live-state indexes (owner, coin, dynamic
+    /// field, package version) from a stream of live objects. A
+    /// formal-snapshot restore feeds it the downloaded partitions; `init`
+    /// uses the same machinery fed by a scan of the local store.
+    pub fn live_object_restorer(&self, batch_size_limit: usize) -> GrpcLiveObjectRestorer<'_> {
+        self.tables.live_object_restorer(batch_size_limit)
+    }
+
+    /// Mark a restore-built store fully initialized (the same final step as
+    /// `init`), so the node's `GrpcIndexesStore::new` opens it in place
+    /// instead of wiping and re-indexing. `restore_checkpoint` is the
+    /// restore's highest executed checkpoint.
+    ///
+    /// Callers must have restored the complete live-state indexes first,
+    /// through [`Self::live_object_restorer`].
+    pub fn finalize_restore(
+        &self,
+        restore_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<(), TypedStoreError> {
+        self.tables.finalize(restore_checkpoint)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1105,15 +1078,6 @@ impl GrpcIndexesStore {
 // ---------------------------------------------------------------------------
 
 impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
-    fn get_epoch_info(
-        &self,
-        epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
-        self.tables
-            .get_epoch_info(epoch)
-            .map_err(|e| StorageError::custom(e.to_string()))
-    }
-
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -1202,7 +1166,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 fn should_index_dynamic_field(object: &Object) -> bool {
     object
         .data
-        .as_struct_opt()
+        .as_opt_struct()
         .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
@@ -1252,7 +1216,7 @@ fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, Obje
 fn try_create_package_version_info(
     object: &Object,
 ) -> Option<(PackageVersionKey, PackageVersionInfo)> {
-    let package = object.data.as_package_opt()?;
+    let package = object.data.as_opt_package()?;
     Some((
         PackageVersionKey {
             original_package_id: package.original_package_id(),
@@ -1268,27 +1232,83 @@ fn try_create_package_version_info(
 // Live object set indexer
 // ---------------------------------------------------------------------------
 
-struct GrpcParLiveObjectSetIndexer<'a> {
+/// Builds the live-state indexes from a stream of live objects: `init`'s
+/// `index_live_object_set` feeds it a parallel scan of the local store, and a
+/// formal-snapshot restore feeds it the downloaded partitions.
+///
+/// Partitions may be indexed concurrently via [`Self::begin_partition`]; call
+/// [`Self::finish`] once after all partitions to flush the cross-partition
+/// coin aggregation (a restore then ends with
+/// [`GrpcIndexesStore::finalize_restore`]).
+pub struct GrpcLiveObjectRestorer<'a> {
     tables: &'a IndexStoreTables,
-    coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    coin_index: Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    batch_size_limit: usize,
+}
+
+impl GrpcLiveObjectRestorer<'_> {
+    /// Indexer for one partition's slice of the object stream; feed it every
+    /// object of the partition, then call [`GrpcPartitionIndexer::finish`].
+    pub fn begin_partition(&self) -> GrpcPartitionIndexer<'_> {
+        GrpcPartitionIndexer(self.live_object_indexer())
+    }
+
+    fn live_object_indexer(&self) -> GrpcLiveObjectIndexer<'_> {
+        GrpcLiveObjectIndexer {
+            tables: self.tables,
+            batch: self.tables.owner.batch(),
+            coin_index: &self.coin_index,
+            batch_size_limit: self.batch_size_limit,
+        }
+    }
+
+    /// Flush the coin index aggregated across all partitions.
+    pub fn finish(&self) -> Result<(), TypedStoreError> {
+        let coin_index = std::mem::take(&mut *self.coin_index.lock().unwrap());
+        self.tables.coin.multi_insert(coin_index)
+    }
+}
+
+impl ParMakeLiveObjectIndexer for GrpcLiveObjectRestorer<'_> {
+    type ObjectIndexer<'a>
+        = GrpcPartitionIndexer<'a>
+    where
+        Self: 'a;
+
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
+        self.begin_partition()
+    }
+}
+
+/// One partition's indexer within a [`GrpcLiveObjectRestorer`] run.
+pub struct GrpcPartitionIndexer<'a>(GrpcLiveObjectIndexer<'a>);
+
+impl GrpcPartitionIndexer<'_> {
+    pub fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        self.0.index_object(object)
+    }
+
+    /// Write out this partition's staged index batch.
+    pub fn finish(self) -> Result<(), StorageError> {
+        self.0.finish()
+    }
+}
+
+impl LiveObjectIndexer for GrpcPartitionIndexer<'_> {
+    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        GrpcPartitionIndexer::index_object(self, object)
+    }
+
+    fn finish(self) -> Result<(), StorageError> {
+        GrpcPartitionIndexer::finish(self)
+    }
 }
 
 struct GrpcLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
-}
-
-impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
-    type ObjectIndexer = GrpcLiveObjectIndexer<'a>;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
-        GrpcLiveObjectIndexer {
-            tables: self.tables,
-            batch: self.tables.owner.batch(),
-            coin_index: self.coin_index,
-        }
-    }
+    batch_size_limit: usize,
 }
 
 impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
@@ -1335,79 +1355,175 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
             );
         }
 
-        // If the batch size grows to greater that 128MB then write out to the DB so
-        // that the data we need to hold in memory doesn't grown unbounded.
-        if self.batch.size_in_bytes() >= 1 << 27 {
-            std::mem::replace(&mut self.batch, self.tables.owner.batch()).write()?;
+        // If the batch size grows beyond the limit then write out to the DB so
+        // that the data we need to hold in memory doesn't grow unbounded.
+        if self.batch.size_in_bytes() >= self.batch_size_limit {
+            std::mem::replace(&mut self.batch, self.tables.owner.batch())
+                .write_opt(&bulk_ingestion_write_options())?;
         }
 
         Ok(())
     }
 
     fn finish(self) -> Result<(), StorageError> {
-        self.batch.write()?;
+        self.batch.write_opt(&bulk_ingestion_write_options())?;
         Ok(())
     }
 }
 
-// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::GasCostSummary;
+    use iota_types::{
+        crypto::AuthorityStrongQuorumSignInfo,
+        iota_system_state::IotaSystemState,
+        message_envelope::Envelope,
+        messages_checkpoint::{CheckpointSummary, VerifiedCheckpoint},
+    };
+    use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
 
-// Load a CheckpointData struct without event data
-fn sparse_checkpoint_data_for_backfill(
-    authority_store: &AuthorityStore,
-    checkpoint_store: &CheckpointStore,
-    checkpoint: u64,
-) -> Result<CheckpointData, StorageError> {
-    use iota_types::full_checkpoint_content::CheckpointTransaction;
+    use super::*;
 
-    let summary = checkpoint_store
-        .get_checkpoint_by_sequence_number(checkpoint)?
-        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
-    let contents = checkpoint_store
-        .get_checkpoint_contents(&summary.content_digest)?
-        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
-
-    let transaction_digests = contents
-        .iter()
-        .map(|execution_digests| execution_digests.transaction)
-        .collect::<Vec<_>>();
-    let transactions = authority_store
-        .multi_get_transaction_blocks(&transaction_digests)?
-        .into_iter()
-        .map(|maybe_transaction| {
-            maybe_transaction.ok_or_else(|| StorageError::custom("missing transaction"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let effects = authority_store
-        .multi_get_executed_effects(&transaction_digests)?
-        .into_iter()
-        .map(|maybe_effects| maybe_effects.ok_or_else(|| StorageError::custom("missing effects")))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let mut full_transactions = Vec::with_capacity(transactions.len());
-    for (tx, fx) in transactions.into_iter().zip(effects) {
-        let input_objects =
-            iota_types::storage::get_transaction_input_objects(authority_store, &fx)?;
-        let output_objects =
-            iota_types::storage::get_transaction_output_objects(authority_store, &fx)?;
-
-        let full_transaction = CheckpointTransaction {
-            transaction: tx.into(),
-            effects: fx,
-            events: None,
-            input_objects,
-            output_objects,
+    /// An executed (non-boundary) checkpoint for seeding a test
+    /// `CheckpointStore`, with a placeholder signature and no end-of-epoch
+    /// data.
+    fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
+        let summary = CheckpointSummary {
+            epoch,
+            sequence_number,
+            network_total_transactions: 0,
+            content_digest: Default::default(),
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+            end_of_epoch_data: None,
+            timestamp_ms: 0,
+            version_specific_data: Vec::new(),
+            checkpoint_commitments: Vec::new(),
         };
-
-        full_transactions.push(full_transaction);
+        let sig = AuthorityStrongQuorumSignInfo {
+            epoch,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        };
+        VerifiedCheckpoint::new_unchecked(Envelope::new_from_data_and_sig(summary, sig))
     }
 
-    let checkpoint_data = CheckpointData {
-        checkpoint_summary: summary.into(),
-        checkpoint_contents: contents,
-        transactions: full_transactions,
-    };
+    /// The live-object restorer must derive the same live-state indexes from
+    /// an external object stream that `init` derives from a store scan: an
+    /// address-owned object lands in the `owner` index, and the coin
+    /// aggregation only hits the `coin` table on the final cross-partition
+    /// `finish`.
+    #[tokio::test]
+    async fn live_object_restorer_builds_live_state_indexes() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
 
-    Ok(checkpoint_data)
+        let owner = Address::from_u16(42);
+        let object = Object::with_owner_for_testing(owner);
+        let object_id = object.id();
+
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        partition.index_object(object).unwrap();
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let owned: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(owned.len(), 1, "restored object must be owner-indexed");
+        assert_eq!(owned[0].0.object_id, object_id);
+    }
+
+    /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`
+    /// opens in place: `meta` is current and `Watermark::Indexed` matches the
+    /// restore checkpoint, so `needs_to_do_initialization` is false and the
+    /// restored contents survive. Without it, the store is wiped and
+    /// re-initialized.
+    #[tokio::test]
+    async fn finalize_restore_makes_initialization_unnecessary() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        let cp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
+
+        // The restore's highest executed checkpoint.
+        let restore_checkpoint = executed_checkpoint(0, 5);
+        checkpoint_store
+            .insert_verified_checkpoint(&restore_checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&restore_checkpoint)
+            .unwrap();
+
+        // Before finalize: no `meta`, so the store would be wiped + re-inited.
+        assert!(grpc.tables.needs_to_do_initialization(&checkpoint_store));
+
+        grpc.finalize_restore(5).unwrap();
+        assert!(
+            !grpc.tables.needs_to_do_initialization(&checkpoint_store),
+            "a finalized restore must open in place"
+        );
+
+        // A finalize behind the executed watermark still triggers re-init.
+        let newer = executed_checkpoint(0, 6);
+        checkpoint_store.insert_verified_checkpoint(&newer).unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&newer)
+            .unwrap();
+        assert!(
+            grpc.tables.needs_to_do_initialization(&checkpoint_store),
+            "a stale restore watermark must not suppress re-init"
+        );
+    }
+
+    /// On open, the released `epochs` column family is dropped without
+    /// migration and stays absent on reopen. (`epochs_v2` never shipped —
+    /// no such CF to drop.)
+    #[tokio::test]
+    async fn deprecated_epochs_cf_is_dropped_without_migration() {
+        let tmp_dir = iota_common::tempdir();
+        let db_dir = tmp_dir.path().to_path_buf();
+
+        // Open RocksDB with the released `epochs` CF on disk and write one row.
+        {
+            let opt_cfs: Vec<(&str, typed_store::rocksdb::Options)> =
+                vec![("epochs", typed_store::rocks::default_db_options().options)];
+            let db = open_cf_opts(&db_dir, None, MetricConf::default(), &opt_cfs)
+                .expect("open DB with the old CF");
+            let epochs = DBMap::<EpochId, EpochInfo>::reopen(
+                &db,
+                Some("epochs"),
+                &ReadWriteOptions::default(),
+                false,
+            )
+            .unwrap();
+            let old_info = EpochInfo {
+                epoch: 7,
+                protocol_version: 1,
+                start_timestamp_ms: 1_000_000,
+                end_timestamp_ms: Some(2_000_000),
+                start_checkpoint: 42,
+                end_checkpoint: Some(99),
+                reference_gas_price: 1_000,
+                system_state: IotaSystemState::for_testing(7, 1),
+            };
+            epochs.insert(&old_info.epoch, &old_info).unwrap();
+        }
+
+        // Open via the current schema: the deprecated CF must be dropped.
+        let tables = IndexStoreTables::open(db_dir.clone());
+        drop(tables);
+
+        let listed = typed_store::rocks::list_tables(db_dir.clone()).unwrap();
+        assert!(
+            !listed.contains(&"epochs".to_string()),
+            "the deprecated epochs CF should have been dropped; saw: {listed:?}"
+        );
+
+        // Reopening must not panic.
+        let _tables = IndexStoreTables::open(db_dir);
+    }
 }
