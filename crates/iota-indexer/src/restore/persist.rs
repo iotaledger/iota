@@ -22,6 +22,7 @@ use crate::{
         checkpoints::StoredChainIdentifier,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+        obj_indices::StoredObjectVersion,
         packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
@@ -35,6 +36,7 @@ struct ObjectDerivedData {
     hasher: Sha3_256,
     displays: BTreeMap<String, StoredDisplay>,
     packages: Vec<StoredPackage>,
+    object_versions: Vec<StoredObjectVersion>,
 }
 
 impl ObjectDerivedData {
@@ -47,6 +49,11 @@ impl ObjectDerivedData {
             self.packages
                 .push(IndexedPackage::new(package.clone(), checkpoint_sequence_number).into());
         }
+        self.object_versions.push(StoredObjectVersion {
+            object_id: object.id().as_bytes().to_vec(),
+            object_version: object.version().as_u64() as i64,
+            cp_sequence_number: checkpoint_sequence_number as i64,
+        })
     }
 }
 
@@ -105,6 +112,8 @@ impl Restore for PgIndexerStore {
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
         self.persist_packages(derived_data.packages).await?;
+        self.persist_object_versions(derived_data.object_versions)
+            .await?;
         Ok(())
     }
 }
