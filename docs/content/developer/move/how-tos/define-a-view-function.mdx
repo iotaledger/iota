@@ -7,7 +7,7 @@ tags:
 
 # Define a View Function
 
-This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that ranks player scores, a `menu`, and a generic, time-locked `vault`.
+This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that ranks player scores, an `auction`, and a generic, time-locked `vault`.
 
 ## Read State From a View
 
@@ -28,19 +28,19 @@ These examples come from the `leaderboard` module, which stores player scores in
 
 ## Return a Reference From a View
 
-A view may return an **immutable** reference; mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `menu` module keeps a list of regular dishes inline and stores special dishes as dynamic fields.
+A view may return an **immutable** reference; mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `auction` module keeps its bids inline and stores a per-bidder tally as dynamic fields.
 
-1. Define the menu and its dishes.
-```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L8-L28
+1. Define the auction and its bids.
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L15-L47
 ```
 2. Return an immutable reference into a field of the object received by reference.
-```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L49-L56
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L84-L91
 ```
 3. Return a reference to a value stored as a dynamic field.
-```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L64-L68
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L99-L103
 ```
 4. Return a tuple that mixes a value and a reference.
-```move file=<rootDir>/examples/move/view_functions/sources/menu.move#L70-L77
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L105-L112
 ```
 
 ## Write a Generic View
@@ -78,9 +78,9 @@ The complete `leaderboard` module:
 ```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move
 ```
 
-The complete `menu` module:
+The complete `auction` module:
 
-```move file=<rootDir>/examples/move/view_functions/sources/menu.move
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move
 ```
 
 The complete `vault` module:
