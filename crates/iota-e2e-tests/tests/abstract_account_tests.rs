@@ -20,9 +20,6 @@ use fastcrypto::{
     traits::Authenticator,
 };
 use iota_core::authority_client::validator::ValidatorAPI;
-use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -323,15 +320,17 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .execute_transaction_may_fail(tx)
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
 
     // Assert received a MoveAbort error
     assert!(
-        tx_result.status().is_err(),
+        !tx_result.as_v1().status.is_success(),
         "Expected TX2 certificate creation to fail due to conflict on receiving object"
     );
-    let error_string = format!("{:#?}", tx_result.status());
+    let error_string = format!("{:#?}", tx_result.as_v1().status);
     assert!(
         error_string.contains("abort"),
         "Expected MoveAbort error, got: {error_string}"
@@ -1631,14 +1630,9 @@ impl TestEnvironment {
         self.init_abstract_account_state(authenticate_fn_name).await;
 
         // Create an AbstractAccount (must succeed in this variant)
-        let (dry_run_res, transaction) = self.create_abstract_account_dry_run().await?;
+        let (effects, transaction) = self.create_abstract_account_dry_run().await?;
         self.aa_ref = Some(abstract_account_from_all_changed_objects(
-            &dry_run_res
-                .effects
-                .all_changed_objects()
-                .iter()
-                .map(|e| (e.0.reference, e.0.owner, e.1))
-                .collect::<Vec<(ObjectReference, Owner, WriteKind)>>(),
+            &effects.all_changed_objects(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -1860,7 +1854,7 @@ impl TestEnvironment {
     /// it does not alter the ledger.
     async fn create_abstract_account_dry_run(
         &self,
-    ) -> anyhow::Result<(DryRunTransactionBlockResponse, Transaction)> {
+    ) -> anyhow::Result<(TransactionEffects, Transaction)> {
         let (
             Some(owner),
             Some(authenticate_fn_name),
@@ -1885,14 +1879,19 @@ impl TestEnvironment {
             )
             .await?;
 
-        let dry_run_res = self
+        let sdk_tx: iota_sdk_types::Transaction =
+            bcs::from_bytes(&bcs::to_bytes(transaction.transaction_data())?)?;
+        let effects = self
             .test_cluster
-            .iota_client()
-            .read_api()
-            .dry_run_transaction_block(transaction.transaction_data().clone())
-            .await?;
+            .grpc_client()
+            .simulate_transaction(sdk_tx, false, None)
+            .await?
+            .into_inner()
+            .executed_transaction()?
+            .effects()?
+            .effects()?;
 
-        Ok((dry_run_res, transaction))
+        Ok((effects, transaction))
     }
 
     // -----------------------------------------------
@@ -2320,18 +2319,10 @@ impl TestEnvironment {
     }
 
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
-        let transaction_response = self.test_cluster.execute_transaction(tx).await;
-
-        // Check correctness
-        let IotaTransactionBlockResponse {
-            confirmed_local_execution,
-            errors,
-            ..
-        } = transaction_response;
-
-        // The transaction must be successful
-        assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty());
+        // `execute_transaction` already asserts a successful effects status (it
+        // wraps `execute_transaction_must_succeed`), so a successful return here
+        // means the transaction executed successfully.
+        self.test_cluster.execute_transaction(tx).await;
         Ok(())
     }
 

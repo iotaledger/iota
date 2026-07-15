@@ -9,15 +9,17 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt, future};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
+use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json_rpc_types::{
-    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
+use iota_sdk_types::{Address, Coin, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
     crypto::IotaKeyPair,
-    gas_coin::GasCoin,
+    effects::TransactionEffectsAPI,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use tokio::sync::RwLock;
@@ -27,6 +29,33 @@ use crate::{
     IotaClient, PagedFn,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
+
+/// Read mask for `execute_transaction`: everything `WalletContext`'s current
+/// consumers read off an executed transaction.
+const EXECUTE_TRANSACTION_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "transaction.digest",
+    "effects",
+    "events",
+    "object_changes",
+    "balance_changes",
+    "checkpoint",
+    "timestamp",
+);
+
+/// How long the server waits for a submitted transaction to land in a
+/// checkpoint before `execute_transaction` returns.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
+
+/// Which transport `WalletContext` uses for chain-touching operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WalletBackend {
+    /// Use the node's gRPC API. The default; requires the active environment
+    /// to have a `grpc` URL configured (chain-touching calls error otherwise).
+    #[default]
+    Grpc,
+    /// Use the node's JSON-RPC API.
+    JsonRpc,
+}
 
 /// Wallet for managing accounts, objects, and interact with client APIs.
 // Mainly used in the CLI and tests.
@@ -39,6 +68,7 @@ pub struct WalletContext {
     grpc_client: Arc<RwLock<Option<iota_grpc_client::Client>>>,
     max_concurrent_requests: Option<u64>,
     env_override: Option<String>,
+    backend: WalletBackend,
 }
 
 impl WalletContext {
@@ -77,10 +107,16 @@ impl WalletContext {
             grpc_client: Default::default(),
             max_concurrent_requests: None,
             env_override: None,
+            backend: WalletBackend::default(),
         };
         Ok(context)
     }
 
+    /// Set the request timeout for chain-touching calls.
+    ///
+    /// This currently only affects the JSON-RPC backend. The gRPC backend's
+    /// `iota_grpc_client::Client` does not yet expose a request-timeout setter,
+    /// so this value is ignored there until that lands upstream.
     pub fn with_request_timeout(mut self, request_timeout: std::time::Duration) -> Self {
         self.request_timeout = Some(request_timeout);
         self
@@ -93,6 +129,13 @@ impl WalletContext {
 
     pub fn with_env_override(mut self, env_override: String) -> Self {
         self.env_override = Some(env_override);
+        self
+    }
+
+    /// Force `WalletContext` to use the JSON-RPC backend instead of the
+    /// default gRPC one.
+    pub fn with_jsonrpc_backend(mut self) -> Self {
+        self.backend = WalletBackend::JsonRpc;
         self
     }
 
@@ -178,70 +221,124 @@ impl WalletContext {
         &self,
         object_id: ObjectId,
     ) -> Result<ObjectReference, anyhow::Error> {
-        let client = self.get_client().await?;
-        Ok(client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::new())
-            .await?
-            .into_object()?
-            .object_ref())
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .get_objects(
+                        &[(object_id, None)],
+                        Some(ReadMask::from(ObjectField::REFERENCE)),
+                    )
+                    .await?
+                    .into_inner();
+                let object = objects
+                    .first()
+                    .ok_or_else(|| anyhow!("object {object_id} not found"))?;
+                Ok(object.object_reference()?)
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                Ok(client
+                    .read_api()
+                    .get_object_with_options(object_id, IotaObjectDataOptions::new())
+                    .await?
+                    .into_object()?
+                    .object_ref())
+            }
+        }
     }
 
     /// Get all the gas objects (and conveniently, gas amounts) for the address.
     pub async fn gas_objects(
         &self,
         address: Address,
-    ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
-        let client = self.get_client().await?;
-
-        let values_objects = PagedFn::stream(async |cursor| {
-            client
-                .read_api()
-                .get_owned_objects(
-                    address,
-                    IotaObjectResponseQuery::new(
-                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                        Some(IotaObjectDataOptions::full_content()),
-                    ),
-                    cursor,
-                    None,
-                )
-                .await
-        })
-        .filter_map(|res| async {
-            match res {
-                Ok(res) => {
-                    if let Some(o) = res.data {
-                        match GasCoin::try_from(&o) {
-                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o))),
-                            Err(e) => Some(Err(anyhow!("{e}"))),
-                        }
-                    } else {
-                        None
-                    }
-                }
-                Err(e) => Some(Err(anyhow!("{e}"))),
+    ) -> Result<Vec<(u64, iota_sdk_types::Object)>, anyhow::Error> {
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .list_owned_objects(address, Some(StructTag::new_gas_coin()), None, None, None)
+                    .collect(None)
+                    .await?
+                    .into_inner();
+                objects
+                    .iter()
+                    .map(|o| {
+                        let object = o.object()?;
+                        let coin = Coin::try_from_object(&object).map_err(|e| anyhow!("{e}"))?;
+                        Ok((coin.balance(), object))
+                    })
+                    .collect()
             }
-        })
-        .try_collect::<Vec<_>>()
-        .await?;
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
 
-        Ok(values_objects)
+                let values_objects = PagedFn::stream(async |cursor| {
+                    client
+                        .read_api()
+                        .get_owned_objects(
+                            address,
+                            IotaObjectResponseQuery::new(
+                                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                                Some(IotaObjectDataOptions::full_content().with_bcs()),
+                            ),
+                            cursor,
+                            None,
+                        )
+                        .await
+                })
+                .filter_map(|res| async {
+                    match res {
+                        Ok(res) => res.data.map(|o| {
+                            let object =
+                                iota_sdk_types::Object::try_from(&o).map_err(|e| anyhow!("{e}"))?;
+                            let coin =
+                                Coin::try_from_object(&object).map_err(|e| anyhow!("{e}"))?;
+                            Ok((coin.balance(), object))
+                        }),
+                        Err(e) => Some(Err(anyhow!("{e}"))),
+                    }
+                })
+                .try_collect::<Vec<_>>()
+                .await?;
+
+                Ok(values_objects)
+            }
+        }
     }
 
     /// Get the address that owns the object of the provided [`ObjectId`].
     pub async fn get_object_owner(&self, id: &ObjectId) -> Result<Address, anyhow::Error> {
-        let client = self.get_client().await?;
-        let object = client
-            .read_api()
-            .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
-            .await?
-            .into_object()?;
-        Ok(*object
-            .owner
-            .ok_or_else(|| anyhow!("Owner field is None"))?
-            .address_or_object()
-            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .get_objects(&[(*id, None)], Some(ReadMask::from(ObjectField::BCS)))
+                    .await?
+                    .into_inner();
+                let object = objects
+                    .first()
+                    .ok_or_else(|| anyhow!("object {id} not found"))?
+                    .object()?;
+                Ok(*object
+                    .owner()
+                    .address_or_object()
+                    .ok_or_else(|| anyhow!("not an address or object owner"))?)
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let object = client
+                    .read_api()
+                    .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
+                    .await?
+                    .into_object()?;
+                Ok(*object
+                    .owner
+                    .ok_or_else(|| anyhow!("Owner field is None"))?
+                    .address_or_object()
+                    .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
+            }
+        }
     }
 
     /// Get the address that owns the object, if an [`ObjectId`] is provided.
@@ -284,9 +381,9 @@ impl WalletContext {
         address: Address,
         budget: u64,
         forbidden_gas_objects: BTreeSet<ObjectId>,
-    ) -> Result<(u64, IotaObjectData), anyhow::Error> {
+    ) -> Result<(u64, iota_sdk_types::Object), anyhow::Error> {
         for o in self.gas_objects(address).await? {
-            if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {
+            if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.id()) {
                 return Ok((o.0, o.1));
             }
         }
@@ -312,24 +409,41 @@ impl WalletContext {
         address: Address,
         limit: impl Into<Option<usize>>,
     ) -> anyhow::Result<Vec<ObjectReference>> {
-        let client = self.get_client().await?;
-        let results: Vec<_> = client
-            .read_api()
-            .get_owned_objects(
-                address,
-                IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
-                    Some(IotaObjectDataOptions::full_content()),
-                ),
-                None,
-                limit,
-            )
-            .await?
-            .data
-            .into_iter()
-            .filter_map(|r| r.data.map(|o| o.object_ref()))
-            .collect();
-        Ok(results)
+        let limit = limit.into();
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let objects = client
+                    .list_owned_objects(address, Some(StructTag::new_gas_coin()), None, None, None)
+                    .collect(limit.map(|l| l as u32))
+                    .await?
+                    .into_inner();
+                objects
+                    .iter()
+                    .map(|o| o.object_reference().map_err(|e| anyhow!("{e}")))
+                    .collect()
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let results: Vec<_> = client
+                    .read_api()
+                    .get_owned_objects(
+                        address,
+                        IotaObjectResponseQuery::new(
+                            Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
+                            Some(IotaObjectDataOptions::full_content()),
+                        ),
+                        None,
+                        limit,
+                    )
+                    .await?
+                    .data
+                    .into_iter()
+                    .filter_map(|r| r.data.map(|o| o.object_ref()))
+                    .collect();
+                Ok(results)
+            }
+        }
     }
 
     /// Given an address, return one gas object owned by this address.
@@ -383,9 +497,16 @@ impl WalletContext {
     }
 
     pub async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
-        let client = self.get_client().await?;
-        let gas_price = client.governance_api().get_reference_gas_price().await?;
-        Ok(gas_price)
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                Ok(client.get_reference_gas_price().await?.into_inner())
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                Ok(client.governance_api().get_reference_gas_price().await?)
+            }
+        }
     }
 
     /// Add an account.
@@ -404,43 +525,122 @@ impl WalletContext {
         Transaction::from_data(data.clone(), vec![sig])
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. Also expects the effects status to be
-    /// ExecutionStatus::Success.
-    pub async fn execute_transaction_must_succeed(
-        &self,
-        tx: Transaction,
-    ) -> IotaTransactionBlockResponse {
+    /// Execute a transaction, wait for the fullnode to observe it, and assert
+    /// the effects status is `ExecutionStatus::Success`. The gRPC backend waits
+    /// for the transaction to be included in a checkpoint; the JSON-RPC backend
+    /// waits for local execution.
+    pub async fn execute_transaction_must_succeed(&self, tx: Transaction) -> ExecutedTransaction {
         tracing::debug!("Executing transaction: {:?}", tx);
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
-        assert!(
-            response.status_ok().unwrap(),
-            "Transaction failed: {response:?}"
-        );
+        let status_ok = response
+            .effects()
+            .expect("effects missing from execute_transaction response")
+            .effects()
+            .expect("effects failed to deserialize")
+            .status()
+            .is_success();
+        assert!(status_ok, "Transaction failed: {response:?}");
         response
     }
 
-    /// Execute a transaction and wait for it to be locally executed on the
-    /// fullnode. The transaction execution is not guaranteed to succeed and
-    /// may fail. This is usually only needed in non-test environment or the
-    /// caller is explicitly testing some failure behavior.
+    /// Execute a transaction and wait for the fullnode to observe it
+    /// (checkpoint inclusion on the gRPC backend, local execution on the
+    /// JSON-RPC backend). The transaction execution is not guaranteed to
+    /// succeed and may fail. This is usually only needed in non-test
+    /// environment or the caller is explicitly testing some failure
+    /// behavior.
     pub async fn execute_transaction_may_fail(
         &self,
         tx: Transaction,
-    ) -> anyhow::Result<IotaTransactionBlockResponse> {
-        let client = self.get_client().await?;
-        Ok(client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx,
-                IotaTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_input()
-                    .with_events()
-                    .with_object_changes()
-                    .with_balance_changes(),
-                iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
-            )
-            .await?)
+    ) -> anyhow::Result<ExecutedTransaction> {
+        match self.backend {
+            WalletBackend::Grpc => {
+                let client = self.get_grpc_client().await?;
+                let signed_transaction: iota_sdk_types::SignedTransaction = tx.try_into().map_err(
+                    |e: iota_types::iota_sdk_types_conversions::SdkTypeConversionError| {
+                        anyhow!("{e}")
+                    },
+                )?;
+                Ok(client
+                    .execute_transaction(
+                        signed_transaction,
+                        Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
+                        Some(CHECKPOINT_INCLUSION_TIMEOUT_MS),
+                    )
+                    .await?
+                    .into_inner())
+            }
+            WalletBackend::JsonRpc => {
+                let client = self.get_client().await?;
+                let response = client
+                    .quorum_driver_api()
+                    .execute_transaction_block(
+                        tx,
+                        IotaTransactionBlockResponseOptions::new()
+                            .with_raw_input()
+                            .with_events()
+                            .with_object_changes()
+                            .with_balance_changes()
+                            .with_raw_effects(),
+                        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution,
+                    )
+                    .await?;
+                ExecutedTransaction::try_from(&response).map_err(|e| anyhow!("{e}"))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_config::Config;
+    use iota_keys::keystore::InMemKeystore;
+
+    use super::*;
+    use crate::iota_client_config::IotaClientConfig;
+
+    /// Builds a `WalletContext` with a single active env, backed by an
+    /// in-memory keystore and a config that is never written to disk (tests
+    /// only exercise in-memory dispatch logic, never `PersistedConfig::save`).
+    fn wallet_context_with_env(env: IotaEnv) -> WalletContext {
+        let alias = env.alias().clone();
+        let config = IotaClientConfig::new(Keystore::InMem(InMemKeystore::default()))
+            .with_envs([env])
+            .with_active_env(alias)
+            .persisted(&std::env::temp_dir().join("iota-wallet-context-test.yaml"));
+        WalletContext {
+            config,
+            request_timeout: None,
+            client: Default::default(),
+            grpc_client: Default::default(),
+            max_concurrent_requests: None,
+            env_override: None,
+            backend: WalletBackend::default(),
+        }
+    }
+
+    #[test]
+    fn defaults_to_grpc_backend() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"));
+        assert_eq!(ctx.backend, WalletBackend::Grpc);
+    }
+
+    #[test]
+    fn with_jsonrpc_backend_selects_json_rpc() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"))
+            .with_jsonrpc_backend();
+        assert_eq!(ctx.backend, WalletBackend::JsonRpc);
+    }
+
+    /// The default gRPC backend errors loudly when the active env has no `grpc`
+    /// URL, rather than silently falling back to JSON-RPC.
+    #[tokio::test]
+    async fn grpc_backend_errors_without_grpc_url() {
+        let ctx = wallet_context_with_env(IotaEnv::new("test", "https://rpc.example"));
+        let err = ctx.get_reference_gas_price().await.unwrap_err().to_string();
+        assert!(
+            err.contains("gRPC is not configured"),
+            "expected a gRPC-not-configured error, got: {err}"
+        );
     }
 }

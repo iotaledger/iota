@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use futures::future;
 use iota_config::node::RunWithRange;
 use iota_json_rpc_types::{
-    EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
+    EventFilter, EventPage, IotaEvent, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionFilter,
 };
 use iota_keys::keystore::AccountKeystore;
@@ -29,6 +29,7 @@ use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
     base_types::TransactionDigest,
     crypto::{IotaKeyPair, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -110,7 +111,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         counter_ref.version,
     )
     .await;
-    let digest = response.digest;
+    let digest = response.transaction().unwrap().digest().unwrap();
     handle
         .iota_node
         .state()
@@ -213,7 +214,7 @@ async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
         counter_ref.version,
     )
     .await;
-    let digest = response.digest;
+    let digest = response.transaction().unwrap().digest().unwrap();
 
     let txes = node
         .state()
@@ -568,7 +569,7 @@ async fn do_test_full_node_sync_flood() {
                     test_cluster.execute_transaction(tx).await
                 };
 
-                owned_tx_digest = Some(res.digest);
+                owned_tx_digest = Some(res.transaction().unwrap().digest().unwrap());
                 shared_tx_digest = Some(
                     increment_counter(
                         &test_cluster.wallet,
@@ -579,7 +580,10 @@ async fn do_test_full_node_sync_flood() {
                         counter_ref.version,
                     )
                     .await
-                    .digest,
+                    .transaction()
+                    .unwrap()
+                    .digest()
+                    .unwrap(),
                 );
             }
             tx.send((owned_tx_digest.unwrap(), shared_tx_digest.unwrap()))
@@ -988,9 +992,15 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
 
     // Delete the object
     let response = delete_nft(&test_cluster.wallet, recipient, package_id, object_ref_v2).await;
-    assert_eq!(
-        *response.effects.unwrap().status(),
-        IotaExecutionStatus::Success
+    assert!(
+        response
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .as_v1()
+            .status
+            .is_success()
     );
     sleep(Duration::from_secs(1)).await;
 
@@ -1205,9 +1215,11 @@ async fn test_access_old_object_pruned() {
     let effects = test_cluster
         .sign_and_execute_transaction(&tx_builder.transfer_iota(None, sender).build())
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
-    let new_gas_version = effects.gas_object().reference.version;
+    let new_gas_version = effects.gas_object().0.version;
     test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(
@@ -1300,7 +1312,7 @@ async fn transfer_coin(
         object_to_send.object_id,
         sender,
         receiver,
-        resp.digest,
+        resp.transaction().unwrap().digest().unwrap(),
         gas_object,
     ))
 }
@@ -1417,16 +1429,7 @@ async fn publish_init_events_without_local_execution() {
         .await
         .publish(path)
         .build();
-    let tx = test_cluster.sign_transaction(&tx_data);
-    let client = test_cluster.wallet.get_client().await.unwrap();
-    let response = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            tx,
-            IotaTransactionBlockResponseOptions::new().with_events(),
-            Some(ExecuteTransactionRequestType::WaitForEffectsCert),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.events.unwrap().data.len(), 1);
+    let executed = test_cluster.sign_and_execute_transaction(&tx_data).await;
+    let events = executed.events().unwrap().events().unwrap();
+    assert_eq!(events.0.len(), 1);
 }

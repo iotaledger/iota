@@ -4,13 +4,13 @@
 
 use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
 };
 use iota_types::{
     base_types::EpochId,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData},
 };
@@ -93,20 +93,20 @@ async fn run_thread<F, Fut>(
             .wallet
             .execute_transaction_may_fail(tx)
             .await
-            .map(|r| r.effects.unwrap())
+            .map(|r| r.effects().unwrap().effects().unwrap())
         else {
             // When epochs are short, it is possible that some transactions
             // keep getting sent at epoch boundaries and timeout eventually.
             continue;
         };
-        if effects.status().is_ok() {
+        if effects.as_v1().status.is_success() {
             info!(?thread_id, ?tx_digest, "Transaction succeeded");
             num_tx_succeeded += 1;
         } else {
             info!(?thread_id, ?tx_digest, "Transaction failed");
             num_tx_failed += 1;
         }
-        let executed_epoch = effects.executed_epoch();
+        let executed_epoch = effects.as_v1().epoch;
         if executed_epoch >= target_epoch {
             info!(
                 ?thread_id,
@@ -260,14 +260,16 @@ async fn create_test_env() -> TestEnv {
     let effects = test_cluster
         .sign_and_execute_transaction(&tx_data)
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     let mut coin_id = None;
     let mut coin_type = None;
     let mut coin_owner = None;
     let mut deny_cap = None;
-    for created in effects.created() {
-        let object_id = created.reference.object_id;
+    for (object_ref, owner) in effects.created() {
+        let object_id = object_ref.object_id;
         let object = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await
@@ -277,7 +279,7 @@ async fn create_test_env() -> TestEnv {
         } else if object.is_coin() {
             coin_id = Some(object_id);
             coin_type = object.coin_type_opt().cloned();
-            coin_owner = Some(*created.owner.as_address());
+            coin_owner = Some(*owner.as_address());
         } else if object.type_().unwrap().is_deny_cap_v1() {
             deny_cap = Some(object_id);
         }

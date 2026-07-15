@@ -5,14 +5,12 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
-use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_sdk::{
-    rpc_types::{
-        IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-        get_new_package_obj_from_response,
-    },
-    wallet_context::WalletContext,
+use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_types::v1::transaction::{
+    ExecutedTransaction, object_change::Kind as ProtoObjectChangeKind,
 };
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
@@ -23,6 +21,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
+    effects::TransactionEffectsAPI,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
@@ -568,6 +567,41 @@ pub async fn make_publish_transaction_with_deps(
     )
 }
 
+/// The reference of the package published by this transaction, if any.
+pub fn get_new_package_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
+    let changes = tx.object_changes().ok()?;
+    changes.object_changes.iter().find_map(|c| {
+        let ProtoObjectChangeKind::Published(p) = c.kind.as_ref()? else {
+            return None;
+        };
+        Some(ObjectReference::new(
+            p.package_id().ok()?,
+            Version::from_u64(p.version?),
+            p.digest().ok()?,
+        ))
+    })
+}
+
+/// The reference of the `UpgradeCap` created by this transaction, if any.
+pub fn get_new_upgrade_cap_ref(tx: &ExecutedTransaction) -> Option<ObjectReference> {
+    let changes = tx.object_changes().ok()?;
+    changes.object_changes.iter().find_map(|c| {
+        let ProtoObjectChangeKind::Created(created) = c.kind.as_ref()? else {
+            return None;
+        };
+        let owner = created.owner().ok()?;
+        let object_type = created.object_type().ok()?;
+        if !owner.is_address() || !object_type.as_struct_tag_opt()?.is_upgrade_cap() {
+            return None;
+        }
+        Some(ObjectReference::new(
+            created.object_id().ok()?,
+            Version::from_u64(created.version?),
+            created.digest().ok()?,
+        ))
+    })
+}
+
 pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -577,7 +611,7 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    get_new_package_obj_from_response(&resp).unwrap()
+    get_new_package_ref(&resp).unwrap()
 }
 
 /// Executes a transaction to publish the `basics` package and returns the
@@ -591,7 +625,7 @@ pub async fn publish_basics_package(context: &WalletContext) -> ObjectReference 
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    get_new_package_obj_from_response(&resp).unwrap()
+    get_new_package_ref(&resp).unwrap()
 }
 
 /// Executes a transaction to publish the `basics` package and another one to
@@ -610,14 +644,12 @@ pub async fn publish_basics_package_and_make_counter(
     let resp = context
         .execute_transaction_must_succeed(counter_creation_txn)
         .await;
-    let counter_ref = resp
-        .effects
-        .unwrap()
+    let effects = resp.effects().unwrap().effects().unwrap();
+    let (counter_ref, _) = effects
         .created()
-        .iter()
-        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared(_)))
-        .unwrap()
-        .reference;
+        .into_iter()
+        .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
+        .unwrap();
     (package_ref, counter_ref)
 }
 
@@ -630,7 +662,7 @@ pub async fn increment_counter(
     package_id: ObjectId,
     counter_id: ObjectId,
     initial_shared_version: Version,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()
     } else {
@@ -654,31 +686,31 @@ pub async fn increment_counter(
 pub async fn emit_new_random_u128(
     context: &WalletContext,
     package_id: ObjectId,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
-    let client = context.get_client().await.unwrap();
-    let random_obj = client
-        .read_api()
-        .get_object_with_options(
-            ObjectId::RANDOMNESS_STATE,
-            IotaObjectDataOptions::new().with_owner(),
+    let client = context.get_grpc_client().await.unwrap();
+    let objects = client
+        .get_objects(
+            &[(ObjectId::RANDOMNESS_STATE, None)],
+            Some(ReadMask::from(ObjectField::BCS)),
         )
         .await
         .unwrap()
-        .into_object()
+        .into_inner();
+    let random_obj = objects
+        .first()
+        .expect("Expect Randomness object to exist")
+        .object()
         .unwrap();
-    let random_obj_owner = random_obj
-        .owner
-        .expect("Expect Randomness object to have an owner");
 
-    let Owner::Shared(initial_shared_version) = random_obj_owner else {
+    let Owner::Shared(initial_shared_version) = random_obj.owner() else {
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
-        initial_shared_version,
+        *initial_shared_version,
         false,
     ));
 
@@ -708,8 +740,8 @@ pub async fn publish_example_package(
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
-    (package_id, resp.digest)
+    let package_id = get_new_package_ref(&resp).unwrap().object_id;
+    (package_id, resp.transaction().unwrap().digest().unwrap())
 }
 
 /// Executes a transaction to publish the `nft` package and returns the package
@@ -726,8 +758,12 @@ pub async fn publish_nfts_package(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
-    (package_id, gas_id, resp.digest)
+    let package_id = get_new_package_ref(&resp).unwrap().object_id;
+    (
+        package_id,
+        gas_id,
+        resp.transaction().unwrap().digest().unwrap(),
+    )
 }
 
 /// Executes a transaction to publish the `simple_warrior` package and returns
@@ -759,16 +795,21 @@ pub async fn create_nft(
     let resp = context.execute_transaction_must_succeed(txn).await;
 
     let object_id = resp
-        .effects
-        .as_ref()
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap()
         .created()
         .first()
         .unwrap()
-        .reference
+        .0
         .object_id;
 
-    (sender, object_id, resp.digest)
+    (
+        sender,
+        object_id,
+        resp.transaction().unwrap().digest().unwrap(),
+    )
 }
 
 /// Executes a transaction to delete the given NFT.
@@ -777,7 +818,7 @@ pub async fn delete_nft(
     sender: Address,
     package_id: ObjectId,
     nft_to_delete: ObjectReference,
-) -> IotaTransactionBlockResponse {
+) -> ExecutedTransaction {
     let gas = context
         .get_one_gas_object_owned_by_address(sender)
         .await

@@ -11,7 +11,6 @@ use std::{
 use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_sdk_types::{Event, ExecutionStatus, SharedObjectReference};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
@@ -71,11 +70,13 @@ async fn shared_object_deletion() {
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
 
     assert_eq!(effects.deleted().len(), 1);
-    assert_eq!(effects.shared_objects().len(), 1);
+    assert_eq!(effects.input_shared_objects().len(), 1);
 
     // assert the shared object was deleted
     let deleted_obj_id = effects.deleted()[0].object_id;
@@ -360,7 +361,9 @@ async fn call_shared_object_contract() {
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
             .await
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap();
         // Check that all reads must depend on the creation of the counter, but not to
         // any previous reads.
@@ -386,7 +389,9 @@ async fn call_shared_object_contract() {
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     let increment_transaction = *effects.transaction_digest();
     assert!(
@@ -428,7 +433,9 @@ async fn call_shared_object_contract() {
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
             .await
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap();
         assert!(effects.dependencies().contains(&increment_transaction));
         if let Some(prev) = assert_value_mut_transaction {
@@ -456,13 +463,17 @@ async fn call_shared_object_contract() {
         .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&transaction))
         .await
         .unwrap()
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
     // Transaction fails
-    assert!(effects.status().is_err(),);
+    assert!(effects.as_v1().status.is_failure());
+    let ExecutionStatus::Failure { error, .. } = &effects.as_v1().status else {
+        panic!("expected a failed transaction status");
+    };
     assert!(
-        effects
-            .status()
+        error
             .to_string()
             .contains("Immutable objects cannot be passed by mutable reference")
     );
@@ -662,11 +673,13 @@ async fn replay_shared_object_transaction() {
         let effects = test_cluster
             .execute_transaction(create_counter_transaction.clone())
             .await
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap();
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.version;
+        let curr = effects.created()[0].0.version;
         if let Some(prev) = version {
             assert_eq!(prev, curr, "Version of shared object did not change.");
         }

@@ -62,7 +62,6 @@ mod sim_only_tests {
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
     use iota_json_rpc_api::WriteApiClient;
-    use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
@@ -540,9 +539,9 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.object_id == obj.object_id)
+        .find(|(oref, _)| oref.object_id == obj.object_id)
         .unwrap()
-        .reference
+        .0
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: MoveCall) -> u64 {
@@ -583,15 +582,15 @@ mod sim_only_tests {
         execute(cluster, ptb)
             .await
             .created()
-            .iter()
-            .map(|oref| oref.reference)
+            .into_iter()
+            .map(|(oref, _)| oref)
             .collect()
     }
 
     async fn execute(
         cluster: &TestCluster,
         ptb: ProgrammableTransaction,
-    ) -> IotaTransactionBlockEffects {
+    ) -> iota_sdk_types::TransactionEffects {
         let context = &cluster.wallet;
         let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
 
@@ -607,7 +606,9 @@ mod sim_only_tests {
         context
             .execute_transaction_must_succeed(txn)
             .await
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap()
     }
 

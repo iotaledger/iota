@@ -32,6 +32,7 @@ use iota_types::{
 };
 pub use object_changes::*;
 use schemars::JsonSchema;
+pub use sdk_conversions::*;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
@@ -57,6 +58,7 @@ mod iota_protocol;
 mod iota_system_state_summary;
 mod iota_transaction;
 mod object_changes;
+mod sdk_conversions;
 
 pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectId>;
 

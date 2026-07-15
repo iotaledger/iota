@@ -14,7 +14,6 @@ use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
     consensus_adapter::position_submit_certificate,
 };
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -157,7 +156,7 @@ async fn reconfig_with_revert_end_to_end_test() {
             .build(),
     );
     let effects1 = test_cluster.execute_transaction(tx).await;
-    assert_eq!(0, effects1.effects.unwrap().executed_epoch());
+    assert_eq!(0, effects1.effects().unwrap().effects().unwrap().epoch());
 
     // gas2 transaction is (most likely) reverted
     let gas2 = gas_objects.pop().unwrap();
@@ -506,9 +505,11 @@ async fn test_validator_resign_effects() {
     let effects0 = test_cluster
         .execute_transaction(tx.clone())
         .await
-        .effects
+        .effects()
+        .unwrap()
+        .effects()
         .unwrap();
-    assert_eq!(effects0.executed_epoch(), 0);
+    assert_eq!(effects0.epoch(), 0);
     test_cluster.force_new_epoch().await;
 
     let net = test_cluster
@@ -1090,19 +1091,13 @@ async fn safe_mode_reconfig_test() {
         .build()
         .await;
 
-    let (system_state_version, epoch) = match test_cluster
-        .iota_client()
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await
-        .unwrap()
-    {
-        IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
-        IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
-        _ => unimplemented!(
-            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
-        ),
-    };
+    let (system_state_version, epoch) = test_cluster.fullnode_handle.iota_node.with(|node| {
+        let system_state = node
+            .state()
+            .get_iota_system_state_object_for_testing()
+            .unwrap();
+        (system_state.system_state_version(), system_state.epoch())
+    });
 
     // On startup, we should be at V1.
     assert_eq!(system_state_version, 1);

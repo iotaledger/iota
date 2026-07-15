@@ -1992,17 +1992,17 @@ async fn select_coin_arg_for_payment(
                 if coins
                     .iter()
                     // Ignore coins insufficient for the gas payment
-                    .filter(|c| c.value() >= MIN_COIN_AMOUNT_FOR_GAS_PAYMENT)
+                    .filter(|c| c.balance() >= MIN_COIN_AMOUNT_FOR_GAS_PAYMENT)
                     .count()
                     == 1
                 {
                     return Ok("gas".to_string());
                 }
                 for coin in coins {
-                    if coin.value() >= price {
+                    if coin.balance() >= price {
                         return Ok(format!("@{}", coin.id()));
                     }
-                    balance += coin.value();
+                    balance += coin.balance();
                 }
             }
             if balance > price {

@@ -23,11 +23,11 @@ use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
 use iota_genesis_builder::SnapshotSource;
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
@@ -56,7 +56,7 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
@@ -272,8 +272,7 @@ impl TestCluster {
     }
 
     pub async fn get_reference_gas_price(&self) -> u64 {
-        self.iota_client()
-            .governance_api()
+        self.wallet
             .get_reference_gas_price()
             .await
             .expect("failed to get reference gas price")
@@ -594,7 +593,7 @@ impl TestCluster {
     pub async fn sign_and_execute_transaction(
         &self,
         tx_data: &TransactionData,
-    ) -> IotaTransactionBlockResponse {
+    ) -> ExecutedTransaction {
         let tx = self.wallet.sign_transaction(tx_data);
         self.execute_transaction(tx).await
     }
@@ -603,7 +602,7 @@ impl TestCluster {
     /// the rpc fullnode. Also expects the effects status to be
     /// ExecutionStatus::Success. This function is recommended for
     /// transaction execution since it most resembles the production path.
-    pub async fn execute_transaction(&self, tx: Transaction) -> IotaTransactionBlockResponse {
+    pub async fn execute_transaction(&self, tx: Transaction) -> ExecutedTransaction {
         self.wallet.execute_transaction_must_succeed(tx).await
     }
 
@@ -747,28 +746,18 @@ impl TestCluster {
             .build();
 
         let signed_transaction = to_sender_signed_transaction(tx_data, keypair);
+        let tx_digest = *signed_transaction.digest();
 
-        let response = self
-            .iota_client()
-            .quorum_driver_api()
-            .execute_transaction_block(
-                signed_transaction,
-                IotaTransactionBlockResponseOptions::new().with_effects(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await
-            .unwrap();
-
-        let object_ref = response
-            .effects
-            .as_ref()
+        let executed = self.execute_transaction(signed_transaction).await;
+        let object_ref = executed
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap()
             .created()
             .first()
             .unwrap()
-            .reference;
-
-        let tx_digest = response.digest;
+            .0;
 
         (object_ref, tx_digest)
     }
@@ -799,13 +788,10 @@ impl TestCluster {
             .await
             .transfer_iota(Some(amount), receiver)
             .build();
-        let effects = self
-            .sign_and_execute_transaction(&tx)
-            .await
-            .effects
-            .unwrap();
-        assert_eq!(&IotaExecutionStatus::Success, effects.status());
-        effects.created().first().unwrap().object_id()
+        let executed = self.sign_and_execute_transaction(&tx).await;
+        let effects = executed.effects().unwrap().effects().unwrap();
+        assert!(effects.status().is_success());
+        effects.created().first().unwrap().0.object_id
     }
 
     /// Wait to catch up to the given checkpoint sequence

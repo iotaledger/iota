@@ -10,14 +10,14 @@ use std::{
 };
 
 use expect_test::expect;
-use iota_json_rpc_types::{
-    get_new_package_obj_from_response, get_new_package_upgrade_cap_from_response,
-};
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
 use iota_sdk_types::{Address, MovePackageData, ObjectId, ObjectReference};
-use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
+use iota_test_transaction_builder::{
+    get_new_package_ref, get_new_upgrade_cap_ref, make_publish_transaction,
+    make_publish_transaction_with_deps,
+};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, base_types::TransactionDigest, move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -763,8 +763,8 @@ async fn publish_package(
 ) -> (ObjectReference, ObjectReference) {
     let txn = make_publish_transaction(context, package).await;
     let response = context.execute_transaction_must_succeed(txn).await;
-    let package = get_new_package_obj_from_response(&response).unwrap();
-    let cap = get_new_package_upgrade_cap_from_response(&response).unwrap();
+    let package = get_new_package_ref(&response).unwrap();
+    let cap = get_new_upgrade_cap_ref(&response).unwrap();
     (package, cap)
 }
 
@@ -795,7 +795,7 @@ async fn upgrade_package(
 async fn publish_package_and_deps(context: &WalletContext, package: PathBuf) -> ObjectReference {
     let txn = make_publish_transaction_with_deps(context, package).await;
     let response = context.execute_transaction_must_succeed(txn).await;
-    get_new_package_obj_from_response(&response).unwrap()
+    get_new_package_ref(&response).unwrap()
 }
 
 /// Copy `package` from fixtures into `directory`, setting its named address in
@@ -904,7 +904,7 @@ pub async fn upgrade_package_with_wallet(
     let resp = context.execute_transaction_must_succeed(transaction).await;
 
     (
-        get_new_package_obj_from_response(&resp).unwrap(),
-        resp.digest,
+        get_new_package_ref(&resp).unwrap(),
+        resp.transaction().unwrap().digest().unwrap(),
     )
 }

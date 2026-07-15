@@ -29,6 +29,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -1649,7 +1650,12 @@ fn try_get_past_object_object_deleted() {
 
         // Delete the NFT
         let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        wait_for_objects_history(delete_nft_tx.digest, store, client).await;
+        wait_for_objects_history(
+            delete_nft_tx.transaction().unwrap().digest().unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         let deleted_version = nft_object_ref.version.next().unwrap();
 
@@ -2070,19 +2076,18 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         let sword_object_ref = res
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap()
             .created()
-            .iter()
-            .map(|sword| sword.reference)
-            .collect::<Vec<ObjectReference>>();
-
-        let sword_object_ref = *sword_object_ref
             .first()
-            .expect("expected at least one created object");
+            .expect("expected at least one created object")
+            .0;
 
         // 3) Wrap the `Sword` object
         let pt = {
@@ -2121,17 +2126,24 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(wrap_transaction_res.digest, store, client).await;
+        indexer_wait_for_transaction(
+            wrap_transaction_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         // 6) Test transaction filter for wrapped object
         let wrapped_objects = wrap_transaction_res
-            .effects
-            .as_ref()
+            .effects()
             .unwrap()
-            .wrapped()
-            .iter()
-            .map(|wrapped| wrapped.object_id)
-            .collect::<Vec<_>>();
+            .effects()
+            .unwrap()
+            .wrapped();
 
         assert_eq!(
             wrapped_objects.len(),
@@ -2143,7 +2155,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        wrapped_objects[0],
+                        wrapped_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2162,16 +2174,14 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
         // 7) Unwrap then delete the `Sword`
         let warrior_object_ref = wrap_transaction_res
-            .effects
+            .effects()
+            .unwrap()
+            .effects()
             .unwrap()
             .created()
-            .iter()
-            .map(|warrior| warrior.reference)
-            .collect::<Vec<ObjectReference>>();
-
-        let warrior_object_ref = *warrior_object_ref
             .first()
-            .expect("expected at least one created object for warrior");
+            .expect("expected at least one created object for warrior")
+            .0;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -2207,19 +2217,26 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(unwrap_then_delete_transaction_res.digest, store, client)
-            .await;
+        indexer_wait_for_transaction(
+            unwrap_then_delete_transaction_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         // 8) Test transaction filter for unwrapped and deleted object. It should return
         //    two transactions:
         // one for the performed `wrap` and one for more recent `unwrap then delete`.
         let unwrapped_then_deleted_objects = unwrap_then_delete_transaction_res
-            .effects
+            .effects()
             .unwrap()
-            .unwrapped_then_deleted()
-            .iter()
-            .map(|sword| sword.object_id)
-            .collect::<Vec<_>>();
+            .effects()
+            .unwrap()
+            .unwrapped_then_deleted();
 
         assert_eq!(
             unwrapped_then_deleted_objects.len(),
@@ -2231,7 +2248,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        unwrapped_then_deleted_objects[0],
+                        unwrapped_then_deleted_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2249,14 +2266,22 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         );
 
         // Check if both transactions are present
-        let found_wrap = query_res
-            .data
-            .iter()
-            .any(|tx| tx.digest == wrap_transaction_res.digest);
-        let found_unwrap_delete = query_res
-            .data
-            .iter()
-            .any(|tx| tx.digest == unwrap_then_delete_transaction_res.digest);
+        let found_wrap = query_res.data.iter().any(|tx| {
+            tx.digest
+                == wrap_transaction_res
+                    .transaction()
+                    .unwrap()
+                    .digest()
+                    .unwrap()
+        });
+        let found_unwrap_delete = query_res.data.iter().any(|tx| {
+            tx.digest
+                == unwrap_then_delete_transaction_res
+                    .transaction()
+                    .unwrap()
+                    .digest()
+                    .unwrap()
+        });
 
         assert!(found_wrap, "expected wrap transaction to be found");
         assert!(
@@ -2295,16 +2320,24 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(delete_warrior_transaction_res.digest, store, client).await;
+        indexer_wait_for_transaction(
+            delete_warrior_transaction_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         // 9) Test transaction filter for deleted `Warrior` object
         let deleted_objects = delete_warrior_transaction_res
-            .effects
+            .effects()
             .unwrap()
-            .deleted()
-            .iter()
-            .map(|deleted| deleted.object_id)
-            .collect::<Vec<_>>();
+            .effects()
+            .unwrap()
+            .deleted();
 
         assert_eq!(
             deleted_objects.len(),
@@ -2316,7 +2349,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        deleted_objects[0],
+                        deleted_objects[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2336,7 +2369,11 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         // Check if the delete transaction is present
         assert_eq!(
             query_res.data.first().unwrap().digest,
-            delete_warrior_transaction_res.digest,
+            delete_warrior_transaction_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
             "expected delete transaction to be found"
         );
 
@@ -2420,17 +2457,31 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(create_and_wrap_tx_res.digest, store, client).await;
+        indexer_wait_for_transaction(
+            create_and_wrap_tx_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         // Find warrior object
-        let created_objects = create_and_wrap_tx_res.effects.as_ref().unwrap().created();
+        let created_objects = create_and_wrap_tx_res
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .created();
         assert_eq!(
             created_objects.len(),
             1,
             "expected exactly one created object"
         );
 
-        let warrior_object_id = created_objects[0].reference.object_id;
+        let warrior_object_id = created_objects[0].0.object_id;
 
         // 5) Unwrap the Sword to find out it's object ID
         let warrior_object_ref = cluster.get_latest_object_ref(&warrior_object_id).await;
@@ -2466,16 +2517,24 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
             .await;
-        indexer_wait_for_transaction(unwrap_transaction_res.digest, store, client).await;
+        indexer_wait_for_transaction(
+            unwrap_transaction_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
+            store,
+            client,
+        )
+        .await;
 
         // 6) Test transaction filter for create and wrap operation
         let sword_object_ref = unwrap_transaction_res
-            .effects
+            .effects()
             .unwrap()
-            .unwrapped()
-            .iter()
-            .map(|sword| sword.reference)
-            .collect::<Vec<ObjectReference>>();
+            .effects()
+            .unwrap()
+            .unwrapped();
 
         assert_eq!(
             sword_object_ref.len(),
@@ -2487,7 +2546,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .query_transaction_blocks_v2(
                 IotaTransactionBlockResponseQueryV2 {
                     filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
-                        sword_object_ref[0].object_id,
+                        sword_object_ref[0].0.object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
@@ -2507,7 +2566,11 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         // Check if the correct transaction is present
         assert_eq!(
             query_res.data.first().unwrap().digest,
-            create_and_wrap_tx_res.digest,
+            create_and_wrap_tx_res
+                .transaction()
+                .unwrap()
+                .digest()
+                .unwrap(),
             "expected create and wrap transaction to be found"
         );
 

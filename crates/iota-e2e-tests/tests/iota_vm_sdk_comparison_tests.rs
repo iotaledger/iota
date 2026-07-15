@@ -20,7 +20,6 @@ use std::{
     path::PathBuf,
 };
 
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, StructTag,
 };
@@ -28,13 +27,34 @@ use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
-    transaction::CallArg,
+    transaction::{CallArg, TransactionData},
 };
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, TypeTag, VmSdkError, grpc::GrpcStore};
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-/// Build a staking transaction, simulate it with both the node's dry-run and
+/// Simulate `tx_data` on the node over gRPC and return the resulting executed
+/// transaction (effects + events) — the node-side reference the local VM is
+/// compared against.
+async fn node_simulate(
+    test_cluster: &TestCluster,
+    tx_data: &TransactionData,
+) -> iota_grpc_types::v1::transaction::ExecutedTransaction {
+    let sdk_tx: iota_sdk_types::Transaction =
+        bcs::from_bytes(&bcs::to_bytes(tx_data).expect("serialize transaction data"))
+            .expect("transaction data is BCS-compatible with the SDK transaction type");
+    test_cluster
+        .grpc_client()
+        .simulate_transaction(sdk_tx, false, None)
+        .await
+        .expect("node simulate should succeed")
+        .into_inner()
+        .executed_transaction()
+        .expect("simulate should return an executed transaction")
+        .clone()
+}
+
+/// Build a staking transaction, simulate it with both the node's simulation and
 /// the local VM, and assert the two produce the same object changes and events.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn compare_local_vm_staking_against_test_cluster() {
@@ -46,15 +66,12 @@ async fn compare_local_vm_staking_against_test_cluster() {
     test_cluster.wait_for_checkpoint(1, None).await;
 
     let validator = test_cluster
-        .iota_client()
-        .governance_api()
-        .get_latest_iota_system_state()
-        .await
-        .expect("should get system state")
+        .swarm
         .active_validators()
-        .first()
+        .next()
         .expect("should have at least one validator")
-        .iota_address;
+        .config()
+        .iota_address();
 
     // One coin pays for gas, a second is staked.
     let sender = test_cluster.wallet.get_addresses()[0];
@@ -76,61 +93,44 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .call_staking(stake_coin, validator)
         .build();
 
-    // Reference result: the node's own dry-run.
-    let dry_run = test_cluster
-        .iota_client()
-        .read_api()
-        .dry_run_transaction_block(tx_data.clone())
-        .await
-        .expect("node dry-run should succeed");
+    // Reference result: the node's own simulation over gRPC.
+    let node = node_simulate(&test_cluster, &tx_data).await;
+    let node_effects = node.effects().unwrap().effects().unwrap();
     assert!(
-        matches!(dry_run.effects.status(), IotaExecutionStatus::Success),
-        "node dry-run staking should succeed"
+        node_effects.status().is_success(),
+        "node simulate staking should succeed"
     );
 
-    // Reference object-change sets from the node's dry-run. The `ObjectRef`
-    // carries each object's version and content digest, so the backends must
-    // agree on resulting contents, not merely on which objects were touched.
+    // Reference object-change sets from the node's simulation. The
+    // `ObjectReference` carries each object's version and content digest, so the
+    // backends must agree on resulting contents, not merely on which objects
+    // were touched.
     //
     // The transaction carries a real gas coin, so both backends meter gas the
     // same way and the gas object must match in full — id, owner, version, and
     // content digest (its post-execution balance). It is compared by its own
     // assertion below and kept out of the mutated set so it is not checked
     // twice.
-    let node_gas: (ObjectReference, Owner) = {
-        let gas = dry_run.effects.gas_object();
-        (gas.reference, gas.owner)
-    };
-    let node_created: BTreeSet<(ObjectReference, Owner)> = dry_run
-        .effects
-        .created()
-        .iter()
-        .map(|o| (o.reference, o.owner))
-        .collect();
-    let node_mutated: BTreeSet<(ObjectReference, Owner)> = dry_run
-        .effects
+    let node_gas: (ObjectReference, Owner) = node_effects.gas_object();
+    let node_created: BTreeSet<(ObjectReference, Owner)> =
+        node_effects.created().into_iter().collect();
+    let node_mutated: BTreeSet<(ObjectReference, Owner)> = node_effects
         .mutated()
-        .iter()
-        .filter(|o| o.object_id() != node_gas.0.object_id)
-        .map(|o| (o.reference, o.owner))
+        .into_iter()
+        .filter(|(r, _)| r.object_id != node_gas.0.object_id)
         .collect();
-    let node_deleted: BTreeSet<ObjectReference> =
-        dry_run.effects.deleted().iter().copied().collect();
+    let node_deleted: BTreeSet<ObjectReference> = node_effects.deleted().into_iter().collect();
 
-    // Reference events from the node's dry-run, compared by type, emitter, and
-    // full BCS payload in emission order.
-    let node_events: Vec<(StructTag, ObjectId, Address, Vec<u8>)> = dry_run
-        .events
-        .data
+    // Reference events from the node's simulation, compared by type, emitter,
+    // and full BCS payload in emission order.
+    let node_events: Vec<(StructTag, ObjectId, Address, Vec<u8>)> = node
+        .events()
+        .unwrap()
+        .events()
+        .unwrap()
+        .0
         .iter()
-        .map(|e| {
-            (
-                e.type_.clone(),
-                e.package_id,
-                e.sender,
-                e.bcs.bytes().to_vec(),
-            )
-        })
+        .map(|e| (e.type_.clone(), e.package_id, e.sender, e.contents.clone()))
         .collect();
 
     // Local VM: every object the run reads — the transaction inputs and the
@@ -329,18 +329,13 @@ async fn compare_local_vm_receiving_against_test_cluster() {
     // Reference behavior: the node's dry-run lets the already-received
     // reference through signing (the marker makes it a previously-received
     // object) and the receive then aborts during execution.
-    let node_outdated = test_cluster
-        .iota_client()
-        .read_api()
-        .dry_run_transaction_block(outdated_tx.clone())
-        .await
-        .expect("node dry-run must produce effects");
+    let node_outdated = node_simulate(&test_cluster, &outdated_tx).await;
     assert!(
         matches!(
-            node_outdated.effects.status(),
-            IotaExecutionStatus::Failure { .. }
+            node_outdated.effects().unwrap().effects().unwrap().status(),
+            ExecutionStatus::Failure { .. }
         ),
-        "node dry-run must fail the receive of an already-received object"
+        "node simulate must fail the receive of an already-received object"
     );
 
     let store = GrpcStore::connect(test_cluster.grpc_url()).expect("connect gRPC store");
@@ -392,15 +387,16 @@ async fn compare_local_vm_receiving_against_test_cluster() {
     );
 
     // The current reference receives successfully everywhere.
-    let node_current = test_cluster
-        .iota_client()
-        .read_api()
-        .dry_run_transaction_block(current_tx.clone())
-        .await
-        .expect("node dry-run must produce effects");
+    let node_current = node_simulate(&test_cluster, &current_tx).await;
     assert!(
-        matches!(node_current.effects.status(), IotaExecutionStatus::Success),
-        "node dry-run must receive at the current version"
+        node_current
+            .effects()
+            .unwrap()
+            .effects()
+            .unwrap()
+            .status()
+            .is_success(),
+        "node simulate must receive at the current version"
     );
     for opts in [ExecuteOptions::dev_inspect(), ExecuteOptions::dry_run()] {
         let mode = opts.mode;

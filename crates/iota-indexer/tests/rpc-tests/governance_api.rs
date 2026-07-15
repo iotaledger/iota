@@ -88,7 +88,8 @@ fn test_staking() {
         let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -171,7 +172,8 @@ fn test_unstaking() {
         let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -200,7 +202,8 @@ fn test_unstaking() {
         let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -315,7 +318,8 @@ fn test_timelocked_staking() {
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -433,7 +437,8 @@ fn test_timelocked_unstaking() {
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -481,7 +486,8 @@ fn test_timelocked_unstaking() {
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 
         let res = context.execute_transaction_must_succeed(txn).await;
-        indexer_wait_for_transaction(res.digest, store, client).await;
+        indexer_wait_for_transaction(res.transaction().unwrap().digest().unwrap(), store, client)
+            .await;
 
         cluster.force_new_epoch().await;
         indexer_wait_for_latest_checkpoint(store, cluster).await;

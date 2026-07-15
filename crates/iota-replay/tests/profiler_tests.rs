@@ -48,7 +48,10 @@ async fn test_profiler() {
     let tx_digest = test_cluster
         .sign_and_execute_transaction(&tx_data)
         .await
-        .digest
+        .transaction()
+        .unwrap()
+        .digest()
+        .unwrap()
         .to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
