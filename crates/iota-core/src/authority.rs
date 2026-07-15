@@ -955,11 +955,20 @@ impl AuthorityState {
     /// Runs deny list, input object validation, gas checks, coin deny list, and
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
+    ///
+    /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
+    /// `false` reads the latest value, so denials apply immediately - for
+    /// validator-local admission (signing); `true` reads the value settled
+    /// before the current epoch, which is deterministic across validators
+    /// regardless of each validator's execution progress - required
+    /// post-consensus, where the verdict decides whether the transaction
+    /// stays in the committed set.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1021,6 +1030,7 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
+            epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
         let (kind, signer, gas_data) = tx_data.execution_parts();
@@ -1143,7 +1153,13 @@ impl AuthorityState {
         let _execution_lock = self.execution_lock_for_signing()?;
 
         let owned_objects = self
-            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .handle_transaction_validation_checks(
+                &transaction,
+                epoch_store,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately.
+                false,
+            )
             .await?;
 
         let epoch = epoch_store.epoch();
