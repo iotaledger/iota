@@ -26,7 +26,7 @@ The config file for the light client takes a URL for a full node, a directory to
 # A full node JSON RPC endpoint to query the latest network state (mandatory)
 rpc_url: "https://api.mainnet.iota.cafe"
 
-# A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (mandatory — used to sync end-of-epoch checkpoints)
+# An indexer GraphQL RPC endpoint to query end-of-epoch checkpoints (mandatory — used to sync end-of-epoch checkpoints)
 graphql_url: "https://graphql.mainnet.iota.cafe"
 
 # Local directory to store checkpoint summaries and other synchronization data (mandatory)
