@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::error::ExecutionError;
+use iota_types::{error::ExecutionError, transfer::RESOLVED_RECEIVING_STRUCT};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
 };
-use move_bytecode_utils::format_signature_token;
+use move_bytecode_utils::{format_signature_token, resolve_struct};
 use move_core_types::identifier::IdentStr;
 
 use crate::verification_failure;
@@ -141,9 +141,15 @@ fn contains_mutable_reference_type(signature_token: &SignatureToken) -> bool {
 /// A type is safe by value when it is:
 /// - a primitive bytecode type
 /// - a type parameter constrained with `copy` or `drop`
-/// - a datatype with no `key` ability, with `copy` or `drop`, and with only
-///   by-value-safe type arguments
+/// - a datatype with no `key` ability and with `copy` or `drop`, other than
+///   `iota::transfer::Receiving`
 /// - a vector whose element type is by-value-safe
+///
+/// A datatype's instantiated abilities already account for its non-phantom type
+/// arguments, so an object contained through a type argument leaves the
+/// datatype without `copy`/`drop` and is caught by the ability check.
+/// `Receiving<T>` is the exception: it has `drop` and only a phantom object
+/// type argument, so it is matched by name.
 ///
 /// References are never considered by-value here. Mutable references are
 /// rejected before this check.
@@ -163,24 +169,13 @@ fn contains_view_unsafe_by_value_type(
             Ok(!(abilities.has_copy() || abilities.has_drop()))
         }
         S::Datatype(_) | S::DatatypeInstantiation(_) => {
+            if is_receiving_type(module, signature_token) {
+                return Ok(true);
+            }
             let abilities = module
                 .abilities(signature_token, function_type_args)
                 .map_err(|err| format!("Unexpected CompiledModule error: {err}"))?;
-            Ok(abilities.has_key()
-                || !(abilities.has_copy() || abilities.has_drop())
-                || type_arguments(signature_token).iter().try_fold(
-                    false,
-                    |found, type_argument| {
-                        Ok::<_, String>(
-                            found
-                                || contains_view_unsafe_by_value_type(
-                                    module,
-                                    function_type_args,
-                                    type_argument,
-                                )?,
-                        )
-                    },
-                )?)
+            Ok(abilities.has_key() || !(abilities.has_copy() || abilities.has_drop()))
         }
         S::Vector(inner) => contains_view_unsafe_by_value_type(module, function_type_args, inner),
         S::Bool | S::U8 | S::U16 | S::U32 | S::U64 | S::U128 | S::U256 | S::Address | S::Signer => {
@@ -189,12 +184,16 @@ fn contains_view_unsafe_by_value_type(
     }
 }
 
-fn type_arguments(signature_token: &SignatureToken) -> &[SignatureToken] {
+/// Returns true if `signature_token` is `iota::transfer::Receiving`, matching
+/// the source typing pass, which rejects it by name for the same reason.
+fn is_receiving_type(module: &CompiledModule, signature_token: &SignatureToken) -> bool {
     use SignatureToken as S;
-    match signature_token {
-        S::DatatypeInstantiation(instantiation) => &instantiation.1,
-        _ => &[],
-    }
+    let handle = match signature_token {
+        S::Datatype(idx) => *idx,
+        S::DatatypeInstantiation(instantiation) => instantiation.0,
+        _ => return false,
+    };
+    resolve_struct(module, handle) == RESOLVED_RECEIVING_STRUCT
 }
 
 #[cfg(test)]

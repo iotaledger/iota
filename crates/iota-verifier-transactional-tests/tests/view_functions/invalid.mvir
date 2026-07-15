@@ -401,6 +401,7 @@ module 0x0.m {
 //# publish --view-functions receiving_by_value
 module 0x0.m {
     import 0x2.object;
+    import 0x2.transfer;
 
     struct Wrapped has copy, drop, store {
         value: u64,
@@ -411,11 +412,7 @@ module 0x0.m {
         inner: T,
     }
 
-    struct Receiving<phantom T: key> has copy, drop, store {
-        id: object.ID,
-    }
-
-    public receiving_by_value(receiving: Self.Receiving<Self.GenericObject<Self.Wrapped>>): u64 {
+    public receiving_by_value(receiving: transfer.Receiving<Self.GenericObject<Self.Wrapped>>): u64 {
         label l0:
         abort 0;
     }
@@ -424,6 +421,7 @@ module 0x0.m {
 //# publish --view-functions receiving_mutable_ref
 module 0x0.m {
     import 0x2.object;
+    import 0x2.transfer;
 
     struct Wrapped has copy, drop, store {
         value: u64,
@@ -434,12 +432,8 @@ module 0x0.m {
         inner: T,
     }
 
-    struct Receiving<phantom T: key> has copy, drop, store {
-        id: object.ID,
-    }
-
     public receiving_mutable_ref(
-        receiving: &mut Self.Receiving<Self.GenericObject<Self.Wrapped>>,
+        receiving: &mut transfer.Receiving<Self.GenericObject<Self.Wrapped>>,
     ): u64 {
         label l0:
         abort 0;

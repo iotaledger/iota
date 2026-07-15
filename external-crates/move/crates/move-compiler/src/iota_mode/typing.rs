@@ -821,12 +821,19 @@ fn contains_view_unsafe_by_value_ty(param_ty: &Type) -> bool {
             !(type_parameter.abilities.has_ability_(Ability_::Copy)
                 || type_parameter.abilities.has_ability_(Ability_::Drop))
         }
-        Type_::Apply(Some(abilities), _, targs) => {
+        // `Receiving<T>` has `drop` but is the capability to take an object, so it
+        // is unsafe by value even though its object type argument is phantom.
+        Type_::Apply(_, sp!(_, n), _)
+            if n.is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME, RECEIVING_TYPE_NAME) =>
+        {
+            true
+        }
+        Type_::Apply(Some(abilities), _, _) => {
             abilities.has_ability_(Ability_::Key)
                 || !(abilities.has_ability_(Ability_::Copy)
                     || abilities.has_ability_(Ability_::Drop))
-                || targs.iter().any(contains_view_unsafe_by_value_ty)
         }
+        // Abilities unresolved (error/incomplete typing): fall back to the args.
         Type_::Apply(None, _, targs) => targs.iter().any(contains_view_unsafe_by_value_ty),
         Type_::Unit
         | Type_::UnresolvedError
