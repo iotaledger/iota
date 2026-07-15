@@ -4,7 +4,7 @@
 //! The [`simulate`] entry point: run a transaction through the local Move VM
 //! and surface a JS-friendly result.
 
-use base64::Engine;
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::{ObjectReference, Owner};
 use iota_types::{
@@ -160,7 +160,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         };
         MoveCallValue {
             type_tag: type_tag.to_string(),
-            bcs: base64::engine::general_purpose::STANDARD.encode(bytes),
+            bcs: BASE64.encode(bytes),
             value,
             decode_error,
         }

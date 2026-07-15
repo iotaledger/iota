@@ -27,7 +27,7 @@ mod simulate;
 mod store;
 mod types;
 
-use base64::Engine;
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use wasm_bindgen::prelude::*;
 
 use crate::error::VmSdkError;
@@ -42,7 +42,7 @@ pub fn init() {
 /// Decode a standard-base-64 string into raw bytes, mapping errors to a
 /// JS exception.
 fn b64_decode(s: &str) -> Result<Vec<u8>, JsError> {
-    base64::engine::general_purpose::STANDARD
+    BASE64
         .decode(s)
         .map_err(|e| JsError::new(&format!("base64 decode: {e}")))
 }
