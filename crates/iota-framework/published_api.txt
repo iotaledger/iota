@@ -1585,6 +1585,9 @@ account_type
 function_name
 	public fun
 	0x2::package_metadata
+module_name
+	public fun
+	0x2::package_metadata
 has_package_metadata_version_field
 	public fun
 	0x2::package_metadata

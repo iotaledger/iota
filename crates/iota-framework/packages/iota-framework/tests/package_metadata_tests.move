@@ -4,6 +4,7 @@
 #[test_only]
 module iota::package_metadata_tests;
 
+use iota::module_metadata;
 use iota::package_metadata::{
     Self,
     create_package_metadata_v1_for_testing,
@@ -123,6 +124,32 @@ fun package_metadata_dynamic_multi_module() {
 }
 
 #[test]
+// The `ModuleName` keys returned by `borrow_modules_metadata` are readable via
+// the `module_name` accessor.
+fun borrow_modules_metadata_keys_expose_module_name() {
+    let id = object::id_from_address(@0xA);
+    let module_a = ascii::string(b"module_a");
+    let module_b = ascii::string(b"module_b");
+    let auth = ascii::string(b"auth");
+    let account_type = type_name::get<u64>();
+
+    let package_metadata = create_package_metadata_v1_with_dynamic_metadata_for_testing(
+        id,
+        vector[module_a, module_b],
+        vector[vector[auth], vector[auth]],
+        vector[vector[account_type], vector[account_type]],
+        vector[vector<ascii::String>[], vector<ascii::String>[]],
+    );
+
+    let names = package_metadata.borrow_modules_metadata().keys();
+    assert_eq(names.length(), 2);
+    assert_ref_eq(names[0].module_name(), &module_a);
+    assert_ref_eq(names[1].module_name(), &module_b);
+
+    test_utils::destroy(package_metadata);
+}
+
+#[test]
 fun package_metadata_getters() {
     let id = object::id_from_address(@0xA);
     let module_name = ascii::string(b"module");
@@ -213,6 +240,24 @@ fun try_get_authenticator_function_metadata_v1_present_and_missing() {
     );
 
     test_utils::destroy(package_metadata);
+}
+
+#[test]
+// `try_get_authenticator_function_metadata_v1` returns `none` (rather than
+// aborting) when the module metadata carries no authenticator field at all.
+fun try_get_authenticator_function_metadata_v1_without_field_returns_none() {
+    let id = object::id_from_address(@0xA);
+    let module_name = ascii::string(b"module");
+    let module_metadata = module_metadata::new(id, module_name);
+
+    assert!(
+        package_metadata::try_get_authenticator_function_metadata_v1(
+            &module_metadata,
+            &ascii::string(b"anything"),
+        ).is_none(),
+    );
+
+    test_utils::destroy(module_metadata);
 }
 
 #[test, allow(deprecated_usage)]
