@@ -759,6 +759,76 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
     Ok(())
 }
 
+/// A duplicate submission must inherit the outcome of the in-flight
+/// submission it waited on. With a transaction validators deterministically
+/// reject (its gas object version was already consumed), the duplicate must
+/// fail with the same error as the driving submission instead of waiting for
+/// a checkpoint inclusion that can never happen and timing out.
+#[sim_test]
+async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    // Consume a gas object, then build a second transaction spending the
+    // same (now stale) gas object version: validators reject it as invalid,
+    // deterministically failing the driving submission.
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let spend = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+    orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(spend),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("spending the gas object must succeed");
+
+    let stale = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(2), sender)
+            .build(),
+    );
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let first_err = first.expect_err("transaction spending a stale gas object must fail");
+    let second_err = second.expect_err("transaction spending a stale gas object must fail");
+    assert!(
+        matches!(first_err, QuorumDriverError::InvalidTransaction(_)),
+        "expected the submission to be rejected as invalid, got {first_err:?}"
+    );
+    assert_eq!(
+        first_err, second_err,
+        "the duplicate submission must inherit the in-flight submission's error"
+    );
+
+    Ok(())
+}
+
 /// Without consensus quorum, the skip-cert path can never observe checkpoint
 /// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
 /// (a retriable transient), not `QuorumDriverInternal` — the latter would

@@ -7,7 +7,7 @@
 // finality, and proactively executes finalized transactions locally.
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, hash_map::Entry},
     net::SocketAddr,
     ops::Deref,
     path::Path,
@@ -53,7 +53,10 @@ use prometheus_filtered::{
     register_int_gauge_with_registry,
 };
 use tokio::{
-    sync::broadcast::{Receiver, error::RecvError},
+    sync::{
+        broadcast::{Receiver, error::RecvError},
+        watch,
+    },
     task::JoinHandle,
     time::timeout,
 };
@@ -101,11 +104,13 @@ pub struct TransactionOrchestrator<A: Clone> {
     _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
     /// Digests currently being driven to finality by the TransactionDriver;
-    /// used to deduplicate concurrent submissions of the same transaction.
-    /// Kept in memory only: the driver path is best-effort, so there is
-    /// nothing to recover after a restart. The QuorumDriver path tracks its
-    /// submissions in `pending_tx_log` instead.
-    in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+    /// used to deduplicate concurrent submissions of the same transaction,
+    /// with a channel per digest through which the driving submission
+    /// publishes its outcome to concurrent duplicates. Kept in memory only:
+    /// the driver path is best-effort, so there is nothing to recover after
+    /// a restart. The QuorumDriver path tracks its submissions in
+    /// `pending_tx_log` instead.
+    in_flight_transactions: InFlightTransactions,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
 }
@@ -704,7 +709,7 @@ where
         fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(
         td: Arc<TransactionDriver<A>>,
-        in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+        in_flight_transactions: InFlightTransactions,
         validator_state: Arc<AuthorityState>,
         metrics: Arc<TransactionOrchestratorMetrics>,
         request: ExecuteTransactionRequestV1,
@@ -771,7 +776,7 @@ where
         fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
         td: Arc<TransactionDriver<A>>,
-        in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+        in_flight_transactions: InFlightTransactions,
         validator_state: Arc<AuthorityState>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
@@ -779,20 +784,29 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let tx_digest = *request.transaction.digest();
 
-        // Deduplicate concurrent submissions of the same digest: only the first
-        // caller drives the committee-wide submission; the rest wait for its
-        // effects. The guard removes the digest from the in-flight set on every
-        // exit path (success, error, timeout, or cancellation) when it is
-        // dropped.
-        let guard = TransactionSubmissionGuard::new(in_flight_transactions, tx_digest);
-        if !guard.is_new_transaction() {
-            debug!(
-                ?tx_digest,
-                "transaction already in flight; awaiting its effects instead of driving a \
-                 duplicate submission"
-            );
-            return Self::await_in_flight_transaction(&validator_state, tx_digest, &request).await;
-        }
+        // Deduplicate concurrent submissions of the same digest: only the
+        // first caller drives the committee-wide submission and publishes its
+        // outcome; the rest await that outcome. The guard removes the digest
+        // from the in-flight map on every exit path (success, error, timeout,
+        // or cancellation) when it is dropped.
+        let guard = match TransactionSubmissionGuard::acquire(in_flight_transactions, tx_digest) {
+            TransactionSubmission::Driving(guard) => guard,
+            TransactionSubmission::AlreadyInFlight(receiver) => {
+                debug!(
+                    ?tx_digest,
+                    "transaction already in flight; awaiting its outcome instead of driving a \
+                     duplicate submission"
+                );
+                return Self::await_in_flight_transaction(
+                    receiver,
+                    &validator_state,
+                    tx_digest,
+                    &request,
+                    skip_certification,
+                )
+                .await;
+            }
+        };
 
         // This call runs inside a task detached from the caller, so the
         // outcome is logged here rather than left to the caller — a
@@ -813,67 +827,114 @@ where
             Ok(response) => response,
             Err(e) => {
                 warn!(?tx_digest, "TransactionDriver submission failed: {e}");
-                return Err(map_td_error_to_qd(e));
+                let error = map_td_error_to_qd(e);
+                guard.publish(Err(error.clone()));
+                return Err(error);
             }
         };
 
         debug!(?tx_digest, "TransactionDriver submission succeeded");
 
-        let QuorumTransactionResponse {
-            effects: td_effects,
-            events,
-            input_objects,
-            output_objects,
-            auxiliary_data,
-        } = td_response;
+        let td_response = Arc::new(td_response);
+        guard.publish(Ok(td_response.clone()));
 
-        let effects = convert_td_to_qd_effects(td_effects);
-        Ok(ExecuteTransactionResponseV1 {
-            effects,
-            events: if request.include_events { events } else { None },
+        Ok(Self::response_from_driver_response(&td_response, &request))
+    }
+
+    /// Build a caller-specific response from a driver response, honoring the
+    /// caller's include flags.
+    fn response_from_driver_response(
+        td_response: &QuorumTransactionResponse,
+        request: &ExecuteTransactionRequestV1,
+    ) -> ExecuteTransactionResponseV1 {
+        ExecuteTransactionResponseV1 {
+            effects: convert_td_to_qd_effects(td_response.effects.clone()),
+            events: if request.include_events {
+                td_response.events.clone()
+            } else {
+                None
+            },
             input_objects: if request.include_input_objects {
-                input_objects
+                td_response.input_objects.clone()
             } else {
                 None
             },
             output_objects: if request.include_output_objects {
-                output_objects
+                td_response.output_objects.clone()
             } else {
                 None
             },
             auxiliary_data: if request.include_auxiliary_data {
-                auxiliary_data
+                td_response.auxiliary_data.clone()
             } else {
                 None
             },
-        })
+        }
     }
 
-    /// Wait for an already in-flight submission of `tx_digest` to reach
-    /// finality and build the response from the authoritative local cache,
+    /// Await the outcome of an already in-flight submission of `tx_digest`
     /// instead of starting a second committee-wide submission for the same
-    /// transaction. Times out with `TimeoutBeforeFinality` if the in-flight
-    /// submission does not get the transaction checkpointed in time.
+    /// transaction:
+    ///
+    /// - The in-flight submission failed: its error is returned as-is.
+    /// - It succeeded with effects this caller can use: the response is rebuilt
+    ///   from the shared driver response with this caller's include flags.
+    /// - It succeeded with `UncertifiedSingleValidator` effects but this caller
+    ///   did not opt into skip-certification (so nothing downstream reconciles
+    ///   them against the cache): wait for checkpoint inclusion and rebuild
+    ///   from the authoritative local cache instead — uncertified data must
+    ///   never reach a caller that expects certified effects.
+    /// - Nothing was published within `WAIT_FOR_FINALITY_TIMEOUT`, or the
+    ///   in-flight submission's task died without publishing (panic or
+    ///   shutdown): `TimeoutBeforeFinality`, so the client retries.
     async fn await_in_flight_transaction(
+        mut receiver: watch::Receiver<Option<InFlightSubmissionResult>>,
         validator_state: &Arc<AuthorityState>,
         tx_digest: TransactionDigest,
         request: &ExecuteTransactionRequestV1,
+        skip_certification: bool,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        let digests = [tx_digest];
-        let seq = validator_state
-            .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT)
+        let outcome = {
+            let outcome_ref = tokio::time::timeout(
+                WAIT_FOR_FINALITY_TIMEOUT,
+                receiver.wait_for(|outcome| outcome.is_some()),
+            )
             .await
-            .ok()
-            .and_then(|inclusion| inclusion.get(&tx_digest).map(|&(seq, _)| seq))
-            .ok_or(QuorumDriverError::TimeoutBeforeFinality)?;
-        Self::build_response_from_cache(
-            validator_state,
-            tx_digest,
-            seq,
-            request.include_events,
-            request.include_input_objects,
-            request.include_output_objects,
-        )
+            .map_err(|_elapsed| QuorumDriverError::TimeoutBeforeFinality)?
+            .map_err(|_closed| QuorumDriverError::TimeoutBeforeFinality)?;
+            // `wait_for` only returns a value matching its predicate, so the
+            // `None` arm is unreachable; mapped to a retriable error instead
+            // of panicking.
+            (*outcome_ref)
+                .clone()
+                .ok_or(QuorumDriverError::TimeoutBeforeFinality)?
+        };
+
+        let td_response = outcome?;
+
+        let uncertified = matches!(
+            td_response.effects.finality_info,
+            TdEffectsFinalityInfo::UncertifiedSingleValidator(_)
+        );
+        if uncertified && !skip_certification {
+            let digests = [tx_digest];
+            let seq = validator_state
+                .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT)
+                .await
+                .ok()
+                .and_then(|inclusion| inclusion.get(&tx_digest).map(|&(seq, _)| seq))
+                .ok_or(QuorumDriverError::TimeoutBeforeFinality)?;
+            return Self::build_response_from_cache(
+                validator_state,
+                tx_digest,
+                seq,
+                request.include_events,
+                request.include_input_objects,
+                request.include_output_objects,
+            );
+        }
+
+        Ok(Self::response_from_driver_response(&td_response, request))
     }
 
     /// Submit a transaction via the QuorumDriver. `transaction` must be the
@@ -1674,50 +1735,155 @@ fn read_cached_transaction_data(
     ))
 }
 
-/// Tracks a transaction that is being submitted to finality so that concurrent
-/// submissions of the same digest deduplicate.
+/// Outcome of an in-flight driver submission, shared with concurrent
+/// submissions of the same digest: the unfiltered driver response, or the
+/// error the submission failed with.
+type InFlightSubmissionResult = Result<Arc<QuorumTransactionResponse>, QuorumDriverError>;
+
+/// Digests currently being driven to finality by the TransactionDriver,
+/// each with a channel carrying the submission outcome (`None` until the
+/// driving submission resolves).
+type InFlightTransactions =
+    Arc<Mutex<HashMap<TransactionDigest, watch::Receiver<Option<InFlightSubmissionResult>>>>>;
+
+/// Result of trying to register a submission of a digest in the in-flight
+/// map: either this caller drives the committee-wide submission, or another
+/// submission of the same digest is already in flight and this caller should
+/// await its published outcome instead.
+enum TransactionSubmission {
+    Driving(TransactionSubmissionGuard),
+    AlreadyInFlight(watch::Receiver<Option<InFlightSubmissionResult>>),
+}
+
+/// Tracks a transaction that is being submitted to finality so that
+/// concurrent submissions of the same digest deduplicate.
 ///
-/// `is_new_transaction` is `false` when another submission of the same digest
-/// is already in flight; the caller should then wait for that submission's
-/// effects instead of starting a new one. The driving submission's guard
-/// removes the digest from the in-flight set when dropped, covering success,
-/// error, timeout, and cancellation.
+/// Held only by the driving submission, which must `publish` its outcome so
+/// concurrent duplicates can return it. Dropping the guard removes the digest
+/// from the in-flight map on every exit path (success, error, timeout, and
+/// cancellation); receivers subscribed before removal still observe a
+/// published outcome, and if the guard is dropped without publishing (panic
+/// or shutdown) the closed channel tells them the submission died.
 struct TransactionSubmissionGuard {
-    in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+    in_flight_transactions: InFlightTransactions,
     tx_digest: TransactionDigest,
-    is_new_transaction: bool,
+    sender: watch::Sender<Option<InFlightSubmissionResult>>,
 }
 
 impl TransactionSubmissionGuard {
-    fn new(
-        in_flight_transactions: Arc<Mutex<HashSet<TransactionDigest>>>,
+    fn acquire(
+        in_flight_transactions: InFlightTransactions,
         tx_digest: TransactionDigest,
-    ) -> Self {
-        let is_new_transaction = in_flight_transactions.lock().insert(tx_digest);
-        if is_new_transaction {
-            debug!(?tx_digest, "added transaction to in-flight set");
-        } else {
-            debug!(?tx_digest, "transaction already being processed");
-        }
-        Self {
+    ) -> TransactionSubmission {
+        let sender = {
+            let mut in_flight = in_flight_transactions.lock();
+            match in_flight.entry(tx_digest) {
+                Entry::Occupied(entry) => {
+                    debug!(?tx_digest, "transaction already being processed");
+                    return TransactionSubmission::AlreadyInFlight(entry.get().clone());
+                }
+                Entry::Vacant(entry) => {
+                    let (sender, receiver) = watch::channel(None);
+                    entry.insert(receiver);
+                    debug!(?tx_digest, "added transaction to in-flight map");
+                    sender
+                }
+            }
+        };
+        TransactionSubmission::Driving(Self {
             in_flight_transactions,
             tx_digest,
-            is_new_transaction,
-        }
+            sender,
+        })
     }
 
-    fn is_new_transaction(&self) -> bool {
-        self.is_new_transaction
+    /// Publish the submission outcome to concurrent duplicate submissions.
+    fn publish(&self, result: InFlightSubmissionResult) {
+        // Send fails only when every receiver is dropped, which just means
+        // there is no duplicate submission to notify.
+        let _ = self.sender.send(Some(result));
     }
 }
 
 impl Drop for TransactionSubmissionGuard {
     fn drop(&mut self) {
-        // Only the guard that inserted the digest owns the entry; a duplicate
-        // submission's guard must not remove it while the driving submission
-        // is still in flight.
-        if self.is_new_transaction {
-            self.in_flight_transactions.lock().remove(&self.tx_digest);
+        self.in_flight_transactions.lock().remove(&self.tx_digest);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn acquire_driving(
+        in_flight: &InFlightTransactions,
+        tx_digest: TransactionDigest,
+    ) -> TransactionSubmissionGuard {
+        match TransactionSubmissionGuard::acquire(in_flight.clone(), tx_digest) {
+            TransactionSubmission::Driving(guard) => guard,
+            TransactionSubmission::AlreadyInFlight(_) => {
+                panic!("expected to acquire the driving submission")
+            }
         }
+    }
+
+    fn acquire_duplicate(
+        in_flight: &InFlightTransactions,
+        tx_digest: TransactionDigest,
+    ) -> watch::Receiver<Option<InFlightSubmissionResult>> {
+        match TransactionSubmissionGuard::acquire(in_flight.clone(), tx_digest) {
+            TransactionSubmission::Driving(_) => {
+                panic!("expected the digest to already be in flight")
+            }
+            TransactionSubmission::AlreadyInFlight(receiver) => receiver,
+        }
+    }
+
+    #[tokio::test]
+    async fn duplicate_submission_receives_published_outcome() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+
+        guard.publish(Err(QuorumDriverError::TimeoutBeforeFinality));
+        drop(guard);
+
+        // The published outcome must survive the guard drop for receivers
+        // subscribed before the entry was removed.
+        let outcome = receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect("outcome was published before the sender dropped")
+            .clone()
+            .expect("wait_for only returns once the outcome is Some");
+        assert!(matches!(
+            outcome,
+            Err(QuorumDriverError::TimeoutBeforeFinality)
+        ));
+        assert!(
+            in_flight.lock().is_empty(),
+            "guard drop must remove the in-flight entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn dropped_guard_without_outcome_closes_channel() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+        drop(guard);
+
+        receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect_err("dropping the guard without publishing must close the channel");
+        assert!(in_flight.lock().is_empty());
+
+        // The digest can be driven again once the entry is gone.
+        let _guard = acquire_driving(&in_flight, tx_digest);
     }
 }
