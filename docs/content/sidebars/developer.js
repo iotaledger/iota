@@ -314,7 +314,6 @@ const developer = [
                     'developer/references/contribute/contribute-to-iota-repos',
                     'developer/advanced/iota-repository',
                     'developer/references/contribute/style-guide',
-                    'developer/references/contribute/add-a-quiz',
                     'developer/references/contribute/import-code-docs',
                 ],
             },

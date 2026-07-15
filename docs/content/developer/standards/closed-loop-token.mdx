@@ -5,9 +5,6 @@ teams:
   - iotaledger/vm-language
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/standards/closed-loop-token/closed-loop-token.json';
-
 Using the Closed-Loop Token standard, you can limit the applications that can use the token and set up custom policies for transfers, spends, and conversions. The [`iota::token` module](../../developer/references/framework/iota/token.mdx) in the IOTA framework defines the standard.
 
 ## Background and Use Cases
@@ -53,7 +50,6 @@ flowchart LR
     B-- from_coin -->C;
 ```
 
-
 Unlike Coin, which has `key + store` abilities and thus supports wrapping and public transfers, Token has only the `key` ability and cannot be wrapped, stored as a dynamic field, or freely transferred (unless there's a custom policy for that). Due to this restriction, Token **can only be owned by an account** and can't be stored in an application (however, it can be "spent" - see [Spending section](closed-loop-token/spending.mdx) section).
 
 ```move
@@ -98,5 +94,3 @@ The previous methods are included in the base implementation, however it is poss
 ## Token Policy and Rules
 
 Protected actions are disabled by default but you can enable them in a [`TokenPolicy`](closed-loop-token/token-policy.mdx). Additionally, you can set custom restrictions called [rules](closed-loop-token/rules.mdx) that a specific action must satisfy for it to succeed.
-
-<Quiz questions={questions} />

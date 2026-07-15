@@ -5,8 +5,6 @@ teams:
   - iotaledger/dev-tools
   - iotaledger/node
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/local-network.json';
 
 # Local Development
 
@@ -285,7 +283,6 @@ For additional information about example data for testing, see [https://github.c
 | Retrying requesting from the faucet: Retry failed: fetch is not defined | Update or switch to Node.js version 20+.                                     |
 | Error: tsx must be loaded with --import instead of --loader | Update or switch to Node.js version 20+.                                          |
 
-
 ## Test with the IOTA TypeScript SDK
 
 The published version of the IOTA TypeScript SDK might be an earlier version than the version of IOTA you installed for
@@ -304,5 +301,3 @@ pnpm add <PATH_TO_YOUR_REPO>/sdk/typescript
 ```
 
 and the locally compiled version of `@iota/iota-sdk` package will be installed for your application.
-
-<Quiz questions={questions} />
