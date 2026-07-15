@@ -130,6 +130,16 @@ impl TransactionBlockFilter {
             || self.transaction_ids.is_some()
     }
 
+    /// Returns the checkpoint sequence number when `at_checkpoint` is the
+    /// only filter set.
+    pub(crate) fn only_at_checkpoint(&self) -> Option<UInt53> {
+        if self.has_filters() || self.after_checkpoint.is_some() || self.before_checkpoint.is_some()
+        {
+            return None;
+        }
+        self.at_checkpoint
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.before_checkpoint == Some(UInt53::from(0))
             || matches!(

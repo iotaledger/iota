@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Bound,
+};
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
@@ -405,6 +408,18 @@ impl TransactionBlock {
         let db: &Db = ctx.data_unchecked();
         let is_from_front = page.is_from_front();
 
+        // For the only-`atCheckpoint` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(at_checkpoint) = filter.only_at_checkpoint() {
+            return Self::paginate_at_checkpoint_with_fallback(
+                db,
+                page,
+                u64::from(at_checkpoint),
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
             bool,
@@ -497,6 +512,61 @@ impl TransactionBlock {
     /// Returns whether this transaction block is within the available range.
     pub(crate) fn is_available(&self) -> bool {
         self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+    }
+
+    /// Paginates transactions in a single checkpoint with fallback support.
+    async fn paginate_at_checkpoint_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        at_checkpoint: u64,
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        if at_checkpoint > checkpoint_viewed_at {
+            return Ok(ScanConnection::new(false, false));
+        }
+
+        // Fetch the page plus the rows at the cursors, to later compute
+        // `has_next`/`has_prev` via `paginate_results`. The bounds are
+        // inclusive so that the cursor rows themselves are fetched.
+        let tx_seq_range = (
+            page.after()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+            page.before()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+        );
+        let mut results = db
+            .inner
+            .query_stored_transactions_by_checkpoint_seq_with_fallback(
+                at_checkpoint,
+                tx_seq_range,
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
     }
 }
 

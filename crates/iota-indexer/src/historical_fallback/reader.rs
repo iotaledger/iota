@@ -9,7 +9,10 @@
 //! the indexer is unable to fetch data from the database, which is especially
 //! useful when pruning is enabled.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Bound, RangeBounds},
+};
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
@@ -492,14 +495,64 @@ impl HistoricalFallbackReader {
             .collect::<Vec<TransactionDigest>>();
 
         let transactions = self.transactions(&tx_digests).await?;
-
         if transactions.iter().any(|tx| tx.is_none()) {
             return Err(IndexerError::HistoricalFallbackStorageError(format!(
                 "KV doesn't have full transaction data for checkpoint {checkpoint_sequence_number}"
             )));
         }
+        Ok(transactions.into_iter().flatten().collect())
+    }
 
-        Ok(transactions.into_iter().flatten().collect::<Vec<_>>())
+    /// Fetches transactions belonging to a specific checkpoint whose
+    /// `tx_sequence_number` falls within the given range.
+    ///
+    /// Returns up to `limit` transactions ordered by `tx_sequence_number`,
+    /// in order determined by `is_descending`.
+    pub(crate) async fn checkpoint_transactions_in_seq_range(
+        &self,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        if limit == 0 {
+            return Ok(vec![]);
+        }
+
+        let seqs = [checkpoint_sequence_number];
+        let (summaries, contents) = tokio::try_join!(
+            self.client
+                .multi_get_checkpoints_summaries_by_sequence_numbers(&seqs),
+            self.client.multi_get_checkpoints_contents(&seqs),
+        )?;
+        let (Some(Some(summary)), Some(Some(contents))) =
+            (summaries.into_iter().next(), contents.into_iter().next())
+        else {
+            return Ok(vec![]);
+        };
+
+        // digests sorted by tx_sequence_number, ascending
+        let in_range = contents
+            .enumerate_transactions(&summary)
+            .filter(|(seq, _)| tx_seq_range.contains(seq))
+            .map(|(_, digests)| digests.transaction);
+
+        let tx_digests: Vec<TransactionDigest> = if is_descending {
+            let mut tx_digests: Vec<_> = in_range.collect();
+            tx_digests.reverse();
+            tx_digests.truncate(limit);
+            tx_digests
+        } else {
+            in_range.take(limit).collect()
+        };
+
+        let transactions = self.transactions(&tx_digests).await?;
+        if transactions.iter().any(|tx| tx.is_none()) {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "KV doesn't have full transaction data for checkpoint {checkpoint_sequence_number}"
+            )));
+        }
+        Ok(transactions.into_iter().flatten().collect())
     }
 
     /// Fetches events for a specific transaction.
