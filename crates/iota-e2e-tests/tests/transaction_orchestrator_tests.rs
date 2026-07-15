@@ -759,6 +759,66 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
     Ok(())
 }
 
+/// A submission that fails with a retriable error is retried in the
+/// background: the caller receives the error, but the transaction still
+/// reaches finality once the transient condition clears — without any
+/// resubmission.
+#[sim_test]
+async fn test_pcool_background_retry_reaches_finality() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    // Break quorum so the first submission fails with a retriable error.
+    let validator_addresses = test_cluster.get_validator_pubkeys();
+    assert_eq!(validator_addresses.len(), 4);
+    test_cluster.stop_node(&validator_addresses[0]);
+    test_cluster.stop_node(&validator_addresses[1]);
+
+    let err = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(txn),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect_err("submission without quorum must fail");
+    assert!(
+        matches!(err, QuorumDriverError::TimeoutBeforeFinality),
+        "expected a retriable TimeoutBeforeFinality, got {err:?}"
+    );
+
+    // Restore quorum. The background retry — no resubmission happens — must
+    // drive the transaction to finality on its own.
+    test_cluster.start_node(&validator_addresses[0]).await;
+    test_cluster.start_node(&validator_addresses[1]).await;
+
+    let inclusion = handle
+        .state()
+        .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(300))
+        .await
+        .expect("wait_for_checkpoint_inclusion should not error");
+    assert!(
+        inclusion.contains_key(&digest),
+        "the background retry should drive the transaction to finality without a resubmission"
+    );
+
+    Ok(())
+}
+
 /// A duplicate submission must inherit the outcome of the in-flight
 /// submission it waited on. With a transaction validators deterministically
 /// reject (its gas object version was already consumed), the duplicate must

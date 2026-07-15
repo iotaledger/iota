@@ -19,7 +19,7 @@ use futures::{
     FutureExt,
     future::{Either, Future, select},
 };
-use iota_common::{debug_fatal, sync::notify_read::NotifyRead};
+use iota_common::{backoff, debug_fatal, sync::notify_read::NotifyRead};
 use iota_config::NodeConfig;
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
@@ -46,7 +46,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, MetricLevel, Registry,
+    Histogram, IntCounterVec, MetricLevel, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
@@ -58,7 +58,7 @@ use tokio::{
         watch,
     },
     task::JoinHandle,
-    time::timeout,
+    time::{sleep, timeout},
 };
 use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
 
@@ -329,15 +329,20 @@ where
                 let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
+                let metrics = self.metrics.clone();
                 // Detached for the same reason as above.
                 let result = join_submission_task(spawn_monitored_task!(
                     Self::submit_with_transaction_driver(
                         td,
                         in_flight_transactions,
                         validator_state,
+                        metrics,
                         request,
                         client_addr,
+                        // skip_certification
                         false,
+                        // retry_in_background
+                        true,
                     )
                 ))
                 .await?;
@@ -664,6 +669,7 @@ where
                 let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
+                let metrics = self.metrics.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
@@ -675,9 +681,12 @@ where
                     td,
                     in_flight_transactions,
                     validator_state,
+                    metrics,
                     request,
                     client_addr,
                     skip_certification,
+                    // retry_in_background
+                    true,
                 )))
                 .await
             }
@@ -730,11 +739,15 @@ where
             validator_state.wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
         tokio::pin!(checkpoint_inclusion);
         let driver = Self::submit_with_transaction_driver(
-            td,
-            in_flight_transactions,
+            td.clone(),
+            in_flight_transactions.clone(),
             validator_state.clone(),
-            request,
+            metrics.clone(),
+            request.clone(),
             client_addr,
+            // skip_certification
+            true,
+            // retry_in_background
             true,
         );
 
@@ -760,6 +773,23 @@ where
                 // checkpoint inclusion, which this race winning guarantees
                 // resolves immediately.
                 let seq = checkpoint_result.ok().and_then(seq_for_tx);
+                if seq.is_none() {
+                    // The checkpoint wait timed out while the driver future
+                    // was still pending, and selecting this arm drops that
+                    // future before it can trigger its own background retry.
+                    // A timeout with the submission still in flight is
+                    // transient by construction (an invalid transaction
+                    // would have failed the driver arm first), so retry in
+                    // the background.
+                    Self::spawn_background_retry(
+                        td,
+                        in_flight_transactions,
+                        validator_state.clone(),
+                        metrics,
+                        request,
+                        client_addr,
+                    );
+                }
                 (None, seq)
             }
         };
@@ -780,15 +810,24 @@ where
     ///
     /// Run inside a detached task so a client disconnect cannot cancel a
     /// `drive_transaction` call that may already be in consensus.
+    ///
+    /// With `retry_in_background = true`, a submission that fails with a
+    /// retriable error additionally spawns a background task that keeps
+    /// retrying it with exponential backoff (see `spawn_background_retry`);
+    /// the caller still gets the original error. Only the background retry
+    /// loop itself passes `false`, so a failed retry attempt cannot spawn a
+    /// second loop.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
         fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
         td: Arc<TransactionDriver<A>>,
         in_flight_transactions: InFlightTransactions,
         validator_state: Arc<AuthorityState>,
+        metrics: Arc<TransactionOrchestratorMetrics>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
+        retry_in_background: bool,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let tx_digest = *request.transaction.digest();
 
@@ -797,26 +836,27 @@ where
         // outcome; the rest await that outcome. The guard removes the digest
         // from the in-flight map on every exit path (success, error, timeout,
         // or cancellation) when it is dropped.
-        let guard = match TransactionSubmissionGuard::acquire(in_flight_transactions, tx_digest) {
-            TransactionSubmission::Driving(guard) => guard,
-            TransactionSubmission::AlreadyInFlight(receiver) => {
-                debug!(
-                    ?tx_digest,
-                    "transaction already in flight; awaiting its outcome instead of driving a \
-                     duplicate submission"
-                );
-                return Self::await_in_flight_transaction(
-                    receiver,
-                    &td,
-                    &validator_state,
-                    tx_digest,
-                    &request,
-                    client_addr,
-                    skip_certification,
-                )
-                .await;
-            }
-        };
+        let guard =
+            match TransactionSubmissionGuard::acquire(in_flight_transactions.clone(), tx_digest) {
+                TransactionSubmission::Driving(guard) => guard,
+                TransactionSubmission::AlreadyInFlight(receiver) => {
+                    debug!(
+                        ?tx_digest,
+                        "transaction already in flight; awaiting its outcome instead of driving \
+                         a duplicate submission"
+                    );
+                    return Self::await_in_flight_transaction(
+                        receiver,
+                        &td,
+                        &validator_state,
+                        tx_digest,
+                        &request,
+                        client_addr,
+                        skip_certification,
+                    )
+                    .await;
+                }
+            };
 
         // This call runs inside a task detached from the caller, so the
         // outcome is logged here rather than left to the caller — a
@@ -837,8 +877,22 @@ where
             Ok(response) => response,
             Err(e) => {
                 warn!(?tx_digest, "TransactionDriver submission failed: {e}");
+                let submission_retriable = e.is_submission_retriable();
                 let error = map_td_error_to_qd(e);
                 guard.publish(Err(error.clone()));
+                // Release the in-flight entry so the background retry (or a
+                // client resubmission) can drive the digest again.
+                drop(guard);
+                if retry_in_background && submission_retriable {
+                    Self::spawn_background_retry(
+                        td,
+                        in_flight_transactions,
+                        validator_state,
+                        metrics,
+                        request,
+                        client_addr,
+                    );
+                }
                 return Err(error);
             }
         };
@@ -886,6 +940,91 @@ where
                 .then_some(auxiliary_data)
                 .flatten(),
         }
+    }
+
+    /// Keep retrying a submission that failed with a retriable error, in a
+    /// task detached from the (already failed) caller, so the transaction
+    /// still reaches finality once the transient condition clears.
+    ///
+    /// Each attempt goes through `submit_with_transaction_driver` and thus
+    /// the in-flight dedup: if the client resubmits meanwhile, whichever
+    /// submission starts first drives and the other awaits its outcome, so
+    /// the committee never sees competing submissions of the same digest.
+    /// Attempts request full certification: the response is discarded, so
+    /// there is no caller to reconcile uncertified effects.
+    ///
+    /// The loop stops on success, on a non-retriable error, or after
+    /// `MAX_BACKGROUND_RETRIES` attempts. A node restart drops the loop like
+    /// the rest of the in-memory driver-path state.
+    fn spawn_background_retry(
+        td: Arc<TransactionDriver<A>>,
+        in_flight_transactions: InFlightTransactions,
+        validator_state: Arc<AuthorityState>,
+        metrics: Arc<TransactionOrchestratorMetrics>,
+        request: ExecuteTransactionRequestV1,
+        client_addr: Option<SocketAddr>,
+    ) {
+        const MAX_BACKGROUND_RETRIES: usize = 10;
+
+        let tx_digest = *request.transaction.digest();
+        metrics.background_retry_started.inc();
+        spawn_monitored_task!(async move {
+            let backoff =
+                backoff::ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(300));
+            for (attempt, delay) in backoff.enumerate() {
+                if attempt == MAX_BACKGROUND_RETRIES {
+                    break;
+                }
+                let result = Self::submit_with_transaction_driver(
+                    td.clone(),
+                    in_flight_transactions.clone(),
+                    validator_state.clone(),
+                    metrics.clone(),
+                    request.clone(),
+                    client_addr,
+                    // skip_certification
+                    false,
+                    // retry_in_background
+                    false,
+                )
+                .await;
+                match result {
+                    Ok(_) => {
+                        metrics
+                            .background_retry_attempts
+                            .with_label_values(&["success"])
+                            .inc();
+                        debug!(?tx_digest, "background retry {attempt} succeeded");
+                        break;
+                    }
+                    Err(e) if !is_retriable_submission_error(&e) => {
+                        metrics
+                            .background_retry_attempts
+                            .with_label_values(&["non-retriable"])
+                            .inc();
+                        debug!(
+                            ?tx_digest,
+                            "background retry {attempt} failed with a non-retriable error: \
+                             {e:?}; terminating"
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        metrics
+                            .background_retry_attempts
+                            .with_label_values(&["retriable"])
+                            .inc();
+                        debug!(
+                            ?tx_digest,
+                            "background retry {attempt} failed with a retriable error: {e:?}; \
+                             waiting {:.3}s before the next attempt",
+                            delay.as_secs_f32()
+                        );
+                    }
+                }
+                sleep(delay).await;
+            }
+        });
     }
 
     /// Await the outcome of an already in-flight submission of `tx_digest`
@@ -1391,6 +1530,19 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
     }
 }
 
+/// Whether a mapped submission error is worth retrying with a new
+/// submission. Narrower than the client-facing retry contract of
+/// `map_td_error_to_qd`: `QuorumDriverInternal` is excluded because internal
+/// errors are not submission-retriable (see
+/// `ErrorCategory::is_submission_retriable`).
+fn is_retriable_submission_error(e: &QuorumDriverError) -> bool {
+    matches!(
+        e,
+        QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
+    )
+}
+
 /// Map a `TransactionDriverError` to a `QuorumDriverError` for client
 /// reporting. The variant choice signals retriability: clients retry on
 /// `QuorumDriverInternal`, `FailedWithTransientErrorAfterMaximumAttempts`,
@@ -1515,6 +1667,11 @@ pub struct TransactionOrchestratorMetrics {
     // race cancelled the in-flight driver work in favor of rebuilding from
     // the local cache.
     skip_effect_cert_checkpoint_overrode_driver: GenericCounter<AtomicU64>,
+
+    // Background retries of driver-path submissions that failed with a
+    // retriable error.
+    background_retry_started: GenericCounter<AtomicU64>,
+    background_retry_attempts: IntCounterVec,
 
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
@@ -1675,6 +1832,20 @@ impl TransactionOrchestratorMetrics {
                 registry,
             )
                 .unwrap(),
+            background_retry_started: register_int_counter_with_registry!(
+                "tx_orchestrator_background_retry_started",
+                "Number of background retry tasks started for submissions that failed \
+                 with a retriable error",
+                registry,
+            )
+            .unwrap(),
+            background_retry_attempts: register_int_counter_vec_with_registry!(
+                "tx_orchestrator_background_retry_attempts",
+                "Total number of background retry attempts, by status",
+                &["status"],
+                registry,
+            )
+            .unwrap(),
             request_latency_single_writer: request_latency
                 .with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]),
             request_latency_shared_obj: request_latency.with_label_values(&[TX_TYPE_SHARED_OBJ_TX]),
