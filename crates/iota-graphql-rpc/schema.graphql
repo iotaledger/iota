@@ -360,8 +360,11 @@ type Checkpoint {
 	digest: String!
 	"""
 	The Base64-encoded BCS serialization of this checkpoint's
-	`CheckpointSummary`. `null` for checkpoints indexed before the summary
-	columns were added.
+	`CheckpointSummary`.
+	
+	# Note
+	For older checkpoints, where this data was not recorded, `null` is
+	returned.
 	"""
 	bcs: Base64
 	"""

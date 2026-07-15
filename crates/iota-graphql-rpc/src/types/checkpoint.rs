@@ -99,8 +99,11 @@ impl Checkpoint {
     }
 
     /// The Base64-encoded BCS serialization of this checkpoint's
-    /// `CheckpointSummary`. `null` for checkpoints indexed before the summary
-    /// columns were added.
+    /// `CheckpointSummary`.
+    ///
+    /// # Note
+    /// For older checkpoints, where this data was not recorded, `null` is
+    /// returned.
     #[graphql(complexity = 0)]
     async fn bcs(&self) -> Result<Option<Base64>> {
         if self.stored.content_digest.is_none() || self.stored.version_specific_data.is_none() {
