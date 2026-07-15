@@ -10,7 +10,7 @@ use iota_sdk_types::{ObjectReference, Owner as SdkOwner};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData},
 };
 use wasm_bindgen::prelude::*;
@@ -82,11 +82,11 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
 
     let signed = !req.signatures.is_empty();
     let result = if signed {
-        let mut sigs: Vec<GenericSignature> = Vec::with_capacity(req.signatures.len());
+        let mut sigs: Vec<UserSignature> = Vec::with_capacity(req.signatures.len());
         for (i, s) in req.signatures.iter().enumerate() {
             let bytes =
                 b64_decode(s).map_err(|_| JsError::new(&format!("signature[{i}] base64")))?;
-            let sig = GenericSignature::from_bytes(&bytes)
+            let sig = UserSignature::from_bytes(&bytes)
                 .map_err(|e| JsError::new(&format!("signature[{i}] decode: {e}")))?;
             sigs.push(sig);
         }
