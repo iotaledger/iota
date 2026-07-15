@@ -76,7 +76,7 @@ fn affected_addresses_per_transaction() {
 
 #[tokio::test]
 #[cfg_attr(
-    not(feature = "integration_tests"),
+    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn process_checkpoint() {
@@ -134,7 +134,7 @@ async fn process_checkpoint() {
 
 #[tokio::test]
 #[cfg_attr(
-    not(feature = "integration_tests"),
+    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn paginates_newest_first() {
@@ -173,7 +173,7 @@ async fn paginates_newest_first() {
 
 #[tokio::test]
 #[cfg_attr(
-    not(feature = "integration_tests"),
+    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn paginates_oldest_first() {
@@ -212,7 +212,7 @@ async fn paginates_oldest_first() {
 
 #[tokio::test]
 #[cfg_attr(
-    not(feature = "integration_tests"),
+    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn order_flip_is_exact_reverse() {
@@ -265,7 +265,7 @@ async fn order_flip_is_exact_reverse() {
 
 #[tokio::test]
 #[cfg_attr(
-    not(feature = "integration_tests"),
+    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn empty_range_guards_return_ok_empty() {

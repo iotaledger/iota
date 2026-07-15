@@ -28,6 +28,9 @@ telemetry-subscribers.workspace = true
 [features]
 emulator = ["dep:futures", "tokio/process"]
 integration_tests = ["emulator"]
+# Keeps the emulator-backed tests ignored under `--all-features` (CI), which
+# would otherwise enable `integration_tests` on runners without the emulator.
+skip_integration_tests = []
 
 [dev-dependencies]
 # Self-dependency that enables the `emulator` feature for all dev targets,
