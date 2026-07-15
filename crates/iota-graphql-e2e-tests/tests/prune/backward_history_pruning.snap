@@ -54,7 +54,7 @@ Checkpoint created: 2
 
 task 9, line 55:
 //# advance-epoch
-Epoch advanced: 0
+Epoch advanced: 1
 
 task 10, lines 57-59:
 //# programmable --sender A --inputs @A object(4,0)
@@ -81,7 +81,7 @@ Checkpoint created: 5
 
 task 14, line 68:
 //# advance-epoch
-Epoch advanced: 1
+Epoch advanced: 2
 
 task 15, lines 70-84:
 //# run-graphql
@@ -126,7 +126,7 @@ Checkpoint created: 7
 
 task 18, line 92:
 //# advance-epoch
-Epoch advanced: 2
+Epoch advanced: 3
 
 task 19, lines 94-96:
 //# programmable --sender A --inputs @A
@@ -142,7 +142,7 @@ Checkpoint created: 9
 
 task 21, line 100:
 //# advance-epoch
-Epoch advanced: 3
+Epoch advanced: 4
 
 task 22, lines 102-110:
 //# run-graphql --wait-for-checkpoint-pruned 4

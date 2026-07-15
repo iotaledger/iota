@@ -8,7 +8,7 @@ A: object(0,0)
 
 task 1, line 9:
 //# advance-epoch
-Epoch advanced: 0
+Epoch advanced: 1
 
 task 2, line 11:
 //# create-checkpoint
@@ -50,7 +50,7 @@ Checkpoint created: 3
 
 task 9, line 50:
 //# advance-epoch
-Epoch advanced: 1
+Epoch advanced: 2
 
 task 10, lines 52-66:
 //# run-graphql
@@ -169,7 +169,7 @@ Checkpoint created: 5
 
 task 27, lines 100-102:
 //# advance-epoch
-Epoch advanced: 2
+Epoch advanced: 3
 
 task 28, lines 104-120:
 //# run-graphql

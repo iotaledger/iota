@@ -41,7 +41,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, VersionNumber},
+    base_types::{AuthorityName, EpochId, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -576,6 +576,10 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         Ok(self.with_store(|store| store.get_highest_checkpoint().unwrap()))
+    }
+
+    fn try_get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        Ok(self.inner.read().unwrap().epoch_state.epoch())
     }
 
     fn try_get_highest_verified_checkpoint(
