@@ -5669,6 +5669,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            report_package_size: false,
             protocol_build_config_args: Default::default(),
         }),
     }
