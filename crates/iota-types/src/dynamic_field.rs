@@ -15,7 +15,7 @@ use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveTypeTagTrait, ObjectId, SequenceNumber,
+    MoveTypeTagTrait, ObjectId, Version,
     base_types::ObjectDigest,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
@@ -63,7 +63,7 @@ pub struct DynamicFieldInfo {
     pub type_: DynamicFieldType,
     pub object_type: String,
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
 }
 

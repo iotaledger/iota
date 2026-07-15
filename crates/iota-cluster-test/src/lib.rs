@@ -103,8 +103,15 @@ impl TestContext {
         self.cluster.fullnode_url()
     }
 
-    fn get_fullnode_grpc_url(&self) -> Option<&str> {
-        self.cluster.grpc_url()
+    /// Connect a gRPC client to the fullnode.
+    ///
+    /// Panics if the cluster exposes no gRPC endpoint (remote clusters).
+    fn get_fullnode_grpc_client(&self) -> iota_grpc_client::Client {
+        let url = self
+            .cluster
+            .grpc_url()
+            .expect("cluster exposes no gRPC endpoint");
+        iota_grpc_client::Client::new(url).expect("failed to create gRPC client")
     }
 
     fn get_wallet(&self) -> &WalletContext {

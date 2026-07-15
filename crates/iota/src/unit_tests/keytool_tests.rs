@@ -12,15 +12,14 @@ use fastcrypto::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference,
+    Address, ObjectId, ObjectReference, Version,
     crypto::{Intent, IntentScope, PublicKey, UserSignature},
 };
 use iota_types::{
-    base_types::{ObjectDigest, SequenceNumber},
+    base_types::ObjectDigest,
     crypto::{
-        AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
-        SignatureScheme, get_key_pair, get_key_pair_from_rng,
+        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, SignatureScheme,
+        get_key_pair, get_key_pair_from_rng,
     },
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
@@ -77,29 +76,30 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
             Intent::iota_transaction(),
         )?;
         match sig {
-            Signature::Ed25519IotaSignature(_) => {
+            Signature::Ed25519 { .. } => {
                 // signature contains corresponding flag
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Ed25519IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::ED25519.flag()
                 );
                 // keystore stores pubkey with corresponding flag
-                assert!(pk.flag() == Ed25519IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::ED25519.flag())
             }
-            Signature::Secp256k1IotaSignature(_) => {
+            Signature::Secp256k1 { .. } => {
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Secp256k1IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::Secp256k1.flag()
                 );
-                assert!(pk.flag() == Secp256k1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256k1.flag())
             }
-            Signature::Secp256r1IotaSignature(_) => {
+            Signature::Secp256r1 { .. } => {
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Secp256r1IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::Secp256r1.flag()
                 );
-                assert!(pk.flag() == Secp256r1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256r1.flag())
             }
+            _ => panic!("unexpected signature scheme"),
         }
     }
     Ok(())
@@ -544,7 +544,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Create a dummy TransactionData
     let gas = ObjectReference::new(
         ObjectId::random(),
-        SequenceNumber::default(),
+        Version::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;

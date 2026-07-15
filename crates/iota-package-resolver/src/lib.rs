@@ -12,11 +12,11 @@ use std::{
 use async_trait::async_trait;
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, MakeMoveVector, ProgrammableTransaction, StructTag,
-    TypeTag,
+    TypeTag, Version,
     move_package::{MovePackage, TypeOrigin},
 };
 use iota_types::{
-    base_types::{SequenceNumber, is_primitive_type_tag},
+    base_types::is_primitive_type_tag,
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     object::Object,
     transaction::CallArg,
@@ -100,7 +100,7 @@ pub struct Package {
 
     /// The version this package was loaded at -- necessary for handling race
     /// conditions when loading system packages.
-    version: SequenceNumber,
+    version: Version,
 
     modules: BTreeMap<String, Module>,
 }
@@ -3132,7 +3132,7 @@ mod tests {
     ) -> Package {
         let storage_id = package_storage_id(package);
         let runtime_id = package_runtime_id(package);
-        let version = SequenceNumber::from_u64(version);
+        let version = Version::from_u64(version);
 
         let mut modules = BTreeMap::new();
         for unit in &package.package.root_compiled_units {

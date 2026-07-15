@@ -1,8 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::Path, sync::Arc};
-
 use iota_core::checkpoints::CheckpointStore;
 use iota_macros::sim_test;
 use iota_snapshot::{EpochInfo, EpochInfoV1};
@@ -10,7 +8,7 @@ use iota_types::{
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    messages_checkpoint::CheckpointContents,
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt},
     storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;
@@ -114,7 +112,7 @@ async fn epoch_info_chain_is_populated_live() {
 /// chain-id mismatch or a non-genesis trust root yields no verified witness, so
 /// nothing is written.
 #[sim_test]
-async fn epoch_info_backfill_verifies_chain_before_seeding() {
+async fn epoch_info_restore_verifies_chain_before_seeding() {
     // Long epoch duration so the epoch only advances when forced, keeping the
     // closed-epoch set stable across the assertions. Pruning disabled so the
     // live store keeps every closed epoch's finalized row.
@@ -176,7 +174,7 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     for epoch in 0..current_epoch {
         assert!(
             ok_store.get_epoch_info(epoch).unwrap().is_some(),
-            "epoch {epoch} must be seeded after a verified backfill"
+            "epoch {epoch} must be seeded after a verified restore"
         );
     }
 
@@ -491,79 +489,6 @@ async fn epoch_info_verifies_safe_mode_boundary() {
     }
 }
 
-/// When a snapshot backfill seeds a prefix that ends below the locally executed
-/// epochs (the published snapshot lags by more than one epoch),
-/// `backfill_epoch_info_from_local_history` closes the residual gap from the
-/// missing epochs' own closing checkpoints — and creates the open epoch's row
-/// along the way.
-#[sim_test]
-async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
-    // Pruning disabled so the closing checkpoints' data is still available
-    // locally — the precondition for the local replay.
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(600_000)
-        .disable_fullnode_pruning()
-        .build()
-        .await;
-    test_cluster.force_new_epoch().await;
-    test_cluster.force_new_epoch().await;
-
-    let state = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.state());
-    let authority_store = state.database_for_testing();
-    let node_checkpoint_store = state.get_checkpoint_store().clone();
-    let current_epoch = state.current_epoch_for_testing();
-    assert!(current_epoch >= 2, "need at least two closed epochs");
-    wait_until_executed_open_epoch(&node_checkpoint_store, current_epoch).await;
-
-    let expected_chain_id = state.get_chain_identifier();
-    let genesis = &test_cluster.swarm.config().genesis;
-    let genesis_committee = genesis.committee().expect("genesis committee");
-    let genesis_system_state = genesis.iota_system_object();
-
-    // Staging store with only the closing checkpoints (what the replay reads)
-    // and no `epoch_info` rows — the state a lagging-snapshot backfill leaves.
-    let staging_tmp = tempfile::tempdir().unwrap();
-    let staged =
-        stage_closing_checkpoints(staging_tmp.path(), &node_checkpoint_store, current_epoch);
-
-    // Mimic a backfill from a lagging snapshot: seed only epoch 0, leaving the
-    // later closed epochs missing.
-    iota_snapshot::verify_epoch_info_chain(
-        real_epoch_info(&node_checkpoint_store, 1),
-        genesis_committee,
-        genesis_system_state,
-        expected_chain_id,
-        expected_chain_id,
-    )
-    .expect("the lagging snapshot's prefix must verify")
-    .restore_epoch_info(&*staged)
-    .await
-    .expect("seeding the lagging snapshot's prefix must succeed");
-    assert_eq!(staged.highest_indexed_epoch().unwrap(), Some(0));
-    assert!(
-        staged.epoch_info_gap().unwrap().is_some(),
-        "the lagging prefix must leave a gap"
-    );
-
-    staged
-        .backfill_epoch_info_from_local_history(&authority_store)
-        .unwrap();
-
-    assert_eq!(
-        staged.epoch_info_gap().unwrap(),
-        None,
-        "the local replay must close the residual gap"
-    );
-    // The last replayed closing checkpoint also creates the open epoch's row.
-    assert!(
-        staged.get_epoch_info(current_epoch).unwrap().is_some(),
-        "the local replay must create the open epoch's row"
-    );
-}
-
 /// Build a real `EpochInfo` for closed epochs `[0, current_epoch)` from each
 /// `epoch_info` row's close-of-epoch proof. Panics unless `source` has a
 /// finalized row for every closed epoch.
@@ -580,143 +505,4 @@ fn real_epoch_info(source: &CheckpointStore, current_epoch: EpochId) -> EpochInf
         })
         .collect();
     EpochInfo::V1(EpochInfoV1 { entries })
-}
-
-/// Copy the closing checkpoints of closed epochs `[0, current_epoch)` from
-/// `node` into a fresh store, with its highest-executed watermark set to the
-/// last one so its first open epoch is `current_epoch`. Writes no `epoch_info`
-/// rows: the caller seeds a partial prefix and runs the local replay over this.
-fn stage_closing_checkpoints(
-    dir: &Path,
-    node: &CheckpointStore,
-    current_epoch: EpochId,
-) -> Arc<CheckpointStore> {
-    let staged = CheckpointStore::new(&dir.join("checkpoints"));
-    let mut last_closing = None;
-    for epoch in 0..current_epoch {
-        let closing = node
-            .get_epoch_last_checkpoint(epoch)
-            .unwrap()
-            .unwrap_or_else(|| panic!("node missing closing checkpoint for epoch {epoch}"));
-        let contents = node
-            .get_checkpoint_contents(&closing.content_digest)
-            .unwrap()
-            .expect("node missing closing checkpoint contents");
-        staged.insert_checkpoint_contents(contents).unwrap();
-        // Writes the certified checkpoint and (since closing checkpoints carry
-        // `next_epoch_committee`) the `epoch_last_checkpoint_map` entry the
-        // replay reads.
-        staged.insert_verified_checkpoint(&closing).unwrap();
-        last_closing = Some(closing);
-    }
-    let last_closing = last_closing.expect("current_epoch >= 1");
-    staged
-        .update_highest_executed_checkpoint(&last_closing)
-        .unwrap();
-    staged
-}
-
-/// The from-genesis local rebuild (the upgrade path): a checkpoint store with
-/// the executed history but no `epoch_info` rows rebuilds the whole chain by
-/// replaying genesis and each closed epoch's closing checkpoint from local
-/// data, closing the gap entirely. Unlike
-/// `missing_epochs_above_snapshot_prefix_are_indexed_locally`, no prefix is
-/// seeded first, so this exercises the genesis-seeding branch. Each rebuilt row
-/// is asserted byte-identical to the node's live-indexed row, proving the
-/// boundary transaction alone reconstructs the same proof bundle.
-#[sim_test]
-async fn epoch_info_rebuilds_from_local_history() {
-    // Pruning disabled so the closing checkpoints' data is still available
-    // locally — the precondition for the local replay.
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(600_000)
-        .disable_fullnode_pruning()
-        .build()
-        .await;
-    test_cluster.force_new_epoch().await;
-    test_cluster.force_new_epoch().await;
-
-    let state = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.state());
-    let authority_store = state.database_for_testing();
-    let node_checkpoint_store = state.get_checkpoint_store().clone();
-    let current_epoch = state.current_epoch_for_testing();
-    assert!(current_epoch >= 2, "need at least two closed epochs");
-    wait_until_executed_open_epoch(&node_checkpoint_store, current_epoch).await;
-
-    // Build a fresh store holding only the checkpoint history the rebuild reads
-    // — genesis, each closed epoch's closing checkpoint, and the current
-    // highest-executed checkpoint — but no `epoch_info` rows. This is the state
-    // an existing node lands in the first time it upgrades to this feature.
-    // Genesis (sequence 0) must be staged: the rebuild seeds epoch 0's row from
-    // it before any close can be finalized.
-    let tmp = tempfile::tempdir().unwrap();
-    let target = CheckpointStore::new(&tmp.path().join("checkpoints"));
-    let highest = node_checkpoint_store
-        .get_highest_executed_checkpoint()
-        .unwrap()
-        .unwrap();
-
-    let mut seqs = vec![0u64, highest.sequence_number()];
-    for epoch in 0..current_epoch {
-        let closing = node_checkpoint_store
-            .get_epoch_last_checkpoint(epoch)
-            .unwrap()
-            .unwrap_or_else(|| panic!("missing closing checkpoint for closed epoch {epoch}"));
-        target
-            .insert_epoch_last_checkpoint(epoch, &closing)
-            .unwrap();
-        seqs.push(closing.sequence_number());
-    }
-    for seq in seqs {
-        let summary = node_checkpoint_store
-            .get_checkpoint_by_sequence_number(seq)
-            .unwrap()
-            .unwrap();
-        let contents = node_checkpoint_store
-            .get_checkpoint_contents(&summary.content_digest)
-            .unwrap()
-            .unwrap();
-        target.insert_verified_checkpoint(&summary).unwrap();
-        target.insert_checkpoint_contents(contents).unwrap();
-    }
-    target.update_highest_executed_checkpoint(&highest).unwrap();
-
-    // No rows yet → a gap past genesis.
-    assert!(
-        target.epoch_info_gap().unwrap().is_some(),
-        "an empty epoch_info table past genesis must report a gap"
-    );
-
-    // The transactions/effects/objects of the closing checkpoints come from the
-    // (unpruned) live authority store.
-    target
-        .backfill_epoch_info_from_local_history(&authority_store)
-        .unwrap();
-
-    assert_eq!(
-        target.epoch_info_gap().unwrap(),
-        None,
-        "the from-genesis local rebuild must close the gap"
-    );
-    // Each rebuilt row is byte-identical to the node's live-indexed row: the
-    // boundary tx alone reconstructs the same proof bundle the full checkpoint
-    // produced live.
-    for epoch in 0..current_epoch {
-        let rebuilt = target
-            .get_epoch_info(epoch)
-            .unwrap()
-            .unwrap_or_else(|| panic!("epoch {epoch} must be rebuilt from local history"));
-        let live = node_checkpoint_store
-            .get_epoch_info(epoch)
-            .unwrap()
-            .unwrap_or_else(|| panic!("missing live row for epoch {epoch}"));
-        assert_eq!(
-            bcs::to_bytes(&rebuilt).unwrap(),
-            bcs::to_bytes(&live).unwrap(),
-            "rebuilt row for epoch {epoch} must match the live-indexed row"
-        );
-    }
 }

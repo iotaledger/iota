@@ -14,41 +14,43 @@ if (!fs.existsSync(topdir)){
     fs.mkdirSync(topdir);
 }
 
-const downloadFile = (branch) => {
-    const branchdir = path.join(topdir,branch);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const branches = ["mainnet", "testnet", "devnet"];
+
+const fetchSpec = async (branch) => {
+    const url = `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-open-rpc/spec/openrpc.json`;
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const res = await axios({
+                method: "get",
+                url,
+                responseType: "text",
+                timeout: 30000,
+            });
+            return res.data;
+        } catch (err) {
+            console.log(`Attempt ${attempt}/${maxAttempts} to download ${branch} openrpc spec failed: ${err.message}`);
+            if (attempt === maxAttempts) {
+                throw new Error(`Could not download ${branch} openrpc spec after ${maxAttempts} attempts: ${err.message}`);
+            }
+            await sleep(2000 * attempt);
+        }
+    }
+};
+
+const downloadFile = async (branch) => {
+    const branchdir = path.join(topdir, branch);
     if (!fs.existsSync(branchdir)){
         fs.mkdirSync(branchdir);
     }
-    axios({
-        method: "get",
-        url: `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-open-rpc/spec/openrpc.json`,
-        responseType: "blob"
-    }).then((res) => {
-        if (fs.existsSync(path.join(__dirname, `../open-spec/${branch}/openrpc_backup.json`))){
-            fs.unlink(path.join(__dirname, `../open-spec/${branch}/openrpc_backup.json`), (err) => {
-                if (err) {
-                    return console.log(err);
-                }
-                console.log(`Deleted ${branch} backup spec.`)
-            } )
-        } else {
-            console.log(`Backup file for ${branch} does not exist.`)
-        }
-        if (fs.existsSync(path.join(__dirname, `../open-spec/${branch}/openrpc.json`))){
-            fs.renameSync(path.join(__dirname, `../open-spec/${branch}/openrpc.json`), path.join(__dirname, `../open-spec/${branch}/openrpc_backup.json`));
-        }
-        fs.writeFileSync(path.join(__dirname, `../open-spec/${branch}/openrpc.json`), res.data, 'utf8');
-    }).catch(err => {
-        console.log(`Error downloading ${branch} openrpc spec.`);
-        console.error(err);
-    })
-}
+    const data = await fetchSpec(branch);
+    fs.writeFileSync(path.join(branchdir, "openrpc.json"), data, 'utf8');
+    console.log(`Downloaded ${branch} openrpc spec.`);
+};
 
-// Download Mainnet OpenRPC spec
-downloadFile("mainnet");
-
-// Download Testnet OpenRPC spec
-downloadFile("testnet");
-
-// Download Devnet OpenRPC spec
-downloadFile("devnet");
+Promise.all(branches.map(downloadFile)).catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

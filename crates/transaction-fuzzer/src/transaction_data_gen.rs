@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionExpiration, TransactionKind};
+use iota_sdk_types::{
+    Address, GasPayment, ObjectId, ObjectReference, TransactionExpiration, TransactionKind, Version,
+};
 use iota_types::{
-    base_types::SequenceNumber,
     digests::ObjectDigest,
-    transaction::{GasData, TransactionData, TransactionDataV1},
+    transaction::{TransactionData, TransactionDataV1},
 };
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
@@ -35,27 +36,24 @@ pub fn gen_transaction_expiration() -> impl Strategy<Value = TransactionExpirati
 }
 
 pub fn gen_object_ref() -> impl Strategy<Value = ObjectReference> {
-    (
-        any::<AccountAddress>(),
-        any::<SequenceNumber>(),
-        any::<[u8; 32]>(),
-    )
-        .prop_map(move |(addr, seq, seed)| {
+    (any::<AccountAddress>(), any::<Version>(), any::<[u8; 32]>()).prop_map(
+        move |(addr, seq, seed)| {
             ObjectReference::new(
                 ObjectId::new(addr.into_bytes()),
                 seq,
                 ObjectDigest::new(seed),
             )
-        })
+        },
+    )
 }
 
-pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasData> {
+pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasPayment> {
     (
         vec(gen_object_ref(), 0..MAX_NUM_GAS_OBJS),
         gas_price_selection_strategy(),
         gas_budget_selection_strategy(),
     )
-        .prop_map(move |(obj_refs, price, budget)| GasData {
+        .prop_map(move |(obj_refs, price, budget)| GasPayment {
             objects: obj_refs,
             owner: sender,
             price,
@@ -79,7 +77,7 @@ pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = Transactio
 
 pub struct TransactionDataGenBuilder<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > {
     pub kind: Option<K>,
@@ -90,7 +88,7 @@ pub struct TransactionDataGenBuilder<
 
 impl<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > TransactionDataGenBuilder<K, G, E>
 {

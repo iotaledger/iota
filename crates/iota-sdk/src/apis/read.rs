@@ -21,13 +21,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionKind};
+use iota_sdk_types::{Address, ObjectId, TransactionKind, Version};
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
-    dynamic_field::DynamicFieldName,
-    iota_serde::BigInt,
-    messages_checkpoint::CheckpointSequenceNumber,
-    transaction::TransactionData,
+    base_types::TransactionDigest, dynamic_field::DynamicFieldName, iota_serde::BigInt,
+    messages_checkpoint::CheckpointSequenceNumber, transaction::TransactionData,
 };
 use jsonrpsee::core::client::Subscription;
 
@@ -228,7 +225,7 @@ impl ReadApi {
     pub async fn try_get_parsed_past_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         options: IotaObjectDataOptions,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
         Ok(self
@@ -729,7 +726,7 @@ impl ReadApi {
     pub async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
         Ok(self
             .api

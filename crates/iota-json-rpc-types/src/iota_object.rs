@@ -14,11 +14,11 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectInfo, ObjectType, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, ObjectInfo, ObjectType, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -204,7 +204,7 @@ pub struct IotaObjectData {
     /// Object version.
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
     /// Base64 string representing the object digest
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
@@ -1287,7 +1287,7 @@ pub struct IotaGetPastObjectRequest {
     /// the version of the queried object.
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 #[serde_as]

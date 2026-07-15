@@ -12,10 +12,8 @@ use docs_examples::utils::{
     request_tokens_from_faucet,
 };
 use fastcrypto::{
-    ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
-    traits::Authenticator,
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
@@ -26,13 +24,12 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, ObjectReference, Owner, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
+};
 use iota_types::{
-    crypto::PublicKey,
-    move_authenticator::MoveAuthenticatorExt,
-    signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef},
-    utils::MoveAuthenticatorV1,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::GenericSignature,
+    transaction::CallArg, utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -368,7 +365,7 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let blacklist_call_arg = CallArg::Shared(SharedObjectReference::new(
         blacklist_ref.object_id,
         blacklist_ref.version,
         false,
@@ -383,19 +380,18 @@ pub async fn create_test_transaction(
     message.extend_from_slice(bcs::to_bytes(&raw_value)?.as_slice());
     let message_hash = Sha256::digest(message.as_slice()).digest;
 
-    let hex_encoded_signature: String =
-        Hex::encode(keystore.sign_hashed(&publisher, &message_hash)?)
-            .chars()
-            .skip(2) // flag prefix length
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+    let hex_encoded_signature: String = Hex::encode(
+        keystore
+            .sign_hashed(&publisher, &message_hash)?
+            .signature_bytes(),
+    );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
             vec![],
-            SharedObjectRef::new(account_ref.object_id, account_ref.version, false),
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
         )
         .into(),
     );
@@ -408,7 +404,7 @@ pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
     new_blacklist_ref: &ObjectReference,
 ) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectReference::new(
         new_blacklist_ref.object_id,
         new_blacklist_ref.version,
         false,

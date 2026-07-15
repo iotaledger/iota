@@ -11,10 +11,9 @@ use fuzz::{ReplayFuzzer, ReplayFuzzerConfig};
 use fuzz_mutations::base_fuzzers;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_protocol_config::Chain;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::SequenceNumber,
-    digests::{TransactionDigest, get_mainnet_chain_identifier, get_testnet_chain_identifier},
+use iota_sdk_types::{ObjectId, Version};
+use iota_types::digests::{
+    TransactionDigest, get_mainnet_chain_identifier, get_testnet_chain_identifier,
 };
 use move_vm_config::runtime::get_default_output_filepath;
 use tracing::{error, info, warn};
@@ -590,7 +589,7 @@ pub(crate) fn chain_from_chain_id(chain: &str) -> Chain {
 
 fn parse_configs_versions(
     configs_and_versions: Option<Vec<String>>,
-) -> Option<Vec<(ObjectId, SequenceNumber)>> {
+) -> Option<Vec<(ObjectId, Version)>> {
     let configs_and_versions = configs_and_versions?;
 
     assert!(
@@ -603,7 +602,7 @@ fn parse_configs_versions(
             .map(|chunk| {
                 let object_id =
                     ObjectId::from_str(&chunk[0]).expect("Invalid object id for config");
-                let object_version = SequenceNumber::from_u64(
+                let object_version = Version::from_u64(
                     chunk[1]
                         .parse::<u64>()
                         .expect("Invalid object version for config"),

@@ -3,7 +3,6 @@
 
 use std::str::FromStr;
 
-use fastcrypto::traits::Signer;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -18,7 +17,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -599,9 +598,11 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
 fn get_total_supply_with_native_coin_manager_coins() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
+        // disable full node pruning: node needs historical object versions to assemble
+        // the checkpoint contents the indexer needs to ingest.
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("get_total_supply_with_native_coin_manager_coins"),
-            None,
+            Some(Box::new(|builder| builder.disable_fullnode_pruning())),
             None,
         )
         .await;
@@ -783,7 +784,7 @@ async fn create_trusted_coins(
 pub async fn execute_move_call(
     client: &HttpClient,
     address: Address,
-    account_keypair: &dyn Signer<Signature>,
+    account_keypair: impl Into<IotaKeyPair>,
     package_object_id: ObjectId,
     module: String,
     function: String,

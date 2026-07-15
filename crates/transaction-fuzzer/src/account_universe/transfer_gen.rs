@@ -6,12 +6,14 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectReference, TransactionKind};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, TransactionKind,
+};
 use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use once_cell::sync::Lazy;
@@ -416,7 +418,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
         let tx_data = TransactionData::new_with_gas_data(
             kind,
             sender_address,
-            GasData {
+            GasPayment {
                 objects: gas_coin_refs,
                 owner: gas_payer,
                 price: self.gas_price,

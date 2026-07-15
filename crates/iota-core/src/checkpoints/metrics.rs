@@ -24,6 +24,7 @@ pub struct CheckpointMetrics {
     pub last_ignored_checkpoint_signature_received: IntGauge,
     pub highest_accumulated_epoch: IntGauge,
     pub checkpoint_creation_latency: Histogram,
+    pub commits_per_checkpoint: Histogram,
     pub remote_checkpoint_forks: IntCounter,
     pub split_brain_checkpoint_forks: IntCounter,
     pub last_created_checkpoint_age: Histogram,
@@ -117,6 +118,12 @@ impl CheckpointMetrics {
                 "checkpoint_creation_latency",
                 "Latency from consensus commit timestamp to local checkpoint creation in milliseconds",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            commits_per_checkpoint: register_histogram_with_registry!(
+                "commits_per_checkpoint",
+                "Number of consensus commits coalesced into a single checkpoint",
+                vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
                 registry,
             ).unwrap(),
             remote_checkpoint_forks: register_int_counter_with_registry!(

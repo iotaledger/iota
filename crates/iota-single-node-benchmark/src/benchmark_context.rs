@@ -10,10 +10,9 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_types::{Address, ObjectId, ObjectReference};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::SequenceNumber,
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -147,7 +146,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectId, SequenceNumber)> {
+    ) -> Vec<(ObjectId, Version)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {

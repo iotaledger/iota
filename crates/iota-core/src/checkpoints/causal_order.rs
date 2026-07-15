@@ -225,9 +225,9 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, ObjectReference};
+    use iota_sdk_types::{ObjectId, ObjectReference, Version};
     use iota_types::{
-        base_types::{ObjectDigest, SequenceNumber},
+        base_types::ObjectDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
         },
@@ -264,13 +264,13 @@ mod tests {
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
         e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), SequenceNumber::from_u64(1), obj_digest),
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
         ));
         e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), SequenceNumber::from_u64(1), obj_digest),
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
         ));
         e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(
-            ObjectReference::new(o(1), SequenceNumber::from_u64(1), obj_digest),
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
         ));
 
         let r = extract(CausalOrder::causal_sort(vec![e5, e2, e3]));

@@ -5,13 +5,13 @@
 use std::collections::BTreeMap;
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use crate::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
@@ -43,7 +43,7 @@ impl ChildObjectResolver for InMemoryStorage {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let child_object = match self.persistent.get(child).cloned() {
             None => return Ok(None),
@@ -70,7 +70,7 @@ impl ChildObjectResolver for InMemoryStorage {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         let recv_object = match self.persistent.get(receiving_object_id).cloned() {

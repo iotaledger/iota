@@ -7,12 +7,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    StructTag, TransactionKind, TypeTag,
+    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{ExecutionDigests, SequenceNumber, dbg_addr, random_object_ref},
+    base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
@@ -23,15 +23,12 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, CheckpointSummaryExt,
-        EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
+        CheckpointSummaryExt, EndOfEpochData,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 
 /// A builder for creating test checkpoint data.
@@ -171,7 +168,7 @@ impl TestCheckpointDataBuilder {
     pub fn create_shared_object(self, object_idx: u64) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::Shared(SequenceNumber::MIN_VALID_INCL),
+            Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
             GAS::type_tag(),
         )
@@ -227,7 +224,7 @@ impl TestCheckpointDataBuilder {
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
-            SequenceNumber::MIN_VALID_INCL,
+            Version::MIN_VALID_INCL,
             object_id,
             balance,
         );
@@ -435,7 +432,7 @@ impl TestCheckpointDataBuilder {
             };
 
             pt_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     *id,
                     initial_shared_version,
                     input.mutable,

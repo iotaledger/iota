@@ -15,18 +15,20 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
     ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
-    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    RandomnessStateUpdate, SharedObjectReference, SimpleSignature, StructTag,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
-    base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
+    base_types::{
+        ExecutionData, ExecutionDigests, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
+    },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
+        KeypairTraits, Signature, Signer, get_key_pair,
     },
     digests::ConsensusCommitDigest,
     effects::{
@@ -36,17 +38,15 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
+        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointSummary,
+        FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -178,7 +178,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig).unwrap();
     // ... and the user signature which does
 
-    let sig: Signature = Signer::sign(&s_kp, b"hello world");
+    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
@@ -228,6 +228,21 @@ fn get_registry() -> Result<Registry> {
     // "Invalid signature was given to the function".
     tracer
         .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
+        .unwrap();
+
+    // `CheckpointContents` (the SDK type) has a custom (de)serializer, so the
+    // tracer needs a concrete sample rather than a synthesized one. Seed one
+    // carrying a real user signature so its `UserSignature` flag bytes are
+    // available.
+    let checkpoint_contents_sample = CheckpointContents::new_with_digests_and_signatures(
+        [ExecutionDigests::new(
+            TransactionDigest::random(),
+            TransactionEffectsDigest::random(),
+        )],
+        vec![vec![GenericSignature::Signature(sig.clone())]],
+    );
+    tracer
+        .trace_value(&mut samples, &checkpoint_contents_sample)
         .unwrap();
 
     tracer.trace_value(&mut samples, &sig1).unwrap();
@@ -355,7 +370,11 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Shared(SharedObjectRef::new(ObjectId::ZERO, 1u64.into(), false)),
+            &CallArg::Shared(SharedObjectReference::new(
+                ObjectId::ZERO,
+                1u64.into(),
+                false,
+            )),
         )
         .unwrap();
     tracer
@@ -530,8 +549,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
     tracer.trace_type::<TransactionEffects>(&samples).unwrap();
-
-    tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
     tracer
@@ -561,12 +578,7 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-        vec![GenericSignature::Signature(
-            Signature::Ed25519IotaSignature(
-                Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
-            ),
-        )],
+        vec![GenericSignature::Signature(sig1.clone())],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

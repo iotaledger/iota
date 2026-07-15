@@ -32,10 +32,11 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Owner, StructTag};
+    use iota_sdk_types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Version,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::SequenceNumber,
         crypto::KeypairTraits,
         effects::{TransactionEffects, TransactionEffectsAPI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -833,12 +834,11 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
-        let make_version_row =
-            |id: ObjectId, version: SequenceNumber, cp: i64| StoredObjectVersion {
-                object_id: id.as_bytes().to_vec(),
-                object_version: version.as_u64() as i64,
-                cp_sequence_number: cp,
-            };
+        let make_version_row = |id: ObjectId, version: Version, cp: i64| StoredObjectVersion {
+            object_id: id.as_bytes().to_vec(),
+            object_version: version.as_u64() as i64,
+            cp_sequence_number: cp,
+        };
 
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = vec![
@@ -1097,7 +1097,7 @@ mod ingestion_tests {
         indexer_wait_for_checkpoint(&pg_store, 6).await;
 
         let assert_present =
-            |rows: &[StoredObjectVersion], id: ObjectId, version: SequenceNumber, label: &str| {
+            |rows: &[StoredObjectVersion], id: ObjectId, version: Version, label: &str| {
                 assert!(
                     rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
                         && r.object_version == version.as_u64() as i64),

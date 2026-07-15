@@ -15,7 +15,7 @@ use iota_keys::{
 use iota_sdk_types::Address;
 use iota_types::{
     base_types::IOTA_ADDRESS_LENGTH,
-    crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
+    crypto::{DefaultHash, SignatureScheme},
 };
 use tempfile::TempDir;
 
@@ -162,7 +162,7 @@ fn mnemonic_test() {
     let imported_address = keystore2
         .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
-    assert_eq!(scheme.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(scheme.flag(), SignatureScheme::ED25519.flag());
     assert_eq!(address, imported_address);
 }
 
@@ -183,7 +183,7 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
         .unwrap();
 
     let pubkey = keystore.keys()[0].public();
-    assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(pubkey.flag(), SignatureScheme::ED25519.flag());
 
     let mut hasher = DefaultHash::default();
     hasher.update(pubkey);

@@ -52,7 +52,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TransactionKind,
-    TypeTag,
+    TypeTag, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -60,12 +60,14 @@ use iota_sdk_types::{
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
+        },
     },
-    base_types::SequenceNumber,
     crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, DynamicFieldInfo, Field},
+    dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -307,6 +309,9 @@ pub enum IotaClientCommands {
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
+        /// Optional gRPC Url, for example http://127.0.0.1:9000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
         #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
@@ -1923,6 +1928,7 @@ impl IotaClientCommands {
                 rpc,
                 graphql,
                 ws,
+                grpc,
                 basic_auth,
                 faucet,
             } => {
@@ -1932,6 +1938,7 @@ impl IotaClientCommands {
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
                     .with_ws(ws)
+                    .with_grpc(grpc)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
 
@@ -2851,7 +2858,7 @@ pub struct NewAddressOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub obj_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2905,7 +2912,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub object_type: String,
 }
@@ -3809,11 +3816,8 @@ pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
-    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
-        signer,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )?;
+    let authenticator_function_ref_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(signer)?;
 
     let response = client
         .read_api()

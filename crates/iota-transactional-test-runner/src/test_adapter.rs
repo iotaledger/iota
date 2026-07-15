@@ -21,7 +21,7 @@ use criterion::Criterion;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
-    traits::{Signer, ToFromBytes},
+    traits::ToFromBytes,
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
@@ -35,14 +35,14 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
     ObjectData, ObjectId, ObjectReference, ProgrammableTransaction, RandomnessRound,
-    TransactionKind, TypeTag, gas::GasCostSummary, move_package::MovePackage,
+    TransactionKind, TypeTag, Version, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, SequenceNumber, VersionNumber},
+    base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -721,7 +721,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     latest_epoch,
                     RandomnessRound::new(randomness_round),
                     random_bytes,
-                    SequenceNumber::from_u64(randomness_initial_version),
+                    Version::from_u64(randomness_initial_version),
                 );
 
                 self.execute_txn(tx.into()).await?;
@@ -1719,7 +1719,7 @@ impl IotaTestAdapter {
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
         if let Some(aa_sig) = aa_sig {
-            let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
+            let sponsor_keypair = sponsor.key_pair.as_ref();
             to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
         } else if sender.address == sponsor.address {
             to_sender_signed_transaction(
@@ -1995,7 +1995,7 @@ impl IotaTestAdapter {
         })
     }
 
-    fn get_object(&self, id: &ObjectId, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
+    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
             ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {

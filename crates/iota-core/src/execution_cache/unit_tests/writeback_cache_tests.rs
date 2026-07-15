@@ -739,7 +739,7 @@ async fn test_lt_or_eq() {
     Scenario::iterate(|mut s| async move {
         let check_all_versions = |s: &Scenario| {
             for i in 1u64..=3 {
-                let v = SequenceNumber::from_u64(i);
+                let v = Version::from_u64(i);
                 assert_eq!(
                     s.cache()
                         .find_object_lt_or_eq_version(s.obj_id(1), v)
@@ -790,8 +790,8 @@ async fn test_lt_or_eq_caching() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: u64| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            let expected_version = SequenceNumber::from_u64(expected_version);
+            let lookup_version = Version::from_u64(lookup_version);
+            let expected_version = Version::from_u64(expected_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
@@ -850,12 +850,12 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: Option<u64>| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
+            let lookup_version = Version::from_u64(lookup_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .map(|v| v.version()),
-                expected_version.map(SequenceNumber::from_u64)
+                expected_version.map(Version::from_u64)
             );
         };
 
