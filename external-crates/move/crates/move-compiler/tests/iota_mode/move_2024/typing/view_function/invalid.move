@@ -254,6 +254,16 @@ module a::m {
         $x
     }
 
+    #[view = 1]
+    public fun view_attribute_assigned(): u64 {
+        abort 0
+    }
+
+    #[view(version = 1)]
+    public fun view_attribute_parameterized(): u64 {
+        abort 0
+    }
+
     #[view]
     public native fun store_only_type_param<T: store>(x: T): u64;
 

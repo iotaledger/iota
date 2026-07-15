@@ -306,9 +306,10 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
     }
-    if let Some(sp!(view_loc, _)) =
+    if let Some(sp!(view_loc, view_value)) =
         attributes.get_(&iota_known_attributes::view::ViewAttribute.into())
     {
+        view_attribute(context, view_loc, view_value);
         view_signature(context, *view_loc, name, *visibility, signature, macro_);
     }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
@@ -1428,5 +1429,13 @@ fn authenticator_attribute(
 ) {
     let _ = authenticator_value
         .parse_authenticator_version(authenticator_loc)
+        .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
+}
+
+/// Checks the `view` attribute validity.
+/// Only accepts #[view].
+fn view_attribute(context: &mut Context, view_loc: &Loc, view_value: &Attribute_) {
+    let _ = view_value
+        .parse_view_attribute(view_loc)
         .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
 }
