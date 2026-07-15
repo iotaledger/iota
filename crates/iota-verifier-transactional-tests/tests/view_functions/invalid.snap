@@ -133,76 +133,76 @@ task 25, lines 382-399:
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: &mut vector<_::m::GenericObject<_::m::Wrapped>>. View functions cannot accept mutable references.; at command index: 0
 
-task 26, lines 401-422:
+task 26, lines 401-419:
 //# publish --view-functions receiving_by_value
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: _::m::Receiving<_::m::GenericObject<_::m::Wrapped>>. View functions cannot accept objects or values that could contain objects by value.; at command index: 0
+Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: iota::transfer::Receiving<_::m::GenericObject<_::m::Wrapped>>. View functions cannot accept objects or values that could contain objects by value.; at command index: 0
 
-task 27, lines 424-447:
+task 27, lines 421-441:
 //# publish --view-functions receiving_mutable_ref
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: &mut _::m::Receiving<_::m::GenericObject<_::m::Wrapped>>. View functions cannot accept mutable references.; at command index: 0
+Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: &mut iota::transfer::Receiving<_::m::GenericObject<_::m::Wrapped>>. View functions cannot accept mutable references.; at command index: 0
 
-task 28, lines 449-457:
+task 28, lines 443-451:
 //# publish --view-functions tx_context_mutable_ref
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: &mut iota::tx_context::TxContext. View functions cannot accept mutable references.; at command index: 0
 
-task 29, lines 459-471:
+task 29, lines 453-465:
 //# publish --view-functions returns_object
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: _::m::Object. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 30, lines 473-490:
+task 30, lines 467-484:
 //# publish --view-functions returns_object_vector
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: vector<_::m::GenericObject<_::m::Wrapped>>. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 31, lines 492-510:
+task 31, lines 486-504:
 //# publish --view-functions returns_option_object
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: std::option::Option<_::m::GenericObject<_::m::Wrapped>>. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 32, lines 512-522:
+task 32, lines 506-516:
 //# publish --view-functions returns_store_only
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: _::m::StoreOnly. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 33, lines 524-536:
+task 33, lines 518-530:
 //# publish --view-functions returns_option_store_only
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: std::option::Option<_::m::StoreOnly>. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 34, lines 538-544:
+task 34, lines 532-538:
 //# publish --view-functions returns_key_store_type_param
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: T0. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 35, lines 546-552:
+task 35, lines 540-546:
 //# publish --view-functions returns_store_only_type_param
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: T0. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 36, lines 554-571:
+task 36, lines 548-565:
 //# publish --view-functions returns_tuple_with_object
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: _::m::GenericObject<_::m::Wrapped>. View functions cannot return objects or values that could contain objects.; at command index: 0
 
-task 37, lines 573-579:
+task 37, lines 567-573:
 //# publish --view-functions returns_mut_reference
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function return type: &mut u64. View functions cannot return mutable references.; at command index: 0
 
-task 38, lines 581-587:
+task 38, lines 575-581:
 //# publish --view-functions store_only_type_param
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: T0. View functions cannot accept objects or values that could contain objects by value.; at command index: 0
 
-task 39, lines 589-595:
+task 39, lines 583-589:
 //# publish --view-functions native_mut_ref
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid view function parameter type: &mut u64. View functions cannot accept mutable references.; at command index: 0
 
-task 40, lines 597-603:
+task 40, lines 591-597:
 //# publish --view-functions missing_view
 Error: Could not find function 'missing_view' requested by --view-functions

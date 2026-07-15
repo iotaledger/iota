@@ -1,4 +1,5 @@
 module a::m {
+    use iota::transfer::Receiving;
     use std::ascii::{String, char};
 
     public struct Object has key {
@@ -35,10 +36,6 @@ module a::m {
 
     public struct NonObjectTemplated<T: copy + drop + store> has copy, drop, store {
         inner: T,
-    }
-
-    public struct Receiving<phantom T: key> has copy, drop, store {
-        id: iota::object::ID,
     }
 
     #[view]
@@ -253,6 +250,21 @@ module a::m {
     }
 
     #[view]
+    public macro fun view_macro($x: u64): u64 {
+        $x
+    }
+
+    #[view = 1]
+    public fun view_attribute_assigned(): u64 {
+        abort 0
+    }
+
+    #[view(version = 1)]
+    public fun view_attribute_parameterized(): u64 {
+        abort 0
+    }
+
+    #[view]
     public native fun store_only_type_param<T: store>(x: T): u64;
 
     #[view]
@@ -281,6 +293,10 @@ module iota::tx_context {
 }
 
 module iota::transfer {
+    public struct Receiving<phantom T: key> has drop {
+        id: iota::object::ID,
+    }
+
     public fun public_transfer<T: key + store>(obj: T, recipient: address) {
         transfer_impl(obj, recipient)
     }

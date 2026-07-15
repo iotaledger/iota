@@ -134,6 +134,9 @@ public fun try_get_authenticator_function_metadata_v1(
     self: &ModuleMetadata,
     function_name: &ascii::String,
 ): Option<AuthenticatorMetadataV1> {
+    if (!self.contains(ModuleMetadataV1FieldName {})) {
+        return option::none()
+    };
     let module_metadata_v1 = self.borrow<
         ModuleMetadataV1FieldName,
         ModuleMetadataV1,
@@ -149,6 +152,10 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
 /// Return the name of the authenticate function represented by this metadata
 public fun function_name(self: &AuthenticatorMetadataV1): &ascii::String {
     &self.function_name
+}
+
+public fun module_name(self: &ModuleName): &ascii::String {
+    &self.0
 }
 
 /// Returns true iff the metadata uses the dynamic-field layout, i.e. it carries

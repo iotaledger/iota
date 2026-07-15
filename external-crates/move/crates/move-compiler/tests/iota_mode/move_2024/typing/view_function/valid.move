@@ -1,4 +1,6 @@
 module a::m {
+    use iota::transfer::Receiving;
+
     public struct Object has key {
         id: iota::object::UID,
     }
@@ -30,7 +32,7 @@ module a::m {
         inner: T,
     }
 
-    public struct Receiving<phantom T: key> has copy, drop, store {
+    public struct PhantomWrapper<phantom T: key> has copy, drop, store {
         id: iota::object::ID,
     }
 
@@ -146,9 +148,20 @@ module a::m {
         value.length()
     }
 
+    // `iota::transfer::Receiving` is rejected by value but allowed behind a
+    // reference, like any other type.
     #[view]
     public fun receiving_immutable_ref(receiving: &Receiving<GenericObject<Wrapped>>): u64 {
         let _ = receiving;
+        0
+    }
+
+    // A user-defined phantom wrapper is safe by value: the phantom object type
+    // argument is not contained. Only `iota::transfer::Receiving` is rejected,
+    // by name.
+    #[view]
+    public fun phantom_wrapper_by_value(wrapper: PhantomWrapper<GenericObject<Wrapped>>): u64 {
+        let _ = wrapper;
         0
     }
 
@@ -243,4 +256,10 @@ module iota::dynamic_field {
         object: &iota::object::UID,
         name: Name,
     ): &Value;
+}
+
+module iota::transfer {
+    public struct Receiving<phantom T: key> has drop {
+        id: iota::object::ID,
+    }
 }

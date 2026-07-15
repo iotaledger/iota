@@ -3,11 +3,12 @@
 
 //! IOTA View Attribute
 
+use move_ir_types::location::Loc;
 use once_cell::sync::Lazy;
 use std::{collections::BTreeSet, fmt};
 
 use crate::{
-    expansion::ast::Attributes,
+    expansion::ast::{Attribute_, Attributes},
     shared::known_attributes::{
         AttributePosition, FlavoredAttribute, KnownAttribute as MoveKnownAttribute,
     },
@@ -27,6 +28,24 @@ impl ViewAttribute {
         static VIEW_POSITIONS: Lazy<BTreeSet<AttributePosition>> =
             Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
         &VIEW_POSITIONS
+    }
+}
+
+//**************************************************************************************************
+// Attribute_ implementation
+//**************************************************************************************************
+
+impl Attribute_ {
+    /// Parses the view attribute.
+    /// Only accepts #[view].
+    pub fn parse_view_attribute(&self, loc: &Loc) -> Result<u8, (Loc, String)> {
+        match self {
+            Attribute_::Name(_) => Ok(1), // default version
+            Attribute_::Assigned(_, _) | Attribute_::Parameterized(_, _) => Err((
+                *loc,
+                "Only plain #[view] attribute is supported.".to_string(),
+            )),
+        }
     }
 }
 

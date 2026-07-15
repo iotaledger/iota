@@ -292,7 +292,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
         body,
         warning_filter: _,
         index: _,
-        macro_: _,
+        macro_,
         attributes,
         entry,
     } = fdef;
@@ -306,10 +306,11 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
     }
-    if let Some(sp!(view_loc, _)) =
+    if let Some(sp!(view_loc, view_value)) =
         attributes.get_(&iota_known_attributes::view::ViewAttribute.into())
     {
-        view_signature(context, *view_loc, name, *visibility, signature);
+        view_attribute(context, view_loc, view_value);
+        view_signature(context, *view_loc, name, *visibility, signature, macro_);
     }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
         attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
@@ -606,7 +607,9 @@ fn view_signature(
     name: FunctionName,
     visibility: Visibility,
     signature: &FunctionSignature,
+    macro_: &Option<Loc>,
 ) {
+    macro_function(context, view_loc, name, macro_);
     view_visibility(context, view_loc, name, visibility);
 
     let FunctionSignature {
@@ -625,18 +628,37 @@ fn view_signature(
 pub(crate) fn is_valid_view_signature(
     visibility: &Visibility,
     signature: &FunctionSignature,
+    macro_: &Option<Loc>,
 ) -> bool {
     let FunctionSignature {
         type_parameters: _,
         parameters,
         return_type,
     } = signature;
-
-    is_valid_view_visibility(visibility)
+    !is_macro_function(macro_)
+        && is_valid_view_visibility(visibility)
         && is_valid_view_return_ty(return_type)
         && parameters
             .iter()
             .all(|(mutability, _, param_ty)| is_valid_view_param_ty(mutability, param_ty))
+}
+
+fn is_macro_function(macro_: &Option<Loc>) -> bool {
+    macro_.is_some()
+}
+
+fn macro_function(context: &mut Context, view_loc: Loc, name: FunctionName, macro_: &Option<Loc>) {
+    if is_macro_function(macro_) {
+        let msg = format!("Invalid macro function '{}'", name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                macro_.unwrap(),
+                "View functions cannot be declared as macro functions",
+            ),
+        ));
+    }
 }
 
 fn is_valid_view_visibility(visibility: &Visibility) -> bool {
@@ -800,12 +822,19 @@ fn contains_view_unsafe_by_value_ty(param_ty: &Type) -> bool {
             !(type_parameter.abilities.has_ability_(Ability_::Copy)
                 || type_parameter.abilities.has_ability_(Ability_::Drop))
         }
-        Type_::Apply(Some(abilities), _, targs) => {
+        // `Receiving<T>` has `drop` but is the capability to take an object, so it
+        // is unsafe by value even though its object type argument is phantom.
+        Type_::Apply(_, sp!(_, n), _)
+            if n.is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME, RECEIVING_TYPE_NAME) =>
+        {
+            true
+        }
+        Type_::Apply(Some(abilities), _, _) => {
             abilities.has_ability_(Ability_::Key)
                 || !(abilities.has_ability_(Ability_::Copy)
                     || abilities.has_ability_(Ability_::Drop))
-                || targs.iter().any(contains_view_unsafe_by_value_ty)
         }
+        // Abilities unresolved (error/incomplete typing): fall back to the args.
         Type_::Apply(None, _, targs) => targs.iter().any(contains_view_unsafe_by_value_ty),
         Type_::Unit
         | Type_::UnresolvedError
@@ -1400,5 +1429,13 @@ fn authenticator_attribute(
 ) {
     let _ = authenticator_value
         .parse_authenticator_version(authenticator_loc)
+        .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
+}
+
+/// Checks the `view` attribute validity.
+/// Only accepts #[view].
+fn view_attribute(context: &mut Context, view_loc: &Loc, view_value: &Attribute_) {
+    let _ = view_value
+        .parse_view_attribute(view_loc)
         .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
 }
