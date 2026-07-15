@@ -6,7 +6,7 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{ObjectReference, Owner};
+use iota_sdk_types::{ObjectReference, Owner as SdkOwner};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
@@ -19,7 +19,7 @@ use super::{
     b64_decode, err_to_js,
     store::CallbackStore,
     types::{
-        ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, OwnerInfo,
+        ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, Owner,
         SimulateRequest, SimulateResult, move_value_to_json,
     },
 };
@@ -105,12 +105,12 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         _ => None,
     };
 
-    fn changed((obj, owner): (ObjectReference, Owner)) -> ChangedObject {
+    fn changed((obj, owner): (ObjectReference, SdkOwner)) -> ChangedObject {
         ChangedObject {
             object_id: obj.object_id().to_string(),
             version: obj.version().as_u64(),
             digest: obj.digest().to_string(),
-            owner: OwnerInfo::from(&owner),
+            owner: Owner::from(&owner),
         }
     }
     let mutated: Vec<ChangedObject> = result.effects.mutated().into_iter().map(changed).collect();

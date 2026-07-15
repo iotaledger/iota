@@ -4,7 +4,6 @@
 //! Serde request/result types for the JS
 //! [`simulate`](super::simulate::simulate) surface.
 
-use iota_sdk_types::Owner;
 use move_core_types::{annotated_value::MoveValue, identifier::Identifier};
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +46,7 @@ pub struct SimulateRequest {
 /// The owner of an object, in a JS-friendly tagged form.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum OwnerInfo {
+pub enum Owner {
     /// Exclusively owned by an address.
     Address {
         /// Owner address, hex `0x…`.
@@ -69,20 +68,20 @@ pub enum OwnerInfo {
     Unknown,
 }
 
-impl From<&Owner> for OwnerInfo {
-    fn from(owner: &Owner) -> Self {
+impl From<&iota_sdk_types::Owner> for Owner {
+    fn from(owner: &iota_sdk_types::Owner) -> Self {
         match owner {
-            Owner::Address(address) => OwnerInfo::Address {
+            iota_sdk_types::Owner::Address(address) => Owner::Address {
                 address: address.to_string(),
             },
-            Owner::Object(object_id) => OwnerInfo::Object {
+            iota_sdk_types::Owner::Object(object_id) => Owner::Object {
                 object_id: object_id.to_string(),
             },
-            Owner::Shared(version) => OwnerInfo::Shared {
+            iota_sdk_types::Owner::Shared(version) => Owner::Shared {
                 initial_shared_version: version.as_u64(),
             },
-            Owner::Immutable => OwnerInfo::Immutable,
-            _ => OwnerInfo::Unknown,
+            iota_sdk_types::Owner::Immutable => Owner::Immutable,
+            _ => Owner::Unknown,
         }
     }
 }
@@ -97,7 +96,7 @@ pub struct ChangedObject {
     /// Object digest, base58.
     pub digest: String,
     /// The object's owner after the change.
-    pub owner: OwnerInfo,
+    pub owner: Owner,
 }
 
 /// One object deleted (or wrapped) by the transaction.
