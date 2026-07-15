@@ -4,6 +4,11 @@
 //! This example shows how to create a move view function call using the
 //! transaction builder.
 //!
+//! For modules that record on-chain view functions metadata, the called
+//! function must be declared with the `#[view]` attribute; modules without
+//! such metadata (like the framework packages below) fall back to signature
+//! checks.
+//!
 //! cargo run --example move_view_function_call
 
 #[path = "../utils.rs"]
