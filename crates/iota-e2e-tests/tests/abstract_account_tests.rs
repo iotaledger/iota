@@ -41,7 +41,7 @@ use iota_types::{
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
@@ -109,7 +109,7 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
 
     // Create the TX envelope and execute it
-    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
     test_env
         .execute_and_check_tx_correctness(aa_simple_tx)
         .await
@@ -155,7 +155,7 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
 
     // Execute — the Move authenticator asserts all structural invariants
     // and verifies the ed25519 signature against signing_digest.
-    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let tx = Transaction::from_user_sig_data(tx_data, signatures);
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
@@ -192,7 +192,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         .await?;
 
     // Sponsor signature
-    let sponsor_signature = GenericSignature::Signature(keystore.sign_secure(
+    let sponsor_signature = UserSignature::Simple(keystore.sign_secure(
         &sponsor,
         &tx_data,
         Intent::iota_transaction(),
@@ -203,7 +203,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
 
     // Create the TX envelope and execute it
     let aa_sponsored_tx =
-        Transaction::from_generic_sig_data(tx_data, vec![aa_signature, sponsor_signature]);
+        Transaction::from_user_sig_data(tx_data, vec![aa_signature, sponsor_signature]);
     test_env
         .execute_and_check_tx_correctness(aa_sponsored_tx)
         .await
@@ -271,7 +271,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
 
     // Create the MoveAuthenticator (free access - no signature needed)
     let aa_sig = test_env.create_move_authenticator_for_free_access()?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![aa_sig]);
 
     // Execute and verify the transaction succeeds
     test_env.execute_and_check_tx_correctness(tx).await
@@ -314,7 +314,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 
     // Authenticator: free-access (no object args)
     let aa_sig = test_env.create_move_authenticator_for_free_access()?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![aa_sig]);
 
     // Should fail
     let tx_result = test_env
@@ -395,7 +395,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -418,7 +418,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_rotate_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
+    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_rotate_tx)
@@ -522,7 +522,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx1 = Transaction::from_generic_sig_data(tx1_data, signatures);
+    let tx1 = Transaction::from_user_sig_data(tx1_data, signatures);
     let tx1_cert = test_env
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
@@ -654,7 +654,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
         .test_cluster
         .create_certificate(tx2, Some(client_ip))
@@ -784,7 +784,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
         .test_cluster
         .create_certificate(tx2, Some(client_ip))
@@ -938,7 +938,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
+    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
     // Submit TX2 for execution and expect success
     test_env.execute_and_check_tx_correctness(tx2).await
 }
@@ -985,7 +985,7 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1035,7 +1035,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
         .await?;
 
     // Sender signs with a regular key; sponsor provides a MoveAuthenticator.
-    let sender_sig = GenericSignature::Signature(
+    let sender_sig = UserSignature::Simple(
         test_env
             .test_cluster
             .wallet
@@ -1045,7 +1045,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
     );
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
 
     // The TX must succeed when the sender is a regular account and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1092,7 +1092,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     // The sender object is used in both MoveAuthenticators.
     let sponsor_aa_sig =
         test_env.create_move_authenticator_with_sponsor_and_sender(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1143,7 +1143,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: >1 MoveAuthenticator is not allowed.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1212,7 +1212,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
         .await?;
 
     // Sender signs with a regular key; sponsor provides a MoveAuthenticator.
-    let sender_sig = GenericSignature::Signature(
+    let sender_sig = UserSignature::Simple(
         test_env
             .test_cluster
             .wallet
@@ -1222,7 +1222,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
     );
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: the single MoveAuthenticator belongs to the
     // sponsor, not the sender, which is not allowed.
@@ -1282,7 +1282,7 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
     let unrelated_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(unrelated_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is absent.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1335,7 +1335,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     // match the sponsor AA's actual free access authenticator.
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is incorrect.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1393,7 +1393,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // Pre-consensus: only the sponsor's MA is executed (free-access → passes).
     // The validator must sign the TX, producing a certificate.
@@ -1482,7 +1482,7 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // Pre-consensus: both MAs are executed → sender's MA fails → rejected
     // immediately.
@@ -1527,7 +1527,7 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
     // Sender's MA is signed over the wrong digest.
     let wrong_digest = [0u8; 32];
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig]);
 
     // Pre-consensus: non-sponsored TX → sender's MA always runs pre-consensus even
     // with the sponsor-only flag → sender's MA fails → rejected immediately.
@@ -1908,7 +1908,7 @@ impl TestEnvironment {
     fn create_move_authenticator_for_ed25519(
         &self,
         tx_digest: &[u8; 32],
-    ) -> anyhow::Result<GenericSignature> {
+    ) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -1921,7 +1921,7 @@ impl TestEnvironment {
     //    self: &AbstractAccount,
     //    _: &AuthContext,
     //    ctx: &TxContext,
-    fn create_move_authenticator_for_free_access(&self) -> anyhow::Result<GenericSignature> {
+    fn create_move_authenticator_for_free_access(&self) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -1932,7 +1932,7 @@ impl TestEnvironment {
     fn create_move_authenticator_with_sponsor_and_sender(
         &self,
         aa_sponsor_ref: ObjectReference,
-    ) -> anyhow::Result<GenericSignature> {
+    ) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -1942,7 +1942,7 @@ impl TestEnvironment {
             false,
         ));
 
-        Ok(GenericSignature::MoveAuthenticator(
+        Ok(UserSignature::MoveAuthenticator(
             MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![self_call_arg],
                 vec![],
@@ -2240,8 +2240,8 @@ impl TestEnvironment {
     fn create_move_authenticator_for_free_access_for_ref(
         &self,
         aa_obj_ref: ObjectReference,
-    ) -> anyhow::Result<GenericSignature> {
-        Ok(GenericSignature::MoveAuthenticator(
+    ) -> anyhow::Result<UserSignature> {
+        Ok(UserSignature::MoveAuthenticator(
             MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![],
                 vec![],
@@ -2262,7 +2262,7 @@ impl TestEnvironment {
         &self,
         aa_obj_ref: ObjectReference,
         tx_digest: &[u8; 32],
-    ) -> anyhow::Result<GenericSignature> {
+    ) -> anyhow::Result<UserSignature> {
         let Some(owner) = self.owner else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -2282,7 +2282,7 @@ impl TestEnvironment {
     fn create_move_authenticator_for_ed25519_via_signing_digest(
         &self,
         tx_data: &TransactionData,
-    ) -> anyhow::Result<GenericSignature> {
+    ) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -2297,19 +2297,19 @@ impl TestEnvironment {
         Self::move_authenticator_from_ed25519_sig(aa_ref, signature)
     }
 
-    /// Build a `GenericSignature::MoveAuthenticator` from a raw ed25519
+    /// Build a `UserSignature::MoveAuthenticator` from a raw ed25519
     /// `Signature` and the abstract-account object reference.
     fn move_authenticator_from_ed25519_sig(
         aa_obj_ref: ObjectReference,
         signature: iota_types::crypto::Signature,
-    ) -> anyhow::Result<GenericSignature> {
+    ) -> anyhow::Result<UserSignature> {
         let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()
             .skip(2) // flag prefix length
             .take(Ed25519Signature::LENGTH * 2)
             .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
-        Ok(GenericSignature::MoveAuthenticator(
+        Ok(UserSignature::MoveAuthenticator(
             MoveAuthenticatorV1::new_with_shared_account_object(
                 vec![signature_call_arg],
                 vec![],

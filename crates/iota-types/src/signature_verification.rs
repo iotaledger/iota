@@ -16,7 +16,7 @@ use prometheus_filtered::IntCounter;
 
 use crate::{
     error::{IotaError, IotaResult},
-    signature::VerifyParams,
+    signature::{AuthenticatorTrait, VerifyParams},
     transaction::{SenderSignedData, TransactionDataAPI},
 };
 
@@ -154,7 +154,7 @@ pub fn verify_sender_signed_data_message_signatures(
 
     // 4. Every signature must be valid.
     for (signer, signature) in present_sigs {
-        signature.verify_authenticator(intent_message, signer, verify_params)?;
+        signature.verify_claims(intent_message, signer, verify_params)?;
     }
     Ok(())
 }

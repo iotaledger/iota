@@ -13,7 +13,7 @@ use iota_types::{
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
-    signature::GenericSignature,
+    signature::UserSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
@@ -395,7 +395,7 @@ pub(crate) struct ConsensusOutputCache {
     // checkpoint builder The critical sections are small in both cases so a DashMap is
     // probably not helpful.
     pub(super) user_signatures_for_checkpoints:
-        Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
+        Mutex<HashMap<TransactionDigest, Vec<UserSignature>>>,
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,

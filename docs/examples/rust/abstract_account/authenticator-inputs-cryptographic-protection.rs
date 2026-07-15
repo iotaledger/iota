@@ -28,7 +28,7 @@ use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
 };
 use iota_types::{
-    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::GenericSignature,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::UserSignature,
     transaction::CallArg, utils::MoveAuthenticatorV1,
 };
 
@@ -387,7 +387,7 @@ pub async fn create_test_transaction(
     );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
-    let signature = GenericSignature::MoveAuthenticator(
+    let signature = UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
             vec![],
@@ -396,7 +396,7 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
+    Ok(Transaction::from_user_sig_data(tx_data, vec![signature]))
 }
 
 /// Swaps the blacklist shared object in the transaction with a new one.
@@ -411,7 +411,7 @@ pub fn swap_blacklist_in_transaction(
     ));
 
     let new_sig = match &transaction.inner_mut().tx_signatures[0] {
-        GenericSignature::MoveAuthenticator(move_authenticator) => {
+        UserSignature::MoveAuthenticator(move_authenticator) => {
             let raw_value_call_arg = move_authenticator.call_args()[1].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
 
@@ -437,7 +437,7 @@ pub fn swap_blacklist_in_transaction(
                 _ => panic!("Expected ImmutableOrOwned or Shared object"),
             };
 
-            GenericSignature::MoveAuthenticator(authenticator.into())
+            UserSignature::MoveAuthenticator(authenticator.into())
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };
@@ -455,7 +455,7 @@ pub fn swap_raw_value_in_transaction(
     let new_raw_value_call_arg = CallArg::Pure(bcs::to_bytes(&new_raw_value).unwrap());
 
     let new_sig = match &transaction.inner_mut().tx_signatures[0] {
-        GenericSignature::MoveAuthenticator(move_authenticator) => {
+        UserSignature::MoveAuthenticator(move_authenticator) => {
             let blacklist_call_arg = move_authenticator.call_args()[0].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
 
@@ -481,7 +481,7 @@ pub fn swap_raw_value_in_transaction(
                 _ => panic!("Expected ImmutableOrOwned or Shared object"),
             };
 
-            GenericSignature::MoveAuthenticator(authenticator.into())
+            UserSignature::MoveAuthenticator(authenticator.into())
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };

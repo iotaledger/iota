@@ -47,7 +47,7 @@ use iota_types::{
         SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::EpochInfoV2,
     transaction::{Transaction, TransactionDataAPI, TransactionKey},
 };
@@ -1515,8 +1515,8 @@ impl CheckpointBuilder {
     fn split_checkpoint_chunks(
         &self,
         transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
-        signatures: Vec<Vec<GenericSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<GenericSignature>)>>> {
+        signatures: Vec<Vec<UserSignature>>,
+    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1738,7 +1738,7 @@ impl CheckpointBuilder {
             let (chunk_transactions, mut effects, mut signatures): (
                 Vec<Transaction>,
                 Vec<TransactionEffects>,
-                Vec<Vec<GenericSignature>>,
+                Vec<Vec<UserSignature>>,
             ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
@@ -1934,7 +1934,7 @@ impl CheckpointBuilder {
         epoch_total_gas_cost: &GasCostSummary,
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
-        signatures: &mut Vec<Vec<GenericSignature>>,
+        signatures: &mut Vec<Vec<UserSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {

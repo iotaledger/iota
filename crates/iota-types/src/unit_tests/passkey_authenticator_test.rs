@@ -34,7 +34,7 @@ use crate::{
     crypto::{DefaultHash, PublicKey, SignatureScheme},
     object::Object,
     passkey_authenticator::PasskeyAuthenticator,
-    signature::GenericSignature,
+    signature::{AuthenticatorTrait, UserSignature},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 
@@ -222,9 +222,9 @@ async fn test_passkey_serde() {
     assert_eq!(passkey, deserialized);
 
     // serde round trip for generic signature is the same
-    let signature = GenericSignature::PasskeyAuthenticator(passkey);
+    let signature = UserSignature::PasskeyAuthenticator(passkey);
     let serialized_str = serde_json::to_string(&signature).unwrap();
-    let deserialized: GenericSignature = serde_json::from_str(&serialized_str).unwrap();
+    let deserialized: UserSignature = serde_json::from_str(&serialized_str).unwrap();
     assert_eq!(deserialized.to_bytes(), signature.to_bytes());
 }
 
@@ -234,7 +234,7 @@ async fn test_passkey_authenticator() {
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
-    let sig = GenericSignature::PasskeyAuthenticator(
+    let sig = UserSignature::PasskeyAuthenticator(
         PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
@@ -243,7 +243,7 @@ async fn test_passkey_authenticator() {
         .unwrap(),
     );
 
-    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
+    let res = sig.verify_claims(&response.intent_msg, response.sender, &Default::default());
     assert!(res.is_ok());
 }
 
@@ -344,9 +344,9 @@ async fn test_real_passkey_output() {
     let address =
         Address::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
             .unwrap();
-    let sig = GenericSignature::from_bytes(&Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
+    let sig = UserSignature::from_bytes(Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
     let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
-    let res = sig.verify_authenticator(
+    let res = sig.verify_claims(
         &IntentMessage::new(Intent::iota_transaction(), tx_data),
         address,
         &Default::default(),
@@ -367,7 +367,7 @@ async fn test_passkey_wrong_challenge_fails_verification() {
         r#"{{"type":"webauthn.get","challenge":"{}","origin":"http://localhost:5173","crossOrigin":false}}"#,
         Base64UrlUnpadded::encode_string(&[0u8; DefaultHash::OUTPUT_SIZE])
     );
-    let sig = GenericSignature::PasskeyAuthenticator(
+    let sig = UserSignature::PasskeyAuthenticator(
         PasskeyAuthenticator::new(
             response.authenticator_data,
             wrong_challenge_json,
@@ -375,7 +375,7 @@ async fn test_passkey_wrong_challenge_fails_verification() {
         )
         .unwrap(),
     );
-    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
+    let res = sig.verify_claims(&response.intent_msg, response.sender, &Default::default());
     let err = res.unwrap_err();
     assert!(
         err.to_string()

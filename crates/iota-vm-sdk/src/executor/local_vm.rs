@@ -12,7 +12,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticator,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},

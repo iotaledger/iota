@@ -28,7 +28,7 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::bounded_visitor::BoundedVisitor,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
@@ -60,7 +60,7 @@ pub(super) fn prepare_transaction(
     mut transaction: TransactionData,
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
-    tx_signatures: &[GenericSignature],
+    tx_signatures: &[UserSignature],
     move_authenticators: &[MoveAuthenticator],
     check_coin_deny_list: bool,
 ) -> Result<PreparedTransaction, VmSdkError> {

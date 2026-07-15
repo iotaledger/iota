@@ -44,7 +44,7 @@ use iota_types::{
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveObject, MoveObjectExt, ObjectInner},
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::DeleteKind,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -216,18 +216,18 @@ fn get_registry() -> Result<Registry> {
     .unwrap();
     tracer.trace_value(&mut samples, &multi_sig).unwrap();
 
-    let generic_sig_multi = GenericSignature::MultiSig(multi_sig);
+    let user_sig_multi = UserSignature::Multisig(multi_sig);
     tracer
-        .trace_value(&mut samples, &generic_sig_multi)
+        .trace_value(&mut samples, &user_sig_multi)
         .unwrap();
 
-    // Seed a `GenericSignature::Signature` sample so that when the tracer
+    // Seed a `UserSignature::Simple` sample so that when the tracer
     // later deserializes `CheckpointContents.user_signatures`
-    // (`Vec<Vec<GenericSignature>>`) it has flag-0/1/2 bytes available.
+    // (`Vec<Vec<UserSignature>>`) it has flag-0/1/2 bytes available.
     // Otherwise fastcrypto's `from_bytes` rejects synthesized bytes with
     // "Invalid signature was given to the function".
     tracer
-        .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
+        .trace_value(&mut samples, &UserSignature::Simple(sig.clone()))
         .unwrap();
 
     // `CheckpointContents` (the SDK type) has a custom (de)serializer, so the
@@ -239,7 +239,7 @@ fn get_registry() -> Result<Registry> {
             TransactionDigest::random(),
             TransactionEffectsDigest::random(),
         )],
-        vec![vec![GenericSignature::Signature(sig.clone())]],
+        vec![vec![UserSignature::Simple(sig.clone())]],
     );
     tracer
         .trace_value(&mut samples, &checkpoint_contents_sample)
@@ -578,7 +578,7 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        vec![GenericSignature::Signature(sig1.clone())],
+        vec![UserSignature::Simple(sig1.clone())],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

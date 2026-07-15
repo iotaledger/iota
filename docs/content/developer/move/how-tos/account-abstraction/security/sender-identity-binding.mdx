@@ -25,7 +25,7 @@ This guide builds on [Transaction Data Cryptographic Protection](./tx-data-crypt
 
 A sponsored transaction can be paid for by either of two kinds of sponsor:
 
-- A **standard protocol-created account** (a regular keypair-, multisig-, or passkey-backed address). Sponsorship is authorized by a standard `GenericSignature` over the transaction; the protocol's signature check is the only validation the sponsor goes through.
+- A **standard protocol-created account** (a regular keypair-, multisig-, or passkey-backed address). Sponsorship is authorized by a standard `UserSignature` over the transaction; the protocol's signature check is the only validation the sponsor goes through.
 - An **Abstract Account** whose Move authenticator runs at sponsor-validation time and can inspect the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) — including the sender's authentication info — before deciding to pay.
 
 What each sponsor kind can verify is shaped by when in the transaction lifecycle their authorization runs. The protocol performs sponsor verification (the standard signature check or the sponsor's AA Move authenticator) at **both the pre-consensus and the post-consensus phases**. The sender's Move authenticator, on the other hand, runs **only at post-consensus, and only when a sponsor is present** — on the **sponsor's gas budget**. So by the time the sponsor's pre-consensus approval lands, the sponsor has already committed to pay for whatever sender-authentication code path runs after consensus.

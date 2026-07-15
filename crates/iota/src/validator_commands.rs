@@ -600,7 +600,7 @@ async fn call_0x5(
     let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    let transaction = Transaction::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()

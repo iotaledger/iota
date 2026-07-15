@@ -57,7 +57,7 @@ use iota_types::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
     utils::{
@@ -1413,7 +1413,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectId, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectId, UserSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1432,7 +1432,7 @@ impl IotaTestAdapter {
         match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => Ok((
                 obj_ref.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_immutable_account_object(
                         auth_inputs,
                         vec![],
@@ -1443,7 +1443,7 @@ impl IotaTestAdapter {
             )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_shared_account_object(
                         auth_inputs,
                         vec![],
@@ -1719,7 +1719,7 @@ impl IotaTestAdapter {
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<GenericSignature>,
+        aa_sig: Option<UserSignature>,
         txn_data: impl FnOnce(
             // sender
             Address,

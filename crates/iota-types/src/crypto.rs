@@ -28,18 +28,16 @@ use fastcrypto::{
     },
     ed25519::{
         Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519PublicKeyAsBytes,
-        Ed25519Signature, Ed25519SignatureAsBytes,
+        Ed25519Signature,
     },
     encoding::{Base64, Bech32, Encoding, Hex},
     error::{FastCryptoError, FastCryptoResult},
     hash::{Blake2b256, HashFunction},
     secp256k1::{
         Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes, Secp256k1Signature,
-        Secp256k1SignatureAsBytes,
     },
     secp256r1::{
         Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes, Secp256r1Signature,
-        Secp256r1SignatureAsBytes,
     },
 };
 use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
@@ -62,7 +60,6 @@ use crate::{
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
-    signature::GenericSignature,
 };
 
 #[cfg(test)]
@@ -1500,47 +1497,7 @@ impl SignatureScheme {
         }
     }
 }
-/// Unlike [enum Signature], [enum CompressedSignature] does not contain public
-/// key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CompressedSignature {
-    Ed25519(Ed25519SignatureAsBytes),
-    Secp256k1(Secp256k1SignatureAsBytes),
-    Secp256r1(Secp256r1SignatureAsBytes),
-    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
-    ZkLoginDeprecated,
-    Passkey(PasskeyAuthenticatorAsBytes),
-    Move(MoveAuthenticatorAsBytes),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct PasskeyAuthenticatorAsBytes(pub Vec<u8>);
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MoveAuthenticatorAsBytes(pub Vec<u8>);
-
-impl AsRef<[u8]> for CompressedSignature {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            CompressedSignature::Ed25519(sig) => &sig.0,
-            CompressedSignature::Secp256k1(sig) => &sig.0,
-            CompressedSignature::Secp256r1(sig) => &sig.0,
-            #[allow(deprecated)]
-            CompressedSignature::ZkLoginDeprecated => &[],
-            CompressedSignature::Passkey(sig) => &sig.0,
-            CompressedSignature::Move(sig) => &sig.0,
-        }
-    }
-}
-
 impl FromStr for PublicKey {
-    type Err = eyre::Report;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::decode_base64(s).map_err(|e| eyre!("Fail to decode base64 {}", e.to_string()))
-    }
-}
-
-impl FromStr for GenericSignature {
     type Err = eyre::Report;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::decode_base64(s).map_err(|e| eyre!("Fail to decode base64 {}", e.to_string()))

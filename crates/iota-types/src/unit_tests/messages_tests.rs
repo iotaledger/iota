@@ -32,7 +32,6 @@ use crate::{
     },
     digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
-    signature::ZkLoginAuthenticatorDeprecated,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
@@ -747,11 +746,11 @@ fn test_sponsored_transaction_message() {
     };
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
     let intent = Intent::iota_transaction();
-    let sender_sig: GenericSignature =
+    let sender_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
-    let sponsor_sig: GenericSignature =
+    let sponsor_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
-    let transaction = Transaction::from_generic_sig_data(
+    let transaction = Transaction::from_user_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
@@ -767,7 +766,7 @@ fn test_sponsored_transaction_message() {
     assert_eq!(transaction.gas(), &[gas_obj_ref]);
 
     // Sig order does not matter
-    let transaction = Transaction::from_generic_sig_data(
+    let transaction = Transaction::from_user_sig_data(
         tx_data.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
@@ -776,7 +775,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
+        Transaction::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -784,7 +783,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
+        Transaction::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -792,10 +791,10 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (more sigs than expected)
     let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let third_party_sig: GenericSignature =
+    let third_party_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
-        Transaction::from_generic_sig_data(
+        Transaction::from_user_sig_data(
             tx_data.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
@@ -806,7 +805,7 @@ fn test_sponsored_transaction_message() {
 
     // Test irrelevant sigs
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
+        Transaction::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
@@ -979,7 +978,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     let s = match &transaction.data().tx_signatures()[0] {
-        GenericSignature::Signature(s) => s,
+        UserSignature::Simple(s) => s,
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
@@ -1011,7 +1010,7 @@ fn verify_sender_signature_correctly_with_flag() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
     let s = match &transaction_1.data().tx_signatures()[0] {
-        GenericSignature::Signature(s) => s,
+        UserSignature::Simple(s) => s,
         _ => panic!("unexpected signature scheme"),
     };
 
@@ -1420,17 +1419,6 @@ fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
 }
 
 #[test]
-#[allow(deprecated)]
-fn auth_digest_for_zk_login_returns_unsupported_error() {
-    let sig = GenericSignature::ZkLoginAuthenticatorDeprecated(ZkLoginAuthenticatorDeprecated);
-    let err = auth_digest_for_sig(&sig).unwrap_err();
-    assert!(
-        matches!(err, IotaError::UnsupportedFeature { .. }),
-        "expected UnsupportedFeature, got {err:?}",
-    );
-}
-
-#[test]
 fn compute_auth_digests_non_sponsored_move_authenticator() {
     let sender = Address::random();
     let (_, authenticator) = make_move_authenticator_sig(sender);
@@ -1469,12 +1457,12 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     let sender_sig = tx
         .tx_signatures()
         .iter()
-        .find(|s| Address::try_from(*s).ok() == Some(sender))
+        .find(|s| s.derive_address() == sender)
         .unwrap();
     let sponsor_sig = tx
         .tx_signatures()
         .iter()
-        .find(|s| Address::try_from(*s).ok() == Some(sponsor))
+        .find(|s| s.derive_address() == sponsor)
         .unwrap();
 
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();

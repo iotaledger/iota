@@ -99,28 +99,6 @@ fn protocol_config_value_to_string(v: ProtocolConfigValue) -> String {
 }
 
 // Signature implementations
-impl Merge<iota_types::signature::GenericSignature> for UserSignature {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: iota_types::signature::GenericSignature,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::BCS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        let sdk_signature: iota_sdk_types::UserSignature =
-            source.try_into().map_err(|e: bcs::Error| {
-                RpcError::from(e).with_context("failed to convert signature")
-            })?;
-
-        Merge::merge(self, sdk_signature, mask)
-    }
-}
-
 impl Merge<iota_sdk_types::UserSignature> for UserSignature {
     type Error = RpcError;
 
@@ -165,14 +143,7 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
 
         self.signatures = tx_signatures
             .iter()
-            .map(|sig| {
-                // Convert iota_types signature to SDK signature, then merge
-                let sdk_sig: iota_sdk_types::UserSignature =
-                    sig.clone().try_into().map_err(|e: bcs::Error| {
-                        RpcError::from(e).with_context("failed to convert signature")
-                    })?;
-                UserSignature::merge_from(sdk_sig, mask)
-            })
+            .map(|sig| UserSignature::merge_from(sig.clone(), mask))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())

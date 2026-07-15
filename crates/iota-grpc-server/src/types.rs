@@ -1155,14 +1155,7 @@ impl GrpcReader {
 
             let signatures_data = fields
                 .include_signatures
-                .then(|| {
-                    transaction
-                        .tx_signatures()
-                        .iter()
-                        .map(|sig| sig.clone().try_into())
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?;
+                .then(|| transaction.tx_signatures().to_owned());
 
             (transaction_data, signatures_data)
         } else {

@@ -21,7 +21,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{CallArg, Transaction, TransactionData},
     utils::MoveAuthenticatorV1,
 };
@@ -212,7 +212,7 @@ pub async fn create_test_transaction(
 
     // Create a transaction
 
-    let signature = GenericSignature::MoveAuthenticator(
+    let signature = UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![],
             vec![],
@@ -221,7 +221,7 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
+    Ok(Transaction::from_user_sig_data(tx_data, vec![signature]))
 }
 
 /// Swaps the recipient in the transaction to an attacker-controlled address.

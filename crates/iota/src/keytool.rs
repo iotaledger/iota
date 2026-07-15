@@ -50,7 +50,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
-    signature::{GenericSignature, VerifyParams},
+    signature::{AuthenticatorTrait, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
@@ -85,7 +85,7 @@ pub enum KeyToolCommand {
         #[arg(long)]
         tx_bytes: String,
         #[arg(long)]
-        sig: Option<GenericSignature>,
+        sig: Option<UserSignature>,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
@@ -464,8 +464,8 @@ impl KeyToolCommand {
                     let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
-                    let s = GenericSignature::MultiSig(multisig);
-                    let res = s.verify_authenticator(
+                    let s = UserSignature::Multisig(multisig);
+                    let res = s.verify_claims(
                         &IntentMessage::new(Intent::iota_transaction(), tx_data),
                         address,
                         &VerifyParams::default(),
@@ -480,9 +480,9 @@ impl KeyToolCommand {
                 CommandOutput::DecodeMultiSig(output)
             }
             KeyToolCommand::DecodeSig { sig } => {
-                // Try to decode as GenericSignature first, then fallback to
+                // Try to decode as UserSignature first, then fallback to
                 // SenderSignedData (which contains a SenderSignedTransaction)
-                let signature = match GenericSignature::decode_base64(&sig) {
+                let signature = match UserSignature::from_base64(&sig) {
                     Ok(sig) => sig,
                     Err(_) => {
                         // Try decoding as SenderSignedData
@@ -499,7 +499,7 @@ impl KeyToolCommand {
                     }
                 };
                 let decoded = match signature {
-                    GenericSignature::Signature(s) => {
+                    UserSignature::Simple(s) => {
                         let pk = PublicKey::try_from_bytes(
                             s.signature_scheme(),
                             s.to_public_key().as_ref(),
@@ -515,7 +515,7 @@ impl KeyToolCommand {
                             signature_hex,
                         }
                     }
-                    GenericSignature::MultiSig(multisig) => {
+                    UserSignature::Multisig(multisig) => {
                         let members = multisig.committee().members();
                         let signatures = multisig.signatures();
                         let indices = multisig.indices()?;
@@ -540,14 +540,10 @@ impl KeyToolCommand {
                             participating_signatures,
                         }
                     }
-                    #[allow(deprecated)]
-                    GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                        anyhow::bail!("zkLogin is not supported");
-                    }
-                    GenericSignature::PasskeyAuthenticator(passkey) => {
+                    UserSignature::PasskeyAuthenticator(passkey) => {
                         DecodedSigOutput::Passkey(Box::new(passkey))
                     }
-                    GenericSignature::MoveAuthenticator(move_auth) => {
+                    UserSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth
                             .call_args()
                             .iter()
@@ -567,6 +563,9 @@ impl KeyToolCommand {
                             object_to_authenticate,
                         }
                     }
+                    _ => unimplemented!(
+                        "a new UserSignature variant was added and needs to be handled"
+                    ),
                 };
                 CommandOutput::DecodeSig(decoded)
             }
@@ -580,7 +579,7 @@ impl KeyToolCommand {
                         result: None,
                     }),
                     Some(s) => {
-                        let res = s.verify_authenticator(
+                        let res = s.verify_claims(
                             &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
                             tx_data.sender(),
                             &VerifyParams::default(),

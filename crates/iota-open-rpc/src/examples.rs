@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeMap, ops::Range, str::FromStr};
 
-use fastcrypto::traits::EncodeDecodeBase64;
 use iota_json::IotaJsonValue;
 use iota_json_rpc::error::Error;
 use iota_json_rpc_types::{
@@ -46,7 +45,7 @@ use iota_types::{
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
@@ -236,7 +235,7 @@ impl RpcExampleProvider {
                         json!(
                             signatures
                                 .into_iter()
-                                .map(|sig| sig.encode_base64())
+                                .map(|sig| sig.to_base64())
                                 .collect::<Vec<_>>()
                         ),
                     ),
@@ -665,7 +664,7 @@ impl RpcExampleProvider {
         &mut self,
     ) -> (
         TransactionData,
-        Vec<GenericSignature>,
+        Vec<UserSignature>,
         Address,
         ObjectId,
         IotaTransactionBlockResponse,

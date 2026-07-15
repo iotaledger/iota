@@ -47,7 +47,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorV1,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
@@ -890,7 +890,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_generic_sig_data(aa_tx_data, vec![auth]);
+    let tx = Transaction::from_user_sig_data(aa_tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1010,7 +1010,7 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx1, vec![auth]);
+    let tx = Transaction::from_user_sig_data(tx1, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1176,7 +1176,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1305,7 +1305,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1601,7 +1601,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1644,7 +1644,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
 
     // Only the sponsor is an abstract account in this scenario — the sender
     // is a regular keypair-backed address (`env.owner`) that signs the
-    // transaction with a standard `GenericSignature::Signature`.
+    // transaction with a standard `UserSignature::Signature`.
     let sponsor_create_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let auth_ref = match build_auth_function_ref_v1(
@@ -1706,10 +1706,10 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     );
     let tx_digest = tx_data.digest().into_inner();
 
-    // Sender: standard `GenericSignature::Signature` (ed25519 over the
+    // Sender: standard `UserSignature::Signature` (ed25519 over the
     // intent-wrapped TransactionData) — NOT a `MoveAuthenticator`. So
     // `auth_ctx.sender_authenticator_function_info_v1()` is `None` on-chain.
-    let sender_auth = GenericSignature::Signature(
+    let sender_auth = UserSignature::Simple(
         env.test_cluster
             .wallet
             .config()
@@ -1764,7 +1764,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1945,7 +1945,7 @@ async fn run_account_for_benchmarks(
                 continue;
             }
         };
-        let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+        let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
         let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
         r.authenticate_outcome = outcome;
         r.authenticate_err = err;
@@ -2254,7 +2254,7 @@ async fn run_simple_auth_ed25519(
     };
 
     let auth = make_move_authenticator(account_ref, extra_args)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
     Ok(execute_aa_tx_outcome(env, tx).await)
 }
 
@@ -2349,8 +2349,8 @@ fn build_sorted_keccak_merkle_tree(leaves: &[Vec<u8>]) -> (Vec<u8>, Vec<Vec<Vec<
 fn make_move_authenticator(
     account_ref: ObjectReference,
     extra_args: Vec<CallArg>,
-) -> anyhow::Result<GenericSignature> {
-    Ok(GenericSignature::MoveAuthenticator(
+) -> anyhow::Result<UserSignature> {
+    Ok(UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             extra_args,
             vec![],

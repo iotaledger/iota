@@ -28,18 +28,16 @@ use serde::{
 
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
-    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     parse_iota_struct_tag,
-    signature::GenericSignature,
     transaction::{Transaction, VerifiedTransaction},
 };
 pub use crate::{
@@ -233,35 +231,6 @@ impl From<&PublicKey> for Address {
         hasher.update(pk);
         let g_arr = hasher.finalize();
         Address::new(g_arr.digest)
-    }
-}
-
-impl TryFrom<&GenericSignature> for Address {
-    type Error = IotaError;
-    /// Derive an Address from a serialized signature in IOTA
-    /// [GenericSignature].
-    fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
-        match sig {
-            GenericSignature::Signature(sig) => {
-                let scheme = sig.signature_scheme();
-                let pub_key = PublicKey::try_from_bytes(scheme, sig.to_public_key().as_ref())
-                    .map_err(|_| IotaError::InvalidSignature {
-                        error: "Cannot parse pubkey".to_string(),
-                    })?;
-                Ok(Address::from(&pub_key))
-            }
-            GenericSignature::MultiSig(ms) => Ok(ms.committee().into()),
-            #[allow(deprecated)]
-            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                Err(IotaError::UnsupportedFeature {
-                    error: "zkLogin is not supported".to_string(),
-                })
-            }
-            GenericSignature::PasskeyAuthenticator(s) => Ok(Address::from(s.public_key())),
-            GenericSignature::MoveAuthenticator(move_authenticator) => {
-                Ok(move_authenticator.address())
-            }
-        }
     }
 }
 

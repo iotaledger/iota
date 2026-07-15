@@ -18,9 +18,8 @@ use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
-    move_authenticator::MoveAuthenticatorExt,
     object::Object,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
@@ -52,10 +51,10 @@ impl Fixture {
         bcs::from_bytes(&b64(&self.tx_b64)).expect("decode tx")
     }
 
-    fn decoded_signatures(&self) -> Vec<GenericSignature> {
+    fn decoded_signatures(&self) -> Vec<UserSignature> {
         self.signatures
             .iter()
-            .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+            .map(|s| UserSignature::from_bytes(b64(s)).expect("decode signature"))
             .collect()
     }
 
@@ -96,10 +95,10 @@ fn chain_context(f: &Fixture) -> ChainContext {
 }
 
 /// The fixture's `MoveAuthenticator` signature.
-fn move_authenticator_sig(f: &Fixture) -> GenericSignature {
+fn move_authenticator_sig(f: &Fixture) -> UserSignature {
     f.decoded_signatures()
         .into_iter()
-        .find(|s| matches!(s, GenericSignature::MoveAuthenticator(_)))
+        .find(|s| matches!(s, UserSignature::MoveAuthenticator(_)))
         .expect("fixture carries a MoveAuthenticator signature")
 }
 
@@ -271,7 +270,7 @@ fn sponsor_move_authenticator_is_executed_and_can_reject() {
     let sender_auth = move_authenticator_sig(&sender_fx);
     let sponsor_auth = move_authenticator_sig(&sponsor_fx);
     let sponsor = match &sponsor_auth {
-        GenericSignature::MoveAuthenticator(a) => a.address(),
+        UserSignature::MoveAuthenticator(a) => a.address(),
         _ => unreachable!("move_authenticator_sig returns a MoveAuthenticator"),
     };
 

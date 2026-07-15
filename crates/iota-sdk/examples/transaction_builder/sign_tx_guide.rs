@@ -25,7 +25,7 @@ use iota_sdk::{
     types::{
         crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        signature::GenericSignature,
+        signature::UserSignature,
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
@@ -158,9 +158,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            iota_types::transaction::Transaction::from_generic_sig_data(
+            iota_types::transaction::Transaction::from_user_sig_data(
                 intent_msg.value,
-                vec![GenericSignature::Signature(iota_sig)],
+                vec![UserSignature::Simple(iota_sig)],
             ),
             IotaTransactionBlockResponseOptions::default(),
             None,

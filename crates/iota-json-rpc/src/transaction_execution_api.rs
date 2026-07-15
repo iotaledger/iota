@@ -37,7 +37,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::PostExecutionPackageResolver,
     transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -109,9 +109,12 @@ impl TransactionExecutionApi {
 
         let mut sigs = Vec::new();
         for sig in signatures {
-            sigs.push(GenericSignature::from_bytes(&sig.to_vec()?)?);
+            sigs.push(
+                UserSignature::from_bytes(sig.to_vec()?)
+                    .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
+            );
         }
-        let txn = Transaction::from_generic_sig_data(tx_data, sigs);
+        let txn = Transaction::from_user_sig_data(tx_data, sigs);
         let raw_transaction = if opts.show_raw_input {
             bcs::to_bytes(txn.data())?
         } else {

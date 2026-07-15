@@ -265,7 +265,7 @@ mod tests {
             VersionedMisbehaviorReport,
         },
         object::Object,
-        signature::GenericSignature,
+        signature::UserSignature,
     };
     use starfish_core::TransactionVerifier as _;
 
@@ -329,7 +329,7 @@ mod tests {
             .map(|mut cert| {
                 // set it to an all-zero user signature
                 cert.tx_signatures_mut_for_testing()[0] =
-                    GenericSignature::Signature(iota_types::crypto::zero_ed25519_signature());
+                    UserSignature::Simple(iota_types::crypto::zero_ed25519_signature());
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })
             .collect();

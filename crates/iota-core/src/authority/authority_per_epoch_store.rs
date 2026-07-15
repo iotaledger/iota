@@ -59,7 +59,7 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
         VersionedDkgConfirmation,
     },
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
@@ -2757,7 +2757,7 @@ impl AuthorityPerEpochStore {
         &self,
         transactions: &[VerifiedTransaction],
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Vec<GenericSignature>>> {
+    ) -> IotaResult<Vec<Vec<UserSignature>>> {
         assert_eq!(transactions.len(), digests.len());
 
         let signatures: Vec<_> = {
@@ -2973,7 +2973,7 @@ impl AuthorityPerEpochStore {
     pub fn test_insert_user_signature(
         &self,
         digest: TransactionDigest,
-        signatures: Vec<GenericSignature>,
+        signatures: Vec<UserSignature>,
     ) {
         self.consensus_output_cache
             .user_signatures_for_checkpoints

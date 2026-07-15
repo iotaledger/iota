@@ -19,7 +19,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
@@ -203,9 +203,9 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     .unwrap();
 
     let multisig =
-        GenericSignature::MultiSig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
+        UserSignature::Multisig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
 
-    Transaction::from_generic_sig_data(tx_data, vec![multisig])
+    Transaction::from_user_sig_data(tx_data, vec![multisig])
 }
 
 struct MyUserValidationMethod {}

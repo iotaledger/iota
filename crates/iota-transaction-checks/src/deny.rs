@@ -6,7 +6,7 @@ use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{Command, ObjectReference};
 use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::BackingPackageStore,
     transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt},
 };
@@ -28,7 +28,7 @@ macro_rules! deny_if_true {
 #[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
 pub fn check_transaction_for_validation(
     tx_data: &TransactionData,
-    tx_signatures: &[GenericSignature],
+    tx_signatures: &[UserSignature],
     input_object_kinds: &[InputObjectKind],
     receiving_objects: &[ObjectReference],
     filter_config: &TransactionDenyConfig,
@@ -74,7 +74,7 @@ fn check_receiving_objects(
 fn check_disabled_features(
     filter_config: &TransactionDenyConfig,
     tx_data: &TransactionData,
-    tx_signatures: &[GenericSignature],
+    tx_signatures: &[UserSignature],
 ) -> IotaResult {
     deny_if_true!(
         filter_config.user_transaction_disabled(),
@@ -82,10 +82,7 @@ fn check_disabled_features(
     );
 
     tx_signatures.iter().try_for_each(|s| {
-        #[allow(deprecated)]
-        if let GenericSignature::ZkLoginAuthenticatorDeprecated(_) = s {
-            deny_if_true!(true, "zkLogin is not supported");
-        } else if let GenericSignature::MoveAuthenticator(_) = s {
+        if let UserSignature::MoveAuthenticator(_) = s {
             deny_if_true!(
                 filter_config.move_authenticator_disabled(),
                 "MoveAuthenticator is temporarily disabled"

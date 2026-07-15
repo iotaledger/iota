@@ -3246,6 +3246,7 @@ dependencies = [
  "fastcrypto",
  "iota-genesis-common",
  "iota-keys",
+ "iota-metrics",
  "iota-names",
  "iota-sdk-types",
  "iota-types",
@@ -3466,6 +3467,7 @@ dependencies = [
  "prometheus-closure-metric",
  "prometheus-filtered",
  "scopeguard",
+ "serde",
  "simple-server-timing-header",
  "sysinfo",
  "tap",
@@ -3684,7 +3686,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=91bb19ee1d5f815e4b1604624195b6e83c87c8ef#91bb19ee1d5f815e4b1604624195b6e83c87c8ef"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a3f5ffb555b46db06ce17df050f5148c4fbc668e#a3f5ffb555b46db06ce17df050f5148c4fbc668e"
 dependencies = [
  "fastcrypto",
  "iota-sdk-types",
@@ -3698,7 +3700,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9826f3bbcc96ff72d69f2532af7e9829abe61d9b#9826f3bbcc96ff72d69f2532af7e9829abe61d9b"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a3f5ffb555b46db06ce17df050f5148c4fbc668e#a3f5ffb555b46db06ce17df050f5148c4fbc668e"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3717,7 +3719,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9826f3bbcc96ff72d69f2532af7e9829abe61d9b#9826f3bbcc96ff72d69f2532af7e9829abe61d9b"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a3f5ffb555b46db06ce17df050f5148c4fbc668e#a3f5ffb555b46db06ce17df050f5148c4fbc668e"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -3733,7 +3735,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9826f3bbcc96ff72d69f2532af7e9829abe61d9b#9826f3bbcc96ff72d69f2532af7e9829abe61d9b"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a3f5ffb555b46db06ce17df050f5148c4fbc668e#a3f5ffb555b46db06ce17df050f5148c4fbc668e"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3752,7 +3754,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=91bb19ee1d5f815e4b1604624195b6e83c87c8ef#91bb19ee1d5f815e4b1604624195b6e83c87c8ef"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a3f5ffb555b46db06ce17df050f5148c4fbc668e#a3f5ffb555b46db06ce17df050f5148c4fbc668e"
 dependencies = [
  "base64ct",
  "bcs",
@@ -5908,6 +5910,7 @@ name = "prometheus-filtered"
 version = "1.28.0-alpha"
 dependencies = [
  "prometheus",
+ "serde",
  "tracing",
 ]
 

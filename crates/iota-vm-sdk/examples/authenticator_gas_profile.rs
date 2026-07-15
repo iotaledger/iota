@@ -21,7 +21,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
@@ -106,13 +106,13 @@ fn example_signed_transaction() -> Result<SenderSignedData> {
     let f = fixture()?;
     let tx: TransactionData =
         bcs::from_bytes(&Base64::decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
-    let sigs: Vec<GenericSignature> = f["signatures"]
+    let sigs: Vec<UserSignature> = f["signatures"]
         .as_array()
         .context("`signatures` must be an array")?
         .iter()
         .map(|s| {
-            Ok(GenericSignature::from_bytes(
-                &Base64::decode(s.as_str().unwrap()).unwrap(),
+            Ok(UserSignature::from_bytes(
+                Base64::decode(s.as_str().unwrap()).unwrap(),
             )?)
         })
         .collect::<Result<_>>()?;

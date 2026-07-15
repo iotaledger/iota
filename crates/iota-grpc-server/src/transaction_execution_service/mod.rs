@@ -692,12 +692,7 @@ async fn execute_single_transaction(
 
     // Build the merged response
     let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction_data().clone();
-    let signatures: Vec<iota_sdk_types::UserSignature> = transaction
-        .tx_signatures()
-        .to_owned()
-        .into_iter()
-        .map(|sig| sig.try_into())
-        .collect::<Result<_, _>>()?;
+    let signatures: Vec<iota_sdk_types::UserSignature> = transaction.tx_signatures().to_owned();
 
     // Keep a pre-parsed copy for the rebuild-from-cache path so it doesn't
     // have to re-parse the proto request. Only materialised when the response

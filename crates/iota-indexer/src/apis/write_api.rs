@@ -35,7 +35,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -135,8 +135,8 @@ impl WriteApi {
             .signatures()?
             .signatures
             .iter()
-            .map(|s| -> IndexerResult<_> { Ok(GenericSignature::try_from(s.signature()?)?) })
-            .collect::<IndexerResult<Vec<GenericSignature>>>()?;
+            .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
+            .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 

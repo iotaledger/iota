@@ -24,7 +24,7 @@ use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
@@ -425,9 +425,9 @@ impl TestTransactionBuilder {
         let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
         let multisig =
-            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
+            UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
-        Transaction::from_generic_sig_data(data, vec![multisig])
+        Transaction::from_user_sig_data(data, vec![multisig])
     }
 }
 

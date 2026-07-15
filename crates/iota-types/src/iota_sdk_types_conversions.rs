@@ -14,7 +14,7 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
     checkpoint::{CheckpointData, CheckpointTransaction, SignedCheckpointSummary},
-    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature},
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -155,22 +155,6 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
     }
 }
 
-impl TryFrom<crate::signature::GenericSignature> for UserSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: crate::signature::GenericSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl TryFrom<UserSignature> for crate::signature::GenericSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: UserSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
 impl TryFrom<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedCheckpointSummary {
     type Error = SdkTypeConversionError;
 
@@ -246,10 +230,7 @@ impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
 
         Self {
             transaction: intent_message.value,
-            signatures: tx_signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
+            signatures: tx_signatures,
         }
         .pipe(Ok)
     }
@@ -264,14 +245,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
             signatures,
         } = value;
 
-        Self::new(
-            transaction,
-            signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        )
-        .pipe(Ok)
+        Self::new(transaction, signatures).pipe(Ok)
     }
 }
 
