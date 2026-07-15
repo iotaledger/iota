@@ -26,9 +26,10 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CheckpointSequenceNumber, Command,
-    ConsensusDeterminedVersionAssignments, EpochId, ExecutionError, ExecutionStatus, GasPayment,
-    Identifier, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version, VersionAssignment,
+    ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
+    GasPayment, Identifier, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
+    VersionAssignment,
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
@@ -37,7 +38,7 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, Signature,
         get_key_pair, random_committee_key_pairs_of_size,
     },
-    digests::{Digest, ObjectDigest, TransactionDigest},
+    digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,

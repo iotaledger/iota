@@ -7,7 +7,7 @@ use std::{env, fmt};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
 pub use iota_sdk_types::{
-    CertificateDigest, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest, Digest,
+    CertificateDigest, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
     EffectsAuxDataDigest, MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest,
     SenderSignedDataDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
 };

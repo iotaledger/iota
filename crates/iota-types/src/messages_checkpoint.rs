@@ -11,7 +11,7 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CheckpointContentsV1, RandomnessRound,
+    CheckpointContentsV1, Digest, RandomnessRound,
     checkpoint::CheckpointTransactionInfo,
     crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
@@ -33,7 +33,6 @@ use crate::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
     },
-    digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     global_state_hash::GlobalStateHash,

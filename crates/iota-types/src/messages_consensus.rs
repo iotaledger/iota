@@ -13,7 +13,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_sdk_types::{ObjectReference, crypto::IntentScope};
+use iota_sdk_types::{Digest, ObjectReference, crypto::IntentScope};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -21,7 +21,7 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, ConciseableName, TransactionDigest},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
-    digests::{Digest, MisbehaviorReportDigest},
+    digests::MisbehaviorReportDigest,
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{

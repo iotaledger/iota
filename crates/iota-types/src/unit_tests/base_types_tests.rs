@@ -13,7 +13,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Owner,
+    Digest, Owner,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use move_binary_format::file_format;
@@ -27,7 +27,7 @@ use crate::{
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::{Digest, TransactionDigest},
+    digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,

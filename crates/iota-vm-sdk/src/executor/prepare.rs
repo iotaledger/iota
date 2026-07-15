@@ -12,7 +12,7 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{Address, Event, ObjectId, ObjectReference};
+use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution,
@@ -304,10 +304,7 @@ pub(super) fn execute_with_move_authenticators(
     store: &dyn BackingStore,
     prepared: PreparedTransaction,
     authenticators: Vec<MoveAuthenticator>,
-    auth_digests: (
-        iota_types::digests::Digest,
-        Option<iota_types::digests::Digest>,
-    ),
+    auth_digests: (Digest, Option<Digest>),
     check_coin_deny_list: bool,
     trace_builder_opt: &mut Option<MoveTraceBuilder>,
 ) -> Result<
@@ -483,10 +480,7 @@ pub(super) fn prepare_authenticators(
 pub(super) fn build_auth_context_data(
     transaction: &TransactionData,
     prepared_auths: &[PreparedAuthenticator],
-    auth_digests: (
-        iota_types::digests::Digest,
-        Option<iota_types::digests::Digest>,
-    ),
+    auth_digests: (Digest, Option<Digest>),
 ) -> Result<AuthContextData, VmSdkError> {
     let tx_data_bytes = bcs::to_bytes(transaction)
         .map_err(|e| VmError::new(format!("serialize transaction data: {e}")))?;
