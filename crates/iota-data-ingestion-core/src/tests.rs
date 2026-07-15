@@ -260,6 +260,71 @@ async fn basic_flow_with_checkpoint_upper_limit() {
     assert_eq!(result.unwrap().get("test"), Some(&20));
 }
 
+// A configured `stall_timeout` shuts the executor down with
+// `IngestionError::Stalled` when the stream stops delivering checkpoints before
+// the run is otherwise complete.
+#[tokio::test]
+async fn stall_timeout_shuts_down_when_no_progress() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 1)
+        .await
+        .unwrap();
+    let tmp_dir = iota_common::tempdir();
+    // Only checkpoints 0..5 exist; after processing them the reader waits for
+    // checkpoint 5 forever, so no progress is made and the stall guard fires.
+    for checkpoint_number in 0..5 {
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            mock_checkpoint_data_bytes(checkpoint_number),
+        )
+        .unwrap();
+    }
+    let reader_options = ReaderOptions {
+        tick_interval_ms: 10,
+        batch_size: 1,
+        stall_timeout: Some(Duration::from_millis(500)),
+        ..Default::default()
+    };
+    let result = timeout(
+        Duration::from_secs(10),
+        bundle.executor.run_with_config(CheckpointReaderConfig {
+            reader_options,
+            ingestion_path: Some(tmp_dir.path().to_path_buf()),
+            remote_store_url: None,
+        }),
+    )
+    .await
+    .expect("stall guard should shut the executor down well before the outer timeout");
+    assert!(matches!(result, Err(IngestionError::Stalled)));
+}
+
+// With `stall_timeout` left unset (the default), a gap in the stream must not
+// shut the executor down; the run only ends when it is cancelled.
+#[tokio::test]
+async fn no_stall_timeout_keeps_waiting_on_gap() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 1)
+        .await
+        .unwrap();
+    let tmp_dir = iota_common::tempdir();
+    for checkpoint_number in 0..5 {
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            mock_checkpoint_data_bytes(checkpoint_number),
+        )
+        .unwrap();
+    }
+    // `run` uses `stall_timeout: None`; the cancel after 1s is what ends the run.
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        Duration::from_secs(1),
+        bundle.token,
+    )
+    .await;
+    assert!(result.is_ok());
+}
+
 // Tests the graceful shutdown behavior when a checkpoint upper limit is
 // provided through a custom callback.
 //
