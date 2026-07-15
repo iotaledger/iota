@@ -101,7 +101,8 @@ impl Inner {
             checkpoints_synced_from_checkpoint_archive: register_int_counter_with_registry!(
                 "checkpoints_synced_from_checkpoint_archive",
                 "Checkpoints synced from checkpoint archive",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 

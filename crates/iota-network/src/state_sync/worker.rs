@@ -47,7 +47,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
     }
 }
 
-pub fn get_or_insert_verified_checkpoint<S>(
+fn get_or_insert_verified_checkpoint<S>(
     store: &S,
     certified_checkpoint: CertifiedCheckpointSummary,
     verify: bool,
