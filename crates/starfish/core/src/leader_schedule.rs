@@ -117,13 +117,20 @@ impl LeaderSchedule {
         // In the normal online flow, `scoring_subdag` is cleared every time we
         // update the schedule, so its size stays within `num_commits_per_schedule`.
         //
-        // After fast-sync or when recovering from older/stale DBs where CommitInfo
-        // wasn't persisted frequently, recovery may rebuild a backlog of scoring
-        // subdags that exceeds the window. In that case, we should trigger an
-        // immediate schedule update rather than panic.
+        // The same bound holds for recovered state: every writer persists
+        // `CommitInfo` in the same write batch as the commits it covers (the
+        // online path buffers both at rotation, fast sync applies the scores
+        // embedded in fetched commits before flushing the batch), so on disk
+        // the last commit stays within one window of the last `CommitInfo`.
+        // A recovered backlog exceeding the window therefore indicates a store
+        // written by different code or modified externally. It is not treated
+        // as fatal: returning 0 forces an immediate schedule update, which
+        // replays the backlog window by window.
         if subdag_count > self.num_commits_per_schedule {
             tracing::warn!(
-                "Committed subdags count ({subdag_count}) exceeds commits-per-schedule ({}) - forcing immediate leader schedule update. This can happen after fast sync / recovery if CommitInfo was missing or stale.",
+                "Recovered scoring backlog ({subdag_count} subdags) exceeds the schedule \
+                 window ({}): commits and CommitInfo are inconsistent on disk, which current \
+                 persistence never produces. Forcing an immediate schedule update.",
                 self.num_commits_per_schedule,
             );
             return 0;
@@ -349,8 +356,9 @@ impl LeaderSchedule {
     }
 
     /// Updates the leader schedule from a recovered scoring backlog spanning
-    /// more than one rotation interval, possible after fast sync or recovery
-    /// from a store whose last persisted `CommitInfo` is missing or stale.
+    /// more than one rotation interval — a store state current persistence
+    /// never produces, tolerated in case the store was written by different
+    /// code or modified externally.
     ///
     /// The backlog is replayed window by window from the store, so every
     /// rebuilt swap table matches the one a continuously running node computed
@@ -362,7 +370,8 @@ impl LeaderSchedule {
         let full_windows = backlog_range.size() as u32 / window_size;
 
         tracing::info!(
-            "Replaying recovered scoring backlog {backlog_range:?} as {full_windows} window(s) of {window_size} commits"
+            "Replaying recovered scoring backlog {backlog_range:?} as {full_windows} full \
+             window(s) of {window_size} commits"
         );
 
         dag_state_write_lock.clear_scoring_subdag();
@@ -410,7 +419,8 @@ impl LeaderSchedule {
             self.range_validation(new_table, old_table);
         } else {
             tracing::warn!(
-                "Skipping commit range validation: old range {old_commit_range:?} does not span one rotation interval ({}), new range {:?}",
+                "Skipping commit range validation: old range {old_commit_range:?} does not \
+                 span one rotation interval ({}), new range {:?}",
                 self.num_commits_per_schedule,
                 new_table.reputation_scores.commit_range,
             );
