@@ -3,16 +3,27 @@
 
 //! This module includes helper wrappers for building and starting a REST API
 //! server.
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use axum::{
     Router,
-    response::IntoResponse,
+    extract::{MatchedPath, Request},
+    http::{StatusCode, header::HeaderName},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use iota_storage::http_key_value_store::ItemType;
 use tokio_util::sync::CancellationToken;
+use tower::ServiceBuilder;
+use tower_http::{
+    classify::ServerErrorsFailureClass,
+    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    trace::TraceLayer,
+};
+use tracing::{Span, field};
+
+const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
 use crate::{
     RestApiConfig,
@@ -53,8 +64,29 @@ impl Server {
                 &format!("/{}/{{address}}", ItemType::TransactionDigestsByAddress),
                 get(kv_store::transaction_digests_by_address),
             )
-            .with_state(shared_state)
-            .fallback(fallback);
+            // register the fallback before the layers so that requests to
+            // unmatched routes are traced as well
+            .fallback(fallback)
+            .layer(
+                ServiceBuilder::new()
+                    .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER, MakeRequestUuid))
+                    .layer(
+                        TraceLayer::new_for_http()
+                            .make_span_with(make_request_span)
+                            .on_response(log_response)
+                            .on_failure(
+                                |class: ServerErrorsFailureClass, latency: Duration, _: &Span| {
+                                    tracing::error!(
+                                        %class,
+                                        latency_ms = latency.as_millis() as u64,
+                                        "request failed"
+                                    );
+                                },
+                            ),
+                    )
+                    .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER)),
+            )
+            .with_state(shared_state);
 
         Ok(Self {
             router,
@@ -92,4 +124,54 @@ impl Server {
 /// the request.
 async fn fallback() -> impl IntoResponse {
     ApiError::NotFound
+}
+
+/// Creates the tracing span that wraps a single request.
+///
+/// - `request_id` is the unique identifier for this request.
+/// - `method` is the HTTP method of the request (e.g. `GET`, `POST`).
+/// - `route` is the matched route template (e.g. `/{item_type}/{key}`)
+/// - `uri` carries the concrete request path data (e.g.
+///   `/txa/MMwf19j7eGrynrHP4Upp71-yvbJbr-GpqnRYU8LoqFk`).
+/// - The `error` field starts empty and is recorded by
+///   [`ApiError::into_response`] when the request fails.
+fn make_request_span(request: &Request) -> Span {
+    let request_id = request
+        .headers()
+        .get(REQUEST_ID_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map_or_else(|| request.uri().path(), MatchedPath::as_str);
+
+    tracing::info_span!(
+        "request",
+        request_id,
+        method = %request.method(),
+        route,
+        uri = %request.uri(),
+        error = field::Empty,
+    )
+}
+
+/// Logs the completion of a request, choosing the level by status code range.
+///
+/// # Note
+/// Server errors are skipped here, they are logged by
+/// [`TraceLayer::on_failure`] together with the failure class.
+fn log_response(response: &Response, latency: Duration, _: &Span) {
+    let status = response.status();
+    let latency_ms = latency.as_millis() as u64;
+
+    if status.is_server_error() {
+        return;
+    }
+
+    if status.is_client_error() && status != StatusCode::NOT_FOUND {
+        tracing::warn!(%status, latency_ms, "request failed with client error");
+    } else {
+        tracing::info!(%status, latency_ms, "request completed");
+    }
 }
