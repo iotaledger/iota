@@ -126,8 +126,12 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         })
         .collect();
 
-    // Decode each event against the loaded objects; keep going on a per-event
-    // failure so one undecodable event doesn't drop the rest.
+    // Decode each event's payload against the store. Decoding can fail where
+    // execution didn't — e.g. a value beyond the deserializer's depth/size
+    // bounds, or a layout that resolves awkwardly across a package upgrade — so
+    // record the failure on that event as `decode_error` rather than discarding
+    // the (valid) execution result. Every event is still returned with its
+    // identity, so nothing is dropped.
     let events: Vec<EventOut> = match &result.events {
         Some(evs) => evs
             .0
