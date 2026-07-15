@@ -111,8 +111,8 @@ impl MisbehaviorStore {
         }
         let idx = authority_index.value();
 
-        // Move buffered faulty block header counts to persisted.
-        let had_faulty = self.flush_faulty_block_header_buffer(idx);
+        // Move buffered faulty block counts to persisted.
+        let had_faulty = self.flush_faulty_block_buffer(idx);
 
         // Recompute in-memory window from blocks still in cache.
         let in_memory_block_rounds: Vec<Round> = recent_refs
@@ -152,9 +152,9 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Flush buffered faulty block header counts from in_memory to persisted
+    /// Flush buffered faulty block counts from in_memory to persisted
     /// for one authority. Returns true if any counts were moved.
-    fn flush_faulty_block_header_buffer(&self, idx: usize) -> bool {
+    fn flush_faulty_block_buffer(&self, idx: usize) -> bool {
         let (prov, unprov) = self.in_memory.drain_block_faults(idx);
         if prov == 0 && unprov == 0 {
             return false;
@@ -185,9 +185,10 @@ impl MisbehaviorStore {
             .collect()
     }
 
-    /// Records a faulty block header event detected during block header
-    /// validation. Events are buffered in the in_memory bucket and moved
-    /// to persisted on the next flush.
+    /// Records a faulty block event detected during ingest validation — a
+    /// rejected block header, or a corrupt part of a relayed bundle (framing,
+    /// metadata, or shard). Events are buffered in the in_memory bucket and
+    /// moved to persisted on the next flush.
     ///
     /// `peer` is the authority that sent us the block (always known from the
     /// network connection). `author` is the claimed block author (from the
@@ -200,7 +201,7 @@ impl MisbehaviorStore {
     ///   distributing a block they could have verified themselves.
     /// - Unprovable faults (bad/missing signature): charged to `peer` only — we
     ///   can't verify the author field, but we know who sent it to us.
-    pub(crate) fn record_faulty_block_header(
+    pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,
         author: AuthorityIndex,
@@ -214,7 +215,7 @@ impl MisbehaviorStore {
         if peer_idx >= committee_size {
             return;
         }
-        match classify_block_header_error(error) {
+        match classify_block_error(error) {
             FaultType::Provable => {
                 if author_idx >= committee_size {
                     // Can't credit a bogus author; charge the serving peer instead.
@@ -261,7 +262,7 @@ impl MisbehaviorStore {
     }
 }
 
-/// Whether a block header fault can be cryptographically proven.
+/// Whether a block fault can be cryptographically proven.
 enum FaultType {
     /// Block has a valid author signature but violates protocol rules.
     /// The signed block header itself is proof of misbehavior.
@@ -277,7 +278,7 @@ enum FaultType {
     Untracked,
 }
 
-fn classify_block_header_error(error: &ConsensusError) -> FaultType {
+fn classify_block_error(error: &ConsensusError) -> FaultType {
     // Exhaustive on purpose: a new `ConsensusError` variant must be assigned a
     // fault type here rather than silently falling through to `Untracked`.
     match error {
@@ -298,6 +299,9 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
+        // TODO(iotaledger/iota-private#470): count these under a dedicated
+        // bundle-part counter instead of folding them into the unprovable
+        // block-fault bucket.
         | ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
@@ -899,7 +903,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block_header(authority, authority, error);
+        store.record_faulty_block(authority, authority, error);
         let counts = store.in_memory.snapshot(0);
         (
             counts.faulty_blocks_provable,
@@ -1043,9 +1047,9 @@ mod tests {
         let provable = ConsensusError::TooManyAncestors(10, 5);
 
         // Seed in_memory provable counts for authority 0 (2) and 1 (1).
-        store.record_faulty_block_header(a0, a0, &provable);
-        store.record_faulty_block_header(a0, a0, &provable);
-        store.record_faulty_block_header(a1, a1, &provable);
+        store.record_faulty_block(a0, a0, &provable);
+        store.record_faulty_block(a0, a0, &provable);
+        store.record_faulty_block(a1, a1, &provable);
 
         // Flush faulty buffer for authority 0 into persisted; leave authority 1
         // unflushed so the snapshot must sum across both buckets.
@@ -1054,7 +1058,7 @@ mod tests {
 
         // Record 3 more provable faults on authority 0 — these stay in_memory.
         for _ in 0..3 {
-            store.record_faulty_block_header(a0, a0, &provable);
+            store.record_faulty_block(a0, a0, &provable);
         }
 
         let snapshot = store.snapshot_totals();
@@ -1081,7 +1085,7 @@ mod tests {
         let store = MisbehaviorStore::new(&context);
         let author = AuthorityIndex::new_for_test(0);
         let peer = AuthorityIndex::new_for_test(1);
-        store.record_faulty_block_header(peer, author, &e);
+        store.record_faulty_block(peer, author, &e);
         let author_counts = store.in_memory.snapshot(0);
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(author_counts.faulty_blocks_provable, 1);
@@ -1101,13 +1105,13 @@ mod tests {
         let bogus_author = AuthorityIndex::new_for_test(99);
 
         let provable = ConsensusError::TooManyAncestors(10, 5);
-        store.record_faulty_block_header(peer, bogus_author, &provable);
+        store.record_faulty_block(peer, bogus_author, &provable);
 
         let unprovable = ConsensusError::InvalidAuthorityIndex {
             index: bogus_author,
             max: 3,
         };
-        store.record_faulty_block_header(peer, bogus_author, &unprovable);
+        store.record_faulty_block(peer, bogus_author, &unprovable);
 
         let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);
