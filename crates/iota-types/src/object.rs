@@ -887,7 +887,12 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+
+    use crate::{
+        gas_coin::GasCoin,
+        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    };
 
     // Ensure that object digest computation and bcs serialized format are not
     // inadvertently changed.

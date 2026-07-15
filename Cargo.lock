@@ -5663,8 +5663,8 @@ dependencies = [
 
 [[package]]
 name = "iota-bigtable"
-version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.1#7fee772a2b124fe97b94826ca108d22d40b3de0a"
+version = "0.1.2"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#3c9c781e3db51206519992c0ed8ac94ce889095e"
 dependencies = [
  "backoff",
  "gcp_auth",
@@ -5747,6 +5747,7 @@ dependencies = [
  "fastcrypto",
  "iota-genesis-common",
  "iota-keys",
+ "iota-metrics",
  "iota-names",
  "iota-sdk-types",
  "iota-types",
@@ -6745,8 +6746,10 @@ dependencies = [
  "async-trait",
  "bcs",
  "clap",
+ "futures",
  "iota-bigtable",
  "iota-data-ingestion-core",
+ "iota-kvstore",
  "iota-sdk-types",
  "iota-types",
  "serde",
@@ -6920,6 +6923,8 @@ dependencies = [
  "prometheus-closure-metric",
  "prometheus-filtered",
  "scopeguard",
+ "serde",
+ "serde_yaml",
  "simple-server-timing-header",
  "sysinfo 0.39.5",
  "tap",
@@ -11501,6 +11506,7 @@ name = "prometheus-filtered"
 version = "1.28.0-alpha"
 dependencies = [
  "prometheus",
+ "serde",
  "tracing",
 ]
 

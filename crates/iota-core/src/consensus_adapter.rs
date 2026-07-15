@@ -34,7 +34,7 @@ use iota_types::{
 use itertools::Itertools;
 use parking_lot::RwLockReadGuard;
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
@@ -119,7 +119,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
@@ -135,7 +136,8 @@ impl ConsensusAdapterMetrics {
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(

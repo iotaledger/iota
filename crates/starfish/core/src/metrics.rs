@@ -5,10 +5,11 @@
 use std::sync::Arc;
 
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
-    exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel,
+    Registry, exponential_buckets, register_histogram_vec_with_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
+    register_int_gauge_with_registry,
 };
 
 use crate::network::metrics::NetworkMetrics;
@@ -304,7 +305,8 @@ impl NodeMetrics {
                 "proposed_blocks",
                 "Total number of proposed blocks. The reason gives a hint what triggered block creation",
                 &["reason"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             proposed_block_header_size: register_histogram_with_registry!(
                 "proposed_block_header_size",
@@ -471,7 +473,8 @@ impl NodeMetrics {
                 "core_skipped_proposals",
                 "Number of proposals skipped in the Core, per reason",
                 &["reason"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             highest_accepted_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_accepted_authority_round",
@@ -1013,7 +1016,8 @@ impl NodeMetrics {
             threshold_clock_round: register_int_gauge_with_registry!(
                 "threshold_clock_round",
                 "The current threshold clock round. We only advance to a new round when a quorum of parents have been synced.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             subscriber_connection_attempts: register_int_counter_vec_with_registry!(
                 "subscriber_connection_attempts",
@@ -1070,7 +1074,8 @@ impl NodeMetrics {
             commit_sync_quorum_index: register_int_gauge_with_registry!(
                 "commit_sync_quorum_index",
                 "The maximum commit index voted by a quorum of authorities",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_highest_synced_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_fetched_index",
@@ -1087,7 +1092,8 @@ impl NodeMetrics {
             commit_sync_local_index: register_int_gauge_with_registry!(
                 "commit_sync_local_index",
                 "The local commit index",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_gap_on_processing: register_int_counter_vec_with_registry!(
                 "commit_sync_gap_on_processing",
@@ -1152,7 +1158,8 @@ impl NodeMetrics {
                 "uptime",
                 "Total node uptime",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             // New metrics for transaction synchronizer
             transactions_synchronizer_fetch_latency: register_histogram_vec_with_registry!(
@@ -1183,25 +1190,29 @@ impl NodeMetrics {
                 "faulty_blocks_provable_by_authority",
                 "Provably faulty blocks per authority (source: persisted or in_memory)",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             faulty_blocks_unprovable_by_peer: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_unprovable_by_peer",
                 "Unprovably faulty blocks per peer (source: persisted or in_memory)",
                 &["peer", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             equivocations_by_authority: register_int_gauge_vec_with_registry!(
                 "equivocations_by_authority",
                 "Equivocations per authority (source: persisted or in_memory)",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
                 "missing_proposals_by_authority",
                 "Missing proposals per authority (source: persisted or in_memory)",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             strong_vote_extra_wait_seconds: register_histogram_with_registry!(
                 "strong_vote_extra_wait_seconds",

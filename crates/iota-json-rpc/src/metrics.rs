@@ -10,7 +10,7 @@ use iota_json_rpc_api::{
 };
 use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
 use prometheus_filtered::{
-    HistogramVec, IntCounterVec, IntGaugeVec, register_histogram_vec_with_registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, MetricLevel, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 use tokio::time::Instant;
@@ -67,14 +67,16 @@ impl MetricsLogger {
                 "rpc_requests_by_route",
                 "Number of requests by route",
                 &["route"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_requests_by_route: register_int_gauge_vec_with_registry!(
                 "inflight_rpc_requests_by_route",
                 "Number of inflight requests by route",
                 &["route"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             req_latency_by_route: register_histogram_vec_with_registry!(
@@ -82,7 +84,8 @@ impl MetricsLogger {
                 "Latency of a request by route",
                 &["route"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             client_errors_by_route: register_int_counter_vec_with_registry!(
@@ -110,7 +113,8 @@ impl MetricsLogger {
                 "errors_by_route",
                 "Number of client and server errors by route",
                 &["route"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             client: register_int_counter_vec_with_registry!(
@@ -124,7 +128,8 @@ impl MetricsLogger {
                 "rpc_inflight_connection",
                 "Number of inflight RPC connection by protocol",
                 &["protocol"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             rpc_request_size: register_histogram_vec_with_registry!(

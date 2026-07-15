@@ -178,6 +178,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable validator metadata verification v2.
 //             Amortize the minimum checkpoint interval over a sliding window
 //             on non-Mainnet/Testnet chains.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -555,6 +557,11 @@ struct FeatureFlags {
     // aggregate) instead of each validator's local `TransactionDenyConfig`.
     #[serde(skip_serializing_if = "is_false")]
     deny_rule_governance: bool,
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_with_dynamic_module_metadata: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1836,6 +1843,17 @@ impl ProtocolConfig {
     pub fn deny_rule_governance(&self) -> bool {
         self.feature_flags.deny_rule_governance
     }
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -3008,6 +3026,10 @@ impl ProtocolConfig {
                     // Enabled on non-Mainnet/Testnet chains only for now.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
                     }
                 }
                 // Use this template when making changes:
@@ -3267,6 +3289,11 @@ impl ProtocolConfig {
 
     pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
     }
 }
 

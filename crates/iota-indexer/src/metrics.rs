@@ -18,7 +18,7 @@ pub fn start_prometheus_server(
     addr: SocketAddr,
 ) -> Result<(RegistryService, Registry), anyhow::Error> {
     info!(address =% addr, "Starting prometheus server");
-    let registry = Registry::new_custom(Some("indexer".to_string()), None)?;
+    let registry = Registry::new_custom(Some("indexer".to_string()), None, None)?;
     let registry_service = RegistryService::new(registry.clone());
 
     let app = Router::new()
