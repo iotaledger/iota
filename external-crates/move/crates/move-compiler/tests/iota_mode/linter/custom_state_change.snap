@@ -43,3 +43,12 @@ warning[Lint W99002]: potentially unenforceable custom transfer/share/freeze pol
    │
    = A custom freeze policy for a given type is implemented through calling the private 'freeze_object' function variant in the module defining this type
    = This warning can be suppressed with '#[allow(lint(custom_state_change))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/custom_state_change.move:42:16
+   │
+42 │     public fun sender(_: &TxContext): address {
+   │                ^^^^^^ Function 'sender' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')

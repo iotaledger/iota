@@ -1,0 +1,206 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 11-33:
+//# publish --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12600800, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 35:
+//# run test::no_module_dynamic_metadata::assert_inline_metadata --sender A --args object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 37:
+//# view-object 1,1
+1,1::no_module_dynamic_metadata
+
+task 4, line 39:
+//# view-object 1,0
+Owner: Immutable
+Version: 2
+Contents: iota::package_metadata::PackageMetadataV1 {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    storage_id: iota::object::ID {
+        bytes: test,
+    },
+    runtime_id: iota::object::ID {
+        bytes: test,
+    },
+    package_version: 1u64,
+    modules_metadata: iota::vec_map::VecMap<std::ascii::String, iota::package_metadata::ModuleMetadataV1> {
+        contents: vector[
+            iota::vec_map::Entry<std::ascii::String, iota::package_metadata::ModuleMetadataV1> {
+                key: std::ascii::String {
+                    bytes: vector[
+                        110u8,
+                        111u8,
+                        95u8,
+                        109u8,
+                        111u8,
+                        100u8,
+                        117u8,
+                        108u8,
+                        101u8,
+                        95u8,
+                        100u8,
+                        121u8,
+                        110u8,
+                        97u8,
+                        109u8,
+                        105u8,
+                        99u8,
+                        95u8,
+                        109u8,
+                        101u8,
+                        116u8,
+                        97u8,
+                        100u8,
+                        97u8,
+                        116u8,
+                        97u8,
+                    ],
+                },
+                value: iota::package_metadata::ModuleMetadataV1 {
+                    authenticator_metadata: vector[
+                        iota::package_metadata::AuthenticatorMetadataV1 {
+                            function_name: std::ascii::String {
+                                bytes: vector[
+                                    97u8,
+                                    117u8,
+                                    116u8,
+                                    104u8,
+                                    101u8,
+                                    110u8,
+                                    116u8,
+                                    105u8,
+                                    99u8,
+                                    97u8,
+                                    116u8,
+                                    101u8,
+                                ],
+                            },
+                            account_type: std::type_name::TypeName {
+                                name: std::ascii::String {
+                                    bytes: vector[
+                                        49u8,
+                                        52u8,
+                                        102u8,
+                                        98u8,
+                                        56u8,
+                                        98u8,
+                                        102u8,
+                                        54u8,
+                                        49u8,
+                                        102u8,
+                                        51u8,
+                                        98u8,
+                                        99u8,
+                                        101u8,
+                                        99u8,
+                                        49u8,
+                                        48u8,
+                                        53u8,
+                                        54u8,
+                                        98u8,
+                                        54u8,
+                                        57u8,
+                                        51u8,
+                                        55u8,
+                                        102u8,
+                                        100u8,
+                                        54u8,
+                                        97u8,
+                                        51u8,
+                                        99u8,
+                                        99u8,
+                                        54u8,
+                                        51u8,
+                                        55u8,
+                                        52u8,
+                                        55u8,
+                                        48u8,
+                                        55u8,
+                                        102u8,
+                                        51u8,
+                                        54u8,
+                                        97u8,
+                                        51u8,
+                                        99u8,
+                                        101u8,
+                                        56u8,
+                                        53u8,
+                                        49u8,
+                                        49u8,
+                                        100u8,
+                                        56u8,
+                                        51u8,
+                                        51u8,
+                                        50u8,
+                                        53u8,
+                                        53u8,
+                                        55u8,
+                                        51u8,
+                                        48u8,
+                                        50u8,
+                                        57u8,
+                                        52u8,
+                                        99u8,
+                                        51u8,
+                                        58u8,
+                                        58u8,
+                                        110u8,
+                                        111u8,
+                                        95u8,
+                                        109u8,
+                                        111u8,
+                                        100u8,
+                                        117u8,
+                                        108u8,
+                                        101u8,
+                                        95u8,
+                                        100u8,
+                                        121u8,
+                                        110u8,
+                                        97u8,
+                                        109u8,
+                                        105u8,
+                                        99u8,
+                                        95u8,
+                                        109u8,
+                                        101u8,
+                                        116u8,
+                                        97u8,
+                                        100u8,
+                                        97u8,
+                                        116u8,
+                                        97u8,
+                                        58u8,
+                                        58u8,
+                                        65u8,
+                                        99u8,
+                                        99u8,
+                                        111u8,
+                                        117u8,
+                                        110u8,
+                                        116u8,
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        ],
+    },
+}
