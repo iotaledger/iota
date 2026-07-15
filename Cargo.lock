@@ -5663,8 +5663,8 @@ dependencies = [
 
 [[package]]
 name = "iota-bigtable"
-version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.1#7fee772a2b124fe97b94826ca108d22d40b3de0a"
+version = "0.1.2"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#3c9c781e3db51206519992c0ed8ac94ce889095e"
 dependencies = [
  "backoff",
  "gcp_auth",
@@ -6746,8 +6746,10 @@ dependencies = [
  "async-trait",
  "bcs",
  "clap",
+ "futures",
  "iota-bigtable",
  "iota-data-ingestion-core",
+ "iota-kvstore",
  "iota-sdk-types",
  "iota-types",
  "serde",
