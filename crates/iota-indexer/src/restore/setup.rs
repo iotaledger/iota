@@ -13,7 +13,6 @@ use iota_storage::object_store::{
     http::HttpDownloaderBuilder,
     util::{MANIFEST_FILENAME, RootManifest, get_path},
 };
-use reqwest::StatusCode;
 use tracing::info;
 
 use crate::{errors::IndexerError, types::IndexerResult};
@@ -22,7 +21,7 @@ const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 const DEVNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.devnet.iota.cafe";
 
-const VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS: Duration = Duration::from_secs(5);
+const VERIFY_COMPLETED_SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Copy, Clone, strum_macros::AsRefStr, ValueEnum)]
 #[strum(serialize_all = "lowercase")]
@@ -49,7 +48,6 @@ pub enum Network {
 ///
 /// Returns an error if:
 ///
-/// - The network is not `mainnet` or `testnet`.
 /// - The snapshot for the resolved epoch is incomplete.
 /// - Downloading the MANIFEST or reference files fails.
 pub(crate) async fn setup_reader(
@@ -151,38 +149,23 @@ impl FormalSnapshotStore {
     /// Returns an error if the store cannot be reached, or if the snapshot
     /// upload is incomplete.
     async fn verify_completed_snapshot(&self, epoch: u64) -> IndexerResult<()> {
-        let aws_endpoint = self
-            .config
-            .aws_endpoint
-            .as_ref()
-            .expect("formal snapshots should be hosted on S3");
-        let success_marker_url = format!("{aws_endpoint}/epoch_{epoch}/{SUCCESS_MARKER}");
-        let client = reqwest::Client::new();
-
+        let success_marker_path = format!("epoch_{epoch}/{SUCCESS_MARKER}");
         let backoff = backoff::ExponentialBackoff {
-            max_elapsed_time: Some(VERIFY_COMPLETED_SNAPSHOT_TIMEOUT_SECS),
+            max_elapsed_time: Some(VERIFY_COMPLETED_SNAPSHOT_TIMEOUT),
             ..Default::default()
         };
+        let path = success_marker_path.as_str().into();
         backoff::future::retry(backoff, async || {
-            let status = client
-                .get(&success_marker_url)
-                .send()
-                .await
-                .map_err(|e| {
-                    backoff::Error::transient(IndexerError::Restore(format!(
-                        "failed to query success marker at {success_marker_url}: {e}"
-                    )))
-                })?
-                .status();
-            match status {
-                status if status.is_success() => Ok(()),
-                StatusCode::NOT_FOUND => Err(backoff::Error::permanent(IndexerError::Restore(
-                    format!("missing success marker at {success_marker_url}"),
-                ))),
-                status => Err(backoff::Error::transient(IndexerError::Restore(format!(
-                    "unexpected {status} querying success marker at {success_marker_url}"
-                )))),
+            if !self.store.exists(&path).await.map_err(|e| {
+                IndexerError::Restore(format!(
+                    "could not reach success marker at {success_marker_path}: {e}"
+                ))
+            })? {
+                return Err(backoff::Error::permanent(IndexerError::Restore(format!(
+                    "missing success marker at {success_marker_path}"
+                ))));
             }
+            Ok(())
         })
         .await
     }
