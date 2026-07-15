@@ -6632,9 +6632,6 @@ async fn setup_move_authenticator_account(
         .parent()
         .unwrap()
         .join(package_relative_path);
-    // Publish from an isolated copy: the publish flow rewrites the package's
-    // `Move.lock`, and concurrent tests publishing the same in-tree package
-    // race on it.
     let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
