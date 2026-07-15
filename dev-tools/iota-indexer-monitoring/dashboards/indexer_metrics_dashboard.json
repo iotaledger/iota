@@ -197,7 +197,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "indexer_total_epoch_committed",
+          "expr": "indexer_last_committed_epoch",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -206,7 +206,7 @@
           "useBackend": false
         }
       ],
-      "title": "Total Epochs Committed",
+      "title": "Last Committed Epoch",
       "type": "stat"
     },
     {

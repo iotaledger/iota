@@ -26,7 +26,7 @@ use crate::{
     debug::{DebugArtifacts, DebugConfig},
     error::{ExecutionError, ValidationError, VmSdkError},
     executor::{
-        env::{ExecutionEnv, build_executor},
+        env::{ExecutionEnv, build_executor, new_bytecode_verifier_metrics, new_limits_metrics},
         prepare::{
             authenticate_only, build_auth_context_data, decode_one_event, execute_prepared,
             execute_with_move_authenticators, prepare_authenticators, prepare_transaction,
@@ -92,10 +92,8 @@ impl LocalVm {
             reference_gas_price: ctx.reference_gas_price,
             epoch_id: ctx.epoch_id,
             epoch_timestamp_ms: ctx.epoch_timestamp_ms,
-            limits_metrics: Arc::new(LimitsMetrics::new(&prometheus_filtered::Registry::new())),
-            bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(
-                &prometheus_filtered::Registry::new(),
-            )),
+            limits_metrics: Arc::new(new_limits_metrics()),
+            bytecode_verifier_metrics: Arc::new(new_bytecode_verifier_metrics()),
             store: Box::new(store),
             cached_executor: OnceLock::new(),
         })

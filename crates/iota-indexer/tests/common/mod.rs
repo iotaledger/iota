@@ -19,7 +19,7 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions},
+    config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -138,11 +138,11 @@ impl SimulacrumTestSetup {
 }
 
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
-/// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
+/// `Write` indexer. Pass a `retention_config` to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    pruning_options: Option<PruningOptions>,
+    retention_config: Option<RetentionConfig>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
     let mut builder = TestClusterBuilder::new().disable_fullnode_pruning();
@@ -160,7 +160,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.grpc_url(),
-        IndexerTypeConfig::writer_mode(pruning_options),
+        IndexerTypeConfig::writer_mode_with_retention(retention_config),
         None,
     )
     .await;

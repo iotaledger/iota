@@ -5,7 +5,7 @@ use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
-    config::PruningOptions,
+    config::RetentionConfig,
     models::transactions::StoredTransaction,
     store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
     test_utils::{TestDatabase, db_url},
@@ -1974,10 +1974,7 @@ fn get_chain_identifier_with_pruning_enabled() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("test_get_chain_identifier_with_pruning_enabled"),
             None,
-            Some(PruningOptions {
-                epochs_to_keep: Some(1),
-                ..Default::default()
-            }),
+            Some(RetentionConfig::new(1, Default::default())),
         )
         .await;
 
