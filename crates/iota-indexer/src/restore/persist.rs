@@ -33,6 +33,7 @@ use crate::{
 struct ObjectDerivedData {
     hasher: Sha3_256,
     displays: BTreeMap<String, StoredDisplay>,
+    packages: Vec<IndexedPackage>,
 }
 
 impl ObjectDerivedData {
@@ -40,6 +41,12 @@ impl ObjectDerivedData {
         self.hasher.update(object.object_ref().digest.inner());
         if let Some(display) = StoredDisplay::try_from_object(object) {
             self.displays.insert(display.object_type.clone(), display);
+        }
+        if let iota_sdk_types::ObjectData::Package(package) = object.data() {
+            self.packages.push(IndexedPackage::new(
+                package.clone(),
+                checkpoint_sequence_number,
+            ));
         }
     }
 }
@@ -98,6 +105,7 @@ impl Restore for PgIndexerStore {
             })?;
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
+        self.persist_packages(derived_data.packages).await?;
         Ok(())
     }
 }
