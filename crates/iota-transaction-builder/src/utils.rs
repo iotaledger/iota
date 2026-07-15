@@ -30,7 +30,9 @@ use iota_types::{
     transaction::CallArg,
 };
 use move_binary_format::{
-    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    CompiledModule,
+    binary_config::BinaryConfig,
+    file_format::{SignatureToken, Visibility},
     file_format_common::IOTA_METADATA_KEY,
 };
 
@@ -322,8 +324,9 @@ impl TransactionBuilder {
                     .into()
                 );
             }
-            // If the function is used as a view function, it MUST return at least a value.
-            None => check_function_has_a_return(&module, function_ident)?,
+            // Without view function metadata, fall back to checking the signature
+            // requirements the view function verifier would have enforced.
+            None => check_view_function_signature(&module, function_ident)?,
         }
 
         // Then resolve the function parameters type.
@@ -514,9 +517,9 @@ fn is_view_function_from_module_metadata(
     })
 }
 
-/// Helper function to check if the provided function within a module has at
-/// least a return type.
-fn check_function_has_a_return(
+/// Helper function to check that a function called as a view function without
+/// view function metadata is public and returns at least one value.
+fn check_view_function_signature(
     module: &CompiledModule,
     function_ident: &Identifier,
 ) -> Result<(), anyhow::Error> {
@@ -529,6 +532,13 @@ fn check_function_has_a_return(
                 module.self_id()
             )
         })?;
+    fp_ensure!(
+        matches!(fdef.visibility, Visibility::Public),
+        UserInputError::InvalidMoveViewFunction {
+            error: "Only public functions can be called as view functions".to_owned(),
+        }
+        .into()
+    );
     let function_signature = module.function_handle_at(fdef.function);
     fp_ensure!(
         !&module.signature_at(function_signature.return_).is_empty(),

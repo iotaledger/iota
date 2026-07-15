@@ -219,6 +219,30 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
     assert!(results.error().is_none(), "{results:?}");
     assert_eq!(results.into_return_values().len(), 1);
 
+    // Non-public functions are rejected also without view functions metadata.
+    let err = http_client
+        .view_function_call(format!("{package_id}::plain::private_forty"), None, vec![])
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Only public functions can be called as view functions"),
+        "{err}"
+    );
+    let err = http_client
+        .view_function_call(
+            "0x2::random::load_inner".to_string(),
+            None,
+            vec![call_arg!(ObjectId::RANDOMNESS_STATE)?],
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Only public functions can be called as view functions"),
+        "{err}"
+    );
+
     // A nonexistent module is rejected.
     let err = http_client
         .view_function_call(format!("{package_id}::nonexistent::value"), None, vec![])
