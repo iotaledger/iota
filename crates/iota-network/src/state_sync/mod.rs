@@ -1310,19 +1310,22 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
             warn!("Historical archive for state sync is not configured");
             return;
         };
-        let reader_options = ReaderOptions {
-            batch_size: historical_config.batch_size(),
-            ..Default::default()
-        };
         // The archive should cover [start, end); we want everything up to end-1
         // and leave `end` onward to normal p2p sync. `MaxCheckpoint(end-1)` makes
         // the executor shut down on its own once it has processed that range.
+        //
+        // `MaxCheckpoint` only fires once the reader delivers checkpoint `end`. If
+        // the archive is behind and never serves it, `stall_timeout` makes the
+        // executor give up after 60s without progress and the outer loop retries.
         let archive_end = end - 1;
-        // Keep a clone for the stall watchdog and one for the final log; the
-        // original is moved into StateSyncWorker below.
-        let store_for_watchdog = store.clone();
+        let reader_options = ReaderOptions {
+            batch_size: historical_config.batch_size(),
+            stall_timeout: Some(Duration::from_secs(60)),
+            ..Default::default()
+        };
+        // Keep a clone for the final log; the original is moved into StateSyncWorker.
         let store_for_log = store.clone();
-        let Ok((run_future, exit_sender)) = setup_single_workflow(
+        let Ok((run_future, _exit_sender)) = setup_single_workflow(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
                 historical_url: historical_config.historical_url.clone(),
@@ -1337,37 +1340,7 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
         else {
             return;
         };
-        // `MaxCheckpoint` stops once the reader delivers checkpoint `end`. If the
-        // archive is behind and never serves that checkpoint the executor would
-        // wait forever, so a watchdog cancels it after `STALL_TIMEOUT` without
-        // progress; the outer loop then retries.
-        const STALL_TIMEOUT: Duration = Duration::from_secs(60);
-        let exit_clone = exit_sender.clone();
-        let watchdog = tokio::spawn(async move {
-            let mut last_synced = store_for_watchdog
-                .get_highest_synced_checkpoint()
-                .sequence_number;
-            let mut last_progress = tokio::time::Instant::now();
-            while !exit_clone.is_cancelled() {
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                let synced = store_for_watchdog
-                    .get_highest_synced_checkpoint()
-                    .sequence_number;
-                if synced > last_synced {
-                    last_synced = synced;
-                    last_progress = tokio::time::Instant::now();
-                } else if last_progress.elapsed() >= STALL_TIMEOUT {
-                    warn!(
-                        "State sync from historical archive stalled at checkpoint {synced} (target \
-                         {archive_end}); the archive may not have the full range yet, will retry"
-                    );
-                    exit_clone.cancel();
-                    break;
-                }
-            }
-        });
         let run_result = run_future.await;
-        watchdog.abort();
         let highest_synced_now = store_for_log
             .get_highest_synced_checkpoint()
             .sequence_number;

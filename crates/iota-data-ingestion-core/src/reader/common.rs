@@ -3,7 +3,7 @@
 
 //! This module shares common types and logic for the checkpoint reader.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -31,6 +31,16 @@ pub struct ReaderOptions {
     ///
     /// Default: 0.
     pub data_limit: usize,
+    /// If set, the executor shuts down with [`IngestionError::Stalled`] when no
+    /// checkpoint is processed for this long. Leave `None` for workflows that
+    /// tail the chain tip, where idling with no new checkpoints is normal; set
+    /// it only for bounded runs (e.g. a backfill of a fixed range) that should
+    /// give up rather than wait forever on a stuck remote store.
+    ///
+    /// [`IngestionError::Stalled`]: crate::IngestionError::Stalled
+    ///
+    /// Default: `None` (disabled).
+    pub stall_timeout: Option<Duration>,
 }
 
 impl Default for ReaderOptions {
@@ -40,6 +50,7 @@ impl Default for ReaderOptions {
             timeout_secs: 5,
             batch_size: 10,
             data_limit: 0,
+            stall_timeout: None,
         }
     }
 }
