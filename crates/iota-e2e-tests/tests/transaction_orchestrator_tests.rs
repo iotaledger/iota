@@ -14,8 +14,8 @@ use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectReference, TransactionExpiration};
+use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+use iota_sdk_types::{Address, ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -1313,6 +1313,143 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
         "transaction should reach finality via the detached task even though \
          the caller was aborted"
     );
+
+    Ok(())
+}
+
+/// Extracts the suggested gas price from an execution-worker congestion
+/// error, if that is what `error` is.
+fn congested_suggested_gas_price(error: &QuorumDriverError) -> Option<u64> {
+    if let QuorumDriverError::NonRecoverableTransactionError { errors } = error {
+        errors.iter().find_map(|(error, _, _)| match error {
+            IotaError::ValidatorTransactionCongested {
+                suggested_gas_price,
+            } => Some(*suggested_gas_price),
+            _ => None,
+        })
+    } else {
+        None
+    }
+}
+
+/// End-to-end execution-worker congestion: with a single execution worker and
+/// a per-commit limit of one transaction, a burst of owned-object-only
+/// transfers overloads the sequencer on every validator. Shed transactions
+/// must surface to the submitting client as `ValidatorTransactionCongested`
+/// with a suggested gas price, and resubmitting with the same gas object at
+/// that price (a different digest) must succeed — proving the dropped
+/// transaction's owned-object locks were released. The four validators
+/// independently agreeing on the shed set is implicitly verified: the cluster
+/// would stall or fork otherwise.
+#[sim_test]
+async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let _env_guard = enable_white_flag_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+    let rgp = context.get_reference_gas_price().await?;
+    let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountKeyPair>().0;
+
+    // Submit bursts of concurrent transfers (each using a distinct gas object)
+    // until one is shed: only one transaction fits per commit, so any commit
+    // carrying two or more sheds the rest. Retry with fresh object references
+    // in the unlikely case a burst spreads across single-transaction commits.
+    let mut congested: Option<(Address, ObjectRef, u64)> = None;
+    'bursts: for _ in 0..5 {
+        let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
+        let batch: Vec<_> = accounts_and_objs
+            .iter()
+            .flat_map(|(address, objs)| objs.iter().map(|obj| (*address, *obj)))
+            .take(10)
+            .collect();
+        let submissions = batch.iter().map(|(address, obj)| {
+            let data = iota_types::transaction::TransactionData::new_transfer_iota(
+                recipient,
+                *address,
+                Some(2),
+                *obj,
+                rgp * iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            );
+            let txn = context.sign_transaction(&data);
+            orchestrator.execute_transaction_block(
+                ExecuteTransactionRequestV1 {
+                    transaction: txn,
+                    include_events: false,
+                    include_input_objects: false,
+                    include_output_objects: false,
+                    include_auxiliary_data: false,
+                },
+                ExecuteTransactionRequestType::WaitForEffectsCert,
+                Some(make_socket_addr()),
+            )
+        });
+        let results = futures::future::join_all(submissions).await;
+
+        assert!(
+            results.iter().any(|result| result.is_ok()),
+            "at least one transaction per commit must be scheduled"
+        );
+        for ((address, obj), result) in batch.iter().zip(&results) {
+            if let Err(error) = result {
+                let suggested_gas_price = congested_suggested_gas_price(error)
+                    .unwrap_or_else(|| panic!("expected congestion shed, got {error:?}"));
+                assert!(suggested_gas_price > 0);
+                congested = Some((*address, *obj, suggested_gas_price));
+                break 'bursts;
+            }
+        }
+    }
+    let (address, gas_object, suggested_gas_price) =
+        congested.expect("bursts of 10 concurrent transactions should overload a 1-tx commit");
+    info!(?gas_object, suggested_gas_price, "transaction was shed");
+
+    // Resubmit with the same (untouched) gas object above the suggested gas
+    // price. Strictly above: for an owned-object-only transaction the
+    // suggested price can equal the original, and resubmitting an identical
+    // transaction reproduces the dropped digest, for which validators serve
+    // the cached drop status. The different price yields a different digest:
+    // without lock release this would be rejected with `ObjectLockConflict`
+    // against the dropped transaction.
+    let gas_price = suggested_gas_price.max(rgp) + 1;
+    let data = iota_types::transaction::TransactionData::new_transfer_iota(
+        recipient,
+        address,
+        Some(2),
+        gas_object,
+        gas_price * iota_types::transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        gas_price,
+    );
+    let txn = context.sign_transaction(&data);
+    let (response, _) = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("resubmission at the suggested gas price should be scheduled");
+    assert!(response.effects.effects.status().is_success());
 
     Ok(())
 }
