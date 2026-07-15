@@ -24,7 +24,7 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{Address, GasCostSummary, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -1047,7 +1047,7 @@ fn verify_epoch_info_chain_rejects_wrong_chain_id() {
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
-        ChainIdentifier::from(iota_sdk_types::CheckpointDigest::new([7; 32])),
+        ChainIdentifier::from(CheckpointDigest::new([7; 32])),
     )
     .expect_err("a foreign chain id must be rejected");
     assert!(err.to_string().contains("chain_id"), "got: {err}");

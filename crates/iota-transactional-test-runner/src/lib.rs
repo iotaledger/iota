@@ -20,7 +20,8 @@ use iota_core::authority::{
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, Event, ObjectId, TransactionDigest, TransactionKind,
+    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, TransactionDigest,
+    TransactionKind,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
@@ -309,7 +310,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _digest: &iota_sdk_types::CheckpointDigest,
+        _digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }

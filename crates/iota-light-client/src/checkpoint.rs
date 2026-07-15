@@ -16,6 +16,7 @@ use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::CheckpointDigest;
 use iota_types::{
     committee::{Committee, CommitteeChainVerifier},
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
@@ -422,7 +423,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _: &iota_sdk_types::CheckpointDigest,
+        _: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
