@@ -6,14 +6,23 @@ use std::{collections::HashMap, time::Duration};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
+use bytes::Bytes;
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
-use iota_sdk_types::CheckpointDigest;
-use iota_storage::FileCompression;
+use iota_data_ingestion_core::history::{
+    CHECKPOINT_FILE_MAGIC,
+    manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+};
+use iota_storage::{
+    FileCompression,
+    StorageFormat,
+    blob::{Blob, BlobEncoding},
+};
 use iota_swarm_config::test_utils::{
     CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
 };
 use iota_types::{
     committee::{Committee, EpochId},
+    full_checkpoint_content::CheckpointData,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
@@ -301,17 +310,6 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
 
     // Create archive files for the first `oldest_checkpoint_to_keep` checkpoints
     {
-        use bytes::Bytes;
-        use iota_data_ingestion_core::history::{
-            CHECKPOINT_FILE_MAGIC,
-            manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
-        };
-        use iota_storage::{
-            StorageFormat,
-            blob::{Blob, BlobEncoding},
-        };
-        use iota_types::full_checkpoint_content::CheckpointData;
-
         let mut chk_buf: Vec<u8> = Vec::new();
         chk_buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
         chk_buf.push(StorageFormat::Blob as u8);
