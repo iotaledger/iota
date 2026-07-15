@@ -292,7 +292,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
         body,
         warning_filter: _,
         index: _,
-        macro_: _,
+        macro_,
         attributes,
         entry,
     } = fdef;
@@ -309,7 +309,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     if let Some(sp!(view_loc, _)) =
         attributes.get_(&iota_known_attributes::view::ViewAttribute.into())
     {
-        view_signature(context, *view_loc, name, *visibility, signature);
+        view_signature(context, *view_loc, name, *visibility, signature, macro_);
     }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
         attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
@@ -606,7 +606,9 @@ fn view_signature(
     name: FunctionName,
     visibility: Visibility,
     signature: &FunctionSignature,
+    macro_: &Option<Loc>,
 ) {
+    macro_function(context, view_loc, name, macro_);
     view_visibility(context, view_loc, name, visibility);
 
     let FunctionSignature {
@@ -625,18 +627,37 @@ fn view_signature(
 pub(crate) fn is_valid_view_signature(
     visibility: &Visibility,
     signature: &FunctionSignature,
+    macro_: &Option<Loc>,
 ) -> bool {
     let FunctionSignature {
         type_parameters: _,
         parameters,
         return_type,
     } = signature;
-
-    is_valid_view_visibility(visibility)
+    !is_macro_function(macro_)
+        && is_valid_view_visibility(visibility)
         && is_valid_view_return_ty(return_type)
         && parameters
             .iter()
             .all(|(mutability, _, param_ty)| is_valid_view_param_ty(mutability, param_ty))
+}
+
+fn is_macro_function(macro_: &Option<Loc>) -> bool {
+    macro_.is_some()
+}
+
+fn macro_function(context: &mut Context, view_loc: Loc, name: FunctionName, macro_: &Option<Loc>) {
+    if is_macro_function(macro_) {
+        let msg = format!("Invalid macro function '{}'", name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                macro_.unwrap(),
+                "View functions cannot be declared as macro functions",
+            ),
+        ));
+    }
 }
 
 fn is_valid_view_visibility(visibility: &Visibility) -> bool {

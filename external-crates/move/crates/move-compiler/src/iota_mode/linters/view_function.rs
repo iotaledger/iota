@@ -39,7 +39,7 @@ simple_visitor!(
             return false;
         }
 
-        if !is_valid_view_signature(&fdef.visibility, &fdef.signature) {
+        if !is_valid_view_signature(&fdef.visibility, &fdef.signature, &fdef.macro_) {
             return false;
         }
 

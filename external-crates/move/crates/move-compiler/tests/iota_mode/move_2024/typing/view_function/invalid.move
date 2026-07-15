@@ -253,6 +253,11 @@ module a::m {
     }
 
     #[view]
+    public macro fun view_macro($x: u64): u64 {
+        $x
+    }
+
+    #[view]
     public native fun store_only_type_param<T: store>(x: T): u64;
 
     #[view]

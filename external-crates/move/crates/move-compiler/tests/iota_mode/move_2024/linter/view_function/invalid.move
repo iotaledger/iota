@@ -217,6 +217,12 @@ module a::m {
         abort ABORT_CODE
     }
 
+    // Satisfies the view signature constraints but is a macro, so no `#[view]`
+    // suggestion is emitted.
+    public macro fun qualifying_macro($x: u64): u64 {
+        $x
+    }
+
     public native fun store_only_type_param<T: store>(x: T): u64;
 
     public native fun native_mut_ref(x: &mut u64): u64;
