@@ -92,7 +92,7 @@ use crate::{
         diesel_macro::{mark_in_blocking_pool, *},
         package_resolver::IndexerStorePackageResolver,
     },
-    types::{IndexerResult, OwnerType},
+    types::{IndexerResult, OwnerType, TxEventSeqRange},
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
@@ -1339,6 +1339,55 @@ impl IndexerReader {
         db_res
     }
 
+    /// Fetches events belonging to a transaction from given `(tx_seq,
+    /// event_seq)` range. Falls back to the historical storage (when
+    /// configured) if the transaction has been pruned from Postgres.
+    pub async fn query_stored_events_by_tx_digest_with_fallback(
+        &self,
+        tx_digest: TransactionDigest,
+        tx_ev_seq_range: TxEventSeqRange,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredEvent>> {
+        if let Some(tx_seq) = self
+            .db()
+            .resolve_cursor_tx_digest_to_seq_num_maybe(tx_digest)
+            .await?
+        {
+            // resolve  `(tx_seq, event_seq)` range to just `event_seq` range
+            let Some(ev_seq_range) = event_seq_range_for_tx(tx_ev_seq_range, tx_seq as u64) else {
+                return Ok(vec![]);
+            };
+            return self
+                .db()
+                .query_events_by_tx_digest_in_seq_range(
+                    tx_digest,
+                    ev_seq_range,
+                    limit,
+                    is_descending,
+                )
+                .await;
+        }
+
+        let Some(kv_reader) = self.fallback_reader() else {
+            return Err(IndexerError::DataPruned(format!(
+                "data for tx {tx_digest} potentially pruned"
+            )));
+        };
+        let context = format!("fallback triggered by tx {tx_digest} missing from Postgres");
+        let tx_seq = kv_reader
+            .resolve_transaction_sequence_number(tx_digest)
+            .await
+            .context(&context)?;
+        let Some(ev_seq_range) = event_seq_range_for_tx(tx_ev_seq_range, tx_seq) else {
+            return Ok(vec![]);
+        };
+        kv_reader
+            .events_in_seq_range(tx_digest, ev_seq_range, limit, is_descending)
+            .await
+            .context(&context)
+    }
+
     /// Fetches a paginated list of transactions that affect a given address,
     /// using the fallback storage if the database is pruned.
     async fn query_transactions_by_affected_addresses_with_fallback(
@@ -2024,35 +2073,58 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
+        let ev_seq_range = match cursor {
+            Some(cursor) => {
+                if cursor.tx_digest != tx_digest {
+                    return Err(IndexerError::InvalidArgument(
+                        "Cursor tx_digest does not match the tx_digest in the query.".into(),
+                    ));
+                }
+                // the cursor is exclusive
+                if descending_order {
+                    (Bound::Unbounded, Bound::Excluded(cursor.event_seq))
+                } else {
+                    (Bound::Excluded(cursor.event_seq), Bound::Unbounded)
+                }
+            }
+            None => (Bound::Unbounded, Bound::Unbounded),
+        };
         let db_res = self
             .db()
-            .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+            .query_events_by_tx_digest_in_seq_range(
+                tx_digest,
+                ev_seq_range,
+                limit,
+                descending_order,
+            )
             .await;
 
-        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+        let stored_events = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
             (db_res.as_ref(), self.fallback_reader())
         {
             kv_reader
-                .events(tx_digest, cursor, limit, descending_order)
+                .events_in_seq_range(tx_digest, ev_seq_range, limit, descending_order)
                 .await
-                .context(&format!("fallback triggered by {err}"))
+                .context(&format!("fallback triggered by {err}"))?
         } else {
-            let mut iota_event_futures = vec![];
-            for stored_event in db_res? {
-                iota_event_futures.push(tokio::task::spawn(
-                    stored_event.try_into_iota_event(self.package_resolver.clone()),
-                ));
-            }
+            db_res?
+        };
 
-            futures::future::join_all(iota_event_futures)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
+        let mut iota_event_futures = vec![];
+        for stored_event in stored_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
         }
+
+        futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
     }
 
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
@@ -2898,6 +2970,28 @@ impl DataReader for IndexerReader {
     }
 }
 
+/// Narrows a `(tx_seq, event_seq)` range to just `event_seq` range, for events
+/// of the `tx_seq` transaction. Returns `None` when no event of that
+/// transaction is in the range.
+fn event_seq_range_for_tx(
+    (min, max): TxEventSeqRange,
+    tx_seq: u64,
+) -> Option<(Bound<u64>, Bound<u64>)> {
+    let min_ev_seq = match min {
+        Bound::Included((tx, ev)) if tx == tx_seq => Bound::Included(ev),
+        Bound::Excluded((tx, ev)) if tx == tx_seq => Bound::Excluded(ev),
+        Bound::Included((tx, _)) | Bound::Excluded((tx, _)) if tx > tx_seq => return None,
+        _ => Bound::Unbounded,
+    };
+    let max_ev_seq = match max {
+        Bound::Included((tx, ev)) if tx == tx_seq => Bound::Included(ev),
+        Bound::Excluded((tx, ev)) if tx == tx_seq => Bound::Excluded(ev),
+        Bound::Included((tx, _)) | Bound::Excluded((tx, _)) if tx < tx_seq => return None,
+        _ => Bound::Unbounded,
+    };
+    Some((min_ev_seq, max_ev_seq))
+}
+
 impl<'a> DBReader<'a> {
     pub fn new(reader: &'a IndexerReader) -> Self {
         Self {
@@ -2998,36 +3092,38 @@ impl<'a> DBReader<'a> {
             .load::<StoredTransaction>(conn))
     }
 
-    async fn query_events_by_tx_digest(
+    /// Fetches events of a transaction from `event_seq` range.
+    ///
+    /// Returns up to `limit` events ordered by `event_seq` according to
+    /// `is_descending` flag. Returns [`IndexerError::DataPruned`] when
+    /// nothing matches and the transaction is missing from Postgres.
+    async fn query_events_by_tx_digest_in_seq_range(
         &self,
         tx_digest: TransactionDigest,
-        cursor: Option<EventID>,
+        ev_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
-        descending_order: bool,
+        is_descending: bool,
     ) -> IndexerResult<Vec<StoredEvent>> {
+        use events::dsl::{event_sequence_number as ev_seq, tx_sequence_number as tx_seq};
+
         let mut query = events::table.into_boxed();
 
-        if let Some(cursor) = cursor {
-            if cursor.tx_digest != tx_digest {
-                return Err(IndexerError::InvalidArgument(
-                    "Cursor tx_digest does not match the tx_digest in the query.".into(),
-                ));
-            }
-            if descending_order {
-                query = query.filter(events::event_sequence_number.lt(cursor.event_seq as i64));
-            } else {
-                query = query.filter(events::event_sequence_number.gt(cursor.event_seq as i64));
-            }
-        } else if descending_order {
-            query = query.filter(events::event_sequence_number.le(i64::MAX));
-        } else {
-            query = query.filter(events::event_sequence_number.ge(0));
+        let (min_ev_seq, max_ev_seq) = ev_seq_range;
+        query = match min_ev_seq {
+            Bound::Included(min) => query.filter(ev_seq.ge(min as i64)),
+            Bound::Excluded(min) => query.filter(ev_seq.gt(min as i64)),
+            Bound::Unbounded => query,
+        };
+        query = match max_ev_seq {
+            Bound::Included(max) => query.filter(ev_seq.le(max as i64)),
+            Bound::Excluded(max) => query.filter(ev_seq.lt(max as i64)),
+            Bound::Unbounded => query,
         };
 
-        if descending_order {
-            query = query.order(events::event_sequence_number.desc());
+        if is_descending {
+            query = query.order((tx_seq.desc(), ev_seq.desc()));
         } else {
-            query = query.order(events::event_sequence_number.asc());
+            query = query.order((tx_seq.asc(), ev_seq.asc()));
         }
 
         query = query.filter(

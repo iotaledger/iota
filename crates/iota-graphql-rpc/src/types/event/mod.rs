@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Bound;
+
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
@@ -171,6 +173,30 @@ impl Event {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        use checkpoints::dsl;
+        // Exclusive upperbound, we cannot return newer data than `checkpoint_viewed_at`
+        let tx_hi: i64 = db
+            .execute(move |conn| {
+                conn.first(move || {
+                    dsl::checkpoints
+                        .select(dsl::network_total_transactions)
+                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
+                })
+            })
+            .await?;
+
+        // For the only-`transactionDigest` case, we support fallback.
+        if let Some(tx_digest) = filter.only_transaction_digest() {
+            return Self::paginate_by_tx_digest_with_fallback(
+                db,
+                page,
+                tx_digest,
+                checkpoint_viewed_at,
+                tx_hi,
+            )
+            .await;
+        }
+
         // Construct tx and ev sequence number query with table-relevant filters, if
         // they exist. The resulting query will look something like `SELECT
         // tx_sequence_number, event_sequence_number FROM lookup_table WHERE
@@ -188,14 +214,8 @@ impl Event {
             }
         };
 
-        use checkpoints::dsl;
         let (prev, next, results) = db
             .execute(move |conn| {
-                let tx_hi: i64 = conn.first(move || {
-                    dsl::checkpoints.select(dsl::network_total_transactions)
-                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
-                })?;
-
                 let (prev, next, mut events): (bool, bool, Vec<StoredEvent>) =
                     if let Some(filter_query) =  query_constraint {
                         let query = add_bounds(filter_query, &filter.transaction_digest, &page, tx_hi);
@@ -262,6 +282,58 @@ impl Event {
             ));
         }
 
+        Ok(conn)
+    }
+
+    /// Paginates events of a single transaction with fallback support.
+    ///
+    /// `tx_hi` is the exclusive upperbound on transaction sequence numbers
+    async fn paginate_by_tx_digest_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        tx_digest: Digest,
+        checkpoint_viewed_at: u64,
+        tx_hi: i64,
+    ) -> Result<Connection<String, Event>, Error> {
+        // Fetch the page plus the rows at the cursors, to later compute
+        // `has_next`/`has_prev` via `paginate_results`.
+        let min_tx_ev_seq = page
+            .after()
+            .map_or(Bound::Unbounded, |c| Bound::Included((c.tx, c.e)));
+        // Events of transactions at or above `tx_hi` are not visible at
+        // `checkpoint_viewed_at`.
+        let max_tx_ev_seq = match page.before() {
+            Some(c) if c.tx < tx_hi as u64 => Bound::Included((c.tx, c.e)),
+            _ => Bound::Excluded((tx_hi as u64, 0)),
+        };
+        let mut results = db
+            .inner
+            .query_stored_events_by_tx_digest_with_fallback(
+                tx_digest.into(),
+                (min_tx_ev_seq, max_tx_ev_seq),
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = Connection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            conn.edges.push(Edge::new(
+                cursor,
+                Event::try_from_stored_event(stored, checkpoint_viewed_at)?,
+            ));
+        }
         Ok(conn)
     }
 

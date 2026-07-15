@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Bound;
+
 use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
@@ -32,6 +34,10 @@ use serde_with::{DisplayFromStr, serde_as};
 use crate::errors::IndexerError;
 
 pub type IndexerResult<T> = Result<T, IndexerError>;
+
+/// Range of events, in the form of `(tx_sequence_number,
+/// event_sequence_number)` cursors
+pub type TxEventSeqRange = (Bound<(u64, u64)>, Bound<(u64, u64)>);
 
 #[derive(Debug)]
 pub struct IndexedCheckpoint {

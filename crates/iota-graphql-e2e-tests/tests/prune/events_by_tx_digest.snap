@@ -1,0 +1,220 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 21 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 11-30:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6604400, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 32:
+//# run Test::M::create --sender A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 34:
+//# run Test::M::bump --sender A --args object(2,0) 3
+events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AgAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AwAAAAAAAAA=" }
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 4, line 36:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, line 38:
+//# advance-epoch
+Epoch advanced: 0
+
+task 6, line 40:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 7, line 42:
+//# advance-epoch
+Epoch advanced: 1
+
+task 8, line 44:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 9, line 46:
+//# advance-epoch
+Epoch advanced: 2
+
+task 10, line 48:
+//# create-checkpoint
+Checkpoint created: 7
+
+task 11, line 50:
+//# run Test::M::bump --sender A --args object(2,0) 3
+events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BAAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BgAAAAAAAAA=" }
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 12, line 52:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 13, line 54:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 14, line 56:
+//# create-checkpoint
+Checkpoint created: 10
+
+task 15, lines 58-65:
+//# run-graphql --wait-for-checkpoint-pruned 6
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: data for tx BFJpQE4QdDmhuC72E6cqJMmvhBhiA8gTdqH5AZ8NRhHk potentially pruned",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "events"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 16, lines 67-75:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "json": {
+            "v": "4"
+          }
+        },
+        {
+          "json": {
+            "v": "5"
+          }
+        },
+        {
+          "json": {
+            "v": "6"
+          }
+        }
+      ],
+      "pageInfo": {
+        "endCursor": "eyJ0eCI6NywiZSI6MiwiYyI6MTB9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJ0eCI6NywiZSI6MCwiYyI6MTB9"
+      }
+    }
+  }
+}
+
+task 17, lines 77-87:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlock": {
+      "effects": {
+        "events": {
+          "nodes": [
+            {
+              "json": {
+                "v": "4"
+              }
+            },
+            {
+              "json": {
+                "v": "5"
+              }
+            },
+            {
+              "json": {
+                "v": "6"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+task 18, lines 89-99:
+//# run-graphql --cursors {"tx":7,"e":0,"c":10} {"tx":7,"e":2,"c":10}
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "json": {
+            "v": "5"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
+    }
+  }
+}
+
+task 19, lines 101-110:
+//# run-graphql --cursors {"tx":5,"e":0,"c":10}
+Response: {
+  "data": {
+    "events": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false
+      }
+    }
+  }
+}
+
+task 20, lines 112-120:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "json": {
+            "v": "4"
+          }
+        },
+        {
+          "json": {
+            "v": "5"
+          }
+        },
+        {
+          "json": {
+            "v": "6"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false
+      }
+    }
+  }
+}

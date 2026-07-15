@@ -19,8 +19,9 @@ use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{Address, ObjectId, Version};
 use iota_types::{
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    event::EventID,
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointDigest,
@@ -45,9 +46,11 @@ use crate::{
         metrics::HistoricalFallbackClientMetrics,
     },
     models::{
-        checkpoints::StoredCheckpoint, objects::StoredObject, transactions::StoredTransaction,
+        checkpoints::StoredCheckpoint, events::StoredEvent, objects::StoredObject,
+        transactions::StoredTransaction,
     },
     read::PackageResolver,
+    types::IndexedEvent,
 };
 
 /// Represents the Input objects of a transaction.
@@ -331,24 +334,8 @@ impl HistoricalFallbackReader {
         &self,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
-        let tx_digests = &[tx_digest];
-        let (events, checkpoint_summaries) = tokio::try_join!(
-            self.client.multi_get_events_by_tx_digests(tx_digests),
-            self.resolve_checkpoints(tx_digests)
-        )?;
-
-        // check first if transaction exists, all valid transaction are part of a
-        // checkpoint, if not found then the provided digest is invalid.
-        let (summary, _) = checkpoint_summaries
-            .get(&tx_digest)
-            .cloned()
-            .ok_or_else(|| {
-                IndexerError::HistoricalFallbackStorageError(format!(
-                    "transaction: {tx_digest} does not exist"
-                ))
-            })?;
-
-        let Some(Some(events)) = events.into_iter().next() else {
+        let (events, (summary, _)) = self.events_with_checkpoint(tx_digest).await?;
+        let Some(events) = events else {
             // transaction does not have associated events.
             return Ok(vec![]);
         };
@@ -356,6 +343,31 @@ impl HistoricalFallbackReader {
         HistoricalFallbackEvents::new(events, summary)
             .into_iota_events(&self.package_resolver, tx_digest)
             .await
+    }
+
+    /// Fetches the events of a transaction together with the checkpoint the
+    /// transaction belongs to.
+    ///
+    /// The events are `None` when the transaction did not emit any.
+    async fn events_with_checkpoint(
+        &self,
+        tx_digest: TransactionDigest,
+    ) -> IndexerResult<(Option<TransactionEvents>, HistoricalFallbackCheckpoint)> {
+        let tx_digests = &[tx_digest];
+        let (events, checkpoints) = tokio::try_join!(
+            self.client.multi_get_events_by_tx_digests(tx_digests),
+            self.resolve_checkpoints(tx_digests)
+        )?;
+
+        // check first if transaction exists, all valid transaction are part of a
+        // checkpoint, if not found then the provided digest is invalid.
+        let checkpoint = checkpoints.get(&tx_digest).cloned().ok_or_else(|| {
+            IndexerError::HistoricalFallbackStorageError(format!(
+                "transaction: {tx_digest} does not exist"
+            ))
+        })?;
+
+        Ok((events.into_iter().next().flatten(), checkpoint))
     }
 
     /// Fetches transactions from the provided transaction digests.
@@ -555,69 +567,64 @@ impl HistoricalFallbackReader {
         Ok(transactions.into_iter().flatten().collect())
     }
 
-    /// Fetches events for a specific transaction.
+    /// Fetches events of a transaction from `event_seq` range.
     ///
-    /// Returns events emitted by the specified transaction, with support for
-    /// cursor-based pagination and ordering.
-    ///
-    /// # Pagination Behavior
-    ///
-    /// Events are indexed by their position in the transaction (event_seq = 0,
-    /// 1, 2, ...).
-    ///
-    /// | cursor      | descending | Result                   |
-    /// |-------------|------------|--------------------------|
-    /// | `None`      | `false`    | Starts from event_seq 0  |
-    /// | `None`      | `true`     | Starts from last event   |
-    /// | `Some(seq)` | `false`    | Starts after event_seq   |
-    /// | `Some(seq)` | `true`     | Starts before event_seq  |
-    pub(crate) async fn events(
+    /// Returns up to `limit` events ordered by `event_seq` according to
+    /// `is_descending` flag.
+    pub(crate) async fn events_in_seq_range(
         &self,
         tx_digest: TransactionDigest,
-        cursor: Option<EventID>,
+        ev_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
-        descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredEvent>> {
         if limit == 0 {
             return Ok(vec![]);
         }
 
-        // validate cursor if provided
-        let start_seq = if let Some(cursor) = cursor {
-            if cursor.tx_digest != tx_digest {
-                return Err(IndexerError::InvalidArgument(format!(
-                    "Cursor tx_digest {} does not match requested tx_digest {tx_digest}",
-                    cursor.tx_digest
-                )));
-            }
-            Some(cursor.event_seq)
-        } else {
-            None
+        let (events, (summary, contents)) = self.events_with_checkpoint(tx_digest).await?;
+        let Some(events) = events else {
+            // transaction does not have associated events.
+            return Ok(vec![]);
         };
 
-        let events = self.all_events(tx_digest).await?;
-
-        // apply ordering, cursor, and limit
-        let events = if descending_order {
-            events
-                .into_iter()
-                .enumerate()
-                .rev() // reverse for descending
-                .filter(|(idx, _)| start_seq.is_none_or(|seq| (*idx as u64) < seq))
-                .take(limit)
-                .map(|(_, event)| event)
-                .collect()
-        } else {
-            events
-                .into_iter()
-                .enumerate()
-                .filter(|(idx, _)| start_seq.is_none_or(|seq| (*idx as u64) > seq))
-                .take(limit)
-                .map(|(_, event)| event)
-                .collect()
+        let Some(tx_sequence_number) = contents
+            .enumerate_transactions(&summary)
+            .find(|(_, execution_digest)| execution_digest.transaction == tx_digest)
+            .map(|(seq, _)| seq)
+        else {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "cannot find transaction sequence number to transaction: {tx_digest}"
+            )));
         };
 
-        Ok(events)
+        // events are indexed by their position in the transaction
+        // (event_sequence_number = 0, 1, 2, ...)
+        let in_range = events
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| ev_seq_range.contains(&(*idx as u64)))
+            .map(|(idx, event)| {
+                StoredEvent::from(IndexedEvent::from_event(
+                    tx_sequence_number,
+                    idx as u64,
+                    summary.sequence_number,
+                    tx_digest,
+                    event,
+                    summary.timestamp_ms,
+                ))
+            });
+
+        let stored_events: Vec<StoredEvent> = if is_descending {
+            let mut stored_events: Vec<_> = in_range.collect();
+            stored_events.reverse();
+            stored_events.truncate(limit);
+            stored_events
+        } else {
+            in_range.take(limit).collect()
+        };
+
+        Ok(stored_events)
     }
 
     /// Resolves the sequence number for a given [`TransactionDigest`] by
@@ -634,7 +641,7 @@ impl HistoricalFallbackReader {
     /// If the resolved checkpoint's contents do not contain the digest,
     /// which would indicate inconsistency between the historical store's index
     /// and its checkpoint contents.
-    async fn resolve_transaction_sequence_number(
+    pub(crate) async fn resolve_transaction_sequence_number(
         &self,
         digest: TransactionDigest,
     ) -> IndexerResult<TransactionSequenceNumber> {
