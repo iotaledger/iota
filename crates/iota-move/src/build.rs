@@ -5,12 +5,8 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-<<<<<<< HEAD
 use colored::Colorize;
-use iota_move_build::{BuildConfig, implicit_deps};
-=======
 use iota_move_build::{BuildConfig, ProtocolBuildConfig, implicit_deps};
->>>>>>> origin/develop
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use move_cli::base;
