@@ -685,7 +685,7 @@ pub const METRICS_ROUTE: &str = "/metrics";
 // A RegistryService is returned that can be used to get access in prometheus
 // Registries.
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
-    start_prometheus_server_with_filter(addr, Filter::resolve(None))
+    start_prometheus_server_with_filter(addr, Filter::from_env())
 }
 
 pub fn start_prometheus_server_with_filter(addr: SocketAddr, filter: Filter) -> RegistryService {

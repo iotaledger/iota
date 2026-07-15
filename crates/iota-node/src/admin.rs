@@ -78,19 +78,21 @@ use crate::IotaNode;
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
 //
-// View the current Prometheus metrics filter.
+// View the Prometheus metrics filter layers (runtime override, env, config).
 //
 //   $ curl 'http://127.0.0.1:1337/metrics/filters'
 //
-// Change which metrics the /metrics endpoint exposes. Patterns may be group
-// names from the `metrics.groups` config section (`default` included) or raw
-// METRICS_FILTER-style patterns. The only
-// exception is the `hardware` group, whose collector is only registered at
-// startup and is therefore rejected.
+// Set the runtime override for the metrics the /metrics endpoint exposes.
+// Patterns may be group names from the `metrics.groups` config section
+// (`default` included) or raw METRICS_FILTER-style patterns; the `hardware`
+// group is rejected, its collector being only registered at startup. Where
+// an override directive matches a metric it takes precedence over the
+// startup configuration; metrics matched by no override directive keep
+// their startup exposure. A bare level (e.g. `trace`) matches everything.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
 //
-// Reset the metrics filter to the startup configuration.
+// Drop the runtime override, restoring the startup configuration.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters/reset'
 
@@ -606,9 +608,17 @@ async fn traffic_control(
 }
 
 async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    let filter = state.node.metrics_filter();
+    let runtime = filter
+        .runtime_filter_string()
+        .unwrap_or_else(|| "(none)".to_owned());
     (
         StatusCode::OK,
-        state.node.metrics_filter().runtime_filter_string(),
+        format!(
+            "runtime: {runtime}\nenv: {}\nconfig: {}\n",
+            filter.env_filter_string(),
+            filter.config_filter_string(),
+        ),
     )
 }
 

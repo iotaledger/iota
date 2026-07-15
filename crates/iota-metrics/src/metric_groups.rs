@@ -286,12 +286,24 @@ impl MetricGroups {
 
     /// Expands group names in a `pattern=LEVEL` directive string into the
     /// groups' filter patterns; other directives pass through unchanged.
+    /// The hardware group is rejected, since it is registered once at startup
+    /// and cannot be changed at runtime.
     pub fn expand_directives(filter: &str) -> Result<String, String> {
+        Self::expand(filter, true)
+    }
+
+    pub fn expand_startup_directives(filter: &str) -> Result<String, String> {
+        Self::expand(filter, false)
+    }
+
+    fn expand(filter: &str, reject_hardware: bool) -> Result<String, String> {
         let mut directives: Vec<String> = Vec::new();
         for part in prometheus_filtered::directive_parts(filter) {
             prometheus_filtered::validate_directive(part)?;
             let (pattern, level) = prometheus_filtered::split_directive(part);
-            if pattern == "hardware" || pattern == "iota_metrics::hardware_metrics" {
+            if reject_hardware
+                && (pattern == "hardware" || pattern == "iota_metrics::hardware_metrics")
+            {
                 return Err(
                     "the hardware group is registered once at startup and cannot be \
                             changed at runtime"
@@ -389,7 +401,7 @@ mod tests {
     fn metric_groups_runtime_prefix_is_overridden_by_submodule_groups() {
         // `runtime` covers the whole `iota_metrics` crate by module prefix,
         // but the `p2p` and `hardware` submodules belong to their own
-        // groups, whose directives render later and win.
+        // groups, whose more specific patterns win.
         let groups = MetricGroups {
             runtime: MetricLevel::Trace,
             p2p: MetricLevel::Warn,
@@ -508,6 +520,21 @@ mod tests {
             MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
             "info,iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
         );
+    }
+
+    #[test]
+    fn expand_startup_directives_allows_hardware() {
+        // At startup the hardware collector is not registered yet, so its
+        // group may be set — e.g. via the `METRICS_FILTER` env var.
+        assert_eq!(
+            MetricGroups::expand_startup_directives("hardware=off").unwrap(),
+            "iota_metrics::hardware_metrics=off"
+        );
+        // Invalid levels are still rejected.
+        MetricGroups::expand_startup_directives("consensus=bogus").unwrap_err();
+        // The runtime variant keeps rejecting the group: the registration
+        // decision cannot be revisited.
+        MetricGroups::expand_directives("hardware=off").unwrap_err();
     }
 
     #[test]

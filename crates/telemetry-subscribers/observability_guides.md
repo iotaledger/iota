@@ -135,8 +135,9 @@ is set to `info`, so only spans with level `error` and `info` will be sent as me
        runtime: debug
    ```
 
-   or via the `METRICS_FILTER` environment variable, which replaces the config's
-   directives entirely (other groups fall back to the permissive default):
+   or via the `METRICS_FILTER` environment variable, whose directives override
+   the config's for the metrics they match (group names work here too; other
+   metrics keep their configured exposure):
 
    ```bash
    METRICS_FILTER=telemetry_subscribers=debug

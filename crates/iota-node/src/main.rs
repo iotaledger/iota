@@ -74,15 +74,19 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    // Apply the configured metric group levels; an omitted `metrics.groups`
-    // section behaves like the default config (dashboard metrics only).
+    // Apply the configured metric group levels from config and env variables.
     let metric_groups = config
         .metrics
         .as_ref()
         .and_then(|m| m.groups.clone())
         .unwrap_or_default();
-    let metrics_filter =
-        prometheus_filtered::Filter::resolve(Some(&metric_groups.to_filter_string()));
+    let env_filter = std::env::var("METRICS_FILTER")
+        .ok()
+        .map(|env| iota_metrics::MetricGroups::expand_startup_directives(&env).unwrap_or(env));
+    let metrics_filter = prometheus_filtered::Filter::from_layers(
+        &metric_groups.to_filter_string(),
+        env_filter.as_deref(),
+    );
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
