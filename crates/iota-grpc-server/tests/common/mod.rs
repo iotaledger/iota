@@ -13,7 +13,10 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, Version};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
+    Version,
+};
 use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
@@ -254,7 +257,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _digest: &iota_sdk_types::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<CheckpointContents>> {
         unimplemented!()
     }
@@ -301,7 +304,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _digest: &iota_sdk_types::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<iota_types::messages_checkpoint::FullCheckpointContents>> {
         unimplemented!()
     }

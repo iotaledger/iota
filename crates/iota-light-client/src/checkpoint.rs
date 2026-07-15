@@ -16,7 +16,7 @@ use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::CheckpointDigest;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
 use iota_types::{
     committee::{Committee, CommitteeChainVerifier},
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
@@ -437,7 +437,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _: &iota_sdk_types::CheckpointContentsDigest,
+        _: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -455,7 +455,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction(
         &self,
-        _: &iota_sdk_types::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         unimplemented!()
@@ -463,14 +463,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction_effects(
         &self,
-        _: &iota_sdk_types::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
         unimplemented!()
     }
 
     fn try_get_events(
         &self,
-        _: &iota_sdk_types::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
@@ -486,7 +486,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _: &iota_sdk_types::CheckpointContentsDigest,
+        _: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
