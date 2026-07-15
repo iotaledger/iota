@@ -16,7 +16,7 @@
 use std::ops::Range;
 
 use bytes::Bytes;
-use iota_config::{node::HistoricalReaderConfig, object_storage_config::ObjectStoreConfig};
+use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
     compute_sha3_checksum, compute_sha3_checksum_for_bytes,
     object_store::{
@@ -32,7 +32,8 @@ use crate::{
     errors::IngestionResult as Result,
     history::{
         CHECKPOINT_FILE_SUFFIX, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME, finalize_magic_blob,
-        read_magic_blob, reader::HistoricalReader,
+        read_magic_blob,
+        reader::{HistoricalReader, HistoricalReaderConfig},
     },
 };
 
@@ -179,12 +180,12 @@ pub async fn write_manifest<S: ObjectStorePutExt>(
 }
 
 pub async fn verify_historical_checkpoints_with_checksums(
-    remote_store_config: ObjectStoreConfig,
+    object_store_config: ObjectStoreConfig,
     download_concurrency: usize,
 ) -> Result<()> {
     let config = HistoricalReaderConfig {
-        object_store_config: Some(remote_store_config),
-        concurrency: download_concurrency,
+        object_store_config,
+        download_concurrency,
     };
     // Gets the Manifest from the remote store.
     let reader = HistoricalReader::new(config)?;

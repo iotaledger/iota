@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Result, anyhow, bail};
-use iota_config::node::HistoricalReaderConfig;
 use iota_data_ingestion_core::history::{
-    epoch_boundaries::EpochBoundaries, reader::HistoricalReader,
+    epoch_boundaries::EpochBoundaries,
+    reader::{HistoricalReader, HistoricalReaderConfig},
 };
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
@@ -20,13 +20,13 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let Some(checkpoint_store_config) = config.checkpoint_store_config.clone() else {
+        let Some(object_store_config) = config.checkpoint_store_config.clone() else {
             bail!("missing checkpoint store config");
         };
 
         let config = HistoricalReaderConfig {
-            object_store_config: Some(checkpoint_store_config),
-            concurrency: 5,
+            object_store_config,
+            download_concurrency: 5,
         };
 
         Ok(Self {

@@ -184,7 +184,7 @@ pub struct NodeConfig {
     pub state_debug_dump_config: StateDebugDumpConfig,
 
     #[serde(default)]
-    pub historical_config: Option<HistoricalArchiveConfig>,
+    pub checkpoint_archive_config: Option<CheckpointArchiveConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -769,8 +769,8 @@ impl NodeConfig {
         (&self.account_key_pair.keypair().public()).into()
     }
 
-    pub fn historical_config(&self) -> Option<&HistoricalArchiveConfig> {
-        self.historical_config.as_ref()
+    pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
+        self.checkpoint_archive_config.as_ref()
     }
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
@@ -1107,41 +1107,33 @@ pub struct DBCheckpointConfig {
     pub prune_and_compact_before_upload: Option<bool>,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct HistoricalReaderConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    pub concurrency: usize,
-}
+/// Default download concurrency for the checkpoint archive state-sync fallback.
+pub const CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY: usize = 10;
 
-/// Default download batch size for the historical archive state-sync fallback.
-pub const HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE: usize = 10;
-
-fn default_historical_archive_batch_size() -> usize {
-    HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE
+fn default_checkpoint_archive_batch_size() -> usize {
+    CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY
 }
 
 /// Configuration for backfilling checkpoint contents from a historical
-/// checkpoints store when peers no longer serve the required range.
+/// checkpoints archive when peers no longer serve the required range.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct HistoricalArchiveConfig {
+pub struct CheckpointArchiveConfig {
+    /// URL of the checkpoints archive to backfill from.
+    pub url: String,
     /// Number of checkpoints to download in parallel. `0` is treated as the
-    /// default ([`HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE`]).
-    #[serde(default = "default_historical_archive_batch_size")]
-    pub batch_size: usize,
-    /// URL of the historical checkpoints store to backfill from.
-    pub historical_url: String,
+    /// default ([`CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY`]).
+    #[serde(default = "default_checkpoint_archive_batch_size")]
+    pub download_concurrency: usize,
 }
 
-impl HistoricalArchiveConfig {
+impl CheckpointArchiveConfig {
     /// Download batch size, mapping `0` to the default.
-    pub fn batch_size(&self) -> usize {
-        if self.batch_size == 0 {
-            HISTORICAL_ARCHIVE_DEFAULT_BATCH_SIZE
+    pub fn download_concurrency(&self) -> usize {
+        if self.download_concurrency == 0 {
+            CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY
         } else {
-            self.batch_size
+            self.download_concurrency
         }
     }
 }

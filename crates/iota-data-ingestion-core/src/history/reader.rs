@@ -6,7 +6,7 @@ use std::{ops::Range, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{Stream, StreamExt, TryStreamExt};
-use iota_config::node::HistoricalReaderConfig;
+use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
     object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
@@ -31,8 +31,8 @@ use crate::{
     },
 };
 
-// Default value in case concurrency config value is 0.
-const HISTORICAL_DEFAULT_CONCURRENCY: usize = 4;
+// Default value in case download_concurrency config value is 0.
+const HISTORICAL_READER_DEFAULT_CONCURRENCY: usize = 4;
 
 #[derive(Clone)]
 pub struct HistoricalReader {
@@ -46,24 +46,27 @@ pub struct HistoricalReader {
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct HistoricalReaderConfig {
+    pub object_store_config: ObjectStoreConfig,
+    pub download_concurrency: usize,
+}
+
 impl HistoricalReader {
     pub fn new(config: HistoricalReaderConfig) -> Result<Self> {
-        let remote_store_config = config
-            .object_store_config
-            .ok_or_else(|| anyhow::anyhow!("remote store config not set"))?;
-        let remote_object_store = if remote_store_config.no_sign_request {
-            remote_store_config.make_http()?
+        let remote_object_store = if config.object_store_config.no_sign_request {
+            config.object_store_config.make_http()?
         } else {
-            remote_store_config.make().map(Arc::new)?
+            config.object_store_config.make().map(Arc::new)?
         };
         let (sender, recv) = oneshot::channel();
         let manifest = Arc::new(Mutex::new(Manifest::new(0)));
         // Start a background tokio task to keep local manifest in sync with remote
         Self::spawn_manifest_sync_task(remote_object_store.clone(), manifest.clone(), recv);
-        let concurrency = if config.concurrency != 0 {
-            config.concurrency
+        let concurrency = if config.download_concurrency != 0 {
+            config.download_concurrency
         } else {
-            HISTORICAL_DEFAULT_CONCURRENCY
+            HISTORICAL_READER_DEFAULT_CONCURRENCY
         };
         Ok(Self {
             manifest,

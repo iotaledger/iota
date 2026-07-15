@@ -96,9 +96,9 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
 
     if (checkpoint_list.len() as u64) < target_epoch && config.checkpoint_store_config.is_some() {
         if let Err(e) =
-            extend_from_historical_archive(config, &mut checkpoint_list, target_epoch).await
+            extend_from_checkpoint_archive(config, &mut checkpoint_list, target_epoch).await
         {
-            warn!("Historical archive checkpoint list fallback failed: {e}");
+            warn!("Checkpoint archive fallback failed: {e}");
         }
     }
 
@@ -156,7 +156,7 @@ async fn extend_from_graphql(
 
 /// Fills the tail of `checkpoint_list` from the historical archive's recorded
 /// epoch boundaries, up to (but excluding) `target_epoch`.
-async fn extend_from_historical_archive(
+async fn extend_from_checkpoint_archive(
     config: &Config,
     checkpoint_list: &mut CheckpointList,
     target_epoch: u64,

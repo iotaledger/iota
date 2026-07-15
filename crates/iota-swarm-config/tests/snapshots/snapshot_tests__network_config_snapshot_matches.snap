@@ -59,7 +59,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -155,7 +155,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -251,7 +251,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -347,7 +347,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -443,7 +443,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -539,7 +539,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -635,7 +635,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    historical-config: ~
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~

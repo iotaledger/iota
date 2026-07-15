@@ -42,7 +42,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             .insert_checkpoint_contents(&verified_checkpoint, verified_contents);
         self.0
             .update_highest_synced_checkpoint(&verified_checkpoint);
-        self.1.update_checkpoints_synced_from_historical_archive();
+        self.1.update_checkpoints_synced_from_checkpoint_archive();
         Ok(())
     }
 }

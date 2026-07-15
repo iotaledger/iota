@@ -6,7 +6,7 @@ use std::{collections::HashMap, time::Duration};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
-use iota_config::{node::HistoricalArchiveConfig, p2p::StateSyncConfig};
+use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
 use iota_sdk_types::CheckpointDigest;
 use iota_storage::FileCompression;
 use iota_swarm_config::test_utils::{
@@ -336,9 +336,9 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
         let manifest_bytes = finalize_manifest(manifest)?;
         std::fs::write(temp_dir.join("MANIFEST"), &manifest_bytes[..])?;
     }
-    let historical_config = HistoricalArchiveConfig {
-        batch_size: 1,
-        historical_url: format!("file://{}", temp_dir.display()),
+    let checkpoint_archive_config = CheckpointArchiveConfig {
+        download_concurrency: 1,
+        url: format!("file://{}", temp_dir.display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
     // store Node 2 will prune older checkpoints, so Node 1 is forced to
@@ -356,7 +356,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
             wait_interval_when_no_peer_to_sync_content_ms: Some(10),
             ..StateSyncConfig::randomized_for_testing()
         })
-        .historical_config(Some(historical_config))
+        .checkpoint_archive_config(Some(checkpoint_archive_config))
         .build();
     let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
     let (event_loop_1, _handle_1) = builder.build(network_1.clone());

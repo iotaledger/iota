@@ -46,9 +46,13 @@ use crate::{
 /// # Examples
 ///
 /// ```ignore
-/// use iota_config::{genesis::Genesis, node::HistoricalReaderConfig};
-/// use iota_data_ingestion_core::history::{reader::HistoricalReader, verifier::EpochBoundaryVerifier};
+/// use iota_config::genesis::Genesis;
+/// use iota_data_ingestion_core::history::{
+///     reader::{HistoricalReader, HistoricalReaderConfig},
+///     verifier::EpochBoundaryVerifier,
+/// };
 ///
+/// let config = HistoricalReaderConfig { .. };
 /// let reader = HistoricalReader::new(config)?;
 /// let genesis = Genesis::load(genesis_path)?;
 ///
