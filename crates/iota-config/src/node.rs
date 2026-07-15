@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::Result;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
 use iota_sdk_types::Address;
 use iota_types::{
@@ -1111,6 +1112,8 @@ pub struct MetricsConfig {
     pub push_interval_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub push_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groups: Option<MetricGroups>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]

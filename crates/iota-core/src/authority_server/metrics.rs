@@ -4,9 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus_filtered::{
-    Gauge, Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_gauge_with_registry,
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    Gauge, Histogram, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_gauge_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 /// Metrics for the validator service.
@@ -74,14 +75,16 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             handle_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             submit_certificate_consensus_latency: register_histogram_with_registry!(
@@ -95,7 +98,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
@@ -142,7 +146,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_num_rejected_tx_during_overload",
                 "Number of rejected transaction due to system overload",
                 &["error_type"],
-                registry,
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             num_rejected_cert_during_overload: register_int_counter_vec_with_registry!(

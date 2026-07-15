@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, Registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
@@ -61,7 +61,8 @@ impl QuorumDriverMetrics {
                 "quorum_driver_total_err_responses",
                 "Total number of requests returned with Err responses, grouped by error type",
                 &["error"],
-                registry,
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             attempt_times_ok_response: register_histogram_with_registry!(
@@ -101,7 +102,8 @@ impl QuorumDriverMetrics {
                 "Settlement finality latency observed from quorum driver",
                 &["tx_type"],
                 FINALITY_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
         }

@@ -5747,6 +5747,7 @@ dependencies = [
  "fastcrypto",
  "iota-genesis-common",
  "iota-keys",
+ "iota-metrics",
  "iota-names",
  "iota-sdk-types",
  "iota-types",
@@ -6920,6 +6921,8 @@ dependencies = [
  "prometheus-closure-metric",
  "prometheus-filtered",
  "scopeguard",
+ "serde",
+ "serde_yaml",
  "simple-server-timing-header",
  "sysinfo 0.39.5",
  "tap",
@@ -11500,6 +11503,7 @@ name = "prometheus-filtered"
 version = "1.28.0-alpha"
 dependencies = [
  "prometheus",
+ "serde",
  "tracing",
 ]
 

@@ -35,7 +35,7 @@ use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{IntCounter, MetricLevel, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot::Sender;
 use tower::ServiceBuilder;
@@ -603,7 +603,8 @@ impl SourceServiceMetrics {
             total_requests_received: register_int_counter_with_registry!(
                 "total_requests",
                 "Total number of requests received by Source Service",
-                registry
+                registry;
+                MetricLevel::Info
             )
             .unwrap(),
         }
