@@ -83,7 +83,7 @@ pub fn write_checkpoint_summary(
 }
 
 /// Downloads the list of end-of-epoch checkpoints, using GraphQL first and
-/// falling back to the historical archive for any epochs GraphQL cannot serve.
+/// falling back to the checkpoint archive for any epochs GraphQL cannot serve.
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointList> {
     let mut checkpoint_list = read_checkpoint_list(config).unwrap_or_default();
     let target_epoch = latest_epoch_from_rpc(config).await?;
@@ -154,14 +154,14 @@ async fn extend_from_graphql(
     Ok(())
 }
 
-/// Fills the tail of `checkpoint_list` from the historical archive's recorded
+/// Fills the tail of `checkpoint_list` from the checkpoint archive's recorded
 /// epoch boundaries, up to (but excluding) `target_epoch`.
 async fn extend_from_checkpoint_archive(
     config: &Config,
     checkpoint_list: &mut CheckpointList,
     target_epoch: u64,
 ) -> anyhow::Result<()> {
-    info!("Filling checkpoint list from historical archive.");
+    info!("Filling checkpoint list from checkpoint archive.");
     let checkpoint_store = CheckpointStore::new(config)?;
     let boundaries = checkpoint_store.end_of_epoch_checkpoints().await?;
     fill_list_from_boundaries(checkpoint_list, &boundaries, target_epoch);

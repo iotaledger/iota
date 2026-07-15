@@ -42,7 +42,7 @@ metrics:
   push-interval-seconds: 60
   push-url: https://metrics-proxy.testnet.iota.cafe:8443/publish/metrics
 
-# State Sync Historical Archive Fallback
+# State Sync Checkpoint Archive Fallback
 checkpoint-archive-config:
   url: "https://checkpoints.testnet.iota.cafe/ingestion/historical"
   download-concurrency: 5

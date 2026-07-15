@@ -1239,7 +1239,7 @@ where
     Ok(())
 }
 
-/// Syncs checkpoint contents from historical archive if the
+/// Syncs checkpoint contents from checkpoint archive if the
 /// highest_synced_checkpoint < lowest_checkpoint among peers. The requesting
 /// checkpoint range is from highest_synced_checkpoint+1 to lowest_checkpoint.
 async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
@@ -1285,7 +1285,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
     let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
-    // Only sync from historical archive when there is at least one checkpoint in
+    // Only sync from checkpoint archive when there is at least one checkpoint in
     // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
     // lowest_peer the archive range is empty and there is nothing to do.
     let sync_from_checkpoint_archive =
@@ -1297,7 +1297,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             false
         };
     debug!(
-        "Syncing checkpoint contents from historical archive: {sync_from_checkpoint_archive},  highest_synced: {highest_synced},  lowest_checkpoint_on_peers: {}",
+        "Syncing checkpoint contents from checkpoint archive: {sync_from_checkpoint_archive},  highest_synced: {highest_synced},  lowest_checkpoint_on_peers: {}",
         lowest_checkpoint_on_peers.map_or_else(|| "None".to_string(), |l| l.to_string())
     );
     if sync_from_checkpoint_archive {
@@ -1307,7 +1307,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         let end = lowest_checkpoint_on_peers.unwrap();
 
         let Some(ref checkpoint_archive_config) = checkpoint_archive_config else {
-            warn!("Historical archive for state sync is not configured");
+            warn!("Checkpoint archive for state sync is not configured");
             return;
         };
         // The archive should cover [start, end); we want everything up to end-1
@@ -1346,7 +1346,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             .sequence_number;
         match run_result {
             Ok(_) => info!(
-                "State sync from historical archive finished. Highest synced checkpoint = \
+                "State sync from checkpoint archive finished. Highest synced checkpoint = \
                  {highest_synced_now} (target {archive_end})"
             ),
             Err(err) => warn!("State sync from archive failed with error: {:?}", err),
