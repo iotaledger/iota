@@ -217,9 +217,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &multi_sig).unwrap();
 
     let user_sig_multi = UserSignature::Multisig(multi_sig);
-    tracer
-        .trace_value(&mut samples, &user_sig_multi)
-        .unwrap();
+    tracer.trace_value(&mut samples, &user_sig_multi).unwrap();
 
     // Seed a `UserSignature::Simple` sample so that when the tracer
     // later deserializes `CheckpointContents.user_signatures`
