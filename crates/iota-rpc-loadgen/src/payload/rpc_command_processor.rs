@@ -25,7 +25,9 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
+    crypto::{
+        AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, IotaSignature, Signature, get_key_pair,
+    },
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };

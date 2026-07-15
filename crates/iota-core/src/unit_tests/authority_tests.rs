@@ -35,8 +35,8 @@ use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, Signature, get_key_pair,
-        random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, Signature,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},

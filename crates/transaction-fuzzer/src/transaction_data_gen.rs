@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, TransactionExpiration, TransactionKind,
-    Version,
+    Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, TransactionExpiration,
+    TransactionKind, Version,
 };
-use iota_types::transaction::{GasData, TransactionData, TransactionDataV1};
+use iota_types::transaction::{TransactionData, TransactionDataV1};
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
 
@@ -45,13 +45,13 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectReference> {
     )
 }
 
-pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasData> {
+pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasPayment> {
     (
         vec(gen_object_ref(), 0..MAX_NUM_GAS_OBJS),
         gas_price_selection_strategy(),
         gas_budget_selection_strategy(),
     )
-        .prop_map(move |(obj_refs, price, budget)| GasData {
+        .prop_map(move |(obj_refs, price, budget)| GasPayment {
             objects: obj_refs,
             owner: sender,
             price,
@@ -75,7 +75,7 @@ pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = Transactio
 
 pub struct TransactionDataGenBuilder<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > {
     pub kind: Option<K>,
@@ -86,7 +86,7 @@ pub struct TransactionDataGenBuilder<
 
 impl<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > TransactionDataGenBuilder<K, G, E>
 {

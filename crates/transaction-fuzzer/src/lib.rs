@@ -13,12 +13,11 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest};
+use iota_sdk_types::{Address, GasPayment, ObjectId, Owner, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
-    transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -84,7 +83,7 @@ fn generate_random_gas_data(
     );
 
     GasDataWithObjects {
-        gas_data: GasData {
+        gas_data: GasPayment {
             objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
@@ -98,7 +97,7 @@ fn generate_random_gas_data(
 /// Need to have a wrapper struct here so we can implement Arbitrary for it.
 #[derive(Debug)]
 pub struct GasDataWithObjects {
-    pub gas_data: GasData,
+    pub gas_data: GasPayment,
     pub sender_key: AccountKeyPair,
     pub objects: Vec<Object>,
 }

@@ -47,10 +47,7 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{
-        AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
-        Secp256k1IotaSignature, SignatureScheme, get_key_pair,
-    },
+    crypto::{AccountKeyPair, IotaKeyPair, SignatureScheme, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -3327,7 +3324,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::ED25519.flag())
             .count(),
         5
     );
@@ -3348,7 +3345,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.flag())
             .count(),
         1
     );

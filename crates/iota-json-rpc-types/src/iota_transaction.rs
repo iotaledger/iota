@@ -20,7 +20,6 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::EpochId,
-    crypto::IotaSignature,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,

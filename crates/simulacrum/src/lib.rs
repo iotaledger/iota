@@ -33,7 +33,8 @@ use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
-    EndOfEpochTransactionKind, ObjectId, StructTag, TransactionDigest, TransactionKind,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
+    TransactionKind,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -60,7 +61,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -307,7 +308,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
         drop(inner);
 
-        let next_epoch_system_package_bytes: Vec<iota_types::transaction::SystemPackage> = vec![];
+        let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
             next_epoch_protocol_version.as_u64(),
@@ -450,7 +451,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
-        let gas_data = iota_types::transaction::GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
@@ -891,7 +892,7 @@ impl Simulacrum {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),

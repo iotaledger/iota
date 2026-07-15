@@ -16,7 +16,6 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
@@ -42,8 +41,7 @@ use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    crypto::{IotaKeyPair, Signature},
-    quorum_driver_types::ExecuteTransactionRequestType,
+    crypto::IotaKeyPair, quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
@@ -391,7 +389,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &dyn Signer<Signature>,
+    keypair: impl Into<IotaKeyPair>,
 ) -> TransactionDigest {
     let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
     indexer_wait_for_transaction(digest, store, indexer_client).await;
@@ -401,7 +399,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
 pub async fn execute_tx_must_succeed(
     indexer_client: &HttpClient,
     tx_bytes: TransactionBlockBytes,
-    keypair: &dyn Signer<Signature>,
+    keypair: impl Into<IotaKeyPair>,
 ) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();

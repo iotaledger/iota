@@ -15,7 +15,9 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ProgrammableTransaction, TransactionDigest, TransactionKind};
+use iota_sdk_types::{
+    Address, GasPayment, ProgrammableTransaction, TransactionDigest, TransactionKind,
+};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -32,7 +34,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData},
+    transaction::CheckedInputObjects,
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
@@ -81,7 +83,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -122,7 +124,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -185,7 +187,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -238,7 +240,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         move_authenticators: Vec<(

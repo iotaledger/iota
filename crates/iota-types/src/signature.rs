@@ -137,7 +137,7 @@ impl GenericSignature {
         match self {
             GenericSignature::Signature(s) => {
                 let bytes = s.signature_bytes();
-                match s.scheme() {
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(CompressedSignature::Ed25519(
                         (&Ed25519Signature::from_bytes(bytes).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -190,8 +190,9 @@ impl GenericSignature {
     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
         match self {
             GenericSignature::Signature(s) => {
-                let bytes = s.public_key_bytes();
-                match s.scheme() {
+                let public_key = s.to_public_key();
+                let bytes = public_key.as_ref();
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
                             IotaError::KeyConversion("Cannot parse ed25519 pk".to_string())
@@ -240,7 +241,7 @@ impl GenericSignature {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             GenericSignature::MultiSig(s) => s.to_bytes(),
-            GenericSignature::Signature(s) => s.as_ref().to_vec(),
+            GenericSignature::Signature(s) => s.to_bytes(),
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
             GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),
@@ -343,6 +344,6 @@ impl AuthenticatorTrait for Signature {
     where
         T: Serialize,
     {
-        self.verify_secure(value, author, self.scheme())
+        self.verify_secure(value, author, self.signature_scheme())
     }
 }

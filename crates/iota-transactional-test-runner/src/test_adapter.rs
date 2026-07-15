@@ -21,7 +21,7 @@ use criterion::Criterion;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
-    traits::{Signer, ToFromBytes},
+    traits::ToFromBytes,
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
@@ -1717,7 +1717,7 @@ impl IotaTestAdapter {
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
         if let Some(aa_sig) = aa_sig {
-            let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
+            let sponsor_keypair = sponsor.key_pair.as_ref();
             to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
         } else if sender.address == sponsor.address {
             to_sender_signed_transaction(

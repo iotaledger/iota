@@ -46,9 +46,9 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound, StructTag,
-    TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag,
-    Version,
+    ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
+    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
+    TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -867,7 +867,7 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     /// The store pruner. The checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed if pruning falls behind.
+    /// after each checkpoint.
     pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
@@ -2477,7 +2477,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 objects: payment,
                 owner,
                 price,
@@ -4346,7 +4346,7 @@ impl AuthorityState {
     }
 
     /// The store pruner; the checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint and to be leashed when pruning falls behind.
+    /// after each checkpoint.
     pub fn pruner(&self) -> &AuthorityStorePruner {
         &self.pruner
     }
