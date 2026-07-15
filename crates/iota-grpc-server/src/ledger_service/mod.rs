@@ -47,6 +47,19 @@ impl LedgerGrpcService {
     }
 }
 
+/// Reject a read batch whose item count exceeds `max`. An empty batch is
+/// allowed and yields an empty stream. Bounding the count also bounds the
+/// per-item traffic-control tally so a large batch cannot flood the tally
+/// channel.
+fn validate_read_batch_size(item_count: usize, max: u32) -> Result<(), Status> {
+    if item_count > max as usize {
+        return Err(Status::invalid_argument(format!(
+            "batch size {item_count} exceeds maximum allowed ({max})"
+        )));
+    }
+    Ok(())
+}
+
 #[tonic::async_trait]
 impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcService {
     type GetObjectsStream = crate::types::GetObjectsStream;
@@ -89,6 +102,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
+        validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
         let response = get_objects::get_objects(self.reader.clone(), request)
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
             .map_err(tonic::Status::from)?;
@@ -113,6 +127,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .requests
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
+        validate_read_batch_size(item_count, self.config.max_get_transactions_batch_size)?;
         let response =
             get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
                 .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))

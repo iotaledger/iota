@@ -12,7 +12,7 @@ mod common;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use common::{MockGrpcStateReader, start_test_server_with_traffic_controller};
+use common::{MockGrpcStateReader, start_test_server, start_test_server_with_traffic_controller};
 use iota_core::traffic_controller::TrafficController;
 use iota_grpc_types::v1::{
     ledger_service::{
@@ -275,6 +275,58 @@ async fn batched_reads_accrue_spam_per_item() {
         }
     }
     panic!("expected the batch's items to block the client via the spam policy");
+}
+
+/// A read batch larger than the configured maximum is rejected. Bounding the
+/// count also bounds the per-item traffic-control tally so a large batch cannot
+/// flood the tally channel.
+#[tokio::test]
+async fn oversized_read_batch_is_rejected() {
+    let max_batch: u32 = 5;
+    let (handle, _reader) = start_test_server(Arc::new(MockGrpcStateReader::default()), |config| {
+        config.max_get_objects_batch_size = max_batch;
+    })
+    .await;
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .expect("failed to connect to test gRPC server");
+    let mut client = LedgerServiceClient::new(channel);
+
+    let make_batch = |n: usize| {
+        GetObjectsRequest::default().with_requests(
+            ObjectRequests::default().with_requests(
+                (0..n)
+                    .map(|i| {
+                        ObjectRequest::default().with_object_ref(
+                            ObjectReference::default().with_object_id(
+                                ProtoObjectId::default().with_object_id(vec![i as u8; 32]),
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
+        )
+    };
+
+    // At the limit: accepted (per-item lookups miss in the mock store, which is
+    // reported as embedded results, not a request-level error).
+    client
+        .get_objects(make_batch(max_batch as usize))
+        .await
+        .expect("batch at the limit should be accepted");
+
+    // Over the limit: rejected with `InvalidArgument`.
+    let status = client
+        .get_objects(make_batch(max_batch as usize + 1))
+        .await
+        .expect_err("batch over the limit should be rejected");
+    assert_eq!(
+        status.code(),
+        Code::InvalidArgument,
+        "unexpected error: {status:?}"
+    );
 }
 
 /// Successful requests must not count towards the error policy or get
