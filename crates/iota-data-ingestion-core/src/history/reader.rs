@@ -32,7 +32,7 @@ use crate::{
 };
 
 // Default value in case download_concurrency config value is 0.
-const HISTORICAL_READER_DEFAULT_CONCURRENCY: usize = 4;
+const DEFAULT_HISTORICAL_READER_CONCURRENCY: usize = 4;
 
 #[derive(Clone)]
 pub struct HistoricalReader {
@@ -66,7 +66,7 @@ impl HistoricalReader {
         let concurrency = if config.download_concurrency != 0 {
             config.download_concurrency
         } else {
-            HISTORICAL_READER_DEFAULT_CONCURRENCY
+            DEFAULT_HISTORICAL_READER_CONCURRENCY
         };
         Ok(Self {
             manifest,

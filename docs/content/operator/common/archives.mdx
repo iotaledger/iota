@@ -1,5 +1,5 @@
 
-The checkpoint archive is a remote object store holding IOTA's checkpoint history since genesis — checkpoint summaries and their full contents — trailing the latest checkpoint by roughly 10 minutes. When a full node cannot retrieve checkpoints from its peers via state sync (for example, because they have pruned the range it needs), it falls back to downloading them from a pre-configured checkpoint archive, letting it catch up — even from genesis — regardless of its peers' pruning policies. Configure it with the `checkpoint-archive-config` block in `fullnode.yaml`, described in [Set Up a Checkpoint Archive Fallback](#set-up-a-checkpoint-archive-fallback).
+The checkpoint archive is a remote object store holding IOTA's checkpoint history since genesis — checkpoint summaries and their full contents — trailing the latest checkpoint by roughly 10 minutes. When a full node cannot retrieve checkpoints from its peers via state sync (for example, because they have pruned the range it needs), it falls back to downloading them from a pre-configured checkpoint archive, letting it catch up — even from genesis — regardless of its peers' pruning policies. Configure it with the `checkpoint-archive-config` block in `fullnode.yaml`, described in [Configure Checkpoint Archive Fallback](#configure-checkpoint-archive-fallback).
 
 A full node can also fall back to a cloud key-value store for individual historic transaction data (transaction digests, effects, events, and checkpoints) that it has pruned locally, described in [Key-value Store Backup](#iota-full-node-key-value-store-backup).
 
@@ -9,7 +9,7 @@ To enable historic data queries for the IOTA full nodes that prune old transacti
 
 If the information about the transaction digest, effects, events, or checkpoints is not available locally, a full node automatically retrieves the historical data from a cloud-based key-value store (currently managed by the IOTA Foundation). Note that the current key-value store implementation keeps historic transactional data only.
 
-## Set Up a Checkpoint Archive Fallback
+## Configure Checkpoint Archive Fallback
 
 To enable your node to fall back to the checkpoint archive when peers no longer serve the range it needs, add this to your `fullnode.yaml` file:
 

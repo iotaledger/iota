@@ -614,7 +614,7 @@ fn set_restore_watermarks(
 }
 
 /// Backfill **every** checkpoint summary up to the node's highest synced
-/// checkpoint from the checkpoints bucket at `ingestion_url`, into an existing
+/// checkpoint from the checkpoint archive at `ingestion_url`, into an existing
 /// (stopped) node's checkpoint store at `node_db_path`.
 ///
 /// A node restored from a formal snapshot holds only the end-of-epoch
@@ -625,7 +625,7 @@ fn set_restore_watermarks(
 /// so the node's synced/executed/pruned state is untouched.
 ///
 /// Summaries are taken as-is from `ingestion_url` without chain verification,
-/// so the bucket is trusted to serve this node's own chain.
+/// so the checkpoint archive is trusted to serve this node's own chain.
 pub(crate) async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,

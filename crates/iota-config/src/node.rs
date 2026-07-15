@@ -1108,22 +1108,22 @@ pub struct DBCheckpointConfig {
 }
 
 /// Default download concurrency for the checkpoint archive state-sync fallback.
-pub const CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY: usize = 10;
+pub const DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY: usize = 10;
 
-fn default_checkpoint_archive_batch_size() -> usize {
-    CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY
+fn default_checkpoint_archive_download_concurrency() -> usize {
+    DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY
 }
 
-/// Configuration for backfilling checkpoint contents from a historical
-/// checkpoints archive when peers no longer serve the required range.
+/// Configuration for backfilling checkpoint contents from the
+/// checkpoint archive when peers no longer serve the required range.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct CheckpointArchiveConfig {
-    /// URL of the checkpoints archive to backfill from.
+    /// URL of the checkpoint archive to backfill from.
     pub url: String,
     /// Number of checkpoints to download in parallel. `0` is treated as the
-    /// default ([`CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY`]).
-    #[serde(default = "default_checkpoint_archive_batch_size")]
+    /// default ([`DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY`]).
+    #[serde(default = "default_checkpoint_archive_download_concurrency")]
     pub download_concurrency: usize,
 }
 
@@ -1131,7 +1131,7 @@ impl CheckpointArchiveConfig {
     /// Download batch size, mapping `0` to the default.
     pub fn download_concurrency(&self) -> usize {
         if self.download_concurrency == 0 {
-            CHECKPOINT_ARCHIVE_DEFAULT_DOWNLOAD_CONCURRENCY
+            DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY
         } else {
             self.download_concurrency
         }
