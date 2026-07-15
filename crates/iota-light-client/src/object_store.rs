@@ -4,7 +4,9 @@
 
 use anyhow::{Result, anyhow, bail};
 use iota_config::node::HistoricalReaderConfig;
-use iota_data_ingestion_core::history::reader::HistoricalReader;
+use iota_data_ingestion_core::history::{
+    epoch_boundaries::EpochBoundaries, reader::HistoricalReader,
+};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
 };
@@ -30,6 +32,12 @@ impl CheckpointStore {
         Ok(Self {
             historical_reader: HistoricalReader::new(config)?,
         })
+    }
+
+    /// Returns the archive's recorded end-of-epoch checkpoints (`epoch → last
+    /// checkpoint of that epoch`).
+    pub async fn end_of_epoch_checkpoints(&self) -> Result<EpochBoundaries> {
+        Ok(self.historical_reader.epoch_boundaries().await?)
     }
 
     pub async fn fetch_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {

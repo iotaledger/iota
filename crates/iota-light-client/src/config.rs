@@ -76,8 +76,10 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.graphql_url.is_none() {
-            bail!("Invalid config: GraphQL URL must be provided");
+        if self.graphql_url.is_none() && self.checkpoint_store_config.is_none() {
+            bail!(
+                "Invalid config: either a GraphQL URL or a checkpoint store config must be provided"
+            );
         }
         Ok(())
     }
