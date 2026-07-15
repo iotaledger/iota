@@ -6533,7 +6533,6 @@ dependencies = [
  "futures",
  "iota-indexer",
  "iota-sdk-types",
- "iota-types",
  "prometheus-filtered",
  "serde",
  "serde_json",
