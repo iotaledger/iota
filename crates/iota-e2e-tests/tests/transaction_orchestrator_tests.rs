@@ -530,6 +530,152 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
     Ok(())
 }
 
+/// With the P-COOL flow enabled, two concurrent submissions of the same
+/// transaction digest must not each drive an independent committee-wide
+/// submission: the second observes the first in flight and waits for its
+/// effects instead. Both callers must return the same finalized effects, and
+/// the pending-transaction log must stay empty: the driver path tracks
+/// in-flight submissions in memory only.
+#[sim_test]
+async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+        transaction: txn,
+        include_events: false,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let (first_response, _) =
+        first.unwrap_or_else(|e| panic!("first submission failed for {digest:?}: {e:?}"));
+    let (second_response, _) =
+        second.unwrap_or_else(|e| panic!("second submission failed for {digest:?}: {e:?}"));
+
+    for response in [&first_response, &second_response] {
+        assert!(
+            matches!(
+                response.effects.finality_info,
+                EffectsFinalityInfo::Checkpointed(_, _)
+            ),
+            "concurrent submission should resolve to Checkpointed, got {:?}",
+            response.effects.finality_info
+        );
+    }
+    assert_eq!(
+        first_response.effects.effects.transaction_digest(),
+        second_response.effects.effects.transaction_digest(),
+        "both concurrent submissions must report the same finalized effects"
+    );
+
+    let pending = orchestrator.load_all_pending_transactions()?;
+    assert!(
+        pending.is_empty(),
+        "driver path must not write to the pending transaction log, found {pending:?}"
+    );
+
+    Ok(())
+}
+
+/// A duplicate submission must inherit the outcome of the in-flight
+/// submission it waited on. With a transaction validators deterministically
+/// reject (its gas object version was already consumed), the duplicate must
+/// fail with the same error as the driving submission instead of waiting for
+/// a checkpoint inclusion that can never happen and timing out.
+#[sim_test]
+async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    // Consume a gas object, then build a second transaction spending the
+    // same (now stale) gas object version: validators reject it as invalid,
+    // deterministically failing the driving submission.
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let spend = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+    orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(spend),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("spending the gas object must succeed");
+
+    let stale = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(2), sender)
+            .build(),
+    );
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let first_err = first.expect_err("transaction spending a stale gas object must fail");
+    let second_err = second.expect_err("transaction spending a stale gas object must fail");
+    assert!(
+        matches!(first_err, QuorumDriverError::InvalidTransaction(_)),
+        "expected the submission to be rejected as invalid, got {first_err:?}"
+    );
+    assert_eq!(
+        first_err, second_err,
+        "the duplicate submission must inherit the in-flight submission's error"
+    );
+
+    Ok(())
+}
+
 /// Without consensus quorum, the skip-cert path can never observe checkpoint
 /// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
 /// (a retriable transient), not `QuorumDriverInternal` — the latter would
