@@ -5,7 +5,7 @@
 extern crate move_ir_types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     io::Write,
     path::Path,
     str::FromStr,
@@ -17,7 +17,7 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
-use iota_sdk_types::{Address, ObjectId, move_package::MovePackage};
+use iota_sdk_types::{Address, ObjectId, Version, move_package::MovePackage};
 use iota_types::{
     error::{IotaError, IotaResult},
     move_package::{
@@ -528,6 +528,130 @@ impl CompiledPackage {
             .iter()
             .map(|b| Base64::from_bytes(b))
             .collect()
+    }
+
+    /// Size in bytes this package would occupy on-chain once published.
+    ///
+    /// Mirrors [`MovePackage::size`]: it sums the version tag, the serialized
+    /// module map (module names and bytecode), the type origin table (one entry
+    /// per struct and enum), and the linkage table (`dep_count` fixed-size
+    /// entries). This is the value the protocol checks against
+    /// `max_move_package_size`, and is larger than the sum of the `.mv` files
+    /// alone because of the metadata terms.
+    ///
+    /// `dep_count` is the number of linkage-table entries the published package
+    /// will have. Pass the count of tree-shaken transitive dependencies for an
+    /// exact result, or [`Self::get_published_dependencies_ids`]`().len()` for
+    /// an offline upper-bound estimate.
+    pub fn published_size(&self, with_unpublished_deps: bool, dep_count: usize) -> u64 {
+        // Per-entry cost of the linkage table: original ID, upgraded ID, and
+        // upgraded version, matching `MovePackage::size`.
+        const LINKAGE_ENTRY_SIZE: usize =
+            ObjectId::LENGTH + ObjectId::LENGTH + std::mem::size_of::<Version>();
+
+        let mut size = std::mem::size_of::<Version>();
+
+        for module in self.get_dependency_sorted_modules(with_unpublished_deps) {
+            let module_name_len = module.name().as_str().len();
+
+            let mut bytes = Vec::new();
+            // Safe because the package built successfully.
+            module
+                .serialize_with_version(module.version, &mut bytes)
+                .unwrap();
+            size += module_name_len + bytes.len();
+
+            // Type origin table: one entry per struct and enum defined here.
+            for struct_def in module.struct_defs() {
+                let handle = module.datatype_handle_at(struct_def.struct_handle);
+                size += module_name_len
+                    + module.identifier_at(handle.name).as_str().len()
+                    + ObjectId::LENGTH;
+            }
+            for enum_def in module.enum_defs() {
+                let handle = module.datatype_handle_at(enum_def.enum_handle);
+                size += module_name_len
+                    + module.identifier_at(handle.name).as_str().len()
+                    + ObjectId::LENGTH;
+            }
+        }
+
+        size += dep_count * LINKAGE_ENTRY_SIZE;
+        size as u64
+    }
+
+    /// Number of entries the on-chain linkage table would have: the published
+    /// dependency packages reachable from this package's modules, following
+    /// module dependencies through the locally built modules (no network).
+    ///
+    /// This mirrors the tree shaking the publish flow performs, so the offline
+    /// size estimate ignores published dependencies the code does not actually
+    /// use. It can still differ from the exact on-chain linkage when a
+    /// dependency's on-chain linkage lists packages its bytecode does not
+    /// reference; the exact count comes from the tree-shaken publish flow.
+    pub fn linkage_dependency_count(&self) -> usize {
+        // Package of every locally available module.
+        let mut module_pkg: BTreeMap<ModuleId, PackageName> = BTreeMap::new();
+        for unit in self.package.all_modules() {
+            if let Some(pkg) = unit.unit.package_name {
+                module_pkg.insert(unit.unit.module.self_id(), pkg);
+            }
+        }
+        for (pkg, module) in &self.bytecode_deps {
+            module_pkg.insert(module.self_id(), *pkg);
+        }
+
+        // Package-level dependency edges: a package points at every package any
+        // of its modules reference. On-chain linkage is resolved at package
+        // granularity (a dependency contributes its whole linkage table), so the
+        // graph is walked the same way rather than by individual module.
+        let mut edges: BTreeMap<PackageName, BTreeSet<PackageName>> = BTreeMap::new();
+        let mut add_edges = |owner: PackageName, module: &CompiledModule| {
+            for dep in module.immediate_dependencies() {
+                if let Some(dep_pkg) = module_pkg.get(&dep) {
+                    if *dep_pkg != owner {
+                        edges.entry(owner).or_default().insert(*dep_pkg);
+                    }
+                }
+            }
+        };
+        for unit in self.package.all_modules() {
+            if let Some(owner) = unit.unit.package_name {
+                add_edges(owner, &unit.unit.module);
+            }
+        }
+        for (owner, module) in &self.bytecode_deps {
+            add_edges(*owner, module);
+        }
+
+        // Transitive closure of packages reachable from the package(s) being
+        // published.
+        let roots: BTreeSet<PackageName> = self
+            .package
+            .root_modules()
+            .filter_map(|unit| unit.unit.package_name)
+            .collect();
+        let mut reached: BTreeSet<PackageName> = BTreeSet::new();
+        let mut queue: VecDeque<PackageName> = roots.iter().copied().collect();
+        while let Some(pkg) = queue.pop_front() {
+            if let Some(deps) = edges.get(&pkg) {
+                for dep in deps {
+                    if reached.insert(*dep) {
+                        queue.push_back(*dep);
+                    }
+                }
+            }
+        }
+        for root in &roots {
+            reached.remove(root);
+        }
+
+        // The linkage table holds only published dependency packages.
+        self.dependency_ids
+            .published
+            .keys()
+            .filter(|pkg| reached.contains(pkg))
+            .count()
     }
 
     /// Get bytecode modules from the IOTA System that are used by this package

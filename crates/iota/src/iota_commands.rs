@@ -12,6 +12,7 @@ use anyhow::{Context, bail};
 use clap::*;
 use colored::Colorize;
 use iota_config::{Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, iota_config_dir};
+use iota_json_rpc_types::IotaProtocolConfigValue;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{
     self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
@@ -283,14 +284,36 @@ impl IotaCommand {
 
                         pkg_tree_shake(read_api, with_unpublished_deps, &mut pkg).await?;
 
-                        println!(
-                            "{}",
-                            json!({
-                                "modules": pkg.get_package_base64(with_unpublished_deps),
-                                "dependencies": pkg.get_dependency_storage_package_ids(),
-                                "digest": pkg.get_package_digest(with_unpublished_deps),
-                            })
-                        );
+                        let mut output = json!({
+                            "modules": pkg.get_package_base64(with_unpublished_deps),
+                            "dependencies": pkg.get_dependency_storage_package_ids(),
+                            "digest": pkg.get_package_digest(with_unpublished_deps),
+                        });
+
+                        if build.report_package_size {
+                            // Exact on-chain size: dependencies are tree-shaken and
+                            // the limit comes from the target network's protocol
+                            // config.
+                            let dep_count = pkg.get_dependency_storage_package_ids().len();
+                            let size = pkg.published_size(with_unpublished_deps, dep_count);
+                            let max_size = protocol_config
+                                .attributes
+                                .get("max_move_package_size")
+                                .and_then(|value| match value {
+                                    Some(IotaProtocolConfigValue::U64(max)) => Some(*max),
+                                    _ => None,
+                                });
+                            output["size"] = match max_size {
+                                Some(max) => json!({
+                                    "bytes": size,
+                                    "max_bytes": max,
+                                    "publishable": size <= max,
+                                }),
+                                None => json!({ "bytes": size }),
+                            };
+                        }
+
+                        println!("{output}");
                         return Ok(());
                     }
                     _ => (),

@@ -5,8 +5,10 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
+use colored::Colorize;
 use iota_move_build::{BuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
+use iota_protocol_config::ProtocolConfig;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
 
@@ -38,6 +40,11 @@ pub struct Build {
     /// serialization/deserialization of transaction arguments and events.
     #[arg(long, global = true)]
     pub generate_struct_layouts: bool,
+    /// If true, report the size the package would occupy on-chain, the protocol
+    /// size limit, and whether the package is publishable. Built offline, so
+    /// the size is an estimate.
+    #[arg(long = "size", global = true)]
+    pub report_package_size: bool,
     /// The chain ID, if resolved. Required when the dump_bytecode_as_base64 is
     /// true, for automated address management, where package addresses are
     /// resolved for the respective chain in the Move.lock file.
@@ -57,6 +64,8 @@ impl Build {
             &rerooted_path,
             build_config,
             self.generate_struct_layouts,
+            self.report_package_size,
+            self.with_unpublished_dependencies,
             self.chain_id.clone(),
         )
     }
@@ -65,6 +74,8 @@ impl Build {
         rerooted_path: &Path,
         mut config: MoveBuildConfig,
         generate_struct_layouts: bool,
+        report_package_size: bool,
+        with_unpublished_deps: bool,
         chain_id: Option<String>,
     ) -> anyhow::Result<()> {
         config.implicit_dependencies = implicit_deps(latest_system_packages());
@@ -75,6 +86,16 @@ impl Build {
             chain_id,
         }
         .build(rerooted_path)?;
+
+        if report_package_size {
+            // Built offline: the dependency count comes from walking the local
+            // module graph, and the limit is the compiled-in protocol default
+            // rather than the target network's.
+            let dep_count = pkg.linkage_dependency_count();
+            let size = pkg.published_size(with_unpublished_deps, dep_count);
+            let max_size = ProtocolConfig::get_for_max_version_UNSAFE().max_move_package_size();
+            Self::print_size_report(size, max_size);
+        }
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();
@@ -94,5 +115,22 @@ impl Build {
             .update_lock_file_toolchain_version(rerooted_path, env!("CARGO_PKG_VERSION").into())?;
 
         Ok(())
+    }
+
+    /// Print the on-chain package size, the protocol limit, and whether the
+    /// package is publishable. Built offline, so the size is an estimate and
+    /// the limit is the compiled-in protocol default.
+    fn print_size_report(size: u64, max_size: u64) {
+        eprintln!("Package size: {size} bytes (estimate)");
+        eprintln!("Maximum size: {max_size} bytes");
+        if size <= max_size {
+            eprintln!("Status: {}", "publishable".green());
+        } else {
+            eprintln!(
+                "Status: {} (exceeds maximum by {} bytes)",
+                "not publishable".red(),
+                size - max_size,
+            );
+        }
     }
 }
