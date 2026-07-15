@@ -3185,6 +3185,15 @@ impl AuthorityPerEpochStore {
             .get_owned_object_lock(obj_ref)
     }
 
+    /// Whether a quarantined commit released the lock on `obj_ref` (its
+    /// holder was dropped for execution congestion). While true, any entry
+    /// still in the lock table is stale and must be ignored.
+    pub fn is_owned_object_lock_released(&self, obj_ref: &ObjectRef) -> bool {
+        self.consensus_quarantine
+            .read()
+            .owned_object_lock_released(obj_ref)
+    }
+
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -4578,6 +4587,17 @@ impl AuthorityPerEpochStore {
                     // Not scheduled for execution and not checkpointed; remove
                     // it from the checkpoint roots like a deferred transaction.
                     filter_roots = true;
+                    // Release its owned-object locks so the resubmitted
+                    // (different digest) transaction is not blocked.
+                    let owned_inputs = transaction
+                        .transaction_data()
+                        .input_objects()?
+                        .into_iter()
+                        .filter_map(|input| match input {
+                            InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => Some(obj_ref),
+                            _ => None,
+                        });
+                    output.release_owned_object_locks_of(*transaction.digest(), owned_inputs);
                     congestion_dropped.push((*transaction.digest(), error));
                 }
                 ConsensusTransactionResult::RandomnessConsensusMessage => {

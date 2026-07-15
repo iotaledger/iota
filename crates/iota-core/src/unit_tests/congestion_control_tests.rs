@@ -1044,3 +1044,136 @@ async fn test_execution_worker_congestion_drops_owned_object_only_tx() {
         other => panic!("expected ValidatorTransactionCongested, got {other:?}"),
     }
 }
+
+// A transaction dropped for execution-worker congestion must release its
+// owned-object locks: the resubmission carries a higher gas price and hence a
+// different digest, which would otherwise conflict with the dropped
+// transaction's lock for the rest of the epoch.
+#[sim_test]
+async fn test_execution_worker_congestion_drop_releases_owned_object_locks() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_ids = [ObjectId::random(), ObjectId::random()];
+    let gas_ids = [ObjectId::random(), ObjectId::random()];
+    let authority = init_state_with_ids(vec![
+        (sender, object_ids[0]),
+        (sender, object_ids[1]),
+        (sender, gas_ids[0]),
+        (sender, gas_ids[1]),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+    let mut transactions = Vec::new();
+    for (object_id, gas_id) in object_ids.iter().zip(gas_ids.iter()) {
+        let object = authority.get_object(object_id).await.unwrap();
+        let gas = authority.get_object(gas_id).await.unwrap();
+        transactions.push(init_transfer_transaction(
+            &authority,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            object.object_ref(),
+            gas.object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        ));
+    }
+
+    // First commit: only one of the two transactions fits the single worker;
+    // the other is dropped.
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            transactions
+                .iter()
+                .map(|tx| {
+                    SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                            tx.clone().into(),
+                        )),
+                        tracking_id: Default::default(),
+                    })
+                })
+                .collect(),
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(executable_transactions.len(), 1);
+    let scheduled_digest = *executable_transactions[0].digest();
+    let dropped_index = transactions
+        .iter()
+        .position(|tx| *tx.digest() != scheduled_digest)
+        .unwrap();
+    let error = epoch_store
+        .notify_read_dropped_digests(*transactions[dropped_index].digest())
+        .await;
+    assert!(matches!(
+        error,
+        IotaError::ValidatorTransactionCongested { .. }
+    ));
+
+    // Second commit: resubmit spending the same owned object at a higher gas
+    // price (different digest). It must be scheduled, not rejected with
+    // `ObjectLockConflict` against the dropped transaction's stale lock.
+    let object = authority
+        .get_object(&object_ids[dropped_index])
+        .await
+        .unwrap();
+    let gas = authority.get_object(&gas_ids[dropped_index]).await.unwrap();
+    let resubmitted = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        dbg_addr(2),
+        object.object_ref(),
+        gas.object_ref(),
+        (rgp + 1) * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp + 1,
+    );
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(
+                ConsensusTransaction {
+                    kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                        resubmitted.clone().into(),
+                    )),
+                    tracking_id: Default::default(),
+                },
+            )],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        executable_transactions.len(),
+        1,
+        "resubmission must not be blocked by the dropped transaction's lock"
+    );
+    assert_eq!(executable_transactions[0].digest(), resubmitted.digest());
+}

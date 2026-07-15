@@ -432,3 +432,62 @@ impl AggregatedEffectsDigests {
         self.digests.iter().map(|(_, _, stake)| stake).sum()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use iota_types::crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair};
+
+    use super::*;
+
+    fn congested_error(suggested_gas_price: u64) -> TransactionRequestError {
+        TransactionRequestError::RejectedAtValidator(IotaError::ValidatorTransactionCongested {
+            suggested_gas_price,
+        })
+    }
+
+    fn random_authority() -> AuthorityName {
+        let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
+        key_pair.public().into()
+    }
+
+    #[test]
+    fn validator_transaction_congested_is_not_submission_retriable() {
+        let error = IotaError::ValidatorTransactionCongested {
+            suggested_gas_price: 1000,
+        };
+        assert_eq!(error.is_retryable(), (false, true));
+        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
+        assert!(!error.categorize().is_submission_retriable());
+        assert!(!congested_error(1000).is_submission_retriable());
+    }
+
+    #[test]
+    fn congested_driver_error_is_not_submission_retriable() {
+        let error = TransactionDriverError::Congested {
+            suggested_gas_price: 1000,
+        };
+        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
+        assert!(!error.is_submission_retriable());
+    }
+
+    #[test]
+    fn congestion_suggested_gas_price_requires_validity_threshold() {
+        let errors = vec![
+            (random_authority(), 1, congested_error(1000)),
+            (random_authority(), 1, congested_error(1200)),
+            (
+                random_authority(),
+                1,
+                TransactionRequestError::RejectedAtValidator(IotaError::TransactionExpired),
+            ),
+        ];
+
+        // Congested stake (2) at or above the threshold: the max reported
+        // price is surfaced; other errors don't count toward it.
+        assert_eq!(congestion_suggested_gas_price(&errors, 2), Some(1200));
+        // Congested stake below the threshold.
+        assert_eq!(congestion_suggested_gas_price(&errors, 3), None);
+        // No congested errors at all.
+        assert_eq!(congestion_suggested_gas_price(&errors[2..], 1), None);
+    }
+}
