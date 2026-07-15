@@ -8,7 +8,9 @@ use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_core::authority::authority_store_tables::LiveObject as SnapshotObject;
 use iota_snapshot::{FileMetadata, VerifiedEpochInfo, reader::LiveObjectIter, restore::Restore};
 use iota_storage::SHA3_BYTES;
-use iota_types::{digests::ChainIdentifier, iota_system_state::IotaSystemStateTrait};
+use iota_types::{
+    digests::ChainIdentifier, iota_system_state::IotaSystemStateTrait, object::Object,
+};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
@@ -23,8 +25,24 @@ use crate::{
     },
     pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore},
-    types::IndexedCheckpoint,
+    types::{IndexedCheckpoint, IndexedPackage},
 };
+
+/// Data derived from the live-object set included in the snapshot.
+#[derive(Default)]
+struct ObjectDerivedData {
+    hasher: Sha3_256,
+    displays: BTreeMap<String, StoredDisplay>,
+}
+
+impl ObjectDerivedData {
+    fn extend(&mut self, object: &Object, checkpoint_sequence_number: u64) {
+        self.hasher.update(object.object_ref().digest.inner());
+        if let Some(display) = StoredDisplay::try_from_object(object) {
+            self.displays.insert(display.object_type.clone(), display);
+        }
+    }
+}
 
 impl Restore for PgIndexerStore {
     async fn insert_partition(
@@ -33,26 +51,22 @@ impl Restore for PgIndexerStore {
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> anyhow::Result<()> {
-        let mut hasher = Sha3_256::default();
-        let mut displays = BTreeMap::new();
+        let mut derived_data = ObjectDerivedData::default();
         let partition = LiveObjectIter::new(&file_metadata, bytes)?.scan(
-            &mut hasher,
-            |hasher,
-             SnapshotObject {
-                 object,
-                 previous_transaction_checkpoint,
-             }| {
-                hasher.update(object.object_ref().digest.inner());
-                if let Some(display) = StoredDisplay::try_from_object(&object) {
-                    displays.insert(display.object_type.clone(), display);
-                }
+            &mut derived_data,
+            |derived_data, snapshot_object| {
+                let SnapshotObject {
+                    object,
+                    previous_transaction_checkpoint,
+                } = snapshot_object;
                 let checkpoint_sequence_number =
                     previous_transaction_checkpoint.unwrap_or_default();
+                derived_data.extend(&object, checkpoint_sequence_number);
                 Some(LiveObject::new(checkpoint_sequence_number, object))
             },
         );
         let chunks = chunk!(partition, self.config.parallel_objects_chunk_size);
-        let sha3_digest = hasher.finalize().digest;
+        let sha3_digest = derived_data.hasher.finalize().digest;
         if *expected_checksum != sha3_digest {
             tracing::error!(
                 "sha does not match! expected: {expected_checksum:?}, actual: {sha3_digest:?}",
@@ -82,7 +96,7 @@ impl Restore for PgIndexerStore {
                     "failed to persist all formal snapshot object chunks: {e:?}",
                 ))
             })?;
-        self.persist_displays(displays.into_values().collect())
+        self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
         Ok(())
     }
