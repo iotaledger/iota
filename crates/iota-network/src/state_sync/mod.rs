@@ -102,7 +102,7 @@ pub use generated::{
     state_sync_server::{StateSync, StateSyncServer},
 };
 use iota_config::node::HistoricalArchiveConfig;
-use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
+use iota_data_ingestion_core::{IngestionLimit, ReaderOptions, setup_single_workflow};
 use iota_storage::verify_checkpoint;
 use metrics::Metrics;
 use server::CheckpointContentsDownloadLimitLayer;
@@ -1314,9 +1314,13 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
             batch_size: historical_config.batch_size(),
             ..Default::default()
         };
-        // Keep separate clones for the completion monitor and the final log;
-        // the original is moved into StateSyncWorker below.
-        let store_for_monitor = store.clone();
+        // The archive should cover [start, end); we want everything up to end-1
+        // and leave `end` onward to normal p2p sync. `MaxCheckpoint(end-1)` makes
+        // the executor shut down on its own once it has processed that range.
+        let archive_end = end - 1;
+        // Keep a clone for the stall watchdog and one for the final log; the
+        // original is moved into StateSyncWorker below.
+        let store_for_watchdog = store.clone();
         let store_for_log = store.clone();
         let Ok((run_future, exit_sender)) = setup_single_workflow(
             StateSyncWorker(store, metrics),
@@ -1327,36 +1331,28 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
             start,
             1,
             Some(reader_options),
+            Some(IngestionLimit::MaxCheckpoint(archive_end)),
         )
         .await
         else {
             return;
         };
-        // The historical archive is expected to cover [start, end). Spawn a
-        // monitor that cancels the executor once highest_synced reaches end-1
-        // (the last archived checkpoint); without this the reader would wait
-        // forever for checkpoint `end`, which is not in the archive.
-        //
-        // The monitor also gives up if highest_synced makes no progress for
-        // `STALL_TIMEOUT`. The bucket may not hold the full [start, end) range
-        // yet (e.g. it is still catching up), in which case the reader stops
-        // streaming.
+        // `MaxCheckpoint` stops once the reader delivers checkpoint `end`. If the
+        // archive is behind and never serves that checkpoint the executor would
+        // wait forever, so a watchdog cancels it after `STALL_TIMEOUT` without
+        // progress; the outer loop then retries.
         const STALL_TIMEOUT: Duration = Duration::from_secs(60);
-        let archive_end = end - 1;
         let exit_clone = exit_sender.clone();
-        let monitor = tokio::spawn(async move {
-            let mut last_synced = store_for_monitor
+        let watchdog = tokio::spawn(async move {
+            let mut last_synced = store_for_watchdog
                 .get_highest_synced_checkpoint()
                 .sequence_number;
             let mut last_progress = tokio::time::Instant::now();
             while !exit_clone.is_cancelled() {
-                let synced = store_for_monitor
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let synced = store_for_watchdog
                     .get_highest_synced_checkpoint()
                     .sequence_number;
-                if synced >= archive_end {
-                    exit_clone.cancel();
-                    break;
-                }
                 if synced > last_synced {
                     last_synced = synced;
                     last_progress = tokio::time::Instant::now();
@@ -1368,11 +1364,10 @@ async fn sync_checkpoint_contents_from_historical_archive_iteration<S>(
                     exit_clone.cancel();
                     break;
                 }
-                tokio::time::sleep(Duration::from_millis(100)).await;
             }
         });
         let run_result = run_future.await;
-        monitor.abort();
+        watchdog.abort();
         let highest_synced_now = store_for_log
             .get_highest_synced_checkpoint()
             .sequence_number;
