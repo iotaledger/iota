@@ -692,7 +692,8 @@ pub(crate) async fn backfill_checkpoint_summaries(
     } else {
         num_cpus::get()
             .checked_sub(1)
-            .expect("Failed to get number of CPUs")
+            .unwrap_or_default()
+            .max(1)
     };
     let all_ok = futures::stream::iter(1..=highest_synced)
         .map(|sq| backfill_one(sq))
