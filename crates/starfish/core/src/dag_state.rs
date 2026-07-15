@@ -2618,12 +2618,11 @@ impl DagState {
         self.scoring_subdag.calculate_distributed_vote_scores()
     }
 
-    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
+    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitRange {
         self.scoring_subdag
             .commit_range
-            .as_ref()
+            .clone()
             .expect("commit range should exist for scoring subdag")
-            .end()
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
