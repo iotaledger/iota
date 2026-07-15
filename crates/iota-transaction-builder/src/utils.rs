@@ -18,12 +18,12 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},
-    dynamic_field::Field,
-    error::UserInputError,
+    error::{IotaError, UserInputError},
     fp_ensure,
     gas_coin::GasCoin,
     move_package::{
-        MovePackageExt, ViewFunctionMetadataV1FieldName, derive_view_functions_metadata_v1_field_id,
+        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
     },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -31,6 +31,7 @@ use iota_types::{
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    file_format_common::IOTA_METADATA_KEY,
 };
 
 use crate::TransactionBuilder;
@@ -289,9 +290,9 @@ impl TransactionBuilder {
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity. Also, check that
     /// the passed function is declared as a `#[view]` function in the
-    /// module's on-chain view functions metadata; modules without such
-    /// metadata (published before view functions were introduced, or carrying
-    /// no function attributes) fall back to signature checks for backwards
+    /// module's runtime metadata; modules without view function information
+    /// (published before view functions were introduced, or carrying no
+    /// function attributes) fall back to signature checks for backwards
     /// compatibility.
     pub async fn resolve_and_checks_json_view_args(
         &self,
@@ -306,15 +307,23 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
-        // Check the function against the on-chain view functions metadata. Functions
-        // recorded there passed the view function verifier at publish time, so no
-        // further signature checks are needed.
-        let has_view_functions_metadata = self
-            .check_is_view_function(package.id(), module_ident, function_ident)
-            .await?;
-        if !has_view_functions_metadata {
+        // Check the function against the view functions recorded in the module's
+        // runtime metadata. Functions recorded there passed the view function
+        // verifier at publish time, so no further signature checks are needed.
+        match is_view_function_from_module_metadata(&module, function_ident.as_str())? {
+            Some(is_view) => {
+                fp_ensure!(
+                    is_view,
+                    UserInputError::InvalidMoveViewFunction {
+                        error: format!(
+                            "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
+                        ),
+                    }
+                    .into()
+                );
+            }
             // If the function is used as a view function, it MUST return at least a value.
-            check_function_has_a_return(&module, function_ident)?;
+            None => check_function_has_a_return(&module, function_ident)?,
         }
 
         // Then resolve the function parameters type.
@@ -432,52 +441,6 @@ impl TransactionBuilder {
         Ok((object.object_ref(), object.object_type()?))
     }
 
-    /// Check `function_ident` against the on-chain view functions metadata of
-    /// `module_ident` in the package version stored at `package_storage_id`.
-    ///
-    /// Returns `Ok(true)` if the function is recorded there, an error if the
-    /// metadata exists but does not record the function, and `Ok(false)` if
-    /// the module has no view functions metadata at all — the caller is then
-    /// responsible for backwards-compatible signature checks.
-    async fn check_is_view_function(
-        &self,
-        package_storage_id: ObjectId,
-        module_ident: &Identifier,
-        function_ident: &Identifier,
-    ) -> Result<bool, anyhow::Error> {
-        let field_id =
-            derive_view_functions_metadata_v1_field_id(package_storage_id, module_ident.as_str());
-        let response = self
-            .0
-            .get_object_with_options(field_id, IotaObjectDataOptions::bcs_lossless())
-            .await?;
-        let Ok(object) = response.into_object() else {
-            return Ok(false);
-        };
-        let raw_object = object
-            .bcs
-            .as_ref()
-            .and_then(|bcs| bcs.try_as_move())
-            .ok_or_else(|| {
-                anyhow!("Bcs field in object [{field_id}] is missing or not a Move object.")
-            })?;
-        let field: Field<ViewFunctionMetadataV1FieldName, Vec<String>> =
-            bcs::from_bytes(&raw_object.bcs_bytes)?;
-        fp_ensure!(
-            field
-                .value
-                .iter()
-                .any(|name| name == function_ident.as_str()),
-            UserInputError::InvalidMoveViewFunction {
-                error: format!(
-                    "function {function_ident} in module {module_ident} of package {package_storage_id} is not declared as a #[view] function"
-                ),
-            }
-            .into()
-        );
-        Ok(true)
-    }
-
     /// Helper function to get a Move Package for a provided ObjectId.
     async fn fetch_move_package(&self, package_id: ObjectId) -> Result<MovePackage, anyhow::Error> {
         let object = self
@@ -506,6 +469,49 @@ impl TransactionBuilder {
                 .collect(),
         )?)
     }
+}
+
+/// Checks whether `function_name` is recorded as a `#[view]` function in the
+/// module's runtime metadata.
+///
+/// Returns `None` for modules without version 2 runtime metadata (compiled
+/// before view functions were introduced, or carrying no function
+/// attributes), which therefore record no view function information.
+fn is_view_function_from_module_metadata(
+    module: &CompiledModule,
+    function_name: &str,
+) -> Result<Option<bool>, IotaError> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(None);
+    };
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
+        })?;
+    // Module metadata stored on chain passed the verifier at publish time, so
+    // decoding may assume view function support.
+    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
+        allow_view_function: true,
+    })?;
+    Ok(match metadata {
+        RuntimeModuleMetadata::V1(_) => None,
+        RuntimeModuleMetadata::V2(metadata_v2) => Some(
+            metadata_v2
+                .fun_attributes
+                .get(function_name)
+                .is_some_and(|attributes| {
+                    attributes
+                        .iter()
+                        .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+                }),
+        ),
+    })
 }
 
 /// Helper function to check if the provided function within a module has at

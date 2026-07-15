@@ -58,7 +58,7 @@ use serde_with::{Bytes, serde_as};
 use crate::{
     Address,
     collection_types::{Entry, VecMap},
-    derived_object, dynamic_field,
+    derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     id::{ID, UID},
     iota_sdk_types_conversions::identifier_core_to_sdk,
@@ -70,11 +70,6 @@ pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataV1");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
-pub const MODULE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("module_metadata");
-pub const MODULE_METADATA_KEY_STRUCT_NAME: Identifier =
-    Identifier::from_static("ModuleMetadataKey");
-pub const VIEW_FUNCTION_METADATA_V1_FIELD_NAME_STRUCT_NAME: Identifier =
-    Identifier::from_static("ViewFunctionMetadataV1FieldName");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -1134,83 +1129,6 @@ pub fn derive_package_metadata_id(package_storage_id: ObjectId) -> ObjectId {
         package_storage_id,
         &PackageMetadataKey::tag().into(),
         &PackageMetadataKey::default().to_bcs_bytes(),
-    )
-    .unwrap() // safe because type tag is known
-}
-
-/// Key used to derive the address of a module's `ModuleMetadata` object from
-/// the owning package storage id and the module name.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct ModuleMetadataKey(pub String);
-
-impl ModuleMetadataKey {
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            Address::FRAMEWORK,
-            MODULE_METADATA_MODULE_NAME,
-            MODULE_METADATA_KEY_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
-
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        // Safe unwrap as the ModuleMetadataKey struct is always serializable
-        bcs::to_bytes(&self).unwrap()
-    }
-}
-
-/// Dynamic field name under which the view function names of a module are
-/// stored on its `ModuleMetadata` object.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct ViewFunctionMetadataV1FieldName {
-    // This field is required to make a Rust struct compatible with an empty Move one.
-    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
-    // allowed in the bytecode.
-    dummy_field: bool,
-}
-
-impl ViewFunctionMetadataV1FieldName {
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            Address::FRAMEWORK,
-            MODULE_METADATA_MODULE_NAME,
-            VIEW_FUNCTION_METADATA_V1_FIELD_NAME_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
-
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        // Safe unwrap as the ViewFunctionMetadataV1FieldName struct is always
-        // serializable
-        bcs::to_bytes(&self).unwrap()
-    }
-}
-
-/// Derives the id of the `ModuleMetadata` object of `module_name` in the
-/// package version stored at `package_storage_id`.
-pub fn derive_module_metadata_id(package_storage_id: ObjectId, module_name: &str) -> ObjectId {
-    derived_object::derive_object_id(
-        package_storage_id,
-        &ModuleMetadataKey::tag().into(),
-        &ModuleMetadataKey(module_name.to_owned()).to_bcs_bytes(),
-    )
-    .unwrap() // safe because type tag is known
-}
-
-/// Derives the id of the dynamic field object holding the view function names
-/// of `module_name` in the package version stored at `package_storage_id`.
-///
-/// The field value is the `vector<ascii::String>` of the module's `#[view]`
-/// function names; the field only exists on packages published with the
-/// dynamic module metadata layout.
-pub fn derive_view_functions_metadata_v1_field_id(
-    package_storage_id: ObjectId,
-    module_name: &str,
-) -> ObjectId {
-    dynamic_field::derive_dynamic_field_id(
-        derive_module_metadata_id(package_storage_id, module_name),
-        &ViewFunctionMetadataV1FieldName::tag().into(),
-        &ViewFunctionMetadataV1FieldName::default().to_bcs_bytes(),
     )
     .unwrap() // safe because type tag is known
 }
