@@ -12,12 +12,12 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
-    Identifier, TransactionKind,
+    Identifier, SharedObjectReference, TransactionKind,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionDataAPI,
@@ -918,7 +918,7 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1188,7 +1188,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1217,7 +1217,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1272,7 +1272,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1301,7 +1301,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,

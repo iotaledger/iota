@@ -22,6 +22,7 @@ http.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 scopeguard.workspace = true
+serde.workspace = true
 simple-server-timing-header = "0.1.1"
 sysinfo.workspace = true
 tap.workspace = true
@@ -33,3 +34,6 @@ uuid.workspace = true
 # internal dependencies
 prometheus-closure-metric.workspace = true
 prometheus-filtered.workspace = true
+
+[dev-dependencies]
+serde_yaml.workspace = true

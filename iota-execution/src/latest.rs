@@ -15,7 +15,7 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ProgrammableTransaction, TransactionKind};
+use iota_sdk_types::{Address, GasPayment, ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -32,8 +32,9 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
+    move_package::ProtocolBuildConfig,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData},
+    transaction::CheckedInputObjects,
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
@@ -82,7 +83,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -123,7 +124,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -186,7 +187,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -239,7 +240,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         move_authenticators: Vec<(
@@ -310,10 +311,16 @@ impl verifier::Verifier for Verifier<'_> {
 
     fn meter_compiled_modules(
         &mut self,
-        _protocol_config: &ProtocolConfig,
+        protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
         meter: &mut dyn Meter,
     ) -> IotaResult<()> {
-        run_metered_move_bytecode_verifier(modules, &self.config, meter, self.metrics)
+        run_metered_move_bytecode_verifier(
+            modules,
+            &self.config,
+            meter,
+            self.metrics,
+            &ProtocolBuildConfig::from(protocol_config),
+        )
     }
 }

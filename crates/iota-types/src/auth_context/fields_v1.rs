@@ -184,13 +184,12 @@ impl MoveCallArg {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::{Address, Identifier, ObjectReference, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Address, Identifier, ObjectReference, SharedObjectReference, StructTag, TypeTag,
+    };
 
     use super::*;
-    use crate::{
-        base_types::ObjectDigest,
-        transaction::{CallArg, SharedObjectRef},
-    };
+    use crate::{base_types::ObjectDigest, transaction::CallArg};
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
@@ -284,7 +283,7 @@ mod tests {
 
     #[test]
     fn call_arg_bcs_compatible_shared() {
-        let tx_arg = CallArg::Shared(SharedObjectRef::new(obj_id(), Version::from(5), true));
+        let tx_arg = CallArg::Shared(SharedObjectReference::new(obj_id(), Version::from(5), true));
         let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),

@@ -4,7 +4,10 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TypeTag, Version, crypto::IntentMessage};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
+    crypto::IntentMessage,
+};
 pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 use serde::Serialize;
 
@@ -12,7 +15,7 @@ use crate::{
     digests::ObjectDigest,
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
+    transaction::{CallArg, CallArgExt, InputObjectKind},
 };
 
 mod move_authenticator_ext {
@@ -44,7 +47,7 @@ pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
 
     fn receiving_objects(&self) -> Vec<ObjectReference>;
 
-    fn shared_objects(&self) -> Vec<SharedObjectRef>;
+    fn shared_objects(&self) -> Vec<SharedObjectReference>;
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 }
@@ -115,7 +118,7 @@ impl MoveAuthenticatorExt for MoveAuthenticator {
         }
     }
 
-    fn shared_objects(&self) -> Vec<SharedObjectRef> {
+    fn shared_objects(&self) -> Vec<SharedObjectReference> {
         match self {
             Self::V1(v1) => v1.shared_objects(),
             _ => unimplemented!(
@@ -167,7 +170,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
                 Some(object_ref.version),
                 Some(object_ref.digest),
             ),
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id, mutable, ..
             }) => {
                 if *mutable {
@@ -207,7 +210,7 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
 
     /// Returns all shared input objects used by the MoveAuthenticatorV1,
     /// including those from the object to authenticate.
-    fn shared_objects(&self) -> Vec<SharedObjectRef> {
+    fn shared_objects(&self) -> Vec<SharedObjectReference> {
         self.call_args()
             .iter()
             .filter_map(|arg| arg.as_opt_shared())

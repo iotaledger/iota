@@ -17,18 +17,17 @@ use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    StructTag, TransactionKind, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
     utils::to_sender_signed_transaction,
 };
@@ -122,7 +121,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -140,7 +139,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "value",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 false,
@@ -158,7 +157,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -210,7 +209,7 @@ impl TestTransactionBuilder {
             package_id,
             "random",
             "new",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 ObjectId::RANDOMNESS_STATE,
                 randomness_initial_shared_version,
                 false,
@@ -412,7 +411,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: &dyn Signer<Signature>) -> Transaction {
+    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }
 
@@ -677,7 +676,7 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let random_call_arg = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
         false,

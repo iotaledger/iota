@@ -14,12 +14,11 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, TransactionKind, TransferObjects,
-    TypeTag, Version, VersionAssignment, gas::GasCostSummary,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    TransactionKind, TransferObjects, TypeTag, Version, VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::{EpochId, TransactionDigest},
-    crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
@@ -34,8 +33,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI,
+        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
     },
 };
 use move_binary_format::CompiledModule;
@@ -2548,7 +2546,7 @@ impl IotaCallArg {
                     digest: object_ref.digest,
                 })
             }
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id: id,
                 initial_shared_version,
                 mutable,

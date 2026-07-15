@@ -9,8 +9,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, TransactionKind,
-    UnchangedSharedKind, Version, VersionAssignment,
+    ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
+    TransactionKind, UnchangedSharedKind, Version, VersionAssignment,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
@@ -18,10 +18,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SharedObjectRef, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedCertificate},
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;
@@ -290,7 +287,7 @@ impl GasPriceFeedbackTester {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
         let arg1 = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef::new(
+            .obj(CallArg::Shared(SharedObjectReference::new(
                 self.shared_counter_1.object_id,
                 self.shared_counter_1.version,
                 counter_1_mutable,
@@ -298,7 +295,7 @@ impl GasPriceFeedbackTester {
             .unwrap();
 
         let arg2 = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef::new(
+            .obj(CallArg::Shared(SharedObjectReference::new(
                 self.shared_counter_2.object_id,
                 self.shared_counter_2.version,
                 counter_2_mutable,
@@ -351,7 +348,7 @@ impl GasPriceFeedbackTester {
         };
 
         let arg = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef::new(
+            .obj(CallArg::Shared(SharedObjectReference::new(
                 counter.object_id,
                 counter.version,
                 mutable,

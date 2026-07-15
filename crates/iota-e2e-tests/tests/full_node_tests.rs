@@ -15,7 +15,7 @@ use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, TransactionKind, Version,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionKind, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -38,7 +38,7 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionData, TransactionDataAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -154,7 +154,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_with_gas_data(
         kind,
         sender,
-        GasData {
+        GasPayment {
             objects: vec![gas_obj],
             owner: sponsor,
             price: rgp,

@@ -247,12 +247,12 @@ async fn main() -> Result<()> {
                 }
 
                 let client = if let Some(emulator_host) = kv_config.emulator_host {
-                    std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
                     BigTableClient::new_local(
+                        &emulator_host,
+                        "iota-data-ingestion",
                         kv_config.instance_id,
                         kv_config.column_family.clone(),
-                    )
-                    .await?
+                    )?
                 } else {
                     BigTableClient::new_remote(
                         kv_config.instance_id,
