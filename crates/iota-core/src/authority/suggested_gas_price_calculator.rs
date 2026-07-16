@@ -2702,4 +2702,87 @@ mod tests {
             REFERENCE_GAS_PRICE
         );
     }
+
+    // A transaction shed while BOTH its shared object and the worker pool are
+    // congested: the scheduling response reports the congested object, and the
+    // suggested gas price clears whichever constraint is more expensive.
+    #[test]
+    fn both_object_and_worker_congested_reports_object_and_combined_price() {
+        use crate::authority::authority_per_epoch_store::PreviouslyDeferredTransactions;
+
+        // Case 1 — object clearing dominates (two workers): the object is
+        // blocked by a 3000 tx; the workers by {3000, 2500}, whose 2nd largest
+        // is 2500. The suggestion must clear the object: 3001.
+        let object = ObjectId::random();
+        let parameters = worker_test_parameters(1, 2);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator =
+            SuggestedGasPriceCalculator::new(parameters.clone(), REFERENCE_GAS_PRICE);
+        schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 3_000);
+        schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
+
+        let shed = build_transaction(&[(object, true)], 1, 900);
+        tracker.initialize_object_execution_slots(&shed.shared_input_objects());
+        match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Schedule(_) => panic!("should defer"),
+        }
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
+
+        // Case 2 — worker clearing dominates (one worker, `TotalGasBudget`
+        // durations): the object is blocked by a duration-1 tx at 2000; the
+        // worker additionally by a duration-1 tx at 3000. With one worker,
+        // every object blocker also occupies the worker, so the worker
+        // clearing price is always at least the object one. The shed tx has
+        // duration 2 (imaginary start 0), so both blockers overlap its
+        // window: suggestion 3001.
+        let object = ObjectId::random();
+        let mut parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalGasBudget,
+            true,
+            Some(2), // max_execution_duration_per_commit
+            None,
+            1_000_000, // max_gas_price
+            false,
+            false,
+        );
+        parameters.set_max_concurrent_execution_workers_for_test(1);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
+
+        // Descending price order; gas budget = duration in this mode.
+        // Worker: [0, 1) at 3000, [1, 2) at 2000. Object: [1, 2) at 2000.
+        {
+            use crate::authority::authority_per_epoch_store::PreviouslyDeferredTransactions;
+            for (objects, gas_budget, gas_price) in
+                [(vec![], 1u64, 3_000u64), (vec![(object, true)], 1, 2_000)]
+            {
+                let transaction = build_transaction(&objects, gas_budget, gas_price);
+                tracker.initialize_object_execution_slots(&transaction.shared_input_objects());
+                match tracker.try_schedule(&transaction, &PreviouslyDeferredTransactions::new(), 0)
+                {
+                    SequencingResult::Schedule(start_time) => {
+                        let bump_result =
+                            tracker.bump_object_execution_slots(&transaction, start_time);
+                        calculator.update_congestion_info(bump_result);
+                    }
+                    SequencingResult::Defer(..) => panic!("should schedule"),
+                }
+            }
+        }
+
+        let shed = build_transaction(&[(object, true)], 2, 900);
+        tracker.initialize_object_execution_slots(&shed.shared_input_objects());
+        match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Schedule(_) => panic!("should defer"),
+        }
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 3_001);
+    }
 }

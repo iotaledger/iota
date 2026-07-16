@@ -2456,4 +2456,207 @@ mod object_cost_tests {
             SequencingResult::Schedule(_) => panic!("expected the shared-object tx to be shed"),
         }
     }
+
+    // The execution-worker profile filling across a commit: with two workers
+    // each transaction occupies one worker for its duration, start times
+    // advance once both workers are busy, and a transaction that no longer
+    // fits within the per-commit limit is deferred.
+    #[rstest]
+    fn test_worker_slot_filling_across_commit(
+        #[values(true, false)] assign_min_free_execution_slot: bool,
+    ) {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            assign_min_free_execution_slot,
+            Some(3), // max_execution_duration_per_commit
+            None,    // max_congestion_limit_overshoot_per_commit
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(2);
+        let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            Vec::new(),
+            congestion_control_parameters,
+        );
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+
+        // Six owned-object-only transactions fill the profile two at a time:
+        //     worker count
+        // 0 | 1 2
+        // 1 | 1 2
+        // 2 | 1 2
+        // 3 |______ max_execution_duration_per_commit = 3
+        for (i, expected_start_time) in [0, 0, 1, 1, 2, 2].into_iter().enumerate() {
+            let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+            match tracker.try_schedule(&tx, &previously_deferred, 0) {
+                SequencingResult::Schedule(start_time) => {
+                    assert_eq!(start_time, expected_start_time, "transaction {i}");
+                }
+                SequencingResult::Defer(..) => panic!("transaction {i} should be scheduled"),
+            }
+            tracker.bump_object_execution_slots(&tx, expected_start_time);
+        }
+        assert_eq!(
+            tracker.worker_slots.as_ref().unwrap().0,
+            vec![WorkerSlot {
+                start_time: 0,
+                end_time: 3,
+                worker_count: 2,
+            }]
+        );
+
+        // The profile is saturated up to the limit: the seventh is deferred,
+        // with no congested object to report.
+        let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(congested_objects.is_empty());
+            }
+            SequencingResult::Schedule(_) => panic!("the seventh transaction should be deferred"),
+        }
+    }
+
+    // A worker-shed transaction gets the same deferral-key bookkeeping as an
+    // object-shed one: a fresh deferral starts from the current commit round,
+    // and a previously-deferred transaction keeps its original round.
+    #[test]
+    fn test_try_schedule_worker_deferral_key() {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,
+            Some(1), // max_execution_duration_per_commit
+            None,
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+        let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            Vec::new(),
+            congestion_control_parameters,
+        );
+        let mut previously_deferred = PreviouslyDeferredTransactions::new();
+
+        // Fill the single worker for the whole commit.
+        let scheduled = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        tracker.bump_object_execution_slots(&scheduled, 0);
+
+        let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        match tracker.try_schedule(&tx, &previously_deferred, 10) {
+            SequencingResult::Defer(
+                DeferralKey::ConsensusRound {
+                    future_round,
+                    deferred_from_round,
+                },
+                _,
+            ) => {
+                assert_eq!(future_round, 11);
+                assert_eq!(deferred_from_round, 10);
+            }
+            _ => panic!("should defer with a consensus-round key"),
+        }
+
+        // A transaction deferred in an earlier round keeps its original
+        // deferred_from_round.
+        previously_deferred.insert(
+            *tx.digest(),
+            (
+                DeferralKey::ConsensusRound {
+                    future_round: 10,
+                    deferred_from_round: 5,
+                },
+                Some(1_000),
+            ),
+        );
+        match tracker.try_schedule(&tx, &previously_deferred, 10) {
+            SequencingResult::Defer(
+                DeferralKey::ConsensusRound {
+                    future_round,
+                    deferred_from_round,
+                },
+                _,
+            ) => {
+                assert_eq!(future_round, 11);
+                assert_eq!(deferred_from_round, 5);
+            }
+            _ => panic!("should defer with a consensus-round key"),
+        }
+    }
+
+    // The congested-objects report distinguishes the congestion cause: a
+    // worker-bound shed reports no objects, an object-bound shed reports the
+    // congested objects, and a shed bound by both reports the objects.
+    #[rstest]
+    fn test_try_schedule_congested_objects_under_worker_congestion(
+        #[values(true, false)] assign_min_free_execution_slot: bool,
+    ) {
+        let congested_object = ObjectId::random();
+        let free_object = ObjectId::random();
+
+        let build_parameters = |workers: u16| {
+            let mut parameters = CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalTxCount,
+                assign_min_free_execution_slot,
+                Some(1), // max_execution_duration_per_commit
+                None,
+                TEST_ONLY_GAS_PRICE,
+                false,
+                false,
+            );
+            parameters.set_max_concurrent_execution_workers_for_test(workers);
+            parameters
+        };
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+
+        // One worker, fully occupied; `congested_object` occupied for the
+        // whole commit by an initial debt; `free_object` untouched.
+        let mut tracker = new_congestion_tracker_with_initial_value_for_test(
+            &[(congested_object, 1)],
+            build_parameters(1),
+        );
+        let scheduled = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        tracker.bump_object_execution_slots(&scheduled, 0);
+
+        // Worker-bound only: the object is free, so no object is congested.
+        let tx = build_transaction(&[(free_object, true)], 0, TEST_ONLY_GAS_PRICE);
+        tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+        match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert!(
+                    congested_objects.is_empty(),
+                    "worker-bound shed should not report objects, got {congested_objects:?}"
+                );
+            }
+            SequencingResult::Schedule(_) => panic!("should defer"),
+        }
+
+        // Bound by both: the congested object is reported.
+        let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
+        tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+        match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert_eq!(congested_objects, vec![congested_object]);
+            }
+            SequencingResult::Schedule(_) => panic!("should defer"),
+        }
+
+        // Object-bound only (two workers, one free): still the object.
+        let mut tracker = new_congestion_tracker_with_initial_value_for_test(
+            &[(congested_object, 1)],
+            build_parameters(2),
+        );
+        let scheduled = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+        tracker.bump_object_execution_slots(&scheduled, 0);
+        let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
+        tracker.initialize_object_execution_slots(&tx.shared_input_objects());
+        match tracker.try_schedule(&tx, &previously_deferred, 0) {
+            SequencingResult::Defer(_, congested_objects) => {
+                assert_eq!(congested_objects, vec![congested_object]);
+            }
+            SequencingResult::Schedule(_) => panic!("should defer"),
+        }
+    }
 }
