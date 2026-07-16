@@ -279,7 +279,7 @@ impl LeaderSchedule {
         );
         self.persist_scores(dag_state_write_lock, reputation_scores);
         {
-            self.range_validation_or_skip(&table, &self.leader_swap_table.read());
+            self.range_validation(&table, &self.leader_swap_table.read());
             self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
         }
     }
@@ -401,26 +401,6 @@ impl LeaderSchedule {
             let remainder_subdags = dag_state_write_lock
                 .load_scoring_subdags_from_store((remainder_start..=backlog_range.end()).into());
             dag_state_write_lock.add_scoring_subdags(remainder_subdags);
-        }
-    }
-
-    /// Runs `range_validation` unless the old table's commit range doesn't
-    /// span one rotation interval — possible when the recovered state was
-    /// persisted under a different `commits_per_schedule` — in which case the
-    /// mismatch is expected: warn and apply the new table unvalidated.
-    fn range_validation_or_skip(&self, new_table: &LeaderSwapTable, old_table: &LeaderSwapTable) {
-        let old_commit_range = &old_table.reputation_scores.commit_range;
-        if *old_commit_range == CommitRange::default()
-            || old_commit_range.size() == self.num_commits_per_schedule as usize
-        {
-            self.range_validation(new_table, old_table);
-        } else {
-            tracing::warn!(
-                "Skipping commit range validation: old range {old_commit_range:?} does not \
-                 span one rotation interval ({}), new range {:?}",
-                self.num_commits_per_schedule,
-                new_table.reputation_scores.commit_range,
-            );
         }
     }
 
