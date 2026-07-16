@@ -110,9 +110,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         // transport-level traffic control: charge one request per requested
         // item so batching cannot dilute the spam rate.
         if let Some(tally_handle) = &tally_handle {
-            for _ in 0..item_count {
-                tally_handle.tally_item(tonic::Code::Ok);
-            }
+            tally_handle.tally_items((0..item_count).map(|_| tonic::Code::Ok));
         }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
@@ -136,9 +134,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         // transport-level traffic control: charge one request per requested
         // item so batching cannot dilute the spam rate.
         if let Some(tally_handle) = &tally_handle {
-            for _ in 0..item_count {
-                tally_handle.tally_item(tonic::Code::Ok);
-            }
+            tally_handle.tally_items((0..item_count).map(|_| tonic::Code::Ok));
         }
         Ok(append_info_headers!(response, self.reader.clone()))
     }

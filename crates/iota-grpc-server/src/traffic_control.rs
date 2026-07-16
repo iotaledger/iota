@@ -113,13 +113,9 @@ where
         // A batch handler sets this through its `TallyHandle` once it has
         // accounted for each item, so the layer skips its default
         // one-tally-per-request accounting below.
-        let per_item_accounted = Arc::new(AtomicBool::new(false));
+        let tally_handle = TallyHandle::new(traffic_controller.clone(), client);
         let mut req = req;
-        req.extensions_mut().insert(TallyHandle {
-            traffic_controller: traffic_controller.clone(),
-            client,
-            per_item_accounted: per_item_accounted.clone(),
-        });
+        req.extensions_mut().insert(tally_handle.clone());
 
         // Tower contract: `self.inner` is the ready one (poll_ready set it up),
         // so call it and leave the clone for the next request.
@@ -135,7 +131,7 @@ where
             if let Ok(response) = &result {
                 // Batch handlers account for each embedded item themselves; only
                 // tally the request here when a handler didn't.
-                if !per_item_accounted.load(Ordering::Relaxed) {
+                if !tally_handle.per_item_accounted() {
                     let code =
                         Status::from_header_map(response.headers()).map_or(Code::Ok, |s| s.code());
                     tally(&traffic_controller, client, code);
@@ -163,6 +159,20 @@ pub struct TallyHandle {
 }
 
 impl TallyHandle {
+    fn new(traffic_controller: Arc<TrafficController>, client: Option<IpAddr>) -> Self {
+        Self {
+            traffic_controller,
+            client,
+            per_item_accounted: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Whether a handler has accounted for this request's items itself, in which
+    /// case the layer skips its default one-tally-per-request accounting.
+    fn per_item_accounted(&self) -> bool {
+        self.per_item_accounted.load(Ordering::Relaxed)
+    }
+
     /// Account for one item of a batch response: count it as one request for
     /// the spam policy and, if `code` is a client error, feed the error policy.
     /// Passing `Code::Ok` (e.g. when accounting eagerly from a request's item
@@ -173,6 +183,14 @@ impl TallyHandle {
     pub fn tally_item(&self, code: Code) {
         self.per_item_accounted.store(true, Ordering::Relaxed);
         tally(&self.traffic_controller, self.client, code);
+    }
+
+    /// Account for each item of a batch response by its status code (see
+    /// [`Self::tally_item`]).
+    pub fn tally_items(&self, codes: impl IntoIterator<Item = Code>) {
+        for code in codes {
+            self.tally_item(code);
+        }
     }
 }
 
