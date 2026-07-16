@@ -17,10 +17,8 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, StructTag, Version};
-use iota_types::{
-    digests::ObjectDigest, gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType,
-};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_types::{gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType};
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
 

@@ -10,7 +10,6 @@ use iota_names::config::IotaNamesConfig;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tracing::warn;
 use url::Url;
 
 use crate::{
@@ -304,10 +303,6 @@ pub const DEFAULT_PRUNING_BATCH_SIZE: u64 = 1000;
 
 #[derive(Args, Debug, Clone)]
 pub struct PruningOptions {
-    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
-    /// pointing at a TOML retention config instead.
-    #[arg(long, env = "EPOCHS_TO_KEEP")]
-    pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
@@ -335,7 +330,6 @@ pub struct PruningOptions {
 impl Default for PruningOptions {
     fn default() -> Self {
         Self {
-            epochs_to_keep: None,
             pruning_config_path: None,
             pruning_delay_ms: DEFAULT_PRUNING_DELAY_MS,
             pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
@@ -361,25 +355,7 @@ impl PruningOptions {
     /// Loads default retention policy and overrides from file.
     pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
         let Some(config_path) = self.pruning_config_path.as_ref() else {
-            let Some(epochs_to_keep) = self.epochs_to_keep else {
-                return Ok(None);
-            };
-            warn!(
-                "using the deprecated --epochs-to-keep argument for pruning configuration. \
-                 This argument will be removed in v1.28.0. \
-                 Please use --pruning-config-path to specify a TOML configuration file instead."
-            );
-            return Ok(Some(RetentionConfig::new(
-                epochs_to_keep,
-                Default::default(),
-            )));
-        };
-
-        if self.epochs_to_keep.is_some() {
-            warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
-                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
-            );
+            return Ok(None);
         };
 
         let contents = std::fs::read_to_string(config_path)

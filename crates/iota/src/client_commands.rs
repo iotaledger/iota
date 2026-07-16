@@ -33,9 +33,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, build_from_resolution_graph, check_conflicting_addresses,
-    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
-    implicit_deps,
+    BuildConfig, CompiledPackage, ProtocolBuildConfig, build_from_resolution_graph,
+    check_conflicting_addresses, check_invalid_dependencies, check_unpublished_dependencies,
+    gather_published_ids, implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
@@ -51,8 +51,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TransactionKind,
-    TypeTag, Version,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    TransactionDigest, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -66,7 +66,7 @@ use iota_types::{
         },
     },
     crypto::{EmptySignInfo, SignatureScheme},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
@@ -1188,6 +1188,7 @@ impl IotaClientCommands {
                     protocol_version.map_or(ProtocolVersion::MAX, ProtocolVersion::new);
                 let protocol_config =
                     ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
+                let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
 
                 let registry = &Registry::new();
                 let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
@@ -1211,9 +1212,14 @@ impl IotaClientCommands {
 
                     (_, package_path) => {
                         let package_path = package_path.unwrap_or_else(|| PathBuf::from("."));
-                        let package =
-                            compile_package_simple(read_api, build_config, &package_path, None)
-                                .await?;
+                        let package = compile_package_simple(
+                            read_api,
+                            build_config,
+                            &package_path,
+                            None,
+                            &protocol_build_config,
+                        )
+                        .await?;
                         let name = package
                             .package
                             .compiled_package_info
@@ -1976,17 +1982,15 @@ impl IotaClientCommands {
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
-                let chain_id = context
-                    .get_client()
-                    .await?
-                    .read_api()
-                    .get_chain_identifier()
-                    .await?;
+                let client = context.get_client().await?;
+                let chain_id = client.read_api().get_chain_identifier().await?;
+                let protocol_config = client.read_api().get_protocol_config(None).await?;
                 let compiled_package = BuildConfig {
                     config: build_config,
                     run_bytecode_verifier: true,
                     print_diags_to_stderr: true,
                     chain_id: Some(chain_id),
+                    protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
                 }
                 .build(&package_path)?;
 
@@ -2059,6 +2063,7 @@ async fn compile_package_simple(
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<CompiledPackage, anyhow::Error> {
     build_config.implicit_dependencies = implicit_deps(latest_system_packages());
     let config = BuildConfig {
@@ -2066,10 +2071,16 @@ async fn compile_package_simple(
         run_bytecode_verifier: false,
         print_diags_to_stderr: false,
         chain_id: chain_id.clone(),
+        protocol_build_config: *protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
-    let mut compiled_package =
-        build_from_resolution_graph(resolution_graph, false, false, chain_id)?;
+    let mut compiled_package = build_from_resolution_graph(
+        resolution_graph,
+        false,
+        false,
+        chain_id,
+        protocol_build_config,
+    )?;
     pkg_tree_shake(read_api, false, &mut compiled_package).await?;
 
     Ok(compiled_package)
@@ -2158,6 +2169,7 @@ pub(crate) async fn compile_package(
     skip_dependency_verification: bool,
 ) -> Result<CompiledPackage, anyhow::Error> {
     let protocol_config = read_api.get_protocol_config(None).await?;
+    let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
 
     build_config.implicit_dependencies =
         implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
@@ -2170,6 +2182,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id: chain_id.clone(),
+        protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
@@ -2185,6 +2198,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id,
+        &protocol_build_config,
     )?;
 
     pkg_tree_shake(

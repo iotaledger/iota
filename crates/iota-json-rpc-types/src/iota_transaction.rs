@@ -12,15 +12,14 @@ use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
-    ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
-    ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
+    EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
+    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, TransactionDigest, TransactionEventsDigest,
     TransactionKind, TransferObjects, TypeTag, Version, VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
-    base_types::{EpochId, TransactionDigest},
-    crypto::IotaSignature,
-    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    base_types::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,

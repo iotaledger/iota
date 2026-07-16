@@ -13,7 +13,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Owner,
+    Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use move_binary_format::file_format;
@@ -27,7 +27,6 @@ use crate::{
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
@@ -96,7 +95,7 @@ fn test_signatures_serde() {
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
     let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), s.as_ref());
+    assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 
 #[test]

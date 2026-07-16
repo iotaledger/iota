@@ -178,6 +178,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable validator metadata verification v2.
 //             Amortize the minimum checkpoint interval over a sliding window
 //             on non-Mainnet/Testnet chains.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthenticationError` execution error.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -549,6 +553,22 @@ struct FeatureFlags {
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
+
+    // If true, post-consensus deny checks use a consensus-governed deny rule set
+    // (validators announce proposed rules; the active set is their stake-weighted
+    // aggregate) instead of each validator's local `TransactionDenyConfig`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance: bool,
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_with_dynamic_module_metadata: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthenticationError` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1826,6 +1846,30 @@ impl ProtocolConfig {
             self.consensus_commits_per_schedule.unwrap_or(300)
         }
     }
+
+    pub fn deny_rule_governance(&self) -> bool {
+        self.feature_flags.deny_rule_governance
+    }
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
+        );
+        res
+    }
+
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
+    }
 }
 
 #[cfg(not(msim))]
@@ -2998,7 +3042,13 @@ impl ProtocolConfig {
                     // Enabled on non-Mainnet/Testnet chains only for now.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
                     }
+
+                    cfg.feature_flags.report_move_authentication_error = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3253,6 +3303,19 @@ impl ProtocolConfig {
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
+    }
+
+    pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
     }
 }
 

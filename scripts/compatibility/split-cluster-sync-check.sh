@@ -85,6 +85,10 @@ done < <(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print0)
 
 export RUST_LOG=iota=debug,info
 
+# The node trims low-verbosity metrics from /metrics by default. This check
+# scrapes the consensus sync metrics below that cutoff, so expose every level.
+export METRICS_FILTER=trace
+
 # Track child PIDs (and which binary version each runs) so we can report
 # liveness and tear the cluster down cleanly. node-3 is appended only once it
 # starts (late), so the warmup liveness check naturally covers just the initial

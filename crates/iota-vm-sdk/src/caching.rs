@@ -215,11 +215,8 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Owner, Version};
-    use iota_types::{
-        digests::TransactionDigest,
-        object::{MoveObject, MoveObjectExt, Object},
-    };
+    use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
+    use iota_types::object::{MoveObject, MoveObjectExt, Object};
 
     use super::{CachingStore, ObjectFetcher};
     use crate::{error::StoreError, store::Store};

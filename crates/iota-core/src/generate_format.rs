@@ -11,26 +11,25 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
+    CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
-    RandomnessStateUpdate, SharedObjectReference, SimpleSignature, StructTag,
-    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
+    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
+    StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
-    base_types::{
-        ExecutionData, ExecutionDigests, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
-    },
+    base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
+        KeypairTraits, Signature, Signer, get_key_pair,
     },
-    digests::ConsensusCommitDigest,
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
         TransactionEvents,
@@ -38,8 +37,7 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointSummary,
-        FullCheckpointContents,
+        CheckpointContentsExt, CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
@@ -178,7 +176,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig).unwrap();
     // ... and the user signature which does
 
-    let sig: Signature = Signer::sign(&s_kp, b"hello world");
+    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
@@ -578,12 +576,7 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-        vec![GenericSignature::Signature(
-            Signature::Ed25519IotaSignature(
-                Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
-            ),
-        )],
+        vec![GenericSignature::Signature(sig1.clone())],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

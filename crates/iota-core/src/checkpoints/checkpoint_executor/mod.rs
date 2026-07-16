@@ -27,9 +27,11 @@ use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
-use iota_sdk_types::{RandomnessRound, TransactionKind};
+use iota_sdk_types::{
+    RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
+};
 use iota_types::{
-    base_types::{ExecutionData, TransactionDigest, TransactionEffectsDigest},
+    base_types::ExecutionData,
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
@@ -267,20 +269,6 @@ impl CheckpointExecutor {
             let this = this.clone();
             let pipeline_handle = pipeline_stages.handle(checkpoint.sequence_number());
             async move {
-                // Leash: apply backpressure so the executed watermark cannot
-                // outrun the pruner unboundedly. Blocks here (before entering the
-                // pipeline) while pruning has fallen more than the slack behind
-                // its retention target; self-throttles execution under overload.
-                let executed_timestamp_ms = this
-                    .checkpoint_store
-                    .get_highest_executed_checkpoint()
-                    .ok()
-                    .flatten()
-                    .map(|checkpoint| checkpoint.timestamp_ms)
-                    .unwrap_or(0);
-
-                this.state.pruner().await_leash(executed_timestamp_ms).await;
-
                 let pipeline_handle = pipeline_handle.await;
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await

@@ -1148,9 +1148,9 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         .keystore()
         .sign_hashed(&signer, &tx_digest)
         .expect("ed25519 sign should not fail");
-    // `Signature::as_ref()` returns `flag || sig || pk` — keep only the
+    // `Signature::to_bytes()` returns `flag || sig || pk` — keep only the
     // raw 64-byte signature, which is what the Move authenticator expects.
-    let sig_bytes = signature_full.as_ref();
+    let sig_bytes = signature_full.to_bytes();
     assert!(sig_bytes.len() > Ed25519Signature::LENGTH);
     let signature: Vec<u8> = sig_bytes[1..1 + Ed25519Signature::LENGTH].to_vec();
 
@@ -1749,7 +1749,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
             .keystore()
             .sign_hashed(&env.owner, &sponsor_msg)
             .expect("ed25519 sign should not fail");
-        let bytes = raw.as_ref();
+        let bytes = raw.to_bytes();
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     };
     let sponsor_auth = match make_move_authenticator(
@@ -2065,8 +2065,8 @@ impl TestEnvironment {
             .keystore()
             .sign_hashed(&self.owner, digest)
             .expect("ed25519 sign should not fail");
-        // `Signature::as_ref()` yields `flag || sig || pk`.
-        let bytes = sig.as_ref();
+        // `Signature::to_bytes()` yields `flag || sig || pk`.
+        let bytes = sig.to_bytes();
         assert!(bytes.len() > Ed25519Signature::LENGTH);
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     }

@@ -25,7 +25,6 @@ use iota_network::default_iota_network_config;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::Ed25519IotaSignature,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     traffic_control::{
@@ -264,11 +263,16 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..n {
+    for i in 0..n {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == n - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
@@ -315,7 +319,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // Before reconfiguring the policy, we should not block any requests due to dry
@@ -406,7 +410,12 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     assert!(confirmed_local_execution.unwrap());
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
+    for i in 0..txn_count {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == txn_count - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
@@ -455,7 +464,12 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     );
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
+    for i in 0..txn_count {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == txn_count - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let txn = txns.swap_remove(0);
         let tx_digest = txn.digest();
         let (tx_bytes, _signatures) = txn.to_tx_bytes_and_signatures();
@@ -536,7 +550,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
     signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // start test firewall server

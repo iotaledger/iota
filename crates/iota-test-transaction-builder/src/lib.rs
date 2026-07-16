@@ -17,12 +17,11 @@ use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
-    digests::TransactionDigest,
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
@@ -411,7 +410,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: &dyn Signer<Signature>) -> Transaction {
+    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }
 

@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::TransactionDigest,
     committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    digests::TransactionEffectsDigest,
     effects::{
         SignedTransactionEffects, TransactionEffects, TransactionEffectsExtForTesting,
         TransactionEvents, VerifiedSignedTransactionEffects,

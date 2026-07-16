@@ -350,6 +350,10 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 /// 3) Submit the original certificate which should now fail during
 ///    post-consensus, even though validators originally run the authenticate
 ///    and it passed
+///
+/// With `report_move_authentication_error` enabled (the latest protocol config)
+/// the failure surfaces as a distinct `MoveAuthenticationError` that wraps the
+/// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -453,15 +457,266 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         "Expected gas to be used in the failed transaction and that only the gas object was mutated and the TX input object was bumped in version",
     );
 
+    let (error, command) = summary.status.unwrap_err();
+    // The authenticator abort is reported as an authentication failure, not as
+    // a command of the programmable transaction, so it carries no command index.
+    assert!(
+        command.is_none(),
+        "Expected the authentication failure to carry no command index",
+    );
+    let ExecutionError::MoveAuthenticationError { error } = &error else {
+        panic!("Expected a MoveAuthenticationError, got: {error:?}");
+    };
     assert!(
         matches!(
-            summary.status.unwrap_err().0,
+            &**error,
             ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
             if module.as_str() == "basic_keyed_aa"
             && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
-            && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
+            && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
         ),
-        "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
+        "Expected failure to be a MoveAuthenticationError wrapping a Move abort in basic_keyed_aa::authenticate_ed25519",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_abstract_account_post_consensus_failure`], but with
+/// `report_move_authentication_error` disabled: the authenticator abort
+/// surfaces as a bare Move abort attributed to the authenticator's own command
+/// index 0 -- indistinguishable from a failure of the programmable
+/// transaction's first command.
+#[sim_test]
+async fn test_abstract_account_post_consensus_failure_without_report_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Disable reporting the authentication failure as a distinct error.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_report_move_authentication_error_for_testing(false);
+        config
+    });
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // Retrieve the keystore and setup an account for rotating owner key
+    let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+    let new_aa_owner = keystore
+        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .expect("ED25519 key generation should not fail")
+        .0;
+    assert!(new_aa_owner != test_env.owner.unwrap());
+    let new_aa_owner_pk = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&new_aa_owner)?
+        .public();
+    let aa_sender = aa_ref.object_id.into();
+
+    // Step 1: create an AA TX and ask the validators to sign it
+    // Create a simple transaction from the IOTA account
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let cert = test_env
+        .test_cluster
+        .create_certificate(aa_simple_tx, Some(client_ip))
+        .await
+        .unwrap();
+
+    // Step 2: tamper with the certificate to make it invalid post-consensus; this
+    // means creating a second transaction altering the AA shared object state
+    let aa_gas2 = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt2 = test_env.craft_aa_rotate_owner_key_ptb(&new_aa_owner_pk)?;
+    let tx_data2 = test_env
+        .craft_tx_from_pt(
+            pt2, aa_gas2, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest2 = tx_data2.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_rotate_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
+    // Should succeed
+    test_env
+        .execute_and_check_tx_correctness(aa_rotate_tx)
+        .await?;
+    // Update the test environment with the new owner (this is just for
+    // completeness, not needed for this test)
+    test_env.owner = Some(new_aa_owner);
+
+    // Step 3: submit the original certificate which should now fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+    assert!(
+        summary.gas_cost_summary.gas_used() == 3401600
+            && summary.mutated_object_count == 2
+            && summary.created_object_count == 0
+            && summary.unwrapped_object_count == 0
+            && summary.deleted_object_count == 0
+            && summary.wrapped_object_count == 0,
+        "Expected gas to be used in the failed transaction and that only the gas object was mutated and the TX input object was bumped in version",
+    );
+
+    let (error, command) = summary.status.unwrap_err();
+    assert_eq!(
+        command,
+        Some(0),
+        "Without the flag, the authenticator abort is reported at command index 0",
+    );
+    assert!(
+        matches!(
+            &error,
+            ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            if module.as_str() == "basic_keyed_aa"
+            && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
+            && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
+        ),
+        "Expected failure to be a bare Move abort in basic_keyed_aa::authenticate_ed25519, got: {error:?}",
+    );
+
+    Ok(())
+}
+
+/// The pre-consensus authentication path (`authenticate_transaction`, run when
+/// a validator signs a transaction) reports a failing authenticator the same
+/// way as the execution path. With `report_move_authentication_error` enabled,
+/// the resulting `MoveAuthenticatorExecutionFailure` reads as a Move
+/// authentication failure and carries no command index.
+#[sim_test]
+async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+
+    // Sign the authenticator over a digest that does not match the transaction,
+    // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    assert!(
+        error.contains("Move authentication failed"),
+        "Expected the failure to be reported as a Move authentication error, got: {error}",
+    );
+    assert!(
+        !error.contains("command index"),
+        "Expected an authentication failure to carry no command index, got: {error}",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_pre_consensus_authentication_failure`], but with
+/// `report_move_authentication_error` disabled: the pre-consensus path must
+/// still gate on the flag and surface the authenticator's bare Move abort,
+/// keeping the (misleading) command index 0.
+#[sim_test]
+async fn test_pre_consensus_authentication_failure_without_report_flag() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+
+    // Disable reporting the authentication failure as a distinct error.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_report_move_authentication_error_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+
+    // Sign the authenticator over a digest that does not match the transaction,
+    // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    // The flag gates the pre-consensus path too: the abort is reported bare,
+    // keeping the authenticator's internal command index 0 and no wrapping.
+    assert!(
+        error.contains("command index: 0"),
+        "Without the flag, the authenticator abort must keep command index 0, got: {error}",
+    );
+    assert!(
+        !error.contains("Move authentication failed"),
+        "Without the flag, the failure must not be wrapped as an authentication error, got: {error}",
     );
 
     Ok(())
@@ -1417,12 +1672,14 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         summary.status.is_failure(),
         "Expected TX to fail post-consensus due to the sender's MA failure"
     );
+    let (error, _) = summary.status.unwrap_err();
     assert!(
         matches!(
-            summary.status.unwrap_err().0,
-            ExecutionError::MoveAbort { .. }
+            &error,
+            ExecutionError::MoveAuthenticationError { error }
+            if matches!(&**error, ExecutionError::MoveAbort { .. })
         ),
-        "Expected a Move abort from the failed ED25519 authentication"
+        "Expected a Move authentication error wrapping the failed ED25519 authentication's abort, got: {error:?}"
     );
 
     // Even though the TX failed, the sponsor must have paid gas. Verify that
@@ -2303,7 +2560,7 @@ impl TestEnvironment {
         aa_obj_ref: ObjectReference,
         signature: iota_types::crypto::Signature,
     ) -> anyhow::Result<GenericSignature> {
-        let hex_encoded_signature: String = Hex::encode(signature)
+        let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()
             .skip(2) // flag prefix length
             .take(Ed25519Signature::LENGTH * 2)

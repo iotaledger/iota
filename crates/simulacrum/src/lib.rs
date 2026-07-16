@@ -31,7 +31,11 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
+    TransactionKind,
+};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -41,7 +45,6 @@ use iota_types::{
     base_types::{AuthorityName, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
-    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
@@ -58,7 +61,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -305,7 +308,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
         drop(inner);
 
-        let next_epoch_system_package_bytes: Vec<iota_types::transaction::SystemPackage> = vec![];
+        let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
             next_epoch_protocol_version.as_u64(),
@@ -448,7 +451,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
-        let gas_data = iota_types::transaction::GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
@@ -598,7 +601,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.with_store(|store| store.get_checkpoint_by_digest(digest)))
     }
@@ -612,7 +615,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -636,21 +639,21 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_transaction(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.with_store(|store| store.get_transaction(tx_digest)))
     }
 
     fn try_get_transaction_effects(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.with_store(|store| store.get_transaction_effects(tx_digest)))
     }
 
     fn try_get_events(
         &self,
-        digest: &iota_types::digests::TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(digest)))
     }
@@ -676,7 +679,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -889,7 +892,7 @@ impl Simulacrum {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),

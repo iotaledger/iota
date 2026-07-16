@@ -6,9 +6,10 @@ use std::ops::RangeInclusive;
 
 use fastcrypto::hash::HashFunction;
 pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::Digest;
 use serde::{Deserialize, Serialize};
 
-use crate::{crypto::DefaultHash, digests::Digest};
+use crate::crypto::DefaultHash;
 
 /// Models the set of protocol versions supported by a validator.
 /// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for

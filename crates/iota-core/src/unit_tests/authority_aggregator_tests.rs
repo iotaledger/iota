@@ -17,6 +17,7 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, StakeUnit,
+    TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 #[cfg(msim)]
@@ -26,10 +27,9 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-        IotaAuthoritySignature, KeypairTraits, Signature, Signer, get_key_pair,
+        IotaAuthoritySignature, IotaKeyPair, KeypairTraits, Signer, get_key_pair,
         get_key_pair_from_rng,
     },
-    digests::TransactionDigest,
     effects::{
         SignedTransactionEffects, TestEffectsBuilder, TransactionEffects,
         TransactionEffectsExtForTesting, TransactionEvents,
@@ -109,7 +109,7 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: &dyn Signer<Signature>,
+    secret: impl Into<IotaKeyPair>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
@@ -142,7 +142,7 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: &dyn Signer<Signature>,
+    secret: impl Into<IotaKeyPair>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
@@ -167,7 +167,7 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: &dyn Signer<Signature>,
+    secret: impl Into<IotaKeyPair>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,

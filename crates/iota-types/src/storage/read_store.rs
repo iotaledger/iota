@@ -4,7 +4,10 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{Address, MoveObjectType, ObjectId, Version};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
+    TransactionDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
@@ -12,7 +15,6 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, ObjectType},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},

@@ -13,8 +13,8 @@ use iota_json_rpc_types::{
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{Address, ObjectId};
-use iota_types::{digests::TransactionDigest, dynamic_field::DynamicFieldName, event::EventID};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_types::{dynamic_field::DynamicFieldName, event::EventID};
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,

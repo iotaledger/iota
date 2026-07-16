@@ -4,7 +4,8 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
+use iota_sdk_types::ConsensusCommitDigest;
+use iota_types::messages_consensus::ConsensusTransaction;
 use itertools::Itertools as _;
 
 use crate::consensus_types::AuthorityIndex;
@@ -12,7 +13,8 @@ use crate::consensus_types::AuthorityIndex;
 /// (block origin authority index, all transactions contained in the block).
 /// For each transaction, returns deserialized transaction and its serialized
 /// size.
-type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
+pub(crate) type ConsensusOutputTransactions =
+    Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
 /// Per-authority misbehavior counts observed by consensus in a single commit.
 /// A bridge type between Starfish's internal observation state and IOTA's

@@ -151,11 +151,11 @@ mod tests {
         tokio::task::yield_now().await;
 
         // now add a few registries to the service along side with metrics
-        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None, None).unwrap();
         let counter_1 = IntCounter::new("counter_1", "a sample counter 1").unwrap();
         registry_1.register(Box::new(counter_1)).unwrap();
 
-        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         let counter_2 = IntCounter::new("counter_2", "a sample counter 2").unwrap();
         registry_2.register(Box::new(counter_2.clone())).unwrap();
 

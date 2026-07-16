@@ -39,9 +39,8 @@ use std::{
 };
 
 use iota_common::fatal;
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, VerifiedTransaction},

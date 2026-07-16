@@ -38,8 +38,7 @@ use iota_indexer::{
     },
     read::IndexerReader,
 };
-use iota_sdk_types::Event;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::{Event, TransactionDigest};
 use prometheus_filtered::{Histogram, IntGauge};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;

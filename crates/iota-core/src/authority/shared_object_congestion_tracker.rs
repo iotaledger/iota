@@ -859,7 +859,7 @@ pub mod shared_object_test_utils {
 #[cfg(test)]
 mod object_cost_tests {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_types::digests::TransactionDigest;
+    use iota_sdk_types::TransactionDigest;
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};

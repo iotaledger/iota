@@ -8,9 +8,10 @@ pub type GlobalStateHash = fastcrypto::hash::EllipticCurveMultisetHash;
 #[cfg(test)]
 mod tests {
     use fastcrypto::hash::MultisetHash;
+    use iota_sdk_types::ObjectDigest;
     use rand::seq::SliceRandom;
 
-    use crate::{base_types::ObjectDigest, global_state_hash::GlobalStateHash};
+    use crate::global_state_hash::GlobalStateHash;
 
     #[test]
     fn test_global_state_hash() {

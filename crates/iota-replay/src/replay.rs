@@ -19,7 +19,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, Version,
+    GasPayment, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TransactionKind, Version,
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
@@ -31,7 +32,6 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::VersionNumber,
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
@@ -48,9 +48,8 @@ use iota_types::{
         get_module_by_id,
     },
     transaction::{
-        CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
-        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
-        VerifiedTransaction,
+        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
+        SenderSignedData, Transaction, TransactionDataAPI, VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -784,7 +783,7 @@ impl LocalExec {
             )
             .expect("Failed to create gas status")
         };
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,
@@ -947,7 +946,7 @@ impl LocalExec {
         trace!(target: "replay_gas_info", "{}", Pretty(gas_status));
 
         let skip_checks = true;
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,

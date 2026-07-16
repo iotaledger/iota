@@ -26,12 +26,13 @@ use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::Notify
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_sdk_types::{GasCostSummary, TransactionKind};
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest, TransactionKind,
+};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
@@ -2957,11 +2958,10 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, Version, move_package::MovePackage,
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffectsDigest, Version,
+        move_package::MovePackage,
     };
     use iota_types::{
-        base_types::TransactionEffectsDigest,
-        crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,
@@ -3194,7 +3194,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);
@@ -3415,7 +3415,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);

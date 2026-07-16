@@ -32,9 +32,10 @@ tokio = { workspace = true, features = ["sync"] }
 iota-metrics.workspace = true
 
 # `rand::thread_rng()` (in `random.rs`) pulls `getrandom`, which on
-# `wasm32-unknown-unknown` needs the `js` feature for a randomness source.
+# `wasm32-unknown-unknown` needs the `js` feature for a randomness source; that
+# feature is enabled on the workspace `getrandom` dependency.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.2", features = ["js"] }
+getrandom.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

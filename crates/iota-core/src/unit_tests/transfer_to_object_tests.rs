@@ -5,12 +5,11 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     object::Object,

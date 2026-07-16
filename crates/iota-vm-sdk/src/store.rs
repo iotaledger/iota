@@ -224,9 +224,8 @@ impl ChildObjectResolver for StoreBackend<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Owner, Version};
+    use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
     use iota_types::{
-        digests::TransactionDigest,
         object::{MoveObject, MoveObjectExt, Object},
         storage::ChildObjectResolver,
     };

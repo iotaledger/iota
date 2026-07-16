@@ -12,11 +12,10 @@ use std::{
 use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
-use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::CancelledTransaction;
+use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
+use iota_sdk_types::{CancelledTransaction, ConsensusCommitDigest, TransactionDigest};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    digests::ConsensusCommitDigest,
+    base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
@@ -25,6 +24,7 @@ use iota_types::{
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use starfish_config::Committee as ConsensusCommittee;
+use tokio::task::JoinSet;
 use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
@@ -37,7 +37,10 @@ use crate::{
         backpressure::{BackpressureManager, BackpressureSubscriber},
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
-    consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
+    consensus_types::{
+        AuthorityIndex,
+        consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     scoring_decision::update_low_scoring_authorities,
     transaction_manager::TransactionManager,
@@ -201,8 +204,26 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         info!("Ignoring prior consensus commit for round {:?}", round);
     }
 
+    /// Test-only wrapper that performs BCS deserialization inline before
+    /// delegating to [`Self::handle_consensus_output`]. In production the
+    /// deserialization is performed on the [`StarfishConsensusHandler`]
+    /// pipeline stage that feeds the handler.
+    #[cfg(test)]
+    async fn handle_consensus_output_for_test(
+        &mut self,
+        consensus_output: impl ConsensusOutputAPI,
+    ) {
+        let block_transactions = consensus_output.transactions();
+        self.handle_consensus_output(consensus_output, block_transactions)
+            .await;
+    }
+
     #[instrument("handle_consensus_output", level = "trace", skip_all)]
-    async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
+    async fn handle_consensus_output(
+        &mut self,
+        consensus_output: impl ConsensusOutputAPI,
+        block_transactions: ConsensusOutputTransactions,
+    ) {
         // This may block until one of two conditions happens:
         // - Number of uncommitted transactions in the writeback cache goes below the
         //   backpressure threshold.
@@ -302,7 +323,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         {
             let span = trace_span!("process_consensus_certs");
             let _guard = span.enter();
-            for (authority_index, authority_transactions) in consensus_output.transactions() {
+            for (authority_index, authority_transactions) in block_transactions {
                 // TODO: consider only messages within 1~3 rounds of the leader?
                 for (transaction, serialized_len) in authority_transactions {
                     let kind = classify(&transaction);
@@ -483,53 +504,97 @@ impl AsyncTransactionScheduler {
     }
 }
 
+/// Capacity of the channel from the deserialize worker to the commit handler.
+/// Small and bounded: the worker prepares ~1 commit ahead (pipelining) while
+/// applying backpressure when the handler is the bottleneck, rather than
+/// buffering parsed commits unboundedly.
+const CONSENSUS_HANDLER_DESERIALIZE_CHANNEL_CAPACITY: usize = 2;
+
 /// Consensus handler used by Starfish.
 /// During initialization, the sender is passed into Starfish which can send
 /// consensus output to the channel.
+///
+/// The handler is split into two stages connected by a small bounded channel:
+///   - **Deserialize worker** — BCS-parses each commit's transactions off the
+///     handler's critical path so parsing can overlap with the handler
+///     processing the previous commit.
+///   - **Commit handler** — consumes pre-parsed commits in arrival order.
+///
+/// Both stages run as a single worker each, with a FIFO channel between them,
+/// so the original commit ordering is preserved by construction.
 pub struct StarfishConsensusHandler {
-    handle: Option<tokio::task::JoinHandle<()>>,
+    tasks: JoinSet<()>,
 }
 
 impl StarfishConsensusHandler {
     pub fn new(
         last_processed_commit_at_startup: starfish_core::CommitIndex,
         mut consensus_handler: ConsensusHandler<CheckpointService>,
-        mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
+        mut receiver: monitored_mpsc::UnboundedReceiver<starfish_core::CommittedSubDag>,
         commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
     ) -> Self {
-        let handle = spawn_monitored_task!(async move {
+        let mut tasks = JoinSet::new();
+
+        // Stage 1 — deserialize worker: BCS-parses each commit's transactions
+        // off the handler's critical path, so parsing overlaps the handler
+        // processing the previous commit. The channel is bounded (small) so
+        // the worker prepares ~1 commit ahead but applies backpressure
+        // (rather than buffering parsed commits unboundedly) when the handler
+        // is the bottleneck. Single-threaded; ordering is preserved (one
+        // worker, FIFO channel, one handler).
+        let (parsed_sender, mut parsed_receiver) = monitored_mpsc::channel(
+            "consensus_deserialized_commits",
+            CONSENSUS_HANDLER_DESERIALIZE_CHANNEL_CAPACITY,
+        );
+        tasks.spawn(async move {
+            while let Some(consensus_output) = receiver.recv().await {
+                let block_transactions: ConsensusOutputTransactions = {
+                    let _scope = monitored_scope("StarfishConsensusHandler::deserialize_worker");
+                    consensus_output.transactions()
+                };
+                // The send is intentionally outside the scope above: on the
+                // bounded channel it blocks when the handler is the
+                // bottleneck, and that idle-wait would otherwise inflate the
+                // deserialize_worker scope (making it read as CPU work, not
+                // waiting).
+                if parsed_sender
+                    .send((consensus_output, block_transactions))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        // Stage 2 — commit handler: processes pre-parsed commits in order.
+        tasks.spawn(async move {
             // TODO: pause when execution is overloaded, so consensus can detect the
             // backpressure.
-            while let Some(consensus_output) = receiver.recv().await {
+            while let Some((consensus_output, block_transactions)) = parsed_receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
                 if commit_index <= last_processed_commit_at_startup {
                     consensus_handler.handle_prior_consensus_output(consensus_output);
                 } else {
                     consensus_handler
-                        .handle_consensus_output(consensus_output)
+                        .handle_consensus_output(consensus_output, block_transactions)
                         .await;
                 }
                 commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
-        Self {
-            handle: Some(handle),
-        }
+        Self { tasks }
     }
 
     pub async fn abort(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
+        self.tasks.abort_all();
+        while self.tasks.join_next().await.is_some() {}
     }
 }
 
 impl Drop for StarfishConsensusHandler {
     fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-        }
+        self.tasks.abort_all();
     }
 }
 
@@ -977,7 +1042,8 @@ mod tests {
 
         // AND processing the consensus output once
         {
-            let waiter = consensus_handler.handle_consensus_output(committed_sub_dag.clone());
+            let waiter =
+                consensus_handler.handle_consensus_output_for_test(committed_sub_dag.clone());
             pin_mut!(waiter);
 
             // waiter should not complete within 5 seconds
@@ -1018,7 +1084,7 @@ mod tests {
         // THEN the consensus stats do not update
         for _ in 0..2 {
             consensus_handler
-                .handle_consensus_output(committed_sub_dag.clone())
+                .handle_consensus_output_for_test(committed_sub_dag.clone())
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
@@ -1133,7 +1199,7 @@ mod tests {
 
         // WHEN processing the consensus output
         consensus_handler
-            .handle_consensus_output(committed_sub_dag.clone())
+            .handle_consensus_output_for_test(committed_sub_dag.clone())
             .await;
 
         // THEN the stats reflect the UserTransactionV1 transactions
@@ -1157,7 +1223,7 @@ mod tests {
         // AND processing the same output multiple times does not update the stats
         for _ in 0..2 {
             consensus_handler
-                .handle_consensus_output(committed_sub_dag.clone())
+                .handle_consensus_output_for_test(committed_sub_dag.clone())
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);

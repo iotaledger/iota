@@ -17,7 +17,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionDataAPI,
@@ -50,8 +50,9 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
+use iota_sdk_types::ConsensusCommitDigest;
 use iota_types::{
-    digests::ConsensusCommitDigest, messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 

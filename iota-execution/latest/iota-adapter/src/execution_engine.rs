@@ -18,9 +18,9 @@ mod checked {
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, TransactionKind,
-        Version, gas::GasCostSummary,
+        EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
+        ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
+        SystemPackage, TransactionDigest, TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -31,7 +31,7 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{TransactionDigest, TxContext},
+        base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
@@ -49,9 +49,7 @@ mod checked {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
-        transaction::{
-            CallArg, CheckedInputObjects, GasData, InputObjects, SystemPackage, TransactionKindExt,
-        },
+        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
@@ -82,7 +80,7 @@ mod checked {
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -301,7 +299,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -447,6 +445,9 @@ mod checked {
             },
         );
 
+        let authentication_execution_result =
+            report_authentication_error(authentication_execution_result, protocol_config);
+
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -491,7 +492,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -543,7 +544,7 @@ mod checked {
         );
 
         // Run each authenticator in sequence; return on first failure.
-        authenticators.into_iter().try_for_each(
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
             |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
@@ -565,7 +566,9 @@ mod checked {
                     }
                 }
             },
-        )
+        );
+
+        report_authentication_error(authentication_execution_result, protocol_config)
     }
 
     // This function implements the authentication execution. It checks that the
@@ -898,6 +901,22 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    /// When enabled by the protocol config, report a failure of the Move
+    /// authentication as a distinct
+    /// [`ExecutionErrorKind::MoveAuthenticationError`], dropping the
+    /// authenticator's internal command index so it is not attributed to a
+    /// command of the programmable transaction.
+    fn report_authentication_error<T>(
+        authentication_execution_result: Result<T, ExecutionError>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<T, ExecutionError> {
+        if protocol_config.report_move_authentication_error() {
+            authentication_execution_result.map_err(ExecutionError::into_move_authentication_error)
+        } else {
+            authentication_execution_result
+        }
     }
 
     /// Elaborate errors in logs if they are unexpected or their status is
@@ -1993,7 +2012,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(gas_data: &GasData, transaction_signer: &Address) -> Option<Address> {
+    fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None

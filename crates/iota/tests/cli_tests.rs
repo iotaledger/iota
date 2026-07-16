@@ -47,10 +47,7 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{
-        AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
-        Secp256k1IotaSignature, SignatureScheme, get_key_pair,
-    },
+    crypto::{AccountKeyPair, IotaKeyPair, SignatureScheme, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -267,10 +264,10 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
-/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
-/// parallel PTB `--publish` / `--upgrade` tests don't race on the
-/// shared on-disk `build/` and `Move.lock`. The caller must keep the
-/// returned `TempDir` alive (drop deletes it).
+/// Copy an in-tree Move package into a fresh `TempDir` so parallel
+/// tests publishing the same package don't race on the shared on-disk
+/// `build/` and `Move.lock`. The caller must keep the returned
+/// `TempDir` alive (drop deletes it).
 fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
@@ -3327,7 +3324,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::ED25519.flag())
             .count(),
         5
     );
@@ -3348,7 +3345,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.flag())
             .count(),
         1
     );
@@ -5672,6 +5669,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            protocol_build_config_args: Default::default(),
         }),
     }
     .execute()
@@ -6629,12 +6627,13 @@ async fn setup_move_authenticator_account(
         .unwrap()
         .coin_object_id;
 
-    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+    let src_pkg = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()
         .unwrap()
         .parent()
         .unwrap()
         .join(package_relative_path);
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
 
@@ -7213,4 +7212,91 @@ async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<
     assert_eq!(tx_block.data.gas_data().owner, Address::from(sponsor_aa));
 
     Ok(())
+}
+
+/// Parses `iota move build <extra_args>` through the real CLI and returns the
+/// resulting `Build` command, so the flattened `ProtocolBuildConfigArgs` is
+/// exercised exactly as it is on the command line.
+fn parse_move_build(extra_args: &[&str]) -> iota_move::build::Build {
+    use clap::Parser;
+
+    let argv = ["iota", "move", "build"]
+        .into_iter()
+        .chain(extra_args.iter().copied());
+    match IotaCommand::try_parse_from(argv).unwrap() {
+        IotaCommand::Move {
+            cmd: iota_move::Command::Build(build),
+            ..
+        } => build,
+        _ => panic!("expected `iota move build`"),
+    }
+}
+
+#[test]
+fn move_build_allow_view_function_flag_is_optional() {
+    assert_eq!(
+        parse_move_build(&[])
+            .protocol_build_config_args
+            .allow_view_function,
+        None,
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "true"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(true),
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "false"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(false),
+    );
+}
+
+#[test]
+fn protocol_build_config_args_resolve_to_protocol_build_config() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override resolves to `ProtocolBuildConfig::default()`.
+    assert_eq!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function,
+        ProtocolBuildConfig::default().allow_view_function,
+    );
+    // An explicit override wins over the default.
+    assert!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(true),
+        })
+        .allow_view_function
+    );
+    assert!(
+        !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(false),
+        })
+        .allow_view_function
+    );
+}
+
+#[test]
+fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override is populated from the provided defaults.
+    let mut args = ProtocolBuildConfigArgs::default();
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+    });
+    assert_eq!(args.allow_view_function, Some(true));
+
+    // A command-line override is preserved even when the default differs.
+    let mut args = ProtocolBuildConfigArgs {
+        allow_view_function: Some(false),
+    };
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+    });
+    assert_eq!(args.allow_view_function, Some(false));
 }

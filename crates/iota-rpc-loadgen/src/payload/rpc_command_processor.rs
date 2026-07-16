@@ -21,12 +21,13 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference,
+    Address, ObjectId, ObjectReference, TransactionDigest,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
-    digests::TransactionDigest,
+    crypto::{
+        AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, IotaSignature, Signature, get_key_pair,
+    },
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
