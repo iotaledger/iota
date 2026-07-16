@@ -315,9 +315,8 @@ async fn test_multisig_e2e() {
     );
 
     // 5. multisig with no single sig fails to execute. An empty multisig is
-    // rejected at signature deserialization time (the SDK's `validate()` returns
-    // `InvalidSignatureNumber`), which surfaces as a generic invalid-signature
-    // error rather than the detailed multisig message.
+    // rejected at signature deserialization time by the SDK's `validate()`,
+    // whose `InvalidSignatureNumber` error surfaces to the caller.
     let tx5 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[], 0b001);
@@ -325,7 +324,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid signature was given to the function")
+            .contains("invalid multisig: Invalid number of signatures")
     );
 
     // 6. multisig two dup sigs fails to execute.
