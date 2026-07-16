@@ -3039,10 +3039,9 @@ impl ProtocolConfig {
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
 
-                    // Amortize the minimum checkpoint interval over a sliding
-                    // window so the checkpoint rate holds at the ceiling.
-                    // Enabled on non-Mainnet/Testnet chains only for now.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
                         // Publish package metadata with the module metadata stored as a
                         // dynamic field.
