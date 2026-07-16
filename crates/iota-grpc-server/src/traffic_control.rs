@@ -167,8 +167,9 @@ impl TallyHandle {
         }
     }
 
-    /// Whether a handler has accounted for this request's items itself, in which
-    /// case the layer skips its default one-tally-per-request accounting.
+    /// Whether a handler has accounted for this request's items itself, in
+    /// which case the layer skips its default one-tally-per-request
+    /// accounting.
     fn per_item_accounted(&self) -> bool {
         self.per_item_accounted.load(Ordering::Relaxed)
     }

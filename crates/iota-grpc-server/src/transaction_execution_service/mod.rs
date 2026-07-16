@@ -77,14 +77,14 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         // account for every item so a batch is charged per item, and its
         // embedded per-item errors feed the error policy.
         if let Some(tally_handle) = &tally_handle {
-            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(
-                |result| match &result.result {
+            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
+                match &result.result {
                     Some(execute_transaction_result::Result::Error(error)) => {
                         tonic::Code::from(error.code)
                     }
                     _ => tonic::Code::Ok,
-                },
-            ));
+                }
+            }));
         }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
@@ -107,14 +107,14 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         // account for every item so a batch is charged per item, and its
         // embedded per-item errors feed the error policy.
         if let Some(tally_handle) = &tally_handle {
-            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(
-                |result| match &result.result {
+            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
+                match &result.result {
                     Some(simulate_transaction_result::Result::Error(error)) => {
                         tonic::Code::from(error.code)
                     }
                     _ => tonic::Code::Ok,
-                },
-            ));
+                }
+            }));
         }
         Ok(append_info_headers!(response, self.reader.clone()))
     }

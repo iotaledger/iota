@@ -42,7 +42,10 @@ move-core-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
 async-trait.workspace = true
+
+# internal dependencies
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
 move-binary-format.workspace = true

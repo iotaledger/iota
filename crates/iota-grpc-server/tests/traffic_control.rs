@@ -6,10 +6,10 @@
 //! by both the spam and error policies.
 //!
 //! tonic returns a unary handler error as a trailers-only response, so its
-//! `grpc-status` lands in the HTTP response headers where the layer already sees
-//! it. A batch API's items instead ride inside the response body (embedded in a
-//! unary response or streamed lazily), so the handlers report each item to the
-//! traffic controller explicitly.
+//! `grpc-status` lands in the HTTP response headers where the layer already
+//! sees it. A batch API's items instead ride inside the response body (embedded
+//! in a unary response or streamed lazily), so the handlers report each item to
+//! the traffic controller explicitly.
 
 mod common;
 
@@ -30,8 +30,8 @@ use iota_grpc_types::v1::{
     },
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
@@ -50,8 +50,8 @@ const ERROR_BLOCK_ATTEMPTS: u64 = 5;
 
 /// Spam policy threshold for the batch tests.
 const SPAM_THRESHOLD: u64 = 15;
-/// Items in the single batch used to prove per-item spam accounting; larger than
-/// [`SPAM_THRESHOLD`] so one batch alone exceeds it.
+/// Items in the single batch used to prove per-item spam accounting; larger
+/// than [`SPAM_THRESHOLD`] so one batch alone exceeds it.
 const SPAM_BATCH_SIZE: usize = 20;
 /// Probe attempts made after the oversized batch. Kept below [`SPAM_THRESHOLD`]
 /// so per-request accounting (the batch plus these probes) could not reach the
@@ -205,9 +205,9 @@ async fn handler_errors_feed_the_error_policy() {
     .await;
 }
 
-/// Batch APIs embed per-item errors inside a successful gRPC response, where the
-/// transport-level traffic control cannot see them. They must still feed the
-/// error policy and eventually block the client.
+/// Batch APIs embed per-item errors inside a successful gRPC response, where
+/// the transport-level traffic control cannot see them. They must still feed
+/// the error policy and eventually block the client.
 #[tokio::test]
 async fn embedded_batch_errors_feed_the_error_policy() {
     let handle = server_with_policy(
@@ -231,10 +231,10 @@ async fn embedded_batch_errors_feed_the_error_policy() {
     .await;
 }
 
-/// Each item of a batch request must count individually towards the spam policy,
-/// so a client cannot dilute its request rate by batching. A single batch
-/// carries more items than the threshold, so per-item accounting blocks the
-/// client while per-request accounting (one tally per batch) could not.
+/// Each item of a batch request must count individually towards the spam
+/// policy, so a client cannot dilute its request rate by batching. A single
+/// batch carries more items than the threshold, so per-item accounting blocks
+/// the client while per-request accounting (one tally per batch) could not.
 #[tokio::test]
 async fn batched_requests_accrue_spam_per_item() {
     let handle = server_with_policy(
