@@ -4,9 +4,8 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
-use iota_sdk_types::{ObjectId, ObjectReference, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, move_package::MovePackage};
 use iota_types::{
-    digests::TransactionDigest,
     move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,

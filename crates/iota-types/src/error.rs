@@ -5,7 +5,10 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{Address, CommandArgumentError, ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CommandArgumentError, ObjectDigest, ObjectId,
+    ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -16,7 +19,6 @@ use typed_store_error::TypedStoreError;
 use crate::{
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
-    digests::CheckpointContentsDigest,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{ExecutionError, TransactionKind};
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::{ExecutionError, TransactionDigest, TransactionKind};
 use thiserror::Error;
 use tracing::{error, info};
 

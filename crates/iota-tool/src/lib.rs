@@ -48,7 +48,9 @@ use iota_core::{
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_types::{
+    CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
+};
 use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
     setup_db_state,
@@ -542,7 +544,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                     anemo_cli::ron_method!(
                         StateSyncClient,
                         get_checkpoint_contents,
-                        iota_types::messages_checkpoint::CheckpointContentsDigest
+                        CheckpointContentsDigest
                     ),
                 )
                 .add_method(

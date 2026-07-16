@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, ObjectDigest, TransactionDigest, TransactionEventsDigest};
 
 use super::{
     EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
@@ -12,7 +12,6 @@ use super::{
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
     execution::SharedInput,
     object::OBJECT_START_VERSION,

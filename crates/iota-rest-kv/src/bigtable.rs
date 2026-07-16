@@ -26,10 +26,9 @@ use iota_kvstore::{
         row_range::{EndKey, StartKey},
     },
 };
+use iota_sdk_types::TransactionDigest;
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::{
-    digests::TransactionDigest, effects::TransactionEvents, sdk_types::Address, storage::ObjectKey,
-};
+use iota_types::{effects::TransactionEvents, sdk_types::Address, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -71,8 +70,12 @@ impl KvStoreClient {
     /// Internally it instantiates a BigTableDB client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
         let bigtable_client = if let Some(emulator_host) = config.emulator_host {
-            std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
-            BigTableClient::new_local(config.instance_id, config.column_family).await?
+            BigTableClient::new_local(
+                &emulator_host,
+                "iota-rest-kv",
+                config.instance_id,
+                config.column_family,
+            )?
         } else {
             BigTableClient::new_remote(
                 config.instance_id,

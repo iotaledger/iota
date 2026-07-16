@@ -218,6 +218,7 @@ impl PrimaryWriter {
         // On epoch boundary, we need to modify the existing partitions' upper bound,
         // and introduce a new partition for incoming data for the upcoming epoch.
         if let Some(epoch_data) = epoch {
+            let new_epoch_id = epoch_data.new_epoch.epoch;
             self.state
                 .advance_epoch(epoch_data)
                 .await
@@ -225,7 +226,7 @@ impl PrimaryWriter {
                     error!("failed to advance epoch with error: {}", e.to_string());
                 })
                 .expect("advancing epochs in DB should not fail.");
-            self.metrics.total_epoch_committed.inc();
+            self.metrics.last_committed_epoch.set(new_epoch_id);
 
             // Refresh participation metrics after advancing epoch
             self.state

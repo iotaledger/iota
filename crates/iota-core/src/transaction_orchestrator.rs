@@ -20,9 +20,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
-    base_types::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
@@ -40,7 +40,7 @@ use iota_types::{
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use prometheus_filtered::{
-    Histogram, Registry,
+    Histogram, MetricLevel, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
@@ -1189,7 +1189,8 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_total_req_received",
             "Total number of executions request Transaction Orchestrator receives, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1202,7 +1203,8 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_good_response",
             "Total number of good responses Transaction Orchestrator generates, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1214,7 +1216,8 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_req_in_flight",
             "Number of requests in flights Transaction Orchestrator processes, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1227,7 +1230,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in processing one Transaction Orchestrator request",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
         let wait_for_finality_latency = register_histogram_vec_with_registry!(
@@ -1235,7 +1239,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in waiting for one Transaction Orchestrator request gets finalized",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
         let local_execution_latency = register_histogram_vec_with_registry!(
@@ -1243,7 +1248,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in waiting for one Transaction Orchestrator gets locally executed",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1257,43 +1263,50 @@ impl TransactionOrchestratorMetrics {
             wait_for_finality_in_flight: register_int_gauge_with_registry!(
                 "tx_orchestrator_wait_for_finality_in_flight",
                 "Number of in flight txns Transaction Orchestrator are waiting for finality for",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             wait_for_finality_finished: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_finished",
                 "Total number of txns Transaction Orchestrator gets responses from Quorum Driver before timeout, either success or failure",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             wait_for_finality_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_timeout",
                 "Total number of txns timing out in waiting for finality Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             local_execution_in_flight: register_int_gauge_with_registry!(
                 "tx_orchestrator_local_execution_in_flight",
                 "Number of local execution txns in flights Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             local_execution_success: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_success",
                 "Total number of successful local execution txns Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             local_execution_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_timeout",
                 "Total number of timed-out local execution txns Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             local_execution_failure: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_failure",
                 "Total number of failed local execution txns Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             skip_effect_cert_events_cache_miss: register_int_counter_with_registry!(

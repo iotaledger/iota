@@ -6,11 +6,11 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference,
+    Address, Identifier, ObjectId, ObjectReference, TransactionDigest,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{AuthorityName, ExecutionDigests, TransactionDigest, random_object_ref},
+    base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,

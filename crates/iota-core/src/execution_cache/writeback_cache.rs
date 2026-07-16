@@ -58,10 +58,12 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{
+    ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
+    Version,
+};
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
-    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,

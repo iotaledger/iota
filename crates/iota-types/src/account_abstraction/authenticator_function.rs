@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
+    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    base_types::TransactionDigest,
     dynamic_field::{self, Field},
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,

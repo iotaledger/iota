@@ -17,17 +17,16 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GasPayment,
-    GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall,
-    ObjectId, ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
-    RandomnessStateUpdate, SharedObjectReference, SplitCoins, TransactionExpiration,
-    TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
+    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
+    EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-pub use iota_sdk_types::{
-    SystemPackage, Transaction as TransactionData, TransactionV1 as TransactionDataV1,
-};
+pub use iota_sdk_types::{Transaction as TransactionData, TransactionV1 as TransactionDataV1};
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
@@ -43,7 +42,6 @@ use crate::{
         AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
         Signature, Signer, zero_ed25519_signature,
     },
-    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,

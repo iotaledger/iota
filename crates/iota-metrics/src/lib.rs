@@ -24,7 +24,7 @@ use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
+    Filter, Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
     core::{AtomicI64, GenericGauge},
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
@@ -39,10 +39,12 @@ mod guards;
 pub mod hardware_metrics;
 pub mod histogram;
 pub mod metered_channel;
+pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
 pub mod thread_stall_monitor;
 pub use guards::*;
+pub use metric_groups::{MetricGroups, MetricLevel};
 
 pub const TX_TYPE_SINGLE_WRITER_TX: &str = "single_writer";
 pub const TX_TYPE_SHARED_OBJ_TX: &str = "shared_object";
@@ -99,14 +101,16 @@ impl Metrics {
                 "monitored_tasks",
                 "Number of running tasks per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             futures: register_int_gauge_vec_with_registry!(
                 "monitored_futures",
                 "Number of pending futures per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             channel_inflight: register_int_gauge_vec_with_registry!(
@@ -550,6 +554,7 @@ pub struct RegistryService {
     // Holds a Registry that is supposed to be used
     default_registry: Registry,
     registries_by_id: Arc<DashMap<Uuid, Registry>>,
+    filter: Arc<Filter>,
 }
 
 impl RegistryService {
@@ -557,6 +562,7 @@ impl RegistryService {
     // is supposed to be preserved and never get removed
     pub fn new(default_registry: Registry) -> Self {
         Self {
+            filter: default_registry.filter(),
             default_registry,
             registries_by_id: Arc::new(DashMap::new()),
         }
@@ -566,6 +572,17 @@ impl RegistryService {
     // if they don't want to create a new one.
     pub fn default_registry(&self) -> Registry {
         self.default_registry.clone()
+    }
+
+    // Creates a new registry that shares the service's metric filter. Prefer
+    // this over `Registry::new()`/`Registry::new_custom()` for registries added
+    // via `add`, so that the configured filter applies to their metrics too.
+    pub fn new_registry_custom(
+        &self,
+        prefix: Option<String>,
+        labels: Option<std::collections::HashMap<String, String>>,
+    ) -> prometheus_filtered::Result<Registry> {
+        Registry::new_custom(prefix, labels, Some(self.filter.clone()))
     }
 
     // Adds a new registry to the service. The corresponding RegistryID is returned
@@ -663,7 +680,14 @@ pub const METRICS_ROUTE: &str = "/metrics";
 // A RegistryService is returned that can be used to get access in prometheus
 // Registries.
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
-    let registry = Registry::new();
+    start_prometheus_server_with_filter(addr, Filter::resolve(None))
+}
+
+pub fn start_prometheus_server_with_filter(addr: SocketAddr, filter: Filter) -> RegistryService {
+    // The default registry has no prefix or labels, so its construction is
+    // infallible.
+    let registry = Registry::new_custom(None, None, Some(Arc::new(filter)))
+        .expect("unprefixed registry is infallible");
 
     let registry_service = RegistryService::new(registry);
 
@@ -717,7 +741,8 @@ mod tests {
     #[test]
     fn registry_service() {
         // GIVEN
-        let default_registry = Registry::new_custom(Some("default".to_string()), None).unwrap();
+        let default_registry =
+            Registry::new_custom(Some("default".to_string()), None, None).unwrap();
 
         let registry_service = RegistryService::new(default_registry.clone());
         let default_counter = IntCounter::new("counter", "counter_desc").unwrap();
@@ -729,7 +754,7 @@ mod tests {
         // AND add a metric to the default registry
 
         // AND a registry with one metric
-        let registry_1 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         registry_1
             .register(Box::new(
                 IntCounter::new("counter_1", "counter_1_desc").unwrap(),
@@ -754,7 +779,7 @@ mod tests {
         assert_eq!(metric_1.help(), "counter_1_desc");
 
         // AND add a second registry with a metric
-        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         registry_2
             .register(Box::new(
                 IntCounter::new("counter_2", "counter_2_desc").unwrap(),

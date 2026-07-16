@@ -11,8 +11,8 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,

@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the transactional test runner instantiation for the
@@ -33,9 +33,10 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
-    ObjectData, ObjectId, ObjectReference, ProgrammableTransaction, RandomnessRound,
-    TransactionKind, TypeTag, Version, gas::GasCostSummary, move_package::MovePackage,
+    Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
+    Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag, Version,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -45,13 +46,13 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    move_package::{
+        IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
     },
-    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -168,6 +169,10 @@ pub struct IotaTestAdapter {
     digest_enumeration: BTreeMap<u64, TransactionDigest>,
     next_fake: (u64, u64),
     gas_price: u64,
+    /// Mirror of the active protocol config's
+    /// `package_metadata_with_dynamic_module_metadata` feature flag: when set,
+    /// published modules receive V2 (dynamic) runtime metadata, otherwise V1.
+    dynamic_module_metadata: bool,
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
     /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
@@ -207,6 +212,7 @@ impl AdapterInitConfig {
             epochs_to_keep,
             data_ingestion_path,
             grpc_api_url,
+            package_metadata_with_dynamic_module_metadata,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -250,6 +256,12 @@ impl AdapterInitConfig {
             None
         };
 
+        if let Some(enable) = package_metadata_with_dynamic_module_metadata {
+            if enable {
+                protocol_config.set_publish_package_metadata_for_testing(true);
+            }
+            protocol_config.set_package_metadata_with_dynamic_module_metadata_for_testing(enable);
+        }
         Self {
             additional_mapping: map,
             account_names: accounts,
@@ -419,6 +431,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             next_fake: (0, 0),
             // TODO: make this configurable
             gas_price: default_gas_price.unwrap_or(DEFAULT_GAS_PRICE),
+            dynamic_module_metadata: protocol_config
+                .package_metadata_with_dynamic_module_metadata(),
             staged_modules: BTreeMap::new(),
         };
 
@@ -458,10 +472,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             sender,
             upgradeable,
             dependencies,
+            view_functions,
             gas_price,
         } = extra;
 
-        fill_metadata(&mut modules);
+        fill_metadata(&mut modules, &view_functions, self.dynamic_module_metadata)?;
 
         let named_addr_opt = modules.first().unwrap().named_address;
 
@@ -944,7 +959,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
 
-                        fill_metadata(&mut modules);
+                        fill_metadata(&mut modules, &[], adapter.dynamic_module_metadata)?;
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -2858,7 +2873,7 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor.try_get_checkpoint_by_digest(digest)
     }
@@ -2937,23 +2952,61 @@ fn find_iota_root_dir() -> PathBuf {
     iota_root_dir.to_path_buf()
 }
 
-/// Fill the compiled modules with authenticator metadata directly from
-/// function_infos
-fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
+/// Fill the compiled modules with IOTA metadata from compiler function infos
+/// and transactional-test-only flags.
+fn fill_metadata(
+    modules: &mut [MaybeNamedCompiledModule],
+    view_functions: &[String],
+    dynamic_module_metadata: bool,
+) -> anyhow::Result<()> {
+    // View functions are only representable in V2 (dynamic) runtime metadata, so
+    // they require the `package_metadata_with_dynamic_module_metadata` feature.
+    if !dynamic_module_metadata && !view_functions.is_empty() {
+        bail!(
+            "--view-functions requires the package_metadata_with_dynamic_module_metadata protocol feature"
+        );
+    }
+
+    let mut unmatched_view_functions = view_functions.iter().cloned().collect::<BTreeSet<_>>();
+
     for m in modules.iter_mut() {
         let module: &mut CompiledModule = &mut m.module;
-        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        let mut runtime_metadata = if dynamic_module_metadata {
+            RuntimeModuleMetadata::v2()
+        } else {
+            RuntimeModuleMetadata::v1()
+        };
+        let mut view_attributes = BTreeSet::new();
 
         if let Some(fn_infos) = &m.function_infos {
             for (_, name, info) in fn_infos.iter() {
                 // We only need authenticator version here
                 if let Some(version) = info.attributes.get_authenticator() {
-                    runtime_metadata.add_function_attribute(
-                        name.as_str().to_owned(),
-                        IotaAttribute::authenticator_attribute(version),
-                    );
+                    let attribute = if dynamic_module_metadata {
+                        IotaAttribute::V2(IotaAttributeV2::authenticator_attribute(version))
+                    } else {
+                        IotaAttribute::V1(IotaAttributeV1::authenticator_attribute(version))
+                    };
+                    runtime_metadata.add_function_attribute(name.as_str().to_owned(), attribute);
+                }
+                if dynamic_module_metadata && info.attributes.is_view() {
+                    view_attributes.insert(name.as_str().to_owned());
                 }
             }
+        }
+
+        for function_name in view_functions {
+            if module.find_function_def_by_name(function_name).is_some() {
+                unmatched_view_functions.remove(function_name);
+                view_attributes.insert(function_name.clone());
+            }
+        }
+
+        for function_name in view_attributes {
+            runtime_metadata.add_function_attribute(
+                function_name,
+                IotaAttribute::V2(IotaAttributeV2::view_attribute()),
+            );
         }
 
         if !runtime_metadata.is_empty() {
@@ -2963,4 +3016,10 @@ fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
             });
         }
     }
+
+    if let Some(function_name) = unmatched_view_functions.into_iter().next() {
+        bail!("Could not find function '{function_name}' requested by --view-functions");
+    }
+
+    Ok(())
 }

@@ -11,11 +11,10 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
-    Version,
+    TransactionDigest, Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
