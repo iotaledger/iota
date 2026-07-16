@@ -54,7 +54,7 @@ pub enum Table {
     /// [`Object`](iota_types::object::Object) for every object.
     Objects,
     /// Stores a mapping of
-    /// [`TransactionDigest`](iota_types::base_types::TransactionDigest) to
+    /// [`TransactionDigest`](iota_sdk_types::TransactionDigest) to
     /// [`Transaction`](iota_types::transaction::Transaction),
     /// [`TransactionEffects`](iota_types::effects::TransactionEffects),
     /// [`TransactionEvents`](iota_types::effects::TransactionEvents) and
@@ -72,7 +72,7 @@ pub enum Table {
     /// every checkpoint.
     Checkpoints,
     /// Stores a mapping of
-    /// [`CheckpointDigest`](iota_types::digests::CheckpointDigest) to
+    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest) to
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
     /// for every checkpoint.
     CheckpointsByDigest,
