@@ -13,20 +13,32 @@ BASE_URL="https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota-sd
 
 # A pin bump triggers the upload workflow on the same push this build runs
 # for, so the tarballs for a freshly pinned revision may still be uploading;
-# wait for them (bounded) instead of failing the build.
+# wait for them (bounded) instead of failing the build. Connection-level
+# failures (curl exit codes other than 22, the HTTP-error code under -f)
+# abort immediately — retrying cannot fix an unreachable S3.
 all_present() {
+    local status language
     for language in python go kotlin csharp swift; do
-        curl -sfIL -o /dev/null "${BASE_URL}/${language}.tar.gz" || return 1
+        curl -sfIL -o /dev/null "${BASE_URL}/${language}.tar.gz"
+        status=$?
+        if [ "$status" -eq 22 ]; then
+            return 1
+        elif [ "$status" -ne 0 ]; then
+            echo "Cannot reach S3 (curl exit ${status})." >&2
+            exit 1
+        fi
     done
 }
 
-for i in $(seq 1 60); do
+attempts=60
+for i in $(seq 1 "$attempts"); do
     if all_present; then
         break
     fi
-    if [ "$i" = 60 ]; then
-        echo "References for revision ${REV} not found on S3 after 30 minutes." >&2
-        echo "Check the 'Upload IOTA SDK References to S3' workflow run." >&2
+    if [ "$i" = "$attempts" ]; then
+        echo "References for revision ${REV} not found on S3 after $((attempts / 2)) minutes." >&2
+        echo "Check the 'Upload IOTA SDK References to S3' workflow run; for a" >&2
+        echo "revision bump from a fork, a maintainer must dispatch it manually." >&2
         exit 1
     fi
     echo "Waiting for references of revision ${REV} to appear on S3..."
