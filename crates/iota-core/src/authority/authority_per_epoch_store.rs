@@ -3188,7 +3188,7 @@ impl AuthorityPerEpochStore {
     /// Whether a quarantined commit released the lock on `obj_ref` (its
     /// holder was dropped for execution congestion). While true, any entry
     /// still in the lock table is stale and must be ignored.
-    pub fn is_owned_object_lock_released(&self, obj_ref: &ObjectRef) -> bool {
+    pub fn is_owned_object_lock_released(&self, obj_ref: &ObjectReference) -> bool {
         self.consensus_quarantine
             .read()
             .owned_object_lock_released(obj_ref)

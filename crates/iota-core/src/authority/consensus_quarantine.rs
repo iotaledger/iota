@@ -259,7 +259,7 @@ impl ConsensusCommitOutput {
     pub fn release_owned_object_locks_of(
         &mut self,
         holder: LockDetails,
-        owned_inputs: impl IntoIterator<Item = ObjectRef>,
+        owned_inputs: impl IntoIterator<Item = ObjectReference>,
     ) {
         for obj_ref in owned_inputs {
             if self.owned_object_locks.get(&obj_ref) == Some(&holder) {
@@ -638,7 +638,7 @@ pub(crate) struct ConsensusOutputQuarantine {
     // is written (which deletes the table entries), so lock lookups see the
     // release at the same point on every validator. A later re-lock of the
     // same object reference clears its tombstone.
-    released_owned_object_locks: HashMap<ObjectRef, CommitRound>,
+    released_owned_object_locks: HashMap<ObjectReference, CommitRound>,
 
     // In-memory cache of the `authority_overload_notifications` table: the most
     // recent load-shedding percentage each authority has broadcast, for the
@@ -972,7 +972,7 @@ impl ConsensusOutputQuarantine {
 
     /// Whether a quarantined commit released the lock on `obj_ref`. While
     /// true, any entry still in the lock table is stale and must be ignored.
-    pub(super) fn owned_object_lock_released(&self, obj_ref: &ObjectRef) -> bool {
+    pub(super) fn owned_object_lock_released(&self, obj_ref: &ObjectReference) -> bool {
         self.released_owned_object_locks.contains_key(obj_ref)
     }
 
@@ -1348,7 +1348,7 @@ where
 #[cfg(test)]
 mod tests {
     use iota_types::base_types::random_object_ref;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
 
     use super::*;
 

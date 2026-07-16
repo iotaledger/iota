@@ -1344,7 +1344,7 @@ fn congested_suggested_gas_price(error: &QuorumDriverError) -> Option<u64> {
 #[sim_test]
 async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let _env_guard = enable_white_flag_env();
+    let _env_guard = enable_pcool_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
@@ -1368,7 +1368,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
     // until one is shed: only one transaction fits per commit, so any commit
     // carrying two or more sheds the rest. Retry with fresh object references
     // in the unlikely case a burst spreads across single-transaction commits.
-    let mut congested: Option<(Address, ObjectRef, u64)> = None;
+    let mut congested: Option<(Address, ObjectReference, u64)> = None;
     'bursts: for _ in 0..5 {
         let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
         let batch: Vec<_> = accounts_and_objs

@@ -335,7 +335,7 @@ impl WorkerSlots {
 
     /// Reconstructs a profile from a stored debt (`(start, end, count)`
     /// slots). The input is assumed to already satisfy the invariant
-    /// (sorted, disjoint, merged), as produced by [`Self::debt_beyond`] and
+    /// (sorted, disjoint, merged), as produced by [`Self::overshoot`] and
     /// [`Self::decay`].
     fn from_debt(slots: Vec<(ExecutionTime, ExecutionTime, u16)>) -> Self {
         Self(

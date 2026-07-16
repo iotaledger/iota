@@ -14,7 +14,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
-    base_types::{SequenceNumber, dbg_addr},
+    base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
@@ -982,8 +982,8 @@ async fn test_execution_worker_congestion_drops_owned_object_only_tx() {
     // Two owned-object-only transfer transactions with no object overlap.
     let mut transactions = Vec::new();
     for (object_id, gas_id) in [(object_1_id, gas_1_id), (object_2_id, gas_2_id)] {
-        let object = authority.get_object(&object_id).await.unwrap();
-        let gas = authority.get_object(&gas_id).await.unwrap();
+        let object = authority.get_object(&object_id).unwrap();
+        let gas = authority.get_object(&gas_id).unwrap();
         transactions.push(init_transfer_transaction(
             &authority,
             sender,
@@ -1081,8 +1081,8 @@ async fn test_execution_worker_congestion_drop_releases_owned_object_locks() {
 
     let mut transactions = Vec::new();
     for (object_id, gas_id) in object_ids.iter().zip(gas_ids.iter()) {
-        let object = authority.get_object(object_id).await.unwrap();
-        let gas = authority.get_object(gas_id).await.unwrap();
+        let object = authority.get_object(object_id).unwrap();
+        let gas = authority.get_object(gas_id).unwrap();
         transactions.push(init_transfer_transaction(
             &authority,
             sender,
@@ -1136,11 +1136,8 @@ async fn test_execution_worker_congestion_drop_releases_owned_object_locks() {
     // Second commit: resubmit spending the same owned object at a higher gas
     // price (different digest). It must be scheduled, not rejected with
     // `ObjectLockConflict` against the dropped transaction's stale lock.
-    let object = authority
-        .get_object(&object_ids[dropped_index])
-        .await
-        .unwrap();
-    let gas = authority.get_object(&gas_ids[dropped_index]).await.unwrap();
+    let object = authority.get_object(&object_ids[dropped_index]).unwrap();
+    let gas = authority.get_object(&gas_ids[dropped_index]).unwrap();
     let resubmitted = init_transfer_transaction(
         &authority,
         sender,
