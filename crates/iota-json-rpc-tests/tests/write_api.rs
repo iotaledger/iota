@@ -196,37 +196,31 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
         "{err}"
     );
 
-    // A module without function attributes has no view functions metadata:
-    // calls fall back to signature checks and succeed.
-    let results = http_client
+    // A module without function attributes has no view functions metadata, so
+    // calls to any of its functions are rejected.
+    let err = http_client
         .view_function_call(format!("{package_id}::plain::forty"), None, vec![])
-        .await?;
-    assert!(results.error().is_none(), "{results:?}");
-    assert_eq!(
-        results.into_return_values(),
-        vec![IotaMoveValue::String("40".into())]
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("is not declared as a #[view] function"),
+        "{err}"
     );
 
-    // System packages have no view functions metadata: calls fall back to
-    // signature checks and succeed.
-    let results = http_client
+    // System packages have no view functions metadata, so calls to any of their
+    // functions are rejected, public or not.
+    let err = http_client
         .view_function_call(
             "0x2::clock::timestamp_ms".to_string(),
             None,
             vec![call_arg!(ObjectId::CLOCK)?],
         )
-        .await?;
-    assert!(results.error().is_none(), "{results:?}");
-    assert_eq!(results.into_return_values().len(), 1);
-
-    // Non-public functions are rejected also without view functions metadata.
-    let err = http_client
-        .view_function_call(format!("{package_id}::plain::private_forty"), None, vec![])
         .await
         .unwrap_err();
     assert!(
         err.to_string()
-            .contains("Only public functions can be called as view functions"),
+            .contains("is not declared as a #[view] function"),
         "{err}"
     );
     let err = http_client
@@ -239,7 +233,20 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
         .unwrap_err();
     assert!(
         err.to_string()
-            .contains("Only public functions can be called as view functions"),
+            .contains("is not declared as a #[view] function"),
+        "{err}"
+    );
+
+    // A non-public function in the same metadata-less module is rejected the
+    // same way as its public sibling above; visibility plays no role once
+    // metadata membership is the only check.
+    let err = http_client
+        .view_function_call(format!("{package_id}::plain::private_forty"), None, vec![])
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("is not declared as a #[view] function"),
         "{err}"
     );
 

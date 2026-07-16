@@ -290,10 +290,7 @@ impl TransactionBuilder {
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity. Also, check that
     /// the passed function is declared as a `#[view]` function in the
-    /// module's runtime metadata; modules without view function information
-    /// (published before view functions were introduced, or carrying no
-    /// function attributes) fall back to signature checks for backwards
-    /// compatibility.
+    /// module's runtime metadata.
     pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -311,14 +308,13 @@ impl TransactionBuilder {
         // runtime metadata. Functions recorded there passed the view function
         // verifier at publish time, so no further signature checks are needed.
         let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
-
         fp_ensure!(
             is_view,
             UserInputError::InvalidMoveViewFunction {
                 error: format!(
                     "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
-                    ),
-                }
+                ),
+            }
             .into()
         );
 
@@ -470,7 +466,7 @@ impl TransactionBuilder {
 /// Checks whether `function_name` is recorded as a `#[view]` function in the
 /// module's runtime metadata.
 ///
-/// Returns `None` for modules without version 2 runtime metadata (compiled
+/// Returns `false` for modules without version 2 runtime metadata (compiled
 /// before view functions were introduced, or carrying no function
 /// attributes), which therefore record no view function information.
 fn is_view_function_from_module_metadata(
