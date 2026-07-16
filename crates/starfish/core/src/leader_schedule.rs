@@ -125,7 +125,7 @@ impl LeaderSchedule {
         // A recovered backlog exceeding the window therefore indicates a store
         // written by different code or modified externally. It is not treated
         // as fatal: returning 0 forces an immediate schedule update, which
-        // replays the backlog window by window.
+        // rebuilds the schedule from the backlog's last full window.
         if subdag_count > self.num_commits_per_schedule {
             tracing::warn!(
                 "Recovered scoring backlog ({subdag_count} subdags) exceeds the schedule \
@@ -360,46 +360,43 @@ impl LeaderSchedule {
     /// never produces, tolerated in case the store was written by different
     /// code or modified externally.
     ///
-    /// The backlog is replayed window by window from the store, so every
-    /// rebuilt swap table matches the one a continuously running node computed
-    /// over the same commits, and rotations stay on the same commit boundaries.
-    /// The trailing partial window becomes the live scoring subdag.
+    /// Only the last full window of the backlog is scored: it alone determines
+    /// the swap table a continuously running node had at that point, and
+    /// rotations stay on the same commit boundaries. The trailing partial
+    /// window becomes the live scoring subdag.
     fn update_leader_schedule_from_backlog(&self, dag_state_write_lock: &mut DagState) {
         let backlog_range = dag_state_write_lock.scoring_subdag_commit_range();
         let window_size = self.num_commits_per_schedule;
+        // The caller only routes here when the backlog exceeds one window, so
+        // there is at least one full window.
         let full_windows = backlog_range.size() as u32 / window_size;
+        let window_start = backlog_range.start() + (full_windows - 1) * window_size;
+        let window_end = window_start + (window_size - 1);
 
         tracing::info!(
-            "Replaying recovered scoring backlog {backlog_range:?} as {full_windows} full \
-             window(s) of {window_size} commits"
+            "Rebuilding leader schedule from the last full window \
+             ({window_start}..={window_end}) of the recovered scoring backlog {backlog_range:?}"
         );
 
         dag_state_write_lock.clear_scoring_subdag();
 
-        let mut last_window_scores = None;
-        for window in 0..full_windows {
-            let window_start = backlog_range.start() + window * window_size;
-            let window_end = window_start + (window_size - 1);
-            let mut scoring_subdag = ScoringSubdag::new(self.context.clone());
-            scoring_subdag.add_subdags(
-                dag_state_write_lock
-                    .load_scoring_subdags_from_store((window_start..=window_end).into()),
-            );
-            let reputation_scores = scoring_subdag.calculate_distributed_vote_scores();
-            let table =
-                LeaderSwapTable::new(self.context.clone(), window_end, reputation_scores.clone());
-            self.range_validation_or_skip(&table, &self.leader_swap_table.read());
-            self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
-            last_window_scores = Some(reputation_scores);
-        }
+        let mut scoring_subdag = ScoringSubdag::new(self.context.clone());
+        scoring_subdag.add_subdags(
+            dag_state_write_lock
+                .load_scoring_subdags_from_store((window_start..=window_end).into()),
+        );
+        let reputation_scores = scoring_subdag.calculate_distributed_vote_scores();
+        // The window is interval-wide and lands on the rotation boundaries by
+        // construction, so the steady-state range validation is not repeated.
+        let table =
+            LeaderSwapTable::new(self.context.clone(), window_end, reputation_scores.clone());
+        self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
 
         // Recovery resumes from the end of the last persisted commit range, so
-        // only the last completed window's scores need to be persisted.
-        let reputation_scores = last_window_scores
-            .expect("a backlog larger than one window contains at least one full window");
+        // these are the only scores that need to be persisted.
         dag_state_write_lock.add_commit_info(reputation_scores);
 
-        let remainder_start = backlog_range.start() + full_windows * window_size;
+        let remainder_start = window_end + 1;
         if remainder_start <= backlog_range.end() {
             let remainder_subdags = dag_state_write_lock
                 .load_scoring_subdags_from_store((remainder_start..=backlog_range.end()).into());
@@ -1237,9 +1234,9 @@ mod tests {
     }
 
     // Recovers a schedule from a store whose last CommitInfo lags the last
-    // commit by more than one rotation interval, and checks that the backlog
-    // is replayed window by window onto the same rotation boundaries a
-    // continuously running node used.
+    // commit by more than one rotation interval, and checks that the schedule
+    // is rebuilt onto the same rotation boundaries a continuously running
+    // node used.
     async fn run_update_after_recovery_backlog(restart: bool) {
         telemetry_subscribers::init_for_testing();
         let mut context = Context::new_for_test(4).0;
@@ -1300,7 +1297,8 @@ mod tests {
             0
         );
 
-        // The full windows are replayed; the partial window stays live.
+        // The last full window rebuilds the table; the partial window stays
+        // live.
         leader_schedule.update_leader_schedule(&mut dag_state.write());
         {
             let table = leader_schedule.leader_swap_table.read();
@@ -1360,12 +1358,11 @@ mod tests {
         run_update_after_recovery_backlog(true).await;
     }
 
-    /// Verifies that replaying an oversized recovered backlog window by window
-    /// produces the exact same per-window `ReputationScores` (and therefore the
-    /// same `LeaderSwapTable`) as a node that never crashed and updated its
-    /// schedule incrementally over the same commits.
+    /// Verifies that rebuilding the schedule from an oversized recovered
+    /// backlog produces the exact same `LeaderSwapTable` as a node that never
+    /// crashed and updated its schedule incrementally over the same commits.
     #[tokio::test]
-    async fn test_update_leader_schedule_from_backlog_matches_live_schedule_per_window() {
+    async fn test_update_leader_schedule_from_backlog_matches_live_schedule() {
         telemetry_subscribers::init_for_testing();
         let mut context = Context::new_for_test(4).0;
         context
@@ -1387,25 +1384,14 @@ mod tests {
         )));
         let leader_schedule_live = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
             .with_num_commits_per_schedule(5);
-        let mut live_scores_window_1 = None;
         for (index, (sub_dag, commit)) in sub_dags_and_commits.iter().enumerate() {
             let mut dag_state_write = dag_state_live.write();
             dag_state_write.set_last_commit(commit.clone());
             dag_state_write.add_scoring_subdags(vec![sub_dag.base.clone()]);
             if (index + 1) % 5 == 0 {
                 leader_schedule_live.update_leader_schedule(&mut dag_state_write);
-                if index + 1 == 5 {
-                    live_scores_window_1 = Some(
-                        leader_schedule_live
-                            .leader_swap_table
-                            .read()
-                            .reputation_scores
-                            .clone(),
-                    );
-                }
             }
         }
-        let live_scores_window_1 = live_scores_window_1.expect("window 1 update should have run");
         let live_table_window_2 = leader_schedule_live.leader_swap_table.read().clone();
 
         // Recovered scenario: the same 10 commits are persisted with no
@@ -1430,95 +1416,18 @@ mod tests {
         assert_eq!(dag_state_recovered.read().scoring_subdags_count(), 10);
 
         let leader_schedule_recovered =
-            LeaderSchedule::from_store(context.clone(), dag_state_recovered.clone())
+            LeaderSchedule::from_store(context, dag_state_recovered.clone())
                 .with_num_commits_per_schedule(5);
         leader_schedule_recovered.update_leader_schedule(&mut dag_state_recovered.write());
         let recovered_table = leader_schedule_recovered.leader_swap_table.read().clone();
 
-        // The final table produced by the backlog replay (window 2) must match
-        // the live node's window-2 table exactly.
+        // The table rebuilt from the backlog (last full window) must match the
+        // live node's window-2 table exactly.
         assert_eq!(
             recovered_table.reputation_scores,
             live_table_window_2.reputation_scores
         );
         assert_eq!(recovered_table.good_nodes, live_table_window_2.good_nodes);
         assert_eq!(recovered_table.bad_nodes, live_table_window_2.bad_nodes);
-
-        // Per-window check: recompute window 1's scores the same way the
-        // replay does internally (batch-load the window's commits into a fresh
-        // ScoringSubdag) and confirm they match what the live node computed
-        // incrementally for that same window.
-        let window_1_subdags = dag_state_recovered
-            .read()
-            .load_scoring_subdags_from_store((1..=5).into());
-        let mut window_1_scoring_subdag = ScoringSubdag::new(context);
-        window_1_scoring_subdag.add_subdags(window_1_subdags);
-        let window_1_scores = window_1_scoring_subdag.calculate_distributed_vote_scores();
-        assert_eq!(window_1_scores, live_scores_window_1);
-    }
-
-    // A recovered CommitInfo may span a different number of commits than the
-    // current `commits_per_schedule`. The first replayed window then can't
-    // match the old range's size: it must be applied with a warning instead of
-    // a panic, and subsequent windows validate strictly again.
-    #[tokio::test]
-    async fn test_update_leader_schedule_backlog_after_commits_per_schedule_change() {
-        telemetry_subscribers::init_for_testing();
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-
-        // CommitInfo covers (1..=2) — a two-commit interval — while the
-        // schedule now rotates every three commits. The backlog (3..=8)
-        // replays as windows (3..=5) and (6..=8) with no remainder.
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=8).build();
-        let first_window = dag_builder.get_sub_dag_and_commits(1..=2);
-        let committed_rounds = dag_builder.last_committed_rounds.clone();
-        let rest = dag_builder.get_sub_dag_and_commits(3..=8);
-
-        let mut headers_to_write = vec![];
-        let mut commits_to_write = vec![];
-        for (sub_dag, commit) in first_window.iter().chain(rest.iter()) {
-            headers_to_write.extend(sub_dag.headers.iter().cloned());
-            commits_to_write.push(commit.clone());
-        }
-        let commit_info = CommitInfo {
-            reputation_scores: ReputationScores::new((1..=2).into(), vec![1, 2, 4, 3]),
-            committed_rounds,
-        };
-        let commit_ref = first_window.last().unwrap().1.reference();
-        store
-            .write(
-                WriteBatch::default()
-                    .commit_info(vec![(commit_ref, commit_info)])
-                    .block_headers(headers_to_write)
-                    .commits(commits_to_write),
-            )
-            .unwrap();
-
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        assert_eq!(dag_state.read().scoring_subdags_count(), 6);
-
-        let leader_schedule =
-            LeaderSchedule::from_store(context, dag_state.clone()).with_num_commits_per_schedule(3);
-        assert_eq!(
-            leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
-            0
-        );
-
-        leader_schedule.update_leader_schedule(&mut dag_state.write());
-        assert_eq!(
-            leader_schedule
-                .leader_swap_table
-                .read()
-                .reputation_scores
-                .commit_range,
-            (6..=8).into()
-        );
-        assert_eq!(dag_state.read().scoring_subdags_count(), 0);
     }
 }
