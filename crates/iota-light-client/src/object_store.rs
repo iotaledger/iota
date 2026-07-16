@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use anyhow::{Result, anyhow, bail};
 use iota_data_ingestion_core::history::{
     epoch_boundaries::EpochBoundaries,
@@ -26,7 +28,7 @@ impl CheckpointStore {
 
         let config = HistoricalReaderConfig {
             object_store_config,
-            download_concurrency: 5,
+            download_concurrency: NonZeroUsize::new(5).unwrap(),
         };
 
         Ok(Self {

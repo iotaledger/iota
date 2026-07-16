@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, time::Duration};
+use std::{env, num::NonZeroUsize, time::Duration};
 
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
@@ -51,7 +51,8 @@ impl Indexer {
 
         info!("IOTA Indexer Writer config: {config:?}",);
         let extra_reader_options = ReaderOptions {
-            batch_size: config.checkpoint_download_queue_size,
+            download_concurrency: NonZeroUsize::new(config.checkpoint_download_queue_size)
+                .expect("checkpoint-download-queue-size must be non-zero"),
             timeout_secs: config.checkpoint_download_timeout,
             data_limit: config.checkpoint_download_queue_size_bytes,
             ..Default::default()

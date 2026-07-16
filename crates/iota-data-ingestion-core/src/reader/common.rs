@@ -3,7 +3,7 @@
 
 //! This module shares common types and logic for the checkpoint reader.
 
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, time::Duration};
 
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -25,7 +25,7 @@ pub struct ReaderOptions {
     /// for backfills, higher values increase throughput but use more resources.
     ///
     /// Default: 10.
-    pub batch_size: usize,
+    pub download_concurrency: NonZeroUsize,
     /// Maximum memory (bytes) for batch checkpoint processing to prevent OOM
     /// errors. Zero indicates no limit.
     ///
@@ -48,7 +48,7 @@ impl Default for ReaderOptions {
         Self {
             tick_interval_ms: 100,
             timeout_secs: 5,
-            batch_size: 10,
+            download_concurrency: NonZeroUsize::new(10).unwrap(),
             data_limit: 0,
             stall_timeout: None,
         }

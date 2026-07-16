@@ -4,6 +4,7 @@
 
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
+    num::NonZeroUsize,
     sync::{Arc, RwLock},
     time::Instant,
 };
@@ -692,6 +693,8 @@ async fn query_connected_peers_for_their_known_peers(
     let peer_query_timeout = config.peer_query_timeout();
 
     // Queries the selected neighbors for their known peers in parallel.
+    let concurrency =
+        NonZeroUsize::new(config.peers_to_query()).expect("peers-to-query must be non-zero");
     let found_peers = peers_to_query
         .into_iter()
         .map(DiscoveryClient::new)
@@ -717,7 +720,7 @@ async fn query_connected_peers_for_their_known_peers(
                 )
         })
         .pipe(futures::stream::iter)
-        .buffer_unordered(config.peers_to_query())
+        .buffer_unordered(concurrency.into())
         .filter_map(std::future::ready)
         .flat_map(futures::stream::iter)
         .collect::<Vec<_>>()
@@ -928,6 +931,8 @@ async fn verify_addresses_of_peers(
     Vec<NodeInfo>,
 ) {
     let peers_count = peers.len();
+    let concurrency = NonZeroUsize::new(config.max_concurrent_address_verifications())
+        .expect("max-concurrent-address-verifications must be non-zero");
     let verification_stream = futures::stream::iter(peers.into_iter().map(|verified_peer_info| {
         let network = network.clone();
         async move {
@@ -936,7 +941,7 @@ async fn verify_addresses_of_peers(
             (verified_peer_info, valid_addresses)
         }
     }))
-    .buffer_unordered(config.max_concurrent_address_verifications()); // Limit concurrent verifications to avoid overwhelming the network
+    .buffer_unordered(concurrency.into()); // Limit concurrent verifications to avoid overwhelming the network
 
     let mut address_verification_results = Vec::with_capacity(peers_count);
     let mut verification_stream = std::pin::Pin::new(Box::new(verification_stream));

@@ -60,6 +60,7 @@
 
 use std::{
     collections::{HashMap, VecDeque},
+    num::NonZeroUsize,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -866,13 +867,16 @@ where
                 .map(|x| x.sequence_number())
         {
             // Start sync job
+            let concurrency =
+                NonZeroUsize::new(self.config.checkpoint_header_download_concurrency())
+                    .expect("checkpoint-header-download-concurrency must be non-zero");
             let task = sync_to_checkpoint(
                 self.network.clone(),
                 self.store.clone(),
                 self.peer_heights.clone(),
                 self.metrics.clone(),
                 self.config.pinned_checkpoints.clone(),
-                self.config.checkpoint_header_download_concurrency(),
+                concurrency,
                 self.config.timeout(),
                 // The if condition should ensure that this is Some
                 highest_known_checkpoint.unwrap(),
@@ -1063,7 +1067,7 @@ async fn sync_to_checkpoint<S>(
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
     pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
-    checkpoint_header_download_concurrency: usize,
+    checkpoint_header_download_concurrency: NonZeroUsize,
     timeout: Duration,
     checkpoint: Checkpoint,
 ) -> Result<()>
@@ -1154,7 +1158,7 @@ where
             }
         })
         .pipe(futures::stream::iter)
-        .buffered(checkpoint_header_download_concurrency);
+        .buffered(checkpoint_header_download_concurrency.into());
 
     let mut last_cleaned = current.sequence_number();
     while let Some((maybe_checkpoint, next, maybe_peer_id)) = request_stream.next().await {
@@ -1319,7 +1323,8 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         // executor give up after 60s without progress and the outer loop retries.
         let archive_end = end - 1;
         let reader_options = ReaderOptions {
-            batch_size: checkpoint_archive_config.download_concurrency(),
+            download_concurrency: NonZeroUsize::new(checkpoint_archive_config.download_concurrency)
+                .expect("checkpoint-archive-config.download-concurrency must be non-zero"),
             stall_timeout: Some(Duration::from_secs(60)),
             ..Default::default()
         };

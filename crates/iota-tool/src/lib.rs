@@ -629,7 +629,7 @@ fn set_restore_watermarks(
 pub(crate) async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,
-    num_parallel_downloads: usize,
+    num_parallel_downloads: NonZeroUsize,
 ) -> anyhow::Result<()> {
     let m = &MultiProgress::new();
 
@@ -687,14 +687,9 @@ pub(crate) async fn backfill_checkpoint_summaries(
             false
         })
     };
-    let num_parallel_downloads = if num_parallel_downloads != 0 {
-        num_parallel_downloads
-    } else {
-        num_cpus::get().saturating_sub(1).max(1)
-    };
     let all_ok = futures::stream::iter(1..=highest_synced)
         .map(backfill_one)
-        .buffer_unordered(num_parallel_downloads)
+        .buffer_unordered(num_parallel_downloads.into())
         // use .fold() since .all() short-circuits
         .fold(true, |acc, ok| async move { acc && ok })
         .await;

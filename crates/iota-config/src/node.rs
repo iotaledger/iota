@@ -1107,11 +1107,8 @@ pub struct DBCheckpointConfig {
     pub prune_and_compact_before_upload: Option<bool>,
 }
 
-/// Default download concurrency for the checkpoint archive state-sync fallback.
-pub const DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY: usize = 10;
-
 fn default_checkpoint_archive_download_concurrency() -> usize {
-    DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY
+    10
 }
 
 /// Configuration for backfilling checkpoint contents from the
@@ -1121,21 +1118,9 @@ fn default_checkpoint_archive_download_concurrency() -> usize {
 pub struct CheckpointArchiveConfig {
     /// URL of the checkpoint archive to backfill from.
     pub url: String,
-    /// Number of checkpoints to download in parallel. `0` is treated as the
-    /// default ([`DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY`]).
+    /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
     pub download_concurrency: usize,
-}
-
-impl CheckpointArchiveConfig {
-    /// Download batch size, mapping `0` to the default.
-    pub fn download_concurrency(&self) -> usize {
-        if self.download_concurrency == 0 {
-            DEFAULT_CHECKPOINT_ARCHIVE_DOWNLOAD_CONCURRENCY
-        } else {
-            self.download_concurrency
-        }
-    }
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

@@ -13,7 +13,7 @@
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
 
-use std::ops::Range;
+use std::{num::NonZeroUsize, ops::Range};
 
 use bytes::Bytes;
 use iota_config::object_storage_config::ObjectStoreConfig;
@@ -181,7 +181,7 @@ pub async fn write_manifest<S: ObjectStorePutExt>(
 
 pub async fn verify_historical_checkpoints_with_checksums(
     object_store_config: ObjectStoreConfig,
-    download_concurrency: usize,
+    download_concurrency: NonZeroUsize,
 ) -> Result<()> {
     let config = HistoricalReaderConfig {
         object_store_config,

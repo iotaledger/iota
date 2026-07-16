@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -97,7 +98,7 @@ enum RemoteStore {
 impl RemoteStore {
     async fn new(
         remote_url: RemoteUrl,
-        batch_size: usize,
+        download_concurrency: NonZeroUsize,
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
@@ -306,13 +307,13 @@ impl CheckpointReaderActor {
     /// channel.
     async fn relay_from_live(
         &mut self,
-        batch_size: usize,
+        concurrency: NonZeroUsize,
         live: &dyn ObjectStore,
     ) -> IngestionResult<()> {
         let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
             .map(|checkpoint_number| fetch_from_object_store(live, checkpoint_number))
             .pipe(futures::stream::iter)
-            .buffered(batch_size);
+            .buffered(concurrency.into());
         while let Some((checkpoint, size)) = self
             .token
             .run_until_cancelled(checkpoint_stream.try_next())
@@ -369,7 +370,6 @@ impl CheckpointReaderActor {
         let Some(remote_store) = self.remote_store.as_ref().map(Arc::clone) else {
             return Ok(());
         };
-        let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
             RemoteStore::Fullnode(client) => {
                 self.relay_from_fullnode(&mut client.clone()).await?;
@@ -382,8 +382,9 @@ impl CheckpointReaderActor {
                     .await
                 {
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
+                        let concurrency = self.reader_options.download_concurrency;
                         let live = live.as_ref().ok_or(err)?;
-                        return self.relay_from_live(batch_size, live).await;
+                        return self.relay_from_live(concurrency, live).await;
                     }
                     return Err(err);
                 }
@@ -577,7 +578,7 @@ impl CheckpointReader {
             Some(Arc::new(
                 RemoteStore::new(
                     url,
-                    config.base.reader_options.batch_size,
+                    config.base.reader_options.download_concurrency,
                     config.base.reader_options.timeout_secs,
                 )
                 .await?,

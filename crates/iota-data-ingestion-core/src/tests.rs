@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
@@ -62,7 +63,7 @@ async fn run(
 ) -> IngestionResult<ExecutorProgress> {
     let reader_options = ReaderOptions {
         tick_interval_ms: 10,
-        batch_size: 1,
+        download_concurrency: NonZeroUsize::new(1).unwrap(),
         ..Default::default()
     };
 
@@ -281,7 +282,7 @@ async fn stall_timeout_shuts_down_when_no_progress() {
     }
     let reader_options = ReaderOptions {
         tick_interval_ms: 10,
-        batch_size: 1,
+        download_concurrency: NonZeroUsize::new(1).unwrap(),
         stall_timeout: Some(Duration::from_millis(500)),
         ..Default::default()
     };

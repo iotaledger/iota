@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, env, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use clap::*;
@@ -792,7 +792,11 @@ impl ToolCommand {
                         .update_log("off")
                         .expect("Failed to update log level");
                 }
-                let num_parallel_downloads = num_parallel_downloads.unwrap_or_default();
+                let num_parallel_downloads = NonZeroUsize::new(
+                    num_parallel_downloads
+                        .unwrap_or_else(|| num_cpus::get().saturating_sub(1).max(1)),
+                )
+                .expect("num-parallel-downloads must be non-zero");
                 backfill_checkpoint_summaries(&path, ingestion_url, num_parallel_downloads).await?;
             }
             ToolCommand::DownloadDBSnapshot {

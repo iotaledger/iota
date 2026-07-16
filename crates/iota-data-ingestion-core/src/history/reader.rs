@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, ops::Range, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{Stream, StreamExt, TryStreamExt};
@@ -31,12 +31,9 @@ use crate::{
     },
 };
 
-// Default value in case download_concurrency config value is 0.
-const DEFAULT_HISTORICAL_READER_CONCURRENCY: usize = 4;
-
 #[derive(Clone)]
 pub struct HistoricalReader {
-    concurrency: usize,
+    concurrency: NonZeroUsize,
     #[expect(dead_code)]
     /// We store this to get dropped along with the
     /// reader and hence terminate the manifest sync
@@ -46,10 +43,10 @@ pub struct HistoricalReader {
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct HistoricalReaderConfig {
     pub object_store_config: ObjectStoreConfig,
-    pub download_concurrency: usize,
+    pub download_concurrency: NonZeroUsize,
 }
 
 impl HistoricalReader {
@@ -63,16 +60,11 @@ impl HistoricalReader {
         let manifest = Arc::new(Mutex::new(Manifest::new(0)));
         // Start a background tokio task to keep local manifest in sync with remote
         Self::spawn_manifest_sync_task(remote_object_store.clone(), manifest.clone(), recv);
-        let concurrency = if config.download_concurrency != 0 {
-            config.download_concurrency
-        } else {
-            DEFAULT_HISTORICAL_READER_CONCURRENCY
-        };
         Ok(Self {
             manifest,
             sender: Arc::new(sender),
             remote_object_store,
-            concurrency,
+            concurrency: config.download_concurrency,
         })
     }
 
@@ -116,7 +108,7 @@ impl HistoricalReader {
                 }
             })
             .boxed()
-            .buffer_unordered(self.concurrency)
+            .buffer_unordered(self.concurrency.into())
             .try_for_each(|(checkpoint_data, metadata)| {
                 let checksum = compute_sha3_checksum_for_bytes(checkpoint_data).map_err(Into::into);
                 let result = checksum.and_then(|checksum| {
@@ -173,7 +165,7 @@ impl HistoricalReader {
                 let file_path = metadata.file_path();
                 Ok(get(&remote_object_store, &file_path).await?)
             })
-            .buffered(self.concurrency))
+            .buffered(self.concurrency.into()))
     }
 
     /// Construct an [`Iterator`] over [`CheckpointData`] for the specified
