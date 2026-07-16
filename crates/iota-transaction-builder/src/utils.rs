@@ -30,9 +30,7 @@ use iota_types::{
     transaction::CallArg,
 };
 use move_binary_format::{
-    CompiledModule,
-    binary_config::BinaryConfig,
-    file_format::{SignatureToken, Visibility},
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
     file_format_common::IOTA_METADATA_KEY,
 };
 
@@ -312,22 +310,17 @@ impl TransactionBuilder {
         // Check the function against the view functions recorded in the module's
         // runtime metadata. Functions recorded there passed the view function
         // verifier at publish time, so no further signature checks are needed.
-        match is_view_function_from_module_metadata(&module, function_ident.as_str())? {
-            Some(is_view) => {
-                fp_ensure!(
-                    is_view,
-                    UserInputError::InvalidMoveViewFunction {
-                        error: format!(
-                            "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
-                        ),
-                    }
-                    .into()
-                );
-            }
-            // Without view function metadata, fall back to checking the signature
-            // requirements the view function verifier would have enforced.
-            None => check_view_function_signature(&module, function_ident)?,
-        }
+        let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
+
+        fp_ensure!(
+            is_view,
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
+                    ),
+                }
+            .into()
+        );
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -483,13 +476,13 @@ impl TransactionBuilder {
 fn is_view_function_from_module_metadata(
     module: &CompiledModule,
     function_name: &str,
-) -> Result<Option<bool>, IotaError> {
+) -> Result<bool, IotaError> {
     let Some(metadata) = module
         .metadata
         .iter()
         .find(|metadata| metadata.key == IOTA_METADATA_KEY)
     else {
-        return Ok(None);
+        return Ok(false);
     };
     let metadata_wrapper: RuntimeModuleMetadataWrapper =
         bcs::from_bytes(&metadata.value).map_err(|error| {
@@ -503,51 +496,16 @@ fn is_view_function_from_module_metadata(
         allow_view_function: true,
     })?;
     Ok(match metadata {
-        RuntimeModuleMetadata::V1(_) => None,
-        RuntimeModuleMetadata::V2(metadata_v2) => Some(
-            metadata_v2
-                .fun_attributes
-                .get(function_name)
-                .is_some_and(|attributes| {
-                    attributes
-                        .iter()
-                        .any(|attribute| matches!(attribute, IotaAttributeV2::View))
-                }),
-        ),
+        RuntimeModuleMetadata::V1(_) => false,
+        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
+            .fun_attributes
+            .get(function_name)
+            .is_some_and(|attributes| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+            }),
     })
-}
-
-/// Helper function to check that a function called as a view function without
-/// view function metadata is public and returns at least one value.
-fn check_view_function_signature(
-    module: &CompiledModule,
-    function_ident: &Identifier,
-) -> Result<(), anyhow::Error> {
-    let (_, fdef) = module
-        .find_function_def_by_name(function_ident.as_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function_ident,
-                module.self_id()
-            )
-        })?;
-    fp_ensure!(
-        matches!(fdef.visibility, Visibility::Public),
-        UserInputError::InvalidMoveViewFunction {
-            error: "Only public functions can be called as view functions".to_owned(),
-        }
-        .into()
-    );
-    let function_signature = module.function_handle_at(fdef.function);
-    fp_ensure!(
-        !&module.signature_at(function_signature.return_).is_empty(),
-        UserInputError::InvalidMoveViewFunction {
-            error: "No return type for this function".to_owned(),
-        }
-        .into()
-    );
-    Ok(())
 }
 
 /// Result of resolving a call argument, distinguishing between single
