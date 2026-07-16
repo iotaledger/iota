@@ -264,7 +264,7 @@ impl OptimisticTransactionExecutor {
         let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         let sigs = signatures
             .into_iter()
-            .map(|sig| -> Result<_, IndexerError> {
+            .map(|sig| {
                 UserSignature::from_bytes(sig.to_vec()?)
                     .map_err(|e| IndexerError::InvalidArgument(e.to_string()))
             })
