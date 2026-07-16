@@ -1644,7 +1644,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
 
     // Only the sponsor is an abstract account in this scenario — the sender
     // is a regular keypair-backed address (`env.owner`) that signs the
-    // transaction with a standard `UserSignature::Signature`.
+    // transaction with a standard `UserSignature::Simple`.
     let sponsor_create_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let auth_ref = match build_auth_function_ref_v1(
@@ -1706,7 +1706,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     );
     let tx_digest = tx_data.digest().into_inner();
 
-    // Sender: standard `UserSignature::Signature` (ed25519 over the
+    // Sender: standard `UserSignature::Simple` (ed25519 over the
     // intent-wrapped TransactionData) — NOT a `MoveAuthenticator`. So
     // `auth_ctx.sender_authenticator_function_info_v1()` is `None` on-chain.
     let sender_auth = UserSignature::Simple(
