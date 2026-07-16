@@ -1408,7 +1408,11 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
             if let Err(error) = result {
                 let suggested_gas_price = congested_suggested_gas_price(error)
                     .unwrap_or_else(|| panic!("expected congestion shed, got {error:?}"));
-                assert!(suggested_gas_price > 0);
+                // The shed transaction lost the single worker to a competitor
+                // paying the reference gas price, so the worker clearing price
+                // is exactly that, and the suggestion is one above it — always
+                // strictly above what the shed transaction paid.
+                assert_eq!(suggested_gas_price, rgp + 1);
                 congested = Some((*address, *obj, suggested_gas_price));
                 break 'bursts;
             }
@@ -1418,14 +1422,12 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
         congested.expect("bursts of 10 concurrent transactions should overload a 1-tx commit");
     info!(?gas_object, suggested_gas_price, "transaction was shed");
 
-    // Resubmit with the same (untouched) gas object above the suggested gas
-    // price. Strictly above: for an owned-object-only transaction the
-    // suggested price can equal the original, and resubmitting an identical
-    // transaction reproduces the dropped digest, for which validators serve
-    // the cached drop status. The different price yields a different digest:
-    // without lock release this would be rejected with `ObjectLockConflict`
-    // against the dropped transaction.
-    let gas_price = suggested_gas_price.max(rgp) + 1;
+    // Resubmit with the same (untouched) gas object at exactly the suggested
+    // gas price. The higher price yields a different digest (a byte-identical
+    // resubmission would be answered with the cached drop status), and without
+    // lock release this would be rejected with `ObjectLockConflict` against
+    // the dropped transaction.
+    let gas_price = suggested_gas_price;
     let data = iota_types::transaction::TransactionData::new_transfer_iota(
         recipient,
         address,

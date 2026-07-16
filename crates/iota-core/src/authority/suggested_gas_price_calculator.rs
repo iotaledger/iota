@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
-    executable_transaction::VerifiedExecutableTransaction, transaction::SenderSignedTransactionAPI,
+    executable_transaction::VerifiedExecutableTransaction,
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use tracing::instrument;
 
@@ -44,13 +45,13 @@ type PerObjectCongestionInfo = BTreeMap<ExecutionTime, ScheduledTransactionConge
 /// Holds shared object congestion data for a single consensus commit round.
 type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 
-/// `SuggestedGasPriceCalculator` calculates suggested gas prices for
-/// deferred/cancelled shared-object transactions, using congestion
-/// info from a single consensus commit.
+/// `SuggestedGasPriceCalculator` calculates suggested gas prices for shed
+/// (deferred/cancelled/dropped) transactions, using congestion info from a
+/// single consensus commit.
 ///
 /// The congestion info stored by the calculator should only be updated
 /// for scheduled transactions. In contrast, calculations of the suggested
-/// gas price should only be invoked for deferred/cancelled transactions.
+/// gas price should only be invoked for shed transactions.
 ///
 /// Roughly speaking, the suggested gas price calculator works as follows:
 /// 1. For every scheduled transaction, obtain its reference gas price,
@@ -58,20 +59,31 @@ type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 /// 2. For every input shared object accessed mutably by the scheduled
 ///    transaction, keep and update a map, ordered by execution start time
 ///    (key), whose values store scheduled transaction's gas price and estimated
-///    execution duration.
-/// 3. For every deferred/cancelled transaction, obtain its estimated execution
-///    duration, as well as all input shared objects.
-/// 4. Calculate a suggested gas price for the deferred/cancelled transaction as
-///    follows:
+///    execution duration. When execution-worker congestion control is active,
+///    also record every scheduled transaction in a worker list (each occupies
+///    an execution worker).
+/// 3. For every shed transaction, obtain its estimated execution duration, as
+///    well as all input shared objects.
+/// 4. Calculate a suggested gas price for the shed transaction as follows:
 ///    - compute its (imaginary) execution start time as congestion limit per
 ///      commit minus its estimated execution duration;
 ///    - for each input shared object, get the maximum gas price over scheduled
 ///      transactions whose end execution time is larger than our imaginary
-///      start time;
-///    - take the maximum over the values obtained in the previous step;
-///    - the suggested gas price equals the maximum value obtained in the
-///      previous step plus 1, but such that it does not become larger than the
-///      maximum gas price set in the protocol.
+///      start time, and take the maximum over the objects (the object clearing
+///      price);
+///    - take the N-th largest gas price over recorded worker entries whose end
+///      execution time is larger than our imaginary start time, where N is the
+///      worker concurrency cap (the worker clearing price — the object rule is
+///      its `N = 1` special case);
+///    - the suggested gas price equals the maximum of the two clearing prices
+///      plus 1, but such that it does not become larger than the maximum gas
+///      price set in the protocol. Transactions are scheduled in descending
+///      gas-price order, so any clearing price is at least the shed
+///      transaction's own price, and the suggestion strictly exceeds it.
+///    - if neither clearing price exists (the transaction was shed purely by
+///      carried-over debt), suggest the reference gas price, floored to one
+///      above the shed transaction's own price when worker congestion control
+///      is active.
 ///
 /// Note that if shared-object congestion control is disabled, the calculator
 /// will suggest the reference gas price.
@@ -79,6 +91,13 @@ type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 pub(crate) struct SuggestedGasPriceCalculator {
     /// Per-commit congestion info.
     congestion_info: PerCommitCongestionInfo,
+
+    /// Per-commit execution-worker congestion info: execution start time,
+    /// gas price and duration of every scheduled transaction (each occupies a
+    /// worker). Only populated when execution-worker congestion control is
+    /// active. A plain list, not keyed by start time: with more than one
+    /// worker, start times legitimately collide.
+    worker_congestion_info: Vec<(ExecutionTime, ScheduledTransactionCongestionInfo)>,
 
     /// A set of congestion control parameters.
     congestion_control_parameters: CongestionControlParameters,
@@ -97,6 +116,7 @@ impl SuggestedGasPriceCalculator {
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
+            worker_congestion_info: Vec::new(),
             congestion_control_parameters,
             reference_gas_price,
         }
@@ -111,6 +131,7 @@ impl SuggestedGasPriceCalculator {
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
+            worker_congestion_info: Vec::new(),
             congestion_control_parameters,
             reference_gas_price,
         }
@@ -132,6 +153,19 @@ impl SuggestedGasPriceCalculator {
                 res.gas_price(),
                 res.estimated_execution_duration(),
             );
+
+            if self
+                .congestion_control_parameters
+                .max_concurrent_execution_workers()
+                .is_some()
+            {
+                // Every scheduled transaction occupies an execution worker,
+                // including owned-object-only ones (empty `object_ids`).
+                self.worker_congestion_info.push((
+                    res.execution_start_time(),
+                    scheduled_transaction_congestion_info,
+                ));
+            }
 
             for obj_id in res.object_ids() {
                 let prev_info = self.congestion_info.entry(*obj_id).or_default().insert(
@@ -172,13 +206,60 @@ impl SuggestedGasPriceCalculator {
     ) -> u64 {
         if let Some(congestion_limit_per_commit) = self.get_effective_congestion_limit_per_commit()
         {
-            let clearing_gas_price =
-                self.find_clearing_gas_price(transaction, congestion_limit_per_commit);
+            // Imaginary start time of the shed transaction. We consider only the
+            // highest possible (but sufficient for scheduling) start time, as it is
+            // very likely that scheduled transactions with lower gas prices have
+            // higher start times. If a transaction with its estimated execution
+            // duration cannot fit within `congestion_limit_per_commit`, set its
+            // imaginary start time to 0.
+            let start_time_of_shed_tx = congestion_limit_per_commit.saturating_sub(
+                self.congestion_control_parameters
+                    .get_estimated_execution_duration(transaction),
+            );
 
-            // Suggested gas price equals `clearing_gas_price + 1`. We add 1 to make this
-            // transaction would be scheduled if the same commit structure was repeated.
-            let suggested_gas_price =
-                clearing_gas_price.map_or(self.reference_gas_price, |p| p.saturating_add(1));
+            // The transaction must clear both its shared objects and the
+            // execution-worker pool, so take the maximum of the two clearing
+            // prices.
+            let clearing_gas_price = self
+                .find_object_clearing_gas_price(transaction, start_time_of_shed_tx)
+                .max(self.find_worker_clearing_gas_price(start_time_of_shed_tx));
+
+            let suggested_gas_price = match clearing_gas_price {
+                // Suggested gas price equals `clearing_gas_price + 1`. We add 1 so that
+                // this transaction would be scheduled if the same commit structure was
+                // repeated.
+                Some(clearing_gas_price) => {
+                    // Transactions are processed in descending gas-price order and the
+                    // congestion info only holds transactions scheduled before the shed
+                    // one, so any clearing price is at least the shed transaction's own
+                    // price.
+                    debug_assert!(
+                        self.congestion_control_parameters
+                            .max_concurrent_execution_workers()
+                            .is_none()
+                            || clearing_gas_price >= transaction.transaction_data().gas_price(),
+                        "clearing gas price below the shed transaction's own price"
+                    );
+                    clearing_gas_price.saturating_add(1)
+                }
+                None => {
+                    if self
+                        .congestion_control_parameters
+                        .max_concurrent_execution_workers()
+                        .is_some()
+                    {
+                        // No scheduled competitor overlaps the window: the transaction
+                        // was shed by carried-over debt. No gas price clears debt; the
+                        // suggestion's job is to change the digest (a resubmission of
+                        // the identical transaction is answered with the cached drop
+                        // status) so the client can retry once the debt has decayed.
+                        self.reference_gas_price
+                            .max(transaction.transaction_data().gas_price().saturating_add(1))
+                    } else {
+                        self.reference_gas_price
+                    }
+                }
+            };
 
             // Make sure suggested gas price is not larger than the maximum possible gas
             // price.
@@ -209,25 +290,15 @@ impl SuggestedGasPriceCalculator {
         }
     }
 
-    /// Find the gas price for which a deferred/scheduled transaction would be
-    /// scheduled if (i) that gas price was paid, and (ii) if exactly the same
-    /// set of transactions appeared in a commit.
-    fn find_clearing_gas_price(
+    /// Find the gas price for which a shed transaction would clear its shared
+    /// objects if (i) that gas price was paid, and (ii) exactly the same set
+    /// of transactions appeared in a commit. `start_time_of_shed_tx` is the
+    /// imaginary start time computed in `calculate_suggested_gas_price`.
+    fn find_object_clearing_gas_price(
         &self,
         transaction: &VerifiedExecutableTransaction,
-        congestion_limit_per_commit: ExecutionTime,
+        start_time_of_shed_tx: ExecutionTime,
     ) -> Option<u64> {
-        // Imaginary start time of the deferred/cancelled transaction. We consider
-        // only the highest possible (but sufficient for scheduling) start time as
-        // it is very likely that scheduled transactions with lower gas prices
-        // appear have higher start times. If a transaction with its estimated
-        // execution duration cannot fit within `congestion_limit_per_commit`,
-        // set its imaginary start time to 0.
-        let start_time_of_deferred_tx = congestion_limit_per_commit.saturating_sub(
-            self.congestion_control_parameters
-                .get_estimated_execution_duration(transaction),
-        );
-
         transaction
             .shared_input_objects()
             .into_iter()
@@ -242,7 +313,7 @@ impl SuggestedGasPriceCalculator {
                                     tx_congestion_info.estimated_execution_duration,
                                 );
 
-                                if end_time_of_scheduled_tx > start_time_of_deferred_tx {
+                                if end_time_of_scheduled_tx > start_time_of_shed_tx {
                                     // Store gas price of that scheduled transaction
                                     Some(tx_congestion_info.gas_price)
                                 } else {
@@ -251,7 +322,7 @@ impl SuggestedGasPriceCalculator {
                             })
                             // Take the maximum over all found gas prices of scheduled transactions
                             // whose execution end time is larger than the imaginary start time
-                            // of the deferred/cancelled transaction. It has to be maximum here
+                            // of the shed transaction. It has to be maximum here
                             // since otherwise the suggested gas price will be insufficient to
                             // guarantee scheduling if the same set of transactions was repeated
                             // again in a commit.
@@ -263,6 +334,42 @@ impl SuggestedGasPriceCalculator {
             // will be insufficient to guarantee scheduling if the same set of transactions
             // was repeated again in a commit.
             .max()
+    }
+
+    /// Find the gas price for which a shed transaction would clear the
+    /// execution-worker pool under the same replay assumption. Returns the
+    /// N-th largest gas price among scheduled transactions whose worker
+    /// interval extends past `start_time_of_shed_tx` (N = the worker
+    /// concurrency cap): outbidding all but the top `N - 1` of them means at
+    /// most `N - 1` transactions overlapping the window are placed first in a
+    /// price-ordered replay, which occupy at most `N - 1` of the `N` workers
+    /// at any instant, leaving one free for the shed transaction. This is the
+    /// per-object rule generalized to capacity `N` (the object rule is the
+    /// `N = 1` special case). Returns `None` when worker congestion control
+    /// is inactive or fewer than `N` scheduled transactions overlap the
+    /// window.
+    fn find_worker_clearing_gas_price(&self, start_time_of_shed_tx: ExecutionTime) -> Option<u64> {
+        let n = self
+            .congestion_control_parameters
+            .max_concurrent_execution_workers()? as usize;
+
+        let mut gas_prices: Vec<u64> = self
+            .worker_congestion_info
+            .iter()
+            .filter_map(|(execution_start_time, tx_congestion_info)| {
+                let end_time_of_scheduled_tx = execution_start_time
+                    .saturating_add(tx_congestion_info.estimated_execution_duration);
+
+                (end_time_of_scheduled_tx > start_time_of_shed_tx)
+                    .then_some(tx_congestion_info.gas_price)
+            })
+            .collect();
+
+        if gas_prices.len() < n {
+            return None;
+        }
+        gas_prices.sort_unstable_by(|a, b| b.cmp(a));
+        gas_prices.get(n - 1).copied()
     }
 }
 
@@ -2409,6 +2516,190 @@ mod tests {
             "Calculated suggested gas price does not match expected for transaction {}:\n{:#?}",
             tx_data.order_idx,
             tx_data,
+        );
+    }
+
+    /// Parameters with execution-worker congestion control active:
+    /// `TotalTxCount` mode (every transaction has duration 1), the given
+    /// per-commit limit and worker count.
+    fn worker_test_parameters(limit: u64, workers: u16) -> CongestionControlParameters {
+        let mut parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,        // congestion_control_min_free_execution_slot
+            Some(limit), // max_execution_duration_per_commit
+            None,        // max_congestion_limit_overshoot_per_commit
+            1_000_000,   // max_gas_price
+            false,
+            false,
+        );
+        parameters.set_max_concurrent_execution_workers_for_test(workers);
+        parameters
+    }
+
+    /// Schedule a transaction through the tracker (panicking if it does not
+    /// fit) and record it in the calculator, as the consensus handler does.
+    fn schedule_transaction(
+        tracker: &mut SharedObjectCongestionTracker,
+        calculator: &mut SuggestedGasPriceCalculator,
+        objects: &[(ObjectId, bool)],
+        gas_price: u64,
+    ) {
+        use crate::authority::authority_per_epoch_store::PreviouslyDeferredTransactions;
+
+        let transaction = build_transaction(objects, 1, gas_price);
+        tracker.initialize_object_execution_slots(&transaction.shared_input_objects());
+        match tracker.try_schedule(&transaction, &PreviouslyDeferredTransactions::new(), 0) {
+            SequencingResult::Schedule(start_time) => {
+                let bump_result = tracker.bump_object_execution_slots(&transaction, start_time);
+                calculator.update_congestion_info(bump_result);
+            }
+            SequencingResult::Defer(..) => panic!("transaction should have been scheduled"),
+        }
+    }
+
+    // A single worker occupied by one scheduled transaction: the shed
+    // owned-object-only transaction must outbid it.
+    #[test]
+    fn worker_clearing_with_single_worker() {
+        let parameters = worker_test_parameters(1, 1);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
+
+        schedule_transaction(&mut tracker, &mut calculator, &[], 2_000);
+
+        let shed = build_transaction(&[], 1, 800);
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 2_001);
+    }
+
+    // With two workers the shed transaction only needs to outbid the 2nd
+    // largest overlapping gas price; with fewer overlapping transactions than
+    // workers there is nothing to outbid and the debt fallback applies.
+    #[test]
+    fn worker_clearing_takes_nth_largest_gas_price() {
+        let parameters = worker_test_parameters(1, 2);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator =
+            SuggestedGasPriceCalculator::new(parameters.clone(), REFERENCE_GAS_PRICE);
+
+        schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
+
+        // Only one of two workers is occupied: no clearing price exists, so
+        // the fallback (never at or below the shed transaction's own price)
+        // applies.
+        let shed = build_transaction(&[], 1, 1_500);
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 1_501);
+
+        schedule_transaction(&mut tracker, &mut calculator, &[], 2_000);
+
+        // Both workers occupied: outbidding the 2nd largest price (2000)
+        // leaves one worker free in a price-ordered replay.
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 2_001);
+    }
+
+    // Scheduled transactions ending before the shed transaction's imaginary
+    // start time do not block it and must not raise the suggestion.
+    #[test]
+    fn worker_clearing_ignores_transactions_outside_tail_window() {
+        let parameters = worker_test_parameters(3, 1);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
+
+        // Occupies [0, 1); the shed transaction's imaginary start is
+        // limit - duration = 2.
+        schedule_transaction(&mut tracker, &mut calculator, &[], 5_000);
+
+        let shed = build_transaction(&[], 1, REFERENCE_GAS_PRICE);
+        assert_eq!(
+            calculator.calculate_suggested_gas_price(&shed),
+            REFERENCE_GAS_PRICE + 1
+        );
+    }
+
+    // A transaction blocked on both a shared object and the worker pool must
+    // clear the more expensive constraint.
+    #[test]
+    fn mixed_congestion_takes_maximum_of_object_and_worker_clearing() {
+        let object = ObjectId::random();
+        let parameters = worker_test_parameters(2, 2);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
+
+        // Descending gas-price order, as in the consensus handler.
+        // Object slots: [0, 1) at 5000, [1, 2) at 4000.
+        // Worker slots (two workers): [0, 1) at 5000+3000, [1, 2) at 4000+2500.
+        schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 5_000);
+        schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
+        schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 4_000);
+        schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
+
+        // Imaginary start = 1. Object clearing: 4000 (the [1, 2) occupant).
+        // Worker clearing: 2nd largest of {4000, 2500} = 2500. Object wins.
+        let shed_on_object = build_transaction(&[(object, true)], 1, 900);
+        assert_eq!(
+            calculator.calculate_suggested_gas_price(&shed_on_object),
+            4_001
+        );
+
+        // The owned-object-only transaction only has the worker constraint.
+        let shed_ooo = build_transaction(&[], 1, 900);
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed_ooo), 2_501);
+    }
+
+    // A shed transaction tied with its blocker's gas price is told to pay one
+    // more, which reorders the price-ordered replay in its favor.
+    #[test]
+    fn worker_clearing_with_tied_gas_price_suggests_one_more() {
+        let parameters = worker_test_parameters(1, 1);
+        let mut tracker =
+            SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
+
+        schedule_transaction(&mut tracker, &mut calculator, &[], REFERENCE_GAS_PRICE);
+
+        let shed = build_transaction(&[], 1, REFERENCE_GAS_PRICE);
+        assert_eq!(
+            calculator.calculate_suggested_gas_price(&shed),
+            REFERENCE_GAS_PRICE + 1
+        );
+    }
+
+    // A transaction shed purely by carried-over debt has no scheduled
+    // competitor to outbid: the fallback suggestion must still be above both
+    // the reference gas price and the transaction's own price, so that the
+    // resubmission has a different digest. Without worker congestion control
+    // the legacy fallback (plain reference gas price) is preserved.
+    #[test]
+    fn debt_only_shed_falls_back_above_own_price() {
+        let calculator =
+            SuggestedGasPriceCalculator::new(worker_test_parameters(1, 1), REFERENCE_GAS_PRICE);
+        let shed = build_transaction(&[], 1, 1_500);
+        assert_eq!(calculator.calculate_suggested_gas_price(&shed), 1_501);
+        let shed_cheap = build_transaction(&[], 1, 500);
+        assert_eq!(
+            calculator.calculate_suggested_gas_price(&shed_cheap),
+            REFERENCE_GAS_PRICE
+        );
+
+        // Legacy behavior (no worker congestion control): plain reference.
+        let legacy_calculator = SuggestedGasPriceCalculator::new(
+            CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalTxCount,
+                true,
+                Some(1),
+                None,
+                1_000_000,
+                false,
+                false,
+            ),
+            REFERENCE_GAS_PRICE,
+        );
+        assert_eq!(
+            legacy_calculator.calculate_suggested_gas_price(&shed),
+            REFERENCE_GAS_PRICE
         );
     }
 }
