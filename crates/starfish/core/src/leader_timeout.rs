@@ -213,6 +213,7 @@ mod tests {
 
     use bytes::Bytes;
     use parking_lot::RwLock;
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::{Instant, sleep};
 
@@ -295,16 +296,24 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn basic_leader_timeout() {
+    async fn basic_leader_timeout(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
-        let (context, _signers) = Context::new_for_test(4);
+        let (mut context, _signers) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
+        // Chosen so no timer deadline coincides with a sleep below — a tie
+        // would make the drained call sequence racy.
+        let soft_leader_timeout = Duration::from_millis(200);
         let parameters = Parameters {
             leader_timeout,
             min_block_delay,
+            soft_leader_timeout,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -372,17 +381,29 @@ mod tests {
         // wait enough until a new_block has been received
         sleep(2 * leader_timeout).await;
         let all_calls = dispatcher.get_new_block_calls().await;
-        assert_eq!(all_calls.len(), 1);
-
-        let (round, reason, timestamp) = all_calls[0];
-        assert_eq!(round, 10);
-        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
-        assert!(
-            leader_timeout <= timestamp - start,
-            "Leader timeout setting {:?} should be less than actual time difference {:?}",
-            leader_timeout,
-            timestamp - start
-        );
+        // With starfish speed enabled the soft leader timeout fires before the
+        // max leader timeout.
+        let expected = if starfish_speed {
+            vec![
+                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        } else {
+            vec![(ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout)]
+        };
+        assert_eq!(all_calls.len(), expected.len());
+        for ((round, reason, timestamp), (expected_reason, timeout)) in
+            all_calls.iter().zip(&expected)
+        {
+            assert_eq!(*round, 10);
+            assert_eq!(reason, expected_reason);
+            assert!(
+                *timeout <= *timestamp - start,
+                "Timeout setting {:?} should be less than actual time difference {:?}",
+                timeout,
+                *timestamp - start
+            );
+        }
 
         // now wait another 2 * leader_timeout, no other call should be received
         sleep(2 * leader_timeout).await;
@@ -391,16 +412,24 @@ mod tests {
         assert_eq!(all_calls.len(), 0);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn multiple_leader_timeouts() {
+    async fn multiple_leader_timeouts(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
-        let (context, _signers) = Context::new_for_test(4);
+        let (mut context, _signers) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
+        // Chosen so no timer deadline coincides with a sleep below — a tie
+        // would make the drained call sequence racy.
+        let soft_leader_timeout = Duration::from_millis(200);
         let parameters = Parameters {
             leader_timeout,
             min_block_delay,
+            soft_leader_timeout,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -459,16 +488,29 @@ mod tests {
             .expect("We should expect correct sending a new block");
         sleep(2 * leader_timeout).await;
 
-        // only the last one should be received
+        // only the last round should be received; with starfish speed enabled
+        // the soft leader timeout fires between the min block delay and the
+        // max leader timeout.
         let all_calls = dispatcher.get_new_block_calls().await;
-        let (round, reason, timestamp) = all_calls[0];
-        assert_eq!(round, 15);
-        assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);
-        assert!(min_block_delay < timestamp - now);
-
-        let (round, reason, timestamp) = all_calls[1];
-        assert_eq!(round, 15);
-        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
-        assert!(leader_timeout < timestamp - now);
+        let expected = if starfish_speed {
+            vec![
+                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
+                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        } else {
+            vec![
+                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        };
+        assert_eq!(all_calls.len(), expected.len());
+        for ((round, reason, timestamp), (expected_reason, timeout)) in
+            all_calls.iter().zip(&expected)
+        {
+            assert_eq!(*round, 15);
+            assert_eq!(reason, expected_reason);
+            assert!(*timeout < *timestamp - now);
+        }
     }
 }
