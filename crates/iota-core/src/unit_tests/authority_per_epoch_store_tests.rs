@@ -7,7 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_types::base_types::{AuthorityName, TransactionDigest};
+use iota_sdk_types::TransactionDigest;
+use iota_types::base_types::AuthorityName;
 use tokio::time::timeout;
 use typed_store::rocks::DBBatch;
 

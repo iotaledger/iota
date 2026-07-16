@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use dashmap::DashSet;
 use futures::future::join_all;
 use iota_json_rpc_types::CheckpointId;
-use iota_types::base_types::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use itertools::Itertools;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};

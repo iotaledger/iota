@@ -12,7 +12,7 @@ use iota_indexer_streaming::{
     metrics::InMemoryStreamMetrics,
 };
 use iota_json_rpc_types::Filter;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use prometheus_filtered::Registry;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;

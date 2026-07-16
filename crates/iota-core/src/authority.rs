@@ -45,8 +45,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, GasPayment, ObjectId,
-    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionExpiration,
+    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
+    ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
+    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
     TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -70,7 +71,7 @@ use iota_types::{
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
-    digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
@@ -96,9 +97,9 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointRequest,
-        CheckpointResponse, CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
-        CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
+        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
+        VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{

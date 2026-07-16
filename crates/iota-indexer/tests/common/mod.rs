@@ -39,9 +39,10 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    crypto::IotaKeyPair, digests::TransactionDigest,
-    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+    crypto::IotaKeyPair, quorum_driver_types::ExecuteTransactionRequestType,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},

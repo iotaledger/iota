@@ -13,10 +13,8 @@ use iota_bigtable::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, CheckpointDigest, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
-    digests::CheckpointDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{

@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Address;
-use iota_types::base_types::TransactionDigest;
+use iota_sdk_types::{Address, TransactionDigest};
 use thiserror::Error;
 
 pub use crate::json_rpc_error::Error as JsonRpcError;

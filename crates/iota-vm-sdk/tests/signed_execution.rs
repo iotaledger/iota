@@ -5,10 +5,9 @@
 //! reporting for standard signature schemes, missing input objects, and
 //! unsupported protocol versions.
 
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     object::{MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{

@@ -26,12 +26,11 @@ use iota_package_resolver::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk_types::{
-    Address, ObjectId, TransactionKind,
+    Address, ObjectId, TransactionDigest, TransactionKind,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
     quorum_driver_types::{

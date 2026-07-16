@@ -12,12 +12,11 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
-    ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
+    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::Digest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
