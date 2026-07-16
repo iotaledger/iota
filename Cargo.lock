@@ -8207,7 +8207,6 @@ dependencies = [
  "serde-name",
  "serde_json",
  "serde_with",
- "signature 1.6.4",
  "starfish-config",
  "static_assertions",
  "strum 0.27.2",
