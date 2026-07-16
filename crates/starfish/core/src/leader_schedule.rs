@@ -122,10 +122,10 @@ impl LeaderSchedule {
         // online path buffers both at rotation, fast sync applies the scores
         // embedded in fetched commits before flushing the batch), so on disk
         // the last commit stays within one window of the last `CommitInfo`.
-        // A recovered backlog exceeding the window therefore indicates a store
-        // written by different code or modified externally. It is not treated
-        // as fatal: returning 0 forces an immediate schedule update, which
-        // rebuilds the schedule from the backlog's last full window.
+        // A recovered backlog exceeding the window should therefore never
+        // occur — but it is a recoverable state, so recovering is preferred
+        // over panicking: returning 0 forces an immediate schedule update,
+        // which rebuilds the schedule from the backlog's last full window.
         if subdag_count > self.num_commits_per_schedule {
             tracing::warn!(
                 "Recovered scoring backlog ({subdag_count} subdags) exceeds the schedule \
@@ -357,8 +357,8 @@ impl LeaderSchedule {
 
     /// Updates the leader schedule from a recovered scoring backlog spanning
     /// more than one rotation interval — a store state current persistence
-    /// never produces, tolerated in case the store was written by different
-    /// code or modified externally.
+    /// never produces, recovered from rather than panicked on should it ever
+    /// occur.
     ///
     /// Only the last full window of the backlog is scored: it alone determines
     /// the swap table a continuously running node had at that point, and
