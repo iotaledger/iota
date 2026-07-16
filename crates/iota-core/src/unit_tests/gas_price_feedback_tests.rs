@@ -271,7 +271,7 @@ impl GasPriceFeedbackTester {
 
         self.authority_state
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&transaction_digests)
+            .notify_read_executed_effects_for_testing(&transaction_digests)
             .await
     }
 
