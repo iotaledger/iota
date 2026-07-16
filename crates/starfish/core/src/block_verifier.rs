@@ -365,7 +365,6 @@ impl BlockVerifier for NoopBlockVerifier {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
     use super::*;
@@ -443,25 +442,24 @@ pub(crate) mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_verify_block(#[values(false, true)] starfish_speed: bool) {
+    async fn test_verify_block() {
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
         let (mut context, keypairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2)
-            .set_v2(starfish_speed)
-            .set_ancestors(vec![
-                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-            ]);
+        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
 
         // Valid SignedBlock.
         {
@@ -702,30 +700,29 @@ pub(crate) mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_verify_block_round_gap(#[values(false, true)] starfish_speed: bool) {
+    async fn test_verify_block_round_gap() {
         let (mut context, keypairs) = Context::new_for_test(4);
         // Small gc_depth so we can construct violations without huge round
         // numbers.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2)
-            .set_v2(starfish_speed)
-            .set_ancestors(vec![
-                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-            ]);
+        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
 
         // Acknowledgment at the block's round.
         {

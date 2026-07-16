@@ -291,7 +291,8 @@ pub(crate) fn parse_dag(dag_string: &str) -> Result<DagBuilder, ParseDagError> {
 
     let (mut input, num_authors) = preceded(tag("DAG{"), parse_genesis)(input)?;
 
-    // The DAG DSL cannot express strong votes; run with StarfishSpeed off.
+    // Parsed DAG strings cannot specify strong votes; run with StarfishSpeed
+    // off.
     let mut context = Context::new_for_test(num_authors as usize).0;
     context
         .protocol_config

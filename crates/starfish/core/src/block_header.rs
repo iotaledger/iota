@@ -1530,7 +1530,6 @@ pub struct TestBlockHeader {
     acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
     strong_vote: Option<StrongVote>,
-    v2: bool,
 }
 
 impl TestBlockHeader {
@@ -1548,7 +1547,6 @@ impl TestBlockHeader {
             ancestors: vec![],
             acknowledgments: vec![],
             strong_vote: None,
-            v2: false,
         }
     }
 
@@ -1577,7 +1575,6 @@ impl TestBlockHeader {
             ancestors: vec![],
             acknowledgments: vec![],
             strong_vote: None,
-            v2: false,
         }
     }
 
@@ -1610,7 +1607,6 @@ impl TestBlockHeader {
             ancestors: vec![],
             acknowledgments: vec![],
             strong_vote: None,
-            v2: false,
         }
     }
 
@@ -1655,21 +1651,14 @@ impl TestBlockHeader {
     }
 
     /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
-    /// `BlockHeader::V2`; otherwise a V1 (unless `set_v2` forces V2).
+    /// `BlockHeader::V2`; otherwise a V1.
     pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
         self.strong_vote = strong_vote;
         self
     }
 
-    /// Makes `build()` emit a `BlockHeader::V2` even without a strong-vote
-    /// payload.
-    pub fn set_v2(mut self, v2: bool) -> Self {
-        self.v2 = v2;
-        self
-    }
-
     pub fn build(mut self) -> BlockHeader {
-        if self.v2 || self.strong_vote.is_some() {
+        if let Some(strong_vote) = self.strong_vote {
             return BlockHeader::V2(BlockHeaderV2::new(
                 self.block_header.epoch,
                 self.block_header.round,
@@ -1679,7 +1668,7 @@ impl TestBlockHeader {
                 self.acknowledgments,
                 self.block_header.commit_votes,
                 self.block_header.transactions_commitment,
-                self.strong_vote,
+                Some(strong_vote),
             ));
         }
         let (references, overlap_start_index, overlap_end_index) =

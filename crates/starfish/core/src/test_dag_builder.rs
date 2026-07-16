@@ -595,7 +595,6 @@ impl DagBuilder {
                             .unwrap_or_default(),
                     )
                     .set_timestamp_ms(base_ts + author as u64)
-                    .set_v2(self.context.protocol_config.consensus_starfish_speed())
                     .build(),
             );
             references.push(block.reference());
@@ -1113,12 +1112,6 @@ impl<'a> LayerBuilder<'a> {
                     )
                     .set_timestamp_ms(timestamp)
                     .set_commitment(commitment)
-                    .set_v2(
-                        self.dag_builder
-                            .context
-                            .protocol_config
-                            .consensus_starfish_speed(),
-                    )
                     .build();
                 let block_header =
                     if let Some(protocol_keypair) = self.dag_builder.protocol_keypair.as_ref() {
