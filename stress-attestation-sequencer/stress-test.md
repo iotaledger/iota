@@ -159,157 +159,230 @@ sweep, matching it at the heavy end. The full attestation latency
 pulls away from `slow200` on — the wait and resume around the dry-run grow
 with load, on every client path:
 
-Fullnode path (`f1`):
+Fullnode path (`f1`), each latency cell `n4` · · · `n48` (CUs are identical
+on both networks):
 
-| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs  |
-| --- | --- | --- | --- | --- |
-| 0   | 0.95 ms   | 2.06 ms   | 0.95 ms   | 1k    |
-| 50  | 4.80 ms   | 5.87 ms   | 4.83 ms   | 1k    |
-| 100 | 16.21 ms  | 20.30 ms  | 19.29 ms  | 4k    |
-| 200 | 94.85 ms  | 185.32 ms | 444.29 ms | 128k  |
-| 500 | 1.307 s   | 1.200 s   | 2.013 s   | 1.37M |
+| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |  0.95 ms · · · · ·  **0.99 ms** |   2.06 ms · · · · · **7.84 ms** |   0.95 ms · · · · · **58.17 ms** | 1k    |
+| 50  |  4.80 ms · · · · · **17.42 ms** |   5.87 ms · · · · · **190.88 ms** |   4.83 ms · · · · · **236.95 ms** | 1k    |
+| 100 | 16.21 ms · · · · **106.32 ms** |  20.30 ms · · · · **574.57 ms** |  19.29 ms · · · · **640.22 ms** | 4k    |
+| 200 | 94.85 ms · · · · **1.024 s** | 185.32 ms · · · **1.697 s** | 444.29 ms · · · **2.616 s** | 128k  |
+| 500 |  1.307 s · · · · · · **11.168 s** |   1.200 s · · · · · · **8.942 s** |   2.013 s · · · · · · **14.204 s** | 1.37M |
 
 Direct-to-one-validator path (`v1`):
 
-| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs  |
-| --- | --- | --- | --- | --- |
-| 0   | 0.95 ms   | 1.32 ms   | 0.95 ms   | 1k    |
-| 50  | 4.80 ms   | 6.20 ms   | 4.85 ms   | 1k    |
-| 100 | 17.37 ms  | 21.29 ms  | 20.60 ms  | 4k    |
-| 200 | 78.78 ms  | 207.46 ms | 505.16 ms | 128k  |
-| 500 | 990.24 ms | 999.34 ms | 2.515 s   | 1.37M |
+| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |   0.95 ms · · · · · **0.98 ms** |   1.32 ms · · · · · **8.40 ms** |   0.95 ms · · · · · **80.52 ms** | 1k    |
+| 50  |   4.80 ms · · · · · **7.39 ms** |   6.20 ms · · · · · **61.00 ms** |   4.85 ms · · · · · **713.25 ms** | 1k    |
+| 100 |  17.37 ms · · · · **41.84 ms** |  21.29 ms · · · · **251.13 ms** |  20.60 ms · · · · **1.483 s** | 4k    |
+| 200 |  78.78 ms · · · · **293.23 ms** | 207.46 ms · · · **1.234 s** | 505.16 ms · · · **4.125 s** | 128k  |
+| 500 | 990.24 ms · · · **2.615 s** | 999.34 ms · · · **1.812 s** |   2.515 s · · · · · · **10.585 s** | 1.37M |
 
-Direct-to-all-4 path (`v4`):
+Direct-to-all-validators path (`v4` / `v48`):
 
-| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs  |
-| --- | --- | --- | --- | --- |
-| 0   | 0.95 ms   | 1.21 ms   | 0.95 ms   | 1k    |
-| 50  | 4.80 ms   | 6.02 ms   | 4.84 ms   | 1k    |
-| 100 | 18.00 ms  | 21.19 ms  | 20.35 ms  | 4k    |
-| 200 | 93.27 ms  | 221.61 ms | 503.07 ms | 128k  |
-| 500 | 1.372 s   | 1.478 s   | 2.712 s   | 1.37M |
+| slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |  0.95 ms · · · · · **1.01 ms** |   1.21 ms · · · · · **7.86 ms** |   0.95 ms · · · · · **20.14 ms** | 1k    |
+| 50  |  4.80 ms · · · · · **15.91 ms** |   6.02 ms · · · · · **88.97 ms** |   4.84 ms · · · · · **81.18 ms** | 1k    |
+| 100 | 18.00 ms · · · · **91.85 ms** |  21.19 ms · · · · **617.04 ms** |  20.35 ms · · · · **673.67 ms** | 4k    |
+| 200 | 93.27 ms · · · · **1.010 s** | 221.61 ms · · · **1.769 s** | 503.07 ms · · · **3.517 s** | 128k  |
+| 500 |  1.372 s · · · · · · **9.892 s** |   1.478 s · · · · · · **7.933 s** |   2.712 s · · · · · · **16.607 s** | 1.37M |
 
 The dry-run and the real execution share the bulk of the work — load the
 inputs, run the Move VM — so their latencies scale together with computation
-cost. The differences are at the edges. For a no-op transaction (`slow0`) the
-Move work is almost nothing and only fixed overhead remains; the real
-execution (`try_execute_immediately`: lock, input load, Move VM, effects
-commit) carries more of it than the attestation checks do, so it sits a little
-above the dry-run (≈1.3–2.1 vs ≈0.95 ms). At mid-range compute (`slow200`) the
-real execution reads about twice the dry-run — not extra work, but timing: it
-runs after consensus, where a whole commit's transactions land at once and
-execute in parallel, and every one of the 4 validators executes every
-transaction, while each transaction is attested once, paced by client
-arrivals. On this one machine that is 4× the CPU demand, so the parallel
-executions share cores and each takes longer on the wall clock. At `slow500`
-the machine is saturated continuously either way and the two converge. The
-full attestation latency adds the scheduling around the dry-run: nothing at
-light load, but from `slow200` on the pool wait and async resume grow to
-dominate it (444 ms full vs 95 ms dry-run on `f1`). A heavy attested
-transaction is still executed twice — once for the dry-run, once for real —
-so it costs the validator roughly double.
+cost. The differences are at the edges.
 
-![Attestation computation units and dry-run execution latency](h1/results/summary_plots_n4/attestation_latency_exec.png)
+- For a no-op transaction (`slow0`) the Move work is almost nothing and only
+fixed overhead remains; the real execution (`try_execute_immediately`: lock,
+input load, Move VM, effects commit) carries more of it than the attestation
+checks do, so it sits a little above the dry-run (≈1.3–2.1 vs ≈0.95 ms on `n4`).
+- At mid-range compute (`slow200`), the real execution reads about twice the
+dry-run — not extra work, but timing: it runs after consensus, where a whole
+commit's transactions land at once and execute in parallel, and every validator
+executes every transaction, while each transaction is attested once, paced
+by client arrivals.
+- On this one machine, that is 4× the CPU demand on `n4` and 48× on `n48`, so
+the parallel executions share cores and each takes longer on the wall clock.
+At `slow500`, the machine is saturated continuously either way and the two
+converge.
+- On `n48`, the 48× replication fills the machine already at `slow0`, so the
+edges move: even a no-op's real execution sits ≈8× above the dry-run (≈7.8–8.4
+ms vs ≈1 ms).
+- A heavy attested transaction is still executed twice — once for the dry-run,
+once for real — so it costs the validator roughly double.
+
+![Attestation computation units and dry-run execution latency, n4](h1/results/summary_plots_n4/attestation_latency_exec.png)
 
 *Computation units, attestation dry-run execution latency (p50/p95), and actual
-execution latency (p95) — findings 1–3. CUs sit at the gas floor for `slow0`
-and `slow50` and step up from `slow100`; the dry-run tracks actual execution
-latency across the sweep.*
+execution latency (p95) — findings 1–3, `n4` campaign. CUs sit at the gas floor
+for `slow0` and `slow50` and step up from `slow100`; the dry-run tracks actual
+execution latency across the sweep.*
 
-The full attestation latency split into its three parts (pool wait + dry-run
-execution + async resume):
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Attestation computation units and dry-run execution latency, n48](h1/results/summary_plots_n48/attestation_latency_exec.png)
+
+*Same panels, `n48` campaign — same CU steps, latencies an order of magnitude
+higher (finding 1).*
+
+</details>
+
+The full attestation latency adds the scheduling around the dry-run: on `n4`,
+nothing at light load, but from `slow200` on, the pool wait and async resume
+grow to dominate it (444 ms full vs 95 ms dry-run on `f1`); on `n48`, that
+scheduling overhead is visible at every size (58 ms full vs ≈1 ms dry-run on
+`f1` at `slow0`). The split into its three parts (pool wait + dry-run
+execution + async resume), each cell `n4` · · · `n48`:
+
+> [!NOTE]
+> At light compute, every value is below the smallest histogram bucket (1 ms),
+> so each part reads as the interpolation floor — p × 1 ms, i.e. 0.50 ms at
+> p50 and 0.99 ms at p99 — rather than a real latency; sub-millisecond parts
+> are unresolvable, which is also why they don't sum to the full column.
 
 Fullnode path (`f1`), p50:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.50 ms   | 0.50 ms   | 0.50 ms  | 0.50 ms   |
-| 50  | 0.51 ms   | 2.96 ms   | 0.50 ms  | 2.99 ms   |
-| 100 | 0.55 ms   | 6.10 ms   | 0.51 ms  | 6.52 ms   |
-| 200 | 59.26 ms  | 36.24 ms  | 0.83 ms  | 113.94 ms |
-| 500 | 170.36 ms | 765.24 ms | 8.69 ms  | 1.050 s   |
-
-Fullnode path (`f1`), p99:
-
-| slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.99 ms   | 0.99 ms   | 0.99 ms   | 0.99 ms   |
-| 50  | 2.17 ms   | 4.96 ms   | 0.99 ms   | 5.21 ms   |
-| 100 | 9.44 ms   | 23.24 ms  | 2.93 ms   | 24.74 ms  |
-| 200 | 597.54 ms | 135.36 ms | 67.57 ms  | 649.60 ms |
-| 500 | 1.413 s   | 1.475 s   | 498.77 ms | 2.474 s   |
+| :---: | --- | --- | --- | --- |
+| 0   |   0.50 ms · · · · **5.66 ms** |   0.50 ms · · · · **0.52 ms** | 0.50 ms · · · · **0.60 ms** |   0.50 ms · · · · **7.34 ms** |
+| 50  |   0.51 ms · · · · **21.35 ms** |   2.96 ms · · · · **3.41 ms** | 0.50 ms · · · · **0.75 ms** |   2.99 ms · · · · **28.13 ms** |
+| 100 |   0.55 ms · · · · **55.93 ms** |   6.10 ms · · · · **35.91 ms** | 0.51 ms · · · · **1.32 ms** |   6.52 ms · · · · **108.44 ms** |
+| 200 |  59.26 ms · · · **286.38 ms** |  36.24 ms · · · **410.53 ms** | 0.83 ms · · · · **5.31 ms** | 113.94 ms · · **846.21 ms** |
+| 500 | 170.36 ms · · **824.21 ms** | 765.24 ms · · **7.061 s** | 8.69 ms · · · · **334.37 ms** |   1.050 s · · · · · **8.638 s** |
 
 Direct-to-one-validator path (`v1`), p50:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.50 ms  | 0.50 ms   | 0.50 ms   | 0.50 ms   |
-| 50  | 0.51 ms  | 2.97 ms   | 0.50 ms   | 3.01 ms   |
-| 100 | 0.57 ms  | 6.29 ms   | 0.51 ms   | 6.82 ms   |
-| 200 | 7.93 ms  | 10.86 ms  | 7.16 ms   | 60.82 ms  |
-| 500 | 42.59 ms | 201.44 ms | 182.38 ms | 597.20 ms |
+| :---: | --- | --- | --- | --- |
+| 0   |  0.50 ms · · · · **7.28 ms** |   0.50 ms · · · · **0.52 ms** |   0.50 ms · · · · **0.57 ms** |   0.50 ms · · · · **8.34 ms** |
+| 50  |  0.51 ms · · · · **32.85 ms** |   2.97 ms · · · · **1.74 ms** |   0.50 ms · · · · **14.84 ms** |   3.01 ms · · · · **80.92 ms** |
+| 100 |  0.57 ms · · · · **103.07 ms** |   6.29 ms · · · · **7.27 ms** |   0.51 ms · · · · **83.93 ms** |   6.82 ms · · · · **279.59 ms** |
+| 200 |  7.93 ms · · · · **422.29 ms** |  10.86 ms · · · **85.77 ms** |   7.16 ms · · · · **692.45 ms** |  60.82 ms · · · **1.348 s** |
+| 500 | 42.59 ms · · · **1.221 s** | 201.44 ms · · **652.29 ms** | 182.38 ms · · **1.937 s** | 597.20 ms · · **3.947 s** |
+
+Direct-to-all-validators path (`v4` / `v48`), p50:
+
+| slow_size | pool wait | dry-run exec | async resume | full |
+| :---: | --- | --- | --- | --- |
+| 0   |   0.50 ms · · · · **1.61 ms** |   0.50 ms · · · · **0.52 ms** |  0.50 ms · · · · **0.57 ms** |   0.50 ms · · · · **2.92 ms** |
+| 50  |   0.51 ms · · · · **8.86 ms** |   2.98 ms · · · · **3.40 ms** |  0.50 ms · · · · **0.72 ms** |   3.01 ms · · · · **15.27 ms** |
+| 100 |   0.56 ms · · · · **40.72 ms** |   6.49 ms · · · · **29.31 ms** |  0.51 ms · · · · **1.23 ms** |   6.92 ms · · · · **85.78 ms** |
+| 200 |  45.72 ms · · · **373.89 ms** |  36.77 ms · · · **397.54 ms** |  2.02 ms · · · · **7.37 ms** | 117.28 ms · · **974.89 ms** |
+| 500 | 145.01 ms · · **2.653 s** | 836.25 ms · · **6.246 s** | 27.83 ms · · · **41.28 ms** |   1.276 s · · · · · **9.558 s** |
+
+<details>
+<summary>The same split at p99 (the tails)</summary>
+
+Fullnode path (`f1`), p99:
+
+| slow_size | pool wait | dry-run exec | async resume | full |
+| :---: | --- | --- | --- | --- |
+| 0   |   0.99 ms · · · · **110.32 ms** |   0.99 ms · · · · **4.00 ms** |   0.99 ms · · · · **17.97 ms** |   0.99 ms · · · · **111.67 ms** |
+| 50  |   2.17 ms · · · · **404.98 ms** |   4.96 ms · · · · **33.20 ms** |   0.99 ms · · · · **33.25 ms** |   5.21 ms · · · · **411.50 ms** |
+| 100 |   9.44 ms · · · · **961.63 ms** |  23.24 ms · · · **156.32 ms** |   2.93 ms · · · · **87.63 ms** |  24.74 ms · · · **1.035 s** |
+| 200 | 597.54 ms · · **2.779 s** | 135.36 ms · · **1.242 s** |  67.57 ms · · · **457.24 ms** | 649.60 ms · · **3.483 s** |
+| 500 |   1.413 s · · · · · **5.426 s** |   1.475 s · · · · · **12.309 s** | 498.77 ms · · **2.600 s** |   2.474 s · · · · · **16.316 s** |
 
 Direct-to-one-validator path (`v1`), p99:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.99 ms   | 0.99 ms   | 0.99 ms   | 0.99 ms   |
-| 50  | 2.98 ms   | 4.97 ms   | 1.00 ms   | 6.19 ms   |
-| 100 | 14.80 ms  | 23.47 ms  | 2.84 ms   | 27.92 ms  |
-| 200 | 474.62 ms | 125.30 ms | 535.39 ms | 747.32 ms |
-| 500 | 1.297 s   | 1.296 s   | 2.217 s   | 3.287 s   |
+| :---: | --- | --- | --- | --- |
+| 0   |   0.99 ms · · · · **148.72 ms** |   0.99 ms · · · · **4.16 ms** |   0.99 ms · · · · **8.93 ms** |   0.99 ms · · · · **150.19 ms** |
+| 50  |   2.98 ms · · · · **701.69 ms** |   4.97 ms · · · · **18.78 ms** |   1.00 ms · · · · **596.41 ms** |   6.19 ms · · · · **1.016 s** |
+| 100 |  14.80 ms · · · **1.313 s** |  23.47 ms · · · **59.93 ms** |   2.84 ms · · · · **1.190 s** |  27.92 ms · · · **2.002 s** |
+| 200 | 474.62 ms · · **3.171 s** | 125.30 ms · · **406.11 ms** | 535.39 ms · · **3.421 s** | 747.32 ms · · **4.881 s** |
+| 500 |   1.297 s · · · · · **6.693 s** |   1.296 s · · · · · **3.290 s** |   2.217 s · · · · · **6.288 s** |   3.287 s · · · · · **12.389 s** |
 
-Direct-to-all-4 path (`v4`), p50:
-
-| slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.50 ms   | 0.50 ms   | 0.50 ms  | 0.50 ms   |
-| 50  | 0.51 ms   | 2.98 ms   | 0.50 ms  | 3.01 ms   |
-| 100 | 0.56 ms   | 6.49 ms   | 0.51 ms  | 6.92 ms   |
-| 200 | 45.72 ms  | 36.77 ms  | 2.02 ms  | 117.28 ms |
-| 500 | 145.01 ms | 836.25 ms | 27.83 ms | 1.276 s   |
-
-Direct-to-all-4 path (`v4`), p99:
+Direct-to-all-validators path (`v4` / `v48`), p99:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
-| --- | --- | --- | --- | --- |
-| 0   | 0.99 ms   | 0.99 ms   | 0.99 ms   | 0.99 ms   |
-| 50  | 2.55 ms   | 4.96 ms   | 0.99 ms   | 5.50 ms   |
-| 100 | 9.66 ms   | 23.60 ms  | 3.06 ms   | 24.42 ms  |
-| 200 | 644.57 ms | 132.85 ms | 293.54 ms | 753.15 ms |
-| 500 | 1.793 s   | 1.547 s   | 1.723 s   | 3.457 s   |
+| :---: | --- | --- | --- | --- |
+| 0   |   0.99 ms · · · · **29.19 ms** |   0.99 ms · · · · **4.23 ms** |   0.99 ms · · · · **7.57 ms** |   0.99 ms · · · · **31.93 ms** |
+| 50  |   2.55 ms · · · · **145.09 ms** |   4.96 ms · · · · **26.26 ms** |   0.99 ms · · · · **18.72 ms** |   5.50 ms · · · · **151.02 ms** |
+| 100 |   9.66 ms · · · · **1.057 s** |  23.60 ms · · · **141.39 ms** |   3.06 ms · · · · **68.83 ms** |  24.42 ms · · · **1.118 s** |
+| 200 | 644.57 ms · · **4.030 s** | 132.85 ms · · **1.229 s** | 293.54 ms · · **793.91 ms** | 753.15 ms · · **4.766 s** |
+| 500 |   1.793 s · · · · · **12.596 s** |   1.547 s · · · · · **11.412 s** |   1.723 s · · · · · **2.684 s** |   3.457 s · · · · · **19.638 s** |
 
-At light compute, every part sits at the histogram floor (≈0.5 ms) — the full
-latency is just the dry-run. Under heavy compute the overhead appears, and the
-two paths pay it differently. On `f1` the dry-runs queue up for a pool thread:
-pool wait dominates (598 ms at `slow200` p99) while resume stays small. On `v1`
-the one pinned validator attests everything; its cores saturate and finished
-dry-runs wait for the starved async runtime to pick the result up — async
-resume grows into the largest part at the tail (2.217 s at `slow500` p99, more
-than the dry-run itself). `v4` sits between the two: submissions spread over
-all 4 validators, so each validator attests only a quarter of the load, and
-the resume tail lands mid-way (1.723 s at `slow500` p99 vs 0.499 s on `f1` and
-2.217 s on `v1`). The parts do not sum exactly to the full column:
-each column is its own percentile over different transactions, so the split is
-additive at the mean, not per percentile.
+The tails sharpen the same picture.
 
-![Attestation pool wait latency](h1/results/summary_plots_n4/attestation_latency_wait.png)
+- On `n4`, the overhead is tail-only: `f1` pool wait dominates (598 ms at
+`slow200`); `v1`'s async resume grows into the largest part (2.217 s at
+`slow500`, more than the dry-run itself); `v4` — where each validator attests
+only a quarter of the load — lands mid-way (1.723 s vs 0.499 s on `f1` and
+2.217 s on `v1`).
+- On `n48`, the tails grow an order of magnitude and start at `slow0`: pool
+wait 110 ms on `f1`, 149 ms on `v1`, 29 ms on `v48`.
+- On `n48` at `slow500`, the spread paths pay pool wait plus dry-run (full
+≈16–20 s) while `v1`'s resume tail reaches 6.3 s.
 
-*Attestation pool wait (p99/p95/p50) — how long a dry-run sits queued before a
-`spawn_blocking` pool thread starts it. Grows on the heavy `f1` configurations,
-where dry-runs arrive faster than pool threads get CPU.*
+</details>
 
-![Attestation async resume latency](h1/results/summary_plots_n4/attestation_latency_resume.png)
+- At light compute, every part sits at the histogram floor on `n4` (see the
+note above) — the full latency is just the dry-run.
+- On `n48`, the scheduling overhead is already real at `slow0`: `f1` full is
+7.3 ms against a 0.5 ms dry-run, 5.7 ms of it pool wait.
+- On `f1` and `v4`/`v48`, the dry-runs queue up for a pool thread: pool wait
+plus the dry-run itself carry nearly the whole latency, while resume stays
+small on both networks.
+- On `v1`, the one pinned validator attests everything; its cores saturate and
+finished dry-runs wait for the starved async runtime to pick the result up.
+On `n4`, that shows only in the tail (see the p99 tables in the spoiler); on
+`n48`, async resume dominates the median — 692 ms at `slow200` and 1.937 s
+at `slow500`, more than the dry-run itself.
+- The parts do not sum exactly to the full column: each column is its own
+percentile over different transactions, so the split is additive at the mean,
+not per percentile.
 
-*Attestation async resume (p99/p95/p50) — how long after the dry-run finishes
-until the waiting async task gets CPU time to continue. The tail grows largest
-on the heavy pinned (`v1`) configurations, where the one attesting validator's
-cores are saturated.*
+![Attestation pool wait latency, n4](h1/results/summary_plots_n4/attestation_latency_wait.png)
 
-![Full attestation latency](h1/results/summary_plots_n4/attestation_latency_full.png)
+*Attestation pool wait (p99/p95/p50), `n4` campaign — how long a dry-run sits
+queued before a `spawn_blocking` pool thread starts it. Grows on the heavy
+`f1` configurations, where dry-runs arrive faster than pool threads get CPU.*
 
-*Full attestation latency (p99/p95/p50) — pool wait + dry-run execution +
-async resume, the whole `attest_transaction` span.*
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Attestation pool wait latency, n48](h1/results/summary_plots_n48/attestation_latency_wait.png)
+
+*Pool wait, `n48` campaign — nonzero from `slow0` on every path, largest on
+the spread paths at heavy sizes.*
+
+</details>
+
+![Attestation async resume latency, n4](h1/results/summary_plots_n4/attestation_latency_resume.png)
+
+*Attestation async resume (p99/p95/p50), `n4` campaign — how long after the
+dry-run finishes until the waiting async task gets CPU time to continue. The
+tail grows largest on the heavy pinned (`v1`) configurations, where the one
+attesting validator's cores are saturated.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Attestation async resume latency, n48](h1/results/summary_plots_n48/attestation_latency_resume.png)
+
+*Async resume, `n48` campaign — the `v1` starvation shows at every percentile,
+not just the tail.*
+
+</details>
+
+![Full attestation latency, n4](h1/results/summary_plots_n4/attestation_latency_full.png)
+
+*Full attestation latency (p99/p95/p50), `n4` campaign — pool wait + dry-run
+execution + async resume, the whole `attest_transaction` span.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Full attestation latency, n48](h1/results/summary_plots_n48/attestation_latency_full.png)
+
+*Full attestation latency, `n48` campaign — an order of magnitude above `n4`
+throughout.*
+
+</details>
 
 ---
 
@@ -393,7 +466,7 @@ at full rate and the backlog builds up on the receiving side. And B's relative
 cost shrinks as attestation spreads: B/A at `slow500` is 1.99 on `f1`, 1.66 on
 `v1`, 1.18 on `v4`, where each validator attests only a quarter of the load.
 
-![Receipt → execution latency](h1/results/summary_plots_n4/receipt_to_exec_latency.png)
+![Receipt → execution latency, n4](h1/results/summary_plots_n4/receipt_to_exec_latency.png)
 
 *Validator-internal receipt → executed latency — the pure validator-internal
 pipeline, with no client/fullnode time.*
@@ -446,7 +519,7 @@ Attestation does not shrink the total backlog — it moves it from after
 consensus, where checkpoints wait on it, to before consensus, and the more
 concentrated the attestation, the stronger the move.
 
-![Checkpoint creation lag](h1/results/summary_plots_n4/checkpoint_creation_latency.png)
+![Checkpoint creation lag, n4](h1/results/summary_plots_n4/checkpoint_creation_latency.png)
 
 *Checkpoint creation lag (p99/p95/p50) — consensus commit created → checkpoint
 built. Note the heavy direct-path (`v1`, `v4`) configurations: A (attestation
@@ -503,7 +576,7 @@ an attestation effect: the pass is timed per consensus commit, so heavy configs
 both A and B, from contention on the pass. Attestation's Check #3 is lost in the
 noise; its cost is pre-consensus (finding 1), not here.
 
-![Post-consensus validation latency](h1/results/summary_plots_n4/post_consensus_validation_latency.png)
+![Post-consensus validation latency, n4](h1/results/summary_plots_n4/post_consensus_validation_latency.png)
 
 *Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is
 the attestation-added work on this path.*
@@ -566,7 +639,7 @@ The addition holds at low rate — e.g. `slow500-f1-q200`: 25.2 + 616 ≈ 674, a
 queueing
 on the loaded validator beyond the attestation span itself.
 
-![Submit-transaction latency](h1/results/summary_plots_n4/submit_latency.png)
+![Submit-transaction latency, n4](h1/results/summary_plots_n4/submit_latency.png)
 
 *Client submit latency, fullnode path only — finding 7.*
 
@@ -594,7 +667,7 @@ At light load B≈A (≈250 ms, dominated by consensus/finality; attestation is
 negligible). At heavy compute B runs ≈1.6–1.8× A (`slow500` 4.26 s → 7.53 s
 p50), the doubling from finding 4 carried through to what the client observes.
 
-![Settlement finality latency](h1/results/summary_plots_n4/settlement_finality_latency.png)
+![Settlement finality latency, n4](h1/results/summary_plots_n4/settlement_finality_latency.png)
 
 *Client settlement-finality latency, fullnode path only.*
 
@@ -643,7 +716,7 @@ Memory stays small and roughly flat (≈0.7–0.8 GB); attestation barely moves 
 the heavy-config bumps are on ≈0.5–0.9 GB and noisy. Attestation's cost is CPU,
 not memory.
 
-![CPU and memory](h1/results/summary_plots_n4/resources.png)
+![CPU and memory, n4](h1/results/summary_plots_n4/resources.png)
 
 *Whole-machine host CPU and busiest-validator CPU / memory (RSS) — finding 9.*
 
@@ -711,7 +784,7 @@ attestations / sec by path (busiest validator):
 `consensus_handler_validation_dropped_transactions` is ≈0 on both the attested
 (V2) and unattested (V1) paths, across every configuration.
 
-![Throughput, attestation rate, and validation-drop rate](h1/results/summary_plots_n4/TPS.png)
+![Throughput, attestation rate, and validation-drop rate, n4](h1/results/summary_plots_n4/TPS.png)
 
 *Finalized TPS, attestations / sec, and post-consensus validation-drops / sec —
 findings 10 and 11. TPS is A≈B; no validation drops on either path.*
@@ -748,7 +821,7 @@ show no clean effect on queue delay (`v1` B/A 0.92–1.02; `v4` mixed,
 the same picture as finding 5: without attestation the direct paths' backlog
 sits after consensus.
 
-![Execution queues and backpressure](h1/results/summary_plots_n4/queues.png)
+![Execution queues and backpressure, n4](h1/results/summary_plots_n4/queues.png)
 
 *Execution dispatch queue, pending transactions, and execution queue delay
 (p95).*
@@ -797,7 +870,7 @@ path the order can flip outright (1.8 vs 27.1 /s at `slow200-f1-q2000`) —
 there B carries the deeper execution backlog (finding 12), and its shed
 percentages run higher.
 
-![Post-consensus load shedding](h1/results/summary_plots_n4/load_shedding_post_consensus.png)
+![Post-consensus load shedding, n4](h1/results/summary_plots_n4/load_shedding_post_consensus.png)
 
 *Post-consensus load shedding: drops / sec, enforced quorum shed %, and locally
 broadcast shed % (peaks). A dominates the drops on the pinned path; B can
