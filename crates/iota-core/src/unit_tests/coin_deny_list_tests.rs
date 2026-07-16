@@ -22,8 +22,6 @@ use iota_types::{
     object::Object,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedTransaction},
 };
-use prometheus_filtered::Registry;
-use typed_store::DBMetrics;
 
 use crate::{
     authority::{
@@ -464,15 +462,6 @@ impl TestEnv {
 }
 
 async fn new_authority_and_publish(path: &str) -> TestEnv {
-    // typed-store's `DBMetrics` registers rocksdb metrics into the global
-    // `default_registry()` on first initialization, and concurrent first-time
-    // initializers race with `AlreadyReg`. Pre-initialize with a throwaway
-    // registry up front: distinct registries can't collide, and once the init
-    // has run the authority build reuses the cached metrics. Without this,
-    // running several authority-building tests from this file concurrently
-    // flakes.
-    let _ = DBMetrics::init(&Registry::new());
-
     let (sender, keypair) = get_account_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let gas_object_id = gas_object.id();
