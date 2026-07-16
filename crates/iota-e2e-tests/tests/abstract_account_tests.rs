@@ -538,7 +538,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -561,7 +561,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_rotate_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
+    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_rotate_tx)
@@ -647,7 +647,7 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
     // Sign the authenticator over a digest that does not match the transaction,
     // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
-    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let tx = Transaction::from_user_sig_data(tx_data, signatures);
 
     let err = test_env.handle_tx(tx).await.unwrap_err();
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
@@ -702,7 +702,7 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
     // Sign the authenticator over a digest that does not match the transaction,
     // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
-    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let tx = Transaction::from_user_sig_data(tx_data, signatures);
 
     let err = test_env.handle_tx(tx).await.unwrap_err();
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
