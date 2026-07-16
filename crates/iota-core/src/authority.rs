@@ -430,7 +430,8 @@ impl AuthorityMetrics {
             total_effects: register_int_counter_with_registry!(
                 "total_transaction_effects",
                 "Total number of transaction effects produced",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
 
@@ -459,7 +460,8 @@ impl AuthorityMetrics {
                 "num_input_objects",
                 "Distribution of number of input TX objects per TX",
                 POSITIVE_INT_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             num_shared_objects: register_histogram_with_registry!(
@@ -568,7 +570,7 @@ impl AuthorityMetrics {
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry;
-                MetricLevel::Info,)
+                MetricLevel::Warn,)
                 .unwrap(),
             local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
@@ -785,7 +787,8 @@ impl AuthorityMetrics {
                 "consensus_committed_messages",
                 "Total number of committed consensus messages, sliced by author",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_committed_user_transactions: register_int_gauge_vec_with_registry!(
                 "consensus_committed_user_transactions",

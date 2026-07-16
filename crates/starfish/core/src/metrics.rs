@@ -369,7 +369,8 @@ impl NodeMetrics {
                 "highest_verified_authority_round",
                 "The highest round of received verified block for the corresponding authority",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             lowest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "lowest_verified_authority_round",
@@ -480,7 +481,8 @@ impl NodeMetrics {
                 "highest_accepted_authority_round",
                 "The highest round where a block header has been accepted per authority. Resets on restart.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             highest_accepted_round: register_int_gauge_with_registry!(
                 "highest_accepted_round",
@@ -813,7 +815,8 @@ impl NodeMetrics {
                 "last_committed_authority_round",
                 "The last round committed by authority.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_committed_leader_round: register_int_gauge_with_registry!(
                 "last_committed_leader_round",
@@ -823,7 +826,8 @@ impl NodeMetrics {
             last_commit_index: register_int_gauge_with_registry!(
                 "last_commit_index",
                 "Index of the last commit.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_observer_last_recovered_commit_index: register_int_gauge_with_registry!(
                 "commit_observer_last_recovered_commit_index",
@@ -953,12 +957,14 @@ impl NodeMetrics {
             block_manager_suspended_blocks: register_int_gauge_with_registry!(
                 "block_manager_suspended_blocks",
                 "The number of full blocks suspended in the block manager awaiting header acceptance",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_missing_ancestors: register_int_gauge_with_registry!(
                 "block_manager_missing_ancestors",
                 "The number of headers that are missing or suspended in the block manager",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_missing_block_headers: register_int_gauge_with_registry!(
                 "block_manager_missing_block_headers",
