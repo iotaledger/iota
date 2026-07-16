@@ -47,10 +47,8 @@ pub trait WriteApi {
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse>;
 
-    /// Calls a Move view function. If the module records on-chain view
-    /// functions metadata, the function must be declared with the `#[view]`
-    /// attribute; modules without such metadata (published before view
-    /// functions were introduced) fall back to signature checks.
+    /// Calls a Move view function. The function must be declared with the `#[view]`
+    /// attribute.
     #[rustfmt::skip]
     #[method(name = "view")]
     async fn view_function_call(
