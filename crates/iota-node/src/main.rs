@@ -80,9 +80,15 @@ fn main() {
         .as_ref()
         .and_then(|m| m.groups.clone())
         .unwrap_or_default();
-    let env_filter = std::env::var("METRICS_FILTER")
-        .ok()
-        .map(|env| iota_metrics::MetricGroups::expand_startup_directives(&env).unwrap_or(env));
+    let env_filter = std::env::var("METRICS_FILTER").ok().map(|env| {
+        let (expanded, errors) = iota_metrics::MetricGroups::expand_startup_directives(&env);
+        // Logging is not initialized yet, so bad directives are reported on
+        // stderr; the remaining directives still apply.
+        for err in errors {
+            eprintln!("dropping METRICS_FILTER directive: {err}");
+        }
+        expanded
+    });
     let metrics_filter = prometheus_filtered::Filter::from_layers(
         &metric_groups.to_filter_string(),
         env_filter.as_deref(),

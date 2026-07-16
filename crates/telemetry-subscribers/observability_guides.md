@@ -136,8 +136,8 @@ is set to `info`, so only spans with level `error` and `info` will be sent as me
    ```
 
    or via the `METRICS_FILTER` environment variable, whose directives override
-   the config's for the metrics they match (group names work here too; other
-   metrics keep their configured exposure):
+   the config's for the metrics they match (`iota-node` accepts group names
+   here too; other metrics keep their configured exposure):
 
    ```bash
    METRICS_FILTER=telemetry_subscribers=debug

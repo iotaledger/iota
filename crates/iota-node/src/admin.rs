@@ -608,16 +608,18 @@ async fn traffic_control(
 }
 
 async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    fn or_none(s: &str) -> &str {
+        if s.is_empty() { "(none)" } else { s }
+    }
     let filter = state.node.metrics_filter();
-    let runtime = filter
-        .runtime_filter_string()
-        .unwrap_or_else(|| "(none)".to_owned());
+    let runtime = filter.runtime_filter_string().unwrap_or_default();
     (
         StatusCode::OK,
         format!(
-            "runtime: {runtime}\nenv: {}\nconfig: {}\n",
-            filter.env_filter_string(),
-            filter.config_filter_string(),
+            "runtime: {}\nenv: {}\nconfig: {}\n",
+            or_none(&runtime),
+            or_none(filter.env_filter_string()),
+            or_none(filter.config_filter_string()),
         ),
     )
 }
