@@ -191,7 +191,7 @@ impl Parameters {
     }
 
     pub(crate) fn default_soft_leader_timeout() -> Duration {
-        Duration::from_millis(100)
+        Duration::from_millis(5)
     }
 
     pub(crate) fn default_block_rate_window() -> Duration {
