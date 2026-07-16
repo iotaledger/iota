@@ -246,7 +246,8 @@ impl EpochMetrics {
             consensus_quarantine_queue_size: register_int_gauge_with_registry!(
                 "consensus_quarantine_queue_size",
                 "The number of consensus output items in the quarantine",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             shared_object_assignments_size: register_int_gauge_with_registry!(

@@ -714,7 +714,8 @@ impl AuthorityMetrics {
                 "Sizes of each type of transactions processed by consensus handler",
                 &["class"],
                 POSITIVE_INT_BUCKETS.to_vec(),
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             consensus_handler_num_low_scoring_authorities: register_int_gauge_with_registry!(
                 "consensus_handler_num_low_scoring_authorities",
@@ -799,7 +800,8 @@ impl AuthorityMetrics {
             consensus_handler_leader_round: register_int_gauge_with_registry!(
                 "consensus_handler_leader_round",
                 "The leader round of the current consensus output being processed in the consensus handler",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
