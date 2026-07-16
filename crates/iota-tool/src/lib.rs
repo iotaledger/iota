@@ -39,7 +39,9 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     storage::RocksDbStore,
 };
-use iota_data_ingestion_core::{create_remote_store_client, reader::fetch_from_object_store};
+use iota_data_ingestion_core::history::reader::{
+    HistoricalReader, HistoricalReaderConfig, make_blob_iterator_for_range,
+};
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
@@ -659,54 +661,76 @@ pub(crate) async fn backfill_checkpoint_summaries(
         return Ok(());
     }
 
-    // Download summaries for the contiguous range `[1, highest_synced]`; genesis
-    // (0) is the chain root and is already present.
-    // This fills in the missing historical summaries below the node's
-    // watermarks without moving any of them.
-    let bar = m.add(ProgressBar::new(highest_synced).with_style(
+    // Read the checkpoint archive through the HistoricalReader — the batched,
+    // MANIFEST-indexed layout the archive is actually written in.
+    let reader = HistoricalReader::new(HistoricalReaderConfig {
+        object_store_config: checkpoint_archive_object_store_config(&ingestion_url),
+        download_concurrency: num_parallel_downloads,
+    })?;
+    reader.sync_manifest_once().await?;
+
+    // The archive is contiguous from genesis but trails the tip, so it may not
+    // yet reach the node's highest synced checkpoint. Fill up to what it has.
+    let archive_latest = reader.latest_available_checkpoint().await?;
+    let target = highest_synced.min(archive_latest);
+    if archive_latest < highest_synced {
+        m.println(format!(
+            "Checkpoint archive only reaches checkpoint {archive_latest}; filling summaries up to \
+             there (the node is synced to {highest_synced}). Re-run once the archive catches up."
+        ))?;
+    }
+    if target == 0 {
+        m.println("Nothing to backfill: the checkpoint archive has nothing past genesis.")?;
+        return Ok(());
+    }
+
+    // Download the batch files covering `[1, target]` once each and insert every
+    // checkpoint's summary; genesis (0) is the chain root and already present.
+    // This fills in the missing historical summaries below the node's watermarks
+    // without moving any of them.
+    let range = 1..target + 1;
+    let bar = m.add(ProgressBar::new(target).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
     ));
-    let counter = &Arc::new(AtomicU64::new(0));
+    let counter = Arc::new(AtomicU64::new(0));
     spawn_rate_ticker(bar.clone(), counter.clone(), "checkpoints per sec");
-    let client = &create_remote_store_client(ingestion_url, vec![], 60)?;
-    let backfill_one = |sq| async move {
-        async {
-            let (checkpoint, _) = fetch_from_object_store(client, sq).await?;
-            let summary = Arc::try_unwrap(checkpoint)
-                .map(|chk| chk.checkpoint_summary)
-                .unwrap_or_else(|chk| chk.checkpoint_summary.clone());
-            state_sync_store
-                .try_insert_checkpoint(&VerifiedCheckpoint::new_unchecked(summary))
-                .map_err(|e| anyhow!("Failed to insert checkpoint: {e}"))?;
-            counter.fetch_add(1, Ordering::Relaxed);
-            Ok(true)
-        }
-        .await
-        .unwrap_or_else(|e: anyhow::Error| {
-            let _ = m.println(format!("Checkpoint {sq} summary backfill error: {e}"));
-            false
-        })
-    };
-    let all_ok = futures::stream::iter(1..=highest_synced)
-        .map(backfill_one)
-        .buffer_unordered(num_parallel_downloads.into())
-        // use .fold() since .all() short-circuits
-        .fold(true, |acc, ok| async move { acc && ok })
-        .await;
-    bar.finish_with_message("Checkpoint summary backfill is complete");
 
-    if all_ok {
-        m.println(format!(
-            "Successfully backfilled checkpoint summaries up to checkpoint {highest_synced}"
-        ))?;
-        Ok(())
+    let mut blobs = reader.stream_blobs_for_range(range.clone()).await?;
+    while let Some(blob) = blobs.try_next().await? {
+        for checkpoint in make_blob_iterator_for_range(blob, range.clone())? {
+            state_sync_store
+                .try_insert_checkpoint(&VerifiedCheckpoint::new_unchecked(
+                    checkpoint.checkpoint_summary,
+                ))
+                .map_err(|e| anyhow!("Failed to insert checkpoint summary: {e}"))?;
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    bar.finish_with_message("Checkpoint summary backfill is complete");
+    m.println(format!(
+        "Successfully backfilled checkpoint summaries up to checkpoint {target}"
+    ))?;
+    Ok(())
+}
+
+/// Build an [`ObjectStoreConfig`] for a checkpoint archive URL: a local
+/// `file://` directory, or otherwise a public (unsigned) S3-compatible endpoint.
+fn checkpoint_archive_object_store_config(url: &str) -> ObjectStoreConfig {
+    if let Some(dir) = url.strip_prefix("file://") {
+        ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(PathBuf::from(dir)),
+            ..Default::default()
+        }
     } else {
-        m.println(format!(
-            "Backfilled checkpoint summaries up to checkpoint {highest_synced} with errors"
-        ))?;
-        Err(anyhow::anyhow!(
-            "Some checkpoint summaries were not backfilled"
-        ))
+        ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::S3),
+            object_store_connection_limit: 20,
+            aws_endpoint: Some(url.to_string()),
+            aws_virtual_hosted_style_request: true,
+            no_sign_request: true,
+            ..Default::default()
+        }
     }
 }
 
