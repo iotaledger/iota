@@ -20,7 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{ObjectId, ObjectReference};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
