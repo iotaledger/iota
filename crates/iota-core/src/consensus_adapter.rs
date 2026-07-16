@@ -137,7 +137,7 @@ impl ConsensusAdapterMetrics {
                 &["position", "tx_type", "processed_method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry;
-                MetricLevel::Info,
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(

@@ -74,32 +74,38 @@ impl AuthorityStoreMetrics {
             iota_conservation_check_latency: register_int_gauge_with_registry!(
                 "iota_conservation_check_latency",
                 "Number of seconds took to scan all live objects in the store for IOTA conservation check",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_count: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_count",
                 "Number of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_size: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_size",
                 "Size in bytes of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_imbalance",
                 "Total amount of IOTA in the network - 10B * 10^9. This delta shows the amount of imbalance",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund",
                 "Storage Fund pool balance (only includes the storage fund proper that represents object storage)",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund_imbalance",
                 "Imbalance of storage fund, computed with storage_fund_balance - total_object_storage_rebates",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_flags: register_int_gauge_vec_with_registry!(
                 "epoch_flags",
