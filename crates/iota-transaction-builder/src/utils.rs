@@ -304,6 +304,16 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
+        fp_ensure!(
+            module.find_function_def_by_name(function_ident.as_str()).is_some(),
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} not found in module {module_ident} of package {package_id}"
+                ),
+            }
+            .into()
+        );
+
         // Check the function against the view functions recorded in the module's
         // runtime metadata. Functions recorded there passed the view function
         // verifier at publish time, so no further signature checks are needed.

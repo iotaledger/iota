@@ -260,5 +260,13 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
         "{err}"
     );
 
+    // A nonexistent function in an existing module is rejected with a distinct
+    // error from a real but non-view function.
+    let err = http_client
+        .view_function_call(format!("{package_id}::counter::nonexistent"), None, vec![])
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("not found in module"), "{err}");
+
     Ok(())
 }
