@@ -25,7 +25,7 @@ use crate::{
     },
     pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore},
-    types::{IndexedCheckpoint, IndexedPackage},
+    types::IndexedCheckpoint,
 };
 
 /// Data derived from the live-object set included in the snapshot.
@@ -36,7 +36,7 @@ struct ObjectDerivedData {
 }
 
 impl ObjectDerivedData {
-    fn extend(&mut self, object: &Object, checkpoint_sequence_number: u64) {
+    fn extend(&mut self, object: &Object) {
         self.hasher.update(object.object_ref().digest.inner());
         if let Some(display) = StoredDisplay::try_from_object(object) {
             self.displays.insert(display.object_type.clone(), display);
@@ -61,7 +61,7 @@ impl Restore for PgIndexerStore {
                 } = snapshot_object;
                 let checkpoint_sequence_number =
                     previous_transaction_checkpoint.unwrap_or_default();
-                derived_data.extend(&object, checkpoint_sequence_number);
+                derived_data.extend(&object);
                 Some(LiveObject::new(checkpoint_sequence_number, object))
             },
         );
