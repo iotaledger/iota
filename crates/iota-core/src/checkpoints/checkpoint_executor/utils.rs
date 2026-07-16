@@ -9,11 +9,9 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
-use iota_types::{
-    base_types::{TransactionDigest, TransactionEffectsDigest},
-    messages_checkpoint::{
-        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
-    },
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
+use iota_types::messages_checkpoint::{
+    CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
 };
 use strum::VariantNames;
 use tokio::sync::watch;

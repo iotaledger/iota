@@ -11,9 +11,8 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
-    digests::TransactionDigest,
     error::{IotaError, UserInputError},
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,

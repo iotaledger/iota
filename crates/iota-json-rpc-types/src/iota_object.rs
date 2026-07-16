@@ -14,11 +14,12 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, Version,
+    Address, Identifier, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectInfo, ObjectType, TransactionDigest},
+    base_types::{ObjectInfo, ObjectType},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,

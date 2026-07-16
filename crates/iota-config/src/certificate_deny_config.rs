@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use iota_types::base_types::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 

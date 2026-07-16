@@ -23,8 +23,8 @@ use iota_grpc_types::{
         },
     },
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
     transaction_executor::TransactionExecutor,

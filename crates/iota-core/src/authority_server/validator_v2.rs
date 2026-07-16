@@ -8,8 +8,8 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     fp_ensure,

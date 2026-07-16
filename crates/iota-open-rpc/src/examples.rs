@@ -26,21 +26,19 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TypeTag, Version,
-    gas::GasCostSummary,
+    Address, CheckpointDigest, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, Version, gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectType, TransactionDigest, random_object_ref},
+    base_types::{ObjectType, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
-    digests::TransactionEventsDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
     gas_coin::GasCoin,
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    messages_checkpoint::CheckpointDigest,
     object::{MoveObject, MoveObjectExt},
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

@@ -11,7 +11,7 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CheckpointContentsV1, RandomnessRound,
+    CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
     checkpoint::CheckpointTransactionInfo,
     crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
@@ -25,7 +25,6 @@ use tracing::instrument;
 #[cfg(not(target_arch = "wasm32"))]
 use tracing::warn;
 
-pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
@@ -33,7 +32,6 @@ use crate::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
     },
-    digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     global_state_hash::GlobalStateHash,
@@ -708,14 +706,11 @@ pub struct CheckpointVersionSpecificDataV1 {
 #[cfg(test)]
 mod tests {
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest};
     use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;
-    use crate::{
-        digests::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest},
-        transaction::VerifiedTransaction,
-        utils::make_committee_key,
-    };
+    use crate::{transaction::VerifiedTransaction, utils::make_committee_key};
 
     // TODO use the file name as a seed
     const RNG_SEED: [u8; 32] = [

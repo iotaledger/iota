@@ -20,7 +20,7 @@ mod checked {
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
         ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
-        SystemPackage, TransactionKind, Version, gas::GasCostSummary,
+        SystemPackage, TransactionDigest, TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -31,7 +31,7 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{TransactionDigest, TxContext},
+        base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,

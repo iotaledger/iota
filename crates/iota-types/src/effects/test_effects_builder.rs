@@ -5,11 +5,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    ExecutionStatus, ObjectId, ObjectReference, Owner, Version, gas::GasCostSummary,
+    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionEventsDigest,
+    Version, gas::GasCostSummary,
 };
 
 use crate::{
-    digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
         TransactionEffectsExt,

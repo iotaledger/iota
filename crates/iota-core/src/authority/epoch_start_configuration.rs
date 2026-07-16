@@ -6,7 +6,7 @@ use std::fmt;
 
 use enum_dispatch::enum_dispatch;
 use iota_config::NodeConfig;
-use iota_sdk_types::Version;
+use iota_sdk_types::{CheckpointDigest, Version};
 use iota_types::{
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
@@ -14,7 +14,7 @@ use iota_types::{
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
     },
-    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
+    messages_checkpoint::CheckpointTimestamp,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     storage::ObjectStore,
 };

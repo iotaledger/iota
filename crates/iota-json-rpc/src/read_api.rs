@@ -28,10 +28,9 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId, StructTag, Version};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, Version};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::TransactionDigest,
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{
@@ -1467,7 +1466,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{CheckpointDigest, TransactionEffectsDigest, gas::GasCostSummary};
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1477,13 +1476,12 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
-        digests::TransactionEffectsDigest,
         effects::TransactionEvents,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
             CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-            CheckpointDigest, CheckpointSummary, CheckpointSummaryExt,
+            CheckpointSummary, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,

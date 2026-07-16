@@ -225,7 +225,7 @@ fn build_anemo_services(out_dir: &Path) {
             anemo_build::manual::Method::builder()
                 .name("get_checkpoint_contents")
                 .route_name("GetCheckpointContents")
-                .request_type("iota_types::messages_checkpoint::CheckpointContentsDigest")
+                .request_type("iota_sdk_types::CheckpointContentsDigest")
                 .response_type("Option<iota_types::messages_checkpoint::FullCheckpointContents>")
                 .codec_path(codec_path)
                 .build(),

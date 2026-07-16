@@ -10,11 +10,10 @@ use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
 use iota_macros::fail_point_arg;
-use iota_sdk_types::Version;
+use iota_sdk_types::{TransactionEventsDigest, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::VerifiedExecutionData,
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,

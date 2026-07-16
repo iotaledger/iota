@@ -7,9 +7,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, ObjectReference, RandomnessRound, Version, VersionAssignment};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, Version, VersionAssignment,
+};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,

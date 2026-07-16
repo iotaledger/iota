@@ -185,11 +185,12 @@ mod tests {
     use std::str::FromStr;
 
     use iota_sdk_types::{
-        Address, Identifier, ObjectReference, SharedObjectReference, StructTag, TypeTag,
+        Address, Identifier, ObjectDigest, ObjectReference, SharedObjectReference, StructTag,
+        TypeTag,
     };
 
     use super::*;
-    use crate::{base_types::ObjectDigest, transaction::CallArg};
+    use crate::transaction::CallArg;
 
     // ── helpers ─────────────────────────────────────────────────────────────
 

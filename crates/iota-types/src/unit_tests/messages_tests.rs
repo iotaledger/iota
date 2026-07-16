@@ -15,7 +15,7 @@ use fastcrypto::{
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
-    gas::GasCostSummary,
+    TransactionEventsDigest, gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
 
@@ -30,7 +30,6 @@ use crate::{
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
-    digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,

@@ -32,7 +32,9 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
@@ -40,7 +42,7 @@ use iota_types::{
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     error::IotaError,
@@ -50,7 +52,7 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;

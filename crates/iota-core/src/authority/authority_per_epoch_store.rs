@@ -32,14 +32,14 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionKind, Version, VersionAssignment,
+    TransactionDigest, TransactionEffectsDigest, TransactionKind, Version, VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    base_types::{AuthorityName, CommitRound, ConciseableName, EpochId, TransactionDigest},
+    base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    digests::{ChainIdentifier, TransactionEffectsDigest},
+    digests::ChainIdentifier,
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{

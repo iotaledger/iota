@@ -20,9 +20,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
-    base_types::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,

@@ -13,8 +13,8 @@ workspace = true
 iota-grpc-client = { workspace = true, optional = true }
 iota-grpc-types = { workspace = true, optional = true }
 iota-sdk-crypto = { workspace = true, optional = true }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "a3f5ffb555b46db06ce17df050f5148c4fbc668e", optional = true }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "a3f5ffb555b46db06ce17df050f5148c4fbc668e", default-features = false, optional = true }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "18a8ef3df65d8c8df22e56e28c0fc9b4ff0012d5", optional = true }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "18a8ef3df65d8c8df22e56e28c0fc9b4ff0012d5", default-features = false, optional = true }
 iota-sdk-types = { workspace = true, optional = true }
 
 [features]
