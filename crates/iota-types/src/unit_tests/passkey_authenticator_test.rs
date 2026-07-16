@@ -221,7 +221,7 @@ async fn test_passkey_serde() {
     let deserialized: PasskeyAuthenticator = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(passkey, deserialized);
 
-    // serde round trip for generic signature is the same
+    // serde round trip for user signature is the same
     let signature = UserSignature::PasskeyAuthenticator(passkey);
     let serialized_str = serde_json::to_string(&signature).unwrap();
     let deserialized: UserSignature = serde_json::from_str(&serialized_str).unwrap();
