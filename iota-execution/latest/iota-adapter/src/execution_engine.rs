@@ -445,6 +445,9 @@ mod checked {
             },
         );
 
+        let authentication_execution_result =
+            report_authentication_error(authentication_execution_result, protocol_config);
+
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -541,7 +544,7 @@ mod checked {
         );
 
         // Run each authenticator in sequence; return on first failure.
-        authenticators.into_iter().try_for_each(
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
             |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
@@ -563,7 +566,9 @@ mod checked {
                     }
                 }
             },
-        )
+        );
+
+        report_authentication_error(authentication_execution_result, protocol_config)
     }
 
     // This function implements the authentication execution. It checks that the
@@ -896,6 +901,22 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    /// When enabled by the protocol config, report a failure of the Move
+    /// authentication as a distinct
+    /// [`ExecutionErrorKind::MoveAuthenticationError`], dropping the
+    /// authenticator's internal command index so it is not attributed to a
+    /// command of the programmable transaction.
+    fn report_authentication_error<T>(
+        authentication_execution_result: Result<T, ExecutionError>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<T, ExecutionError> {
+        if protocol_config.report_move_authentication_error() {
+            authentication_execution_result.map_err(ExecutionError::into_move_authentication_error)
+        } else {
+            authentication_execution_result
+        }
     }
 
     /// Elaborate errors in logs if they are unexpected or their status is

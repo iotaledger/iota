@@ -180,6 +180,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             on non-Mainnet/Testnet chains.
 //             Start publishing package metadata using module metadata as a
 //             dynamic field.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthenticationError` execution error.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -562,6 +564,11 @@ struct FeatureFlags {
     // field.
     #[serde(skip_serializing_if = "is_false")]
     package_metadata_with_dynamic_module_metadata: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthenticationError` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1854,6 +1861,15 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
+    }
 }
 
 #[cfg(not(msim))]
@@ -3031,6 +3047,8 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .package_metadata_with_dynamic_module_metadata = true;
                     }
+
+                    cfg.feature_flags.report_move_authentication_error = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3294,6 +3312,10 @@ impl ProtocolConfig {
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags
             .package_metadata_with_dynamic_module_metadata = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
     }
 }
 

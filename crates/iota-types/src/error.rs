@@ -687,6 +687,9 @@ pub enum IotaError {
 
     #[error("Invalid admin request: {0}")]
     InvalidAdminRequest(String),
+
+    #[error("Could not find the referenced transaction effects [{digest}]")]
+    TransactionEffectsNotFound { digest: TransactionDigest },
 }
 
 #[repr(u64)]
@@ -1048,6 +1051,22 @@ impl ExecutionError {
     pub fn with_command_index(mut self, command: u64) -> Self {
         self.inner.command = Some(command);
         self
+    }
+
+    /// Rewrap this error, produced while executing a Move authenticator, as a
+    /// [`ExecutionFailureStatus::MoveAuthenticationError`]. The command index
+    /// is dropped: it referred to a command of the authenticator's own
+    /// programmable transaction and is meaningless in the transaction's
+    /// effects, where it would otherwise collide with the first command of the
+    /// programmable transaction.
+    pub fn into_move_authentication_error(self) -> Self {
+        let ExecutionErrorInner { kind, source, .. } = *self.inner;
+        Self::new(
+            ExecutionFailureStatus::MoveAuthenticationError {
+                error: Box::new(kind),
+            },
+            source,
+        )
     }
 
     pub fn from_kind(kind: ExecutionErrorKind) -> Self {
