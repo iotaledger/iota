@@ -627,7 +627,8 @@ impl NodeMetrics {
                 "synchronizer_fetched_block_headers_by_peer",
                 "Number of fetched block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             synchronizer_skipped_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_skipped_block_headers_by_peer",
@@ -823,7 +824,8 @@ impl NodeMetrics {
             last_commit_index: register_int_gauge_with_registry!(
                 "last_commit_index",
                 "Index of the last commit.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_observer_last_recovered_commit_index: register_int_gauge_with_registry!(
                 "commit_observer_last_recovered_commit_index",
@@ -883,7 +885,8 @@ impl NodeMetrics {
                 "transaction_synchronizer_fetched_transactions_by_peer",
                 "Number of fetched transactions per peer authority via the transaction synchronizer",
                 &["peer", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_fetched_transactions_by_authority: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_authority",
@@ -1053,7 +1056,8 @@ impl NodeMetrics {
                 "commit_sync_fetched_commits",
                 "The number of commits fetched via commit syncer",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_fetched_block_headers: register_int_counter_with_registry!(
                 "commit_sync_fetched_block_headers",
