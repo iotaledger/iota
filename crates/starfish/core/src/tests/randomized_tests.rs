@@ -204,11 +204,14 @@ struct AuthorityTestFixture {
 }
 
 fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTestFixture {
-    let context = Arc::new(
-        Context::new_for_test(num_authorities)
-            .0
-            .with_authority_index(AuthorityIndex::new_for_test(authority_index)),
-    );
+    // Test blocks carry no strong votes; run with StarfishSpeed off.
+    let mut context = Context::new_for_test(num_authorities)
+        .0
+        .with_authority_index(AuthorityIndex::new_for_test(authority_index));
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(false);
+    let context = Arc::new(context);
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
         LeaderSwapTable::default(),

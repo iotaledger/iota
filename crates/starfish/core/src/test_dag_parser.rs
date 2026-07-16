@@ -291,7 +291,12 @@ pub(crate) fn parse_dag(dag_string: &str) -> Result<DagBuilder, ParseDagError> {
 
     let (mut input, num_authors) = preceded(tag("DAG{"), parse_genesis)(input)?;
 
-    let context = Arc::new(Context::new_for_test(num_authors as usize).0);
+    // The DAG DSL cannot express strong votes; run with StarfishSpeed off.
+    let mut context = Context::new_for_test(num_authors as usize).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(false);
+    let context = Arc::new(context);
     let mut dag_builder = DagBuilder::new(context);
     loop {
         match parse_round(input) {

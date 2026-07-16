@@ -1957,7 +1957,11 @@ mod test {
     #[tokio::test]
     async fn test_core_recover_from_store_for_full_round() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2080,7 +2084,11 @@ mod test {
     async fn test_core_recover_from_store_for_partial_round() {
         telemetry_subscribers::init_for_testing();
 
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2371,7 +2379,11 @@ mod test {
     #[tokio::test]
     async fn test_core_propose_once_receiving_a_quorum() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
@@ -2627,7 +2639,11 @@ mod test {
             sleep(wait_time).await;
         }
 
-        let (context, _) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         // Create the cores for all authorities
         let mut all_cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -2798,7 +2814,11 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (context, _) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -2941,6 +2961,10 @@ mod test {
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
                 commit_only_for_traversed_headers,
             );
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         // Enforce the protocol-config invariant before exercising the pipeline:
         // fast commit sync requires committing only for traversed headers.
         assert!(context.protocol_config.consensus_fast_commit_sync());
@@ -3155,7 +3179,11 @@ mod test {
     async fn test_add_certified_commits() {
         telemetry_subscribers::init_for_testing();
 
-        let (context, _key_pairs) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -3256,7 +3284,11 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (context, _) = Context::new_for_test(6);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _) = Context::new_for_test(6);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
 
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]).await;
@@ -3387,7 +3419,11 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (context, _) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -3480,7 +3516,11 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
 
-        let (context, _) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -3576,7 +3616,11 @@ mod test {
     #[tokio::test]
     async fn test_commit_and_notify_for_block_status() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
 
         let context = Arc::new(context);
 

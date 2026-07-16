@@ -3502,7 +3502,11 @@ mod tests {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
