@@ -297,13 +297,13 @@ async fn isolated_sync_job() {
 }
 
 #[tokio::test]
-async fn test_state_sync_using_archive() -> anyhow::Result<()> {
+async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     telemetry_subscribers::init_for_testing();
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // build mock data
     let (ordered_checkpoints, ordered_contents, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
-    let temp_dir = iota_common::tempdir().keep();
+    let temp_dir = iota_common::tempdir();
     // We will delete all checkpoints older than this checkpoint on Node 2
     let oldest_checkpoint_to_keep: u64 = 10;
 
