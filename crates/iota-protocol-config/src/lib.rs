@@ -182,6 +182,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             dynamic field.
 //             Report a failure of the Move authentication with a distinct
 //             `MoveAuthenticationError` execution error.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3046,6 +3048,9 @@ impl ProtocolConfig {
                         // dynamic field.
                         cfg.feature_flags
                             .package_metadata_with_dynamic_module_metadata = true;
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
                     }
 
                     cfg.feature_flags.report_move_authentication_error = true;

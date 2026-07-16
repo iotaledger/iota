@@ -1316,7 +1316,7 @@
                 "consensus_round_prober": true,
                 "consensus_round_prober_probe_accepted_rounds": true,
                 "consensus_smart_ancestor_selection": false,
-                "consensus_starfish_speed": false,
+                "consensus_starfish_speed": true,
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
                 "deny_rule_governance": false,
