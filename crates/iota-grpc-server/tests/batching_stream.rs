@@ -100,7 +100,10 @@ async fn test_get_objects_batching_within_limit() {
         ..Default::default()
     });
 
-    let (server_handle, _) = common::start_test_server(state_reader, |_| {}).await;
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_get_objects_batch_size = NUM_OBJECTS as u32;
+    })
+    .await;
     let addr = server_handle.address();
 
     // Use the raw tonic client instead of the high-level Client so we can
@@ -255,7 +258,10 @@ async fn test_get_transactions_batching_within_limit() {
         ..Default::default()
     });
 
-    let (server_handle, _) = common::start_test_server(state_reader, |_| {}).await;
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_get_transactions_batch_size = NUM_TXS as u32;
+    })
+    .await;
     let addr = server_handle.address();
 
     // Use the raw tonic client instead of the high-level Client so we can
