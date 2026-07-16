@@ -1003,6 +1003,12 @@ def phase2_generate_compose(cfg: Config) -> None:
         lines.append("      - RPC_WORKER_THREAD=12")
         lines.append("      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000")
         lines.append("      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000")
+        # Expose all metric levels: the default /metrics exposure hides
+        # debug-tier metrics (e.g. the consensus commit-latency histograms
+        # the stable-window comparison queries). Images predating the
+        # metric-groups change ignore the unknown level token and stay
+        # permissive.
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(
             f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={cfg.chain_override}"
         )
@@ -1043,6 +1049,7 @@ def phase2_generate_compose(cfg: Config) -> None:
             "      - RUST_LOG=info,iota_core=debug,iota_network=debug,"
             "iota_node=debug,jsonrpsee=error"
         )
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(
             f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={cfg.chain_override}"
         )
