@@ -13,6 +13,7 @@ import fs from 'fs';
 
 const SPONSOR_ADDRESS_MNEMONIC = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 const CUSTOM_NFT_PACKAGE_PATH = "../../move/custom_nft";
+const VIEW_FUNCTIONS_PACKAGE_PATH = "../../../../examples/move/view_functions";
 const IOTA_BIN = path.resolve(__dirname, '../../../../target/release/iota');
 
 
@@ -78,18 +79,39 @@ export async function publishCustomNftPackage(
 
 
 /**
+ * Utility function to publish the view functions package found in the Move examples.
+ */
+export async function publishViewFunctionsPackage(
+    iotaClient: IotaClient,
+    keypair: Ed25519Keypair
+): Promise<string> {
+    try {
+        const packagePath = path.join(__dirname, VIEW_FUNCTIONS_PACKAGE_PATH);
+        // Building with `--allow-view-function true` compiles the `#[view]`
+        // attributes into the modules' runtime metadata, independently of the
+        // network the CLI is configured against.
+        return await publishPackage(iotaClient, keypair, packagePath, ['--allow-view-function', 'true']);
+    } catch (error) {
+        console.error("Error publishing view functions package:", error);
+        throw error;
+    }
+}
+
+
+/**
  * Utility function to publish a package.
  */
-async function publishPackage(iotaClient: IotaClient, keypair: Ed25519Keypair, packagePath: string): Promise<string> {
+async function publishPackage(iotaClient: IotaClient, keypair: Ed25519Keypair, packagePath: string, extraBuildArgs: string[] = []): Promise<string> {
     // First check if the iota binary is built.
     if (!fs.existsSync(IOTA_BIN)) {
         console.log("IOTA binary not found. Building the binary...");
         execSync('cargo build --release -p iota', { cwd: path.resolve(__dirname, '../../../../') });
     }
 
+    const buildArgs = ['--dump-bytecode-as-base64', ...extraBuildArgs, '--path', packagePath];
     const { modules, dependencies } = JSON.parse(
         execSync(
-            `${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath}`,
+            `${IOTA_BIN} move build ${buildArgs.join(' ')}`,
             { encoding: 'utf-8' },
         ),
     );

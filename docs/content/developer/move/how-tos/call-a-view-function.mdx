@@ -1,8 +1,10 @@
 ---
-description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, or the Rust SDK.'
+description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, or the Rust and TypeScript SDKs.'
 tags:
   - how-to
   - rpc
+  - rust-sdk
+  - ts-sdk
 ---
 
 # Call a View Function
@@ -107,16 +109,12 @@ The [GraphQL API](../../references/iota-graphql.mdx) exposes the same call as th
 
 1. Send the query with the fully qualified function name and the function arguments.
 
-```graphql
-{
-  moveViewCall(
-    functionName: "<PACKAGE-ID>::leaderboard::total_entries"
-    arguments: ["<LEADERBOARD-ID>"]
-  ) {
-    error
-    results
-  }
-}
+```sh
+curl -i -X POST 'https://graphql.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "query": "{ moveViewCall(functionName: \"<PACKAGE-ID>::leaderboard::total_entries\", arguments: [\"<LEADERBOARD-ID>\"]) { error results } }"
+}'
 ```
 
 2. Read the return values from `results`; on execution failure `results` is `null` and `error` holds the message.
@@ -139,9 +137,21 @@ The Rust SDK exposes `iota_view` as `view_function_call` on the JSON-RPC client.
 ```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L95-L103
 ```
 
+## Call from the TypeScript SDK
+
+The [TypeScript SDK](https://github.com/iotaledger/ts-packages) (`@iota/iota-sdk`) exposes `iota_view` as `client.view()`, taking the same `functionName`, `typeArgs`, and `arguments`, and returning the same result shape — a union of `functionReturnValues` and `executionError`. This example publishes the `view_functions` package, creates a leaderboard with one score, and calls its views:
+
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L75-L94
+```
+
 ## Full Example Code
 
 The complete Rust SDK example, including publishing the package:
 
 ```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs
+```
+
+The complete TypeScript SDK example:
+
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts
 ```
