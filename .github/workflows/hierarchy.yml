@@ -157,6 +157,7 @@ jobs:
   # skipped `uses:` job never expands its nested check runs.
   heavy-tests-status:
     needs:
+      - diff
       - rust
       - split-cluster
       - split-cluster-sync-check
