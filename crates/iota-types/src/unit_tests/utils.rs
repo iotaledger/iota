@@ -122,9 +122,8 @@ pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> Tra
 /// is not verified or signed by authority.
 pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-    let kp = IotaKeyPair::from_bytes(&kp.to_bytes()).unwrap();
-    Transaction::from_data_and_signer(data, vec![&kp])
+    let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
+    Transaction::from_data(data, vec![kp.sign(&*digest)])
 }
 
 // This is used to sign transaction with signer using default Intent.

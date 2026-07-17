@@ -13,7 +13,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_crypto::Signer as SdkSigner;
+use iota_sdk_crypto::Signer;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
@@ -417,7 +417,7 @@ impl TestTransactionBuilder {
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn SdkSigner<SimpleSignature>],
+        signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
