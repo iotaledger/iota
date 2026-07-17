@@ -1566,8 +1566,8 @@ fn read_cached_transaction_data(
         return Ok(None);
     };
 
-    let events = if include_events {
-        cache.try_get_events(digest)?
+    let events = if include_events && effects.events_digest().is_some() {
+        Some(validator_state.get_transaction_events(digest)?)
     } else {
         None
     };
