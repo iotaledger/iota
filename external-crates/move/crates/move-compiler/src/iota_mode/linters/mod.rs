@@ -25,6 +25,7 @@ pub mod public_mut_tx_context;
 pub mod public_random;
 pub mod self_transfer;
 pub mod share_owned;
+pub mod view_function;
 
 pub const TRANSFER_MOD_NAME: &str = "transfer";
 pub const TRANSFER_FUN: &str = "transfer";
@@ -73,6 +74,7 @@ pub const PUBLIC_RANDOM_FILTER_NAME: &str = "public_random";
 pub const MISSING_KEY_FILTER_NAME: &str = "missing_key";
 pub const FREEZING_CAPABILITY_FILTER_NAME: &str = "freezing_capability";
 pub const PREFER_MUTABLE_TX_CONTEXT_FILTER_NAME: &str = "prefer_mut_tx_context";
+pub const VIEW_FUNCTION_FILTER_NAME: &str = "view_function";
 
 pub const RANDOM_MOD_NAME: &str = "random";
 pub const RANDOM_STRUCT_NAME: &str = "Random";
@@ -92,6 +94,7 @@ pub enum LinterDiagnosticCode {
     MissingKey,
     FreezingCapability,
     PreferMutableTxContext,
+    ViewFunction,
 }
 
 pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {
@@ -157,6 +160,12 @@ pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {
             LinterDiagnosticCode::PreferMutableTxContext as u8,
             Some(PREFER_MUTABLE_TX_CONTEXT_FILTER_NAME),
         ),
+        WarningFilter::code(
+            Some(LINT_WARNING_PREFIX),
+            LinterDiagnosticCategory::Iota as u8,
+            LinterDiagnosticCode::ViewFunction as u8,
+            Some(VIEW_FUNCTION_FILTER_NAME),
+        ),
     ];
 
     (Some(ALLOW_ATTR_CATEGORY.into()), filters)
@@ -178,6 +187,7 @@ pub fn linter_visitors(level: LintLevel) -> Vec<Visitor> {
         LintLevel::All => {
             let mut visitors = linter_visitors(LintLevel::Default);
             visitors.extend([
+                view_function::ViewFunctionVisitor.visitor(),
                 freezing_capability::WarnFreezeCapability.visitor(),
                 public_mut_tx_context::PreferMutableTxContext.visitor(),
             ]);

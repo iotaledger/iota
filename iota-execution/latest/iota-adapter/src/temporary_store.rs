@@ -12,12 +12,12 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, Version,
-    gas::GasCostSummary,
+    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, TransactionDigest,
+    Version, gas::GasCostSummary,
 };
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{TransactionDigest, VersionDigest},
+    base_types::VersionDigest,
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{

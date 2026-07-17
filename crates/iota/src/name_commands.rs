@@ -24,10 +24,10 @@ use iota_names::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
     collection_types::{Entry, VecMap},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::Field,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };

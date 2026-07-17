@@ -4,7 +4,10 @@
 
 //! This module contains the public APIs supported by the bytecode verifier.
 
-use iota_types::{error::ExecutionError, move_package::FnInfoMap};
+use iota_types::{
+    error::ExecutionError,
+    move_package::{FnInfoMap, ProtocolBuildConfig},
+};
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_verifier_meter::{Meter, dummy::DummyMeter};
 
@@ -18,6 +21,7 @@ pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
@@ -25,7 +29,7 @@ pub fn iota_verify_module_metered(
     private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map)?;
     one_time_witness_verifier::verify_module(module, fn_info_map)?;
-    runtime_module_metadata::verify_module(module)
+    runtime_module_metadata::verify_module(module, protocol_build_config)
 }
 
 /// Runs the IOTA verifier and checks if the error counts as an IOTA verifier
@@ -35,9 +39,12 @@ pub fn iota_verify_module_metered_check_timeout_only(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as an IOTA verifier timeout
-    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
+    if let Err(error) =
+        iota_verify_module_metered(module, fn_info_map, meter, protocol_build_config)
+    {
         if matches!(
             error.kind(),
             iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
@@ -52,15 +59,17 @@ pub fn iota_verify_module_metered_check_timeout_only(
 pub fn iota_verify_module_unmetered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<(), ExecutionError> {
-    iota_verify_module_metered(module, fn_info_map, &mut DummyMeter).inspect_err(|err| {
-        // We must never see timeout error in execution
-        debug_assert!(
-            !matches!(
-                err.kind(),
-                iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
-            ),
-            "Unexpected timeout error in execution"
-        );
-    })
+    iota_verify_module_metered(module, fn_info_map, &mut DummyMeter, protocol_build_config)
+        .inspect_err(|err| {
+            // We must never see timeout error in execution
+            debug_assert!(
+                !matches!(
+                    err.kind(),
+                    iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
+                ),
+                "Unexpected timeout error in execution"
+            );
+        })
 }

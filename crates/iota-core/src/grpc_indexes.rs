@@ -10,10 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, Version};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version};
 use iota_types::{
     committee::EpochId,
-    digests::TransactionDigest,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},

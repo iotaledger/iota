@@ -5,13 +5,13 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, TransactionDigest},
+    base_types::{AuthorityName, EpochId},
     committee::StakeUnit,
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
     effects::{

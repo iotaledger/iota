@@ -4,7 +4,7 @@
 mod fields_v1;
 
 pub use fields_v1::*;
-use iota_sdk_types::ProgrammableTransaction;
+use iota_sdk_types::{Digest, MoveAuthenticatorDigest, ProgrammableTransaction};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -17,7 +17,6 @@ use crate::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
     },
-    digests::{Digest, MoveAuthenticatorDigest},
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");

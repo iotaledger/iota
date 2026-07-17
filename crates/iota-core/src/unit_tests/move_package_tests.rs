@@ -7,11 +7,10 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectData, ObjectId, PackageUpgradeError,
+    Identifier, ObjectData, ObjectId, PackageUpgradeError, TransactionDigest,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    digests::TransactionDigest,
     error::ExecutionErrorKind,
     move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
@@ -556,7 +555,10 @@ fn test_fail_on_upgrade_missing_type() {
 pub fn build_test_package(test_dir: &str) -> CompiledPackage {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "move_package", test_dir]);
-    BuildConfig::new_for_testing().build(&path).unwrap()
+    BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap()
 }
 
 pub fn build_test_modules(test_dir: &str) -> Vec<CompiledModule> {

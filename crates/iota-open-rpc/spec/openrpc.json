@@ -1336,6 +1336,7 @@
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "normalize_ptb_arguments": true,
+                "package_metadata_with_dynamic_module_metadata": true,
                 "pass_calculated_validator_scores_to_advance_epoch": true,
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
@@ -1343,6 +1344,7 @@
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,
+                "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
@@ -3334,11 +3336,11 @@
           "name": "Write API"
         }
       ],
-      "description": "Calls a move view function.",
+      "description": "Calls a Move view function. The function must be declared with the `#[view]` attribute.",
       "params": [
         {
           "name": "function_name",
-          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.",
           "required": true,
           "schema": {
             "type": "string"

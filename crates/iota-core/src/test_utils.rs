@@ -6,11 +6,11 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference,
+    Address, Identifier, ObjectId, ObjectReference, TransactionDigest,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{AuthorityName, ExecutionDigests, TransactionDigest, random_object_ref},
+    base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
@@ -104,7 +104,8 @@ pub async fn wait_for_tx(digest: TransactionDigest, state: Arc<AuthorityState>) 
     )
     .await
     {
-        Ok(_) => info!(?digest, "digest found"),
+        Ok(Ok(_)) => info!(?digest, "digest found"),
+        Ok(Err(e)) => panic!("failed to read effects of digest! {e}"),
         Err(e) => {
             warn!(?digest, "digest not found!");
             panic!("timed out waiting for effects of digest! {e}");
@@ -121,7 +122,8 @@ pub async fn wait_for_all_txes(digests: Vec<TransactionDigest>, state: Arc<Autho
     )
     .await
     {
-        Ok(_) => info!(?digests, "all digests found"),
+        Ok(Ok(_)) => info!(?digests, "all digests found"),
+        Ok(Err(e)) => panic!("failed to read effects of digests! {e}"),
         Err(e) => {
             warn!(?digests, "some digests not found!");
             panic!("timed out waiting for effects of digests! {e}");

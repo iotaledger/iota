@@ -21,7 +21,7 @@ use iota_core::{
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,

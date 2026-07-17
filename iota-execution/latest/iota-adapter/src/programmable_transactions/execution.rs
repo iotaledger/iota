@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
@@ -27,15 +27,15 @@ mod checked {
             TxContext, TxContextKind,
         },
         coin::Coin,
-        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
-            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -52,10 +52,8 @@ mod checked {
         CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
-        file_format::{
-            AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, SignatureToken, Visibility,
-        },
-        file_format_common::{IOTA_METADATA_KEY, VERSION_6},
+        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
+        file_format_common::VERSION_6,
         normalized,
     };
     use move_core_types::{
@@ -79,7 +77,7 @@ mod checked {
             ensure_serialized_size,
         },
         gas_charger::GasCharger,
-        programmable_transactions::context::*,
+        programmable_transactions::{context::*, package_metadata::*},
     };
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -382,6 +380,7 @@ mod checked {
                     cmd.dependencies,
                     cmd.package,
                     ticket,
+                    trace_builder_opt,
                 )?
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
@@ -393,7 +392,7 @@ mod checked {
     }
 
     /// Execute a single Move call
-    fn execute_move_call<Mode: ExecutionMode>(
+    pub(crate) fn execute_move_call<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         storage_id: &ModuleId,
@@ -601,6 +600,7 @@ mod checked {
                     storage_id,
                     runtime_id,
                     OBJECT_START_VERSION.as_u64(),
+                    trace_builder_opt,
                 )?;
             }
 
@@ -624,6 +624,7 @@ mod checked {
         dep_ids: Vec<ObjectId>,
         current_package_id: ObjectId,
         upgrade_ticket_arg: Arg,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
             !module_bytes.is_empty(),
@@ -727,6 +728,7 @@ mod checked {
                 storage_id,
                 runtime_id,
                 package_version,
+                trace_builder_opt,
             )?;
         }
 
@@ -762,13 +764,25 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) = existing_package.normalize(
+        let current_normalized = match normalize_modules_with_metadata(
             pool,
+            existing_package.serialized_module_map().values(),
             &binary_config,
-            // include code
-            true,
-        ) else {
-            invariant_violation!("Tried to normalize modules in existing package but failed")
+            true, // include code
+            Some(context.protocol_config),
+        ) {
+            Ok(modules) => modules,
+            Err(IotaError::ModuleDeserializationFailure { .. }) => {
+                invariant_violation!("Tried to normalize modules in existing package but failed")
+            }
+            Err(e) => {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::PackageUpgradeError {
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
+                    },
+                    e,
+                ));
+            }
         };
 
         let existing_modules_len = current_normalized.len();
@@ -788,13 +802,23 @@ mod checked {
                 ),
             ));
         }
-        let mut new_normalized = normalize_deserialized_modules(
+
+        let mut new_normalized = normalize_deserialized_modules_with_metadata(
             pool,
             upgrading_modules.iter(),
             true, // include code
-        );
-        for (name, cur_module) in current_normalized {
-            let Some(new_module) = new_normalized.remove(&name) else {
+            Some(context.protocol_config),
+        )
+        .map_err(|e| {
+            ExecutionError::new_with_source(
+                ExecutionErrorKind::PackageUpgradeError {
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
+                },
+                e,
+            )
+        })?;
+        for (name, (cur_module, cur_metadata)) in current_normalized {
+            let Some((new_module, new_metadata)) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::PackageUpgradeError {
                         kind: PackageUpgradeError::IncompatibleUpgrade,
@@ -803,6 +827,7 @@ mod checked {
                 ));
             };
 
+            check_view_function_compatibility(&name, &cur_metadata, &new_metadata)?;
             check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
 
@@ -840,6 +865,55 @@ mod checked {
                 e,
             )
         })
+    }
+
+    /// Verifies that any function marked `#[view]` in the current package
+    /// remains marked `#[view]` in the upgraded package. Removing the attribute
+    /// would preserve the Move bytecode signature but break clients that rely
+    /// on view-function metadata for read-only execution.
+    fn check_view_function_compatibility(
+        module_name: &str,
+        cur_metadata: &RuntimeModuleMetadata,
+        new_metadata: &RuntimeModuleMetadata,
+    ) -> Result<(), ExecutionError> {
+        let cur_view_functions = view_functions(cur_metadata);
+        if cur_view_functions.is_empty() {
+            return Ok(());
+        }
+
+        let new_view_functions = view_functions(new_metadata);
+        for function_name in cur_view_functions {
+            if !new_view_functions.contains(&function_name) {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::PackageUpgradeError {
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
+                    },
+                    format!(
+                        "Function {module_name}::{function_name} was marked #[view] in the \
+                         previous package version but is not marked #[view] in the upgraded \
+                         package"
+                    ),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn view_functions(metadata: &RuntimeModuleMetadata) -> BTreeSet<String> {
+        match metadata {
+            RuntimeModuleMetadata::V1(_) => BTreeSet::new(),
+            RuntimeModuleMetadata::V2(runtime_module_metadata_v2) => runtime_module_metadata_v2
+                .fun_attributes
+                .iter()
+                .filter(|&(_function_name, attributes)| {
+                    attributes
+                        .iter()
+                        .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+                })
+                .map(|(function_name, _attributes)| function_name.clone())
+                .collect(),
+        }
     }
 
     /// Retrieves a `PackageObject` from the storage based on the provided
@@ -891,139 +965,6 @@ mod checked {
                 ))
             }
             Ok(Ok(pkgs)) => Ok(pkgs),
-        }
-    }
-
-    /// Creates package metadata for a Move package by extracting module
-    /// metadata and wrapping it in a `PackageMetadata`. The function iterates
-    /// through the provided modules, collecting metadata associated with
-    /// the IOTA_METADATA_KEY key. It then constructs the package metadata
-    /// wrapper using the collected module metadata, storage ID, runtime ID,
-    /// and package version and finally freezes it. If no relevant metadata
-    /// is found, the function exits without creating any package metadata.
-    fn create_and_freeze_package_metadata_if_present(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        modules: &[CompiledModule],
-        storage_id: ObjectId,
-        runtime_id: ObjectId,
-        package_version: u64,
-    ) -> Result<(), ExecutionError> {
-        let mut modules_metadata_map = BTreeMap::new();
-        // Extract metadata for each module
-        for module in modules {
-            if let Some(md) = module
-                .metadata
-                .iter()
-                .find(|md| md.key == IOTA_METADATA_KEY.to_vec())
-            {
-                // At this point, if the metadata is present, it should have been already
-                // validated by the iota-verifier during package verification (in
-                // `publish_and_verify_modules`).
-                let runtime_module_metadata: RuntimeModuleMetadata =
-                    bcs::from_bytes::<RuntimeModuleMetadataWrapper>(&md.value)
-                        .map_err(|_| {
-                            ExecutionError::from_kind(
-                                ExecutionErrorKind::VmVerificationOrDeserializationError,
-                            )
-                        })?
-                        .try_into()
-                        .map_err(|_| {
-                            ExecutionError::from_kind(
-                                ExecutionErrorKind::VmVerificationOrDeserializationError,
-                            )
-                        })?;
-
-                // PackageMetadataV1 specific:
-                // - Process functions for each module in order to create function metadata:
-                //    - Authenticator attributes, if present, are extracted to create
-                //      AuthenticatorMetadata to insert into the PackageMetadata
-                let mut module_metadata_map = BTreeMap::new();
-                for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
-                    // Check attributes
-                    for attribute in fn_attributes {
-                        match attribute {
-                            IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                let contains = module_metadata_map.insert(
-                                    fn_name.to_string(),
-                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
-                                );
-                                debug_assert!(
-                                    contains.is_none(),
-                                    "Duplicate function metadata for authenticator"
-                                );
-                            }
-                            _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
-                        }
-                    }
-                }
-                // Fill the package metadata with a module handle (and its related function
-                // metadata) only if there is at least one function with
-                // relevant metadata
-                if !module_metadata_map.is_empty() {
-                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
-                }
-                // End of PackageMetadataV1 specific
-            }
-        }
-
-        // Only publish package metadata if there is at least one module with
-        // relevant metadata
-        if !modules_metadata_map.is_empty() {
-            // Create the package metadata "special" object UID
-            let metadata_uid = context.package_derived_metadata_id(storage_id)?;
-            // Create the package metadata object content
-            let metadata = PackageMetadata::new_v1(
-                metadata_uid,
-                storage_id,
-                runtime_id,
-                package_version,
-                modules_metadata_map,
-            );
-            // Turn the content into an object
-            let package_metadata = context.make_object_value(
-                metadata.type_(),
-                // used_in_non_entry_move_call
-                false,
-                &metadata.to_bcs_bytes(),
-            )?;
-            // Freeze the package metadata object
-            context.freeze_object(package_metadata)?
-        }
-        Ok(())
-    }
-
-    fn get_authenticator_first_param_type_tag(
-        module: &CompiledModule,
-        authenticate_fn_name: &impl AsRef<str>,
-    ) -> Result<TypeTag, ExecutionError> {
-        // Entering into this function, the verifier must have already been run,
-        // so we can assume the function exists and has the correct signature.
-        let Some((_, fn_definition)) = module.find_function_def_by_name(authenticate_fn_name)
-        else {
-            return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::VmInvariantViolation,
-            ));
-        };
-        let fn_handle = module.function_handle_at(fn_definition.function);
-        let fn_signature = module.signature_at(fn_handle.parameters);
-        // We need the first parameter to be a reference type so we can extract the
-        // inner as the type tag.
-        match &fn_signature.0[0] {
-            SignatureToken::Reference(ref_param) => {
-                let pool = &mut normalized::RcPool::new();
-                if let Some(type_tag) =
-                    normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
-                {
-                    Ok(type_tag_core_to_sdk(&type_tag))
-                } else {
-                    Err(ExecutionError::from_kind(
-                        ExecutionErrorKind::VmVerificationOrDeserializationError,
-                    ))
-                }
-            }
-            _ => Err(ExecutionError::from_kind(
-                ExecutionErrorKind::VmVerificationOrDeserializationError,
-            )),
         }
     }
 
@@ -1156,7 +1097,11 @@ mod checked {
         for module in modules {
             // Run IOTA bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
-            iota_verifier::verifier::iota_verify_module_unmetered(module, &BTreeMap::new())?;
+            iota_verifier::verifier::iota_verify_module_unmetered(
+                module,
+                &BTreeMap::new(),
+                &ProtocolBuildConfig::from(context.protocol_config),
+            )?;
         }
 
         Ok(())

@@ -32,7 +32,8 @@ use iota_config::{
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
+    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
     TransactionKind,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
@@ -44,7 +45,6 @@ use iota_types::{
     base_types::{AuthorityName, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
-    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
@@ -601,7 +601,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.with_store(|store| store.get_checkpoint_by_digest(digest)))
     }
@@ -615,7 +615,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -639,21 +639,21 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_transaction(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.with_store(|store| store.get_transaction(tx_digest)))
     }
 
     fn try_get_transaction_effects(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.with_store(|store| store.get_transaction_effects(tx_digest)))
     }
 
     fn try_get_events(
         &self,
-        digest: &iota_types::digests::TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(digest)))
     }
@@ -679,7 +679,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {

@@ -630,6 +630,12 @@ def generate_compose_file(
         lines.append("      - RPC_WORKER_THREAD=12")
         lines.append("      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000")
         lines.append("      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000")
+        # Expose all metric levels: the default /metrics output hides
+        # debug-tier metrics, which include the consensus commit-latency
+        # histograms and accepted_block_headers that measure_block_production
+        # queries. Images predating the metric-groups change ignore the
+        # unknown level token and stay permissive.
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={chain_override}")
         lines.append("    command:")
         lines.append("      [")
@@ -669,6 +675,7 @@ def generate_compose_file(
             "      - RUST_LOG=info,iota_core=debug,iota_network=debug,"
             "iota_node=debug,jsonrpsee=error"
         )
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={chain_override}")
         lines.append("    command:")
         lines.append("      [")

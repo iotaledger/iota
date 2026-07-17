@@ -19,7 +19,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    GasPayment, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, Version,
+    GasPayment, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TransactionKind, Version,
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
@@ -31,7 +32,6 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::VersionNumber,
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,

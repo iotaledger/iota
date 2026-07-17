@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use prometheus_filtered::{
-    Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
@@ -37,13 +37,15 @@ impl CheckpointMetrics {
             last_certified_checkpoint: register_int_gauge_with_registry!(
                 "last_certified_checkpoint",
                 "Last certified checkpoint",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             last_constructed_checkpoint: register_int_gauge_with_registry!(
                 "last_constructed_checkpoint",
                 "Last constructed checkpoint",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             last_created_checkpoint_age: register_histogram_with_registry!(
@@ -56,18 +58,21 @@ impl CheckpointMetrics {
                 "last_certified_checkpoint_age",
                 "Age of the last certified checkpoint",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry
+                registry;
+                MetricLevel::Info,
             ).unwrap(),
             checkpoint_errors: register_int_counter_with_registry!(
                 "checkpoint_errors",
                 "Checkpoints errors count",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             transactions_included_in_checkpoint: register_int_counter_with_registry!(
                 "transactions_included_in_checkpoint",
                 "Transactions included in a checkpoint",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             checkpoint_roots_count: register_int_counter_with_registry!(
@@ -93,7 +98,8 @@ impl CheckpointMetrics {
             last_sent_checkpoint_signature: register_int_gauge_with_registry!(
                 "last_sent_checkpoint_signature",
                 "Last checkpoint signature sent by myself",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_skipped_checkpoint_signature_submission: register_int_gauge_with_registry!(
@@ -118,7 +124,8 @@ impl CheckpointMetrics {
                 "checkpoint_creation_latency",
                 "Latency from consensus commit timestamp to local checkpoint creation in milliseconds",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             ).unwrap(),
             commits_per_checkpoint: register_histogram_with_registry!(
                 "commits_per_checkpoint",
@@ -129,13 +136,15 @@ impl CheckpointMetrics {
             remote_checkpoint_forks: register_int_counter_with_registry!(
                 "remote_checkpoint_forks",
                 "Number of remote checkpoints that forked from local checkpoints",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
             split_brain_checkpoint_forks: register_int_counter_with_registry!(
                 "split_brain_checkpoint_forks",
                 "Number of checkpoints that have resulted in a split brain",
-                registry
+                registry;
+                MetricLevel::Info,
             )
             .unwrap(),
         };

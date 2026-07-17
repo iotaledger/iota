@@ -5,8 +5,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{Address, ObjectId};
-use iota_types::{base_types::TxContext, committee::EpochId, digests::TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_types::{base_types::TxContext, committee::EpochId};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, runtime_value::MoveTypeLayout, vm_status::StatusCode,

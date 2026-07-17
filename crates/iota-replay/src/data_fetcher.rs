@@ -15,10 +15,12 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind, Version};
+use iota_sdk_types::{
+    EndOfEpochTransactionKind, ObjectId, StructTag, TransactionDigest, TransactionKind, Version,
+};
 use iota_types::{
     base_types::VersionNumber,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     object::Object,
     transaction::{SenderSignedData, TransactionDataAPI},
 };

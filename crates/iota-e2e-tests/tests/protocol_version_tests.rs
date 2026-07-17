@@ -68,11 +68,10 @@ mod sim_only_tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
         Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
-        ProgrammableTransaction, TransactionKind, Version,
+        ProgrammableTransaction, TransactionDigest, TransactionKind, Version,
     };
     use iota_types::{
         base_types::ConciseableName,
-        digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{

@@ -1402,7 +1402,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -1431,12 +1431,12 @@
       },
       "targets": [
         {
-          "expr": "rate(indexer_total_epoch_committed[$__rate_interval])",
+          "expr": "indexer_last_committed_epoch",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
-      "title": "Epochs Committed/s",
+      "title": "Last Committed Epoch",
       "type": "timeseries"
     },
     {

@@ -7,11 +7,10 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use futures::FutureExt;
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, Version};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    digests::TransactionDigest,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey},
 };

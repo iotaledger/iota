@@ -10,11 +10,10 @@ use iota_sdk_types::{
     ChangeEpoch as NativeChangeEpochTransaction, ChangeEpochV2 as NativeChangeEpochTransactionV2,
     ChangeEpochV3 as NativeChangeEpochTransactionV3,
     ChangeEpochV4 as NativeChangeEpochTransactionV4,
-    EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind, SystemPackage,
+    EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind, SystemPackage, TransactionDigest,
 };
 use iota_types::{
     committee::{EpochId, ProtocolVersion},
-    digests::TransactionDigest,
     object::Object as NativeObject,
 };
 use move_binary_format::{CompiledModule, errors::PartialVMResult};

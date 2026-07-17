@@ -7,14 +7,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
 use crate::{
     base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    digests::TransactionDigest,
     effects::{
         TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExtForTesting, TransactionEvents,

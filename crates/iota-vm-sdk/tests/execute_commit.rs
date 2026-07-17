@@ -7,11 +7,10 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    ObjectId, Owner,
+    ObjectId, Owner, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
