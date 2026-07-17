@@ -13,6 +13,7 @@ pub mod displays;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
+pub mod local_simulation;
 #[cfg(feature = "iota-names")]
 pub mod name_commands;
 mod signing;
