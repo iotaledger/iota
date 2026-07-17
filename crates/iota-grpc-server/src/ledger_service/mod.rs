@@ -10,12 +10,13 @@ mod get_transactions;
 
 use std::sync::Arc;
 
+use futures::StreamExt;
 use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
 
 use crate::{traffic_control::TallyHandle, types::*};
 
@@ -103,15 +104,25 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
-        let response = get_objects::get_objects(self.reader.clone(), request)
-            .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
-            .map_err(tonic::Status::from)?;
+        let stream =
+            get_objects::get_objects(self.reader.clone(), request).map_err(tonic::Status::from)?;
         // The batch's items are streamed lazily and invisible to the
-        // transport-level traffic control: charge one request per requested
-        // item so batching cannot dilute the spam rate.
+        // transport-level traffic control. Mark the request as accounted so the
+        // layer skips its default per-request tally, then charge one request per
+        // item as it is produced, so batching cannot dilute the spam rate. Reads
+        // feed the spam policy only: a client cannot know an object or
+        // transaction was pruned, so per-item read failures must not count
+        // towards the error policy.
         if let Some(tally_handle) = &tally_handle {
-            tally_handle.tally_items((0..item_count).map(|_| tonic::Code::Ok));
+            tally_handle.mark_accounted();
         }
+        let stream = stream.map(move |result| {
+            if let (Some(tally_handle), Ok(response)) = (&tally_handle, &result) {
+                tally_handle.tally_items(response.objects.iter().map(|_| Code::Ok));
+            }
+            result
+        });
+        let response = Response::new(Box::pin(stream) as Self::GetObjectsStream);
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -126,16 +137,26 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
             .as_ref()
             .map_or(0, |batch| batch.requests.len());
         validate_read_batch_size(item_count, self.config.max_get_transactions_batch_size)?;
-        let response =
+        let stream =
             get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
-                .map(|stream| Response::new(Box::pin(stream) as Self::GetTransactionsStream))
                 .map_err(tonic::Status::from)?;
         // The batch's items are streamed lazily and invisible to the
-        // transport-level traffic control: charge one request per requested
-        // item so batching cannot dilute the spam rate.
+        // transport-level traffic control. Mark the request as accounted so the
+        // layer skips its default per-request tally, then charge one request per
+        // item as it is produced, so batching cannot dilute the spam rate. Reads
+        // feed the spam policy only: a client cannot know an object or
+        // transaction was pruned, so per-item read failures must not count
+        // towards the error policy.
         if let Some(tally_handle) = &tally_handle {
-            tally_handle.tally_items((0..item_count).map(|_| tonic::Code::Ok));
+            tally_handle.mark_accounted();
         }
+        let stream = stream.map(move |result| {
+            if let (Some(tally_handle), Ok(response)) = (&tally_handle, &result) {
+                tally_handle.tally_items(response.transaction_results.iter().map(|_| Code::Ok));
+            }
+            result
+        });
+        let response = Response::new(Box::pin(stream) as Self::GetTransactionsStream);
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 

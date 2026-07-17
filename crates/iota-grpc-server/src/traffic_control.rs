@@ -12,9 +12,10 @@
 //! would count as a single request regardless of how many items it carries.
 //! Handlers report each item through the [`TallyHandle`] request extension: an
 //! item counts as one request for the spam policy, and a per-item client error
-//! additionally feeds the error policy. Handlers that account eagerly from the
-//! request's item count (the streaming reads, whose items are produced lazily)
-//! report each item as `Code::Ok`, so they contribute to the spam policy only.
+//! additionally feeds the error policy. Unary batch handlers report their items
+//! eagerly once the response is built; streaming handlers tally each item as
+//! its response stream is consumed, calling [`TallyHandle::mark_accounted`] up
+//! front so the layer still skips its default per-request tally.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally
@@ -174,13 +175,21 @@ impl TallyHandle {
         self.per_item_accounted.load(Ordering::Relaxed)
     }
 
+    /// Signal that the handler will account for this request's items itself, so
+    /// the layer skips its default one-tally-per-request accounting. Call this
+    /// when the per-item tallies happen later than the handler returns — e.g. a
+    /// streaming handler that tallies each item as its response stream is
+    /// consumed, after the layer has already checked the flag.
+    pub fn mark_accounted(&self) {
+        self.per_item_accounted.store(true, Ordering::Relaxed);
+    }
+
     /// Account for one item of a batch response: count it as one request for
     /// the spam policy and, if `code` is a client error, feed the error policy.
-    /// Passing `Code::Ok` (e.g. when accounting eagerly from a request's item
-    /// count) contributes to the spam policy only.
+    /// Passing `Code::Ok` contributes to the spam policy only.
     ///
-    /// Signals the layer to skip its default per-request tally, so a batch is
-    /// charged per item rather than once.
+    /// Also signals the layer to skip its default per-request tally, so a batch
+    /// is charged per item rather than once.
     pub fn tally_item(&self, code: Code) {
         self.per_item_accounted.store(true, Ordering::Relaxed);
         tally(&self.traffic_controller, self.client, code);

@@ -16,6 +16,7 @@ mod common;
 use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
 
 use common::{MockGrpcStateReader, start_test_server, start_test_server_with_traffic_controller};
+use futures::StreamExt;
 use iota_core::traffic_controller::TrafficController;
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{
@@ -289,12 +290,17 @@ async fn batched_reads_accrue_spam_per_item() {
     let mut client = LedgerServiceClient::new(connect(&handle).await);
 
     // One batch of object lookups: each requested item counts as one request for
-    // the spam policy. The lookups miss in the mock store, which does not affect
-    // the spam count.
-    client
+    // the spam policy, tallied as the response stream is consumed. The lookups
+    // miss in the mock store, which does not affect the spam count. Drain the
+    // stream so all items are tallied before probing.
+    let mut stream = client
         .get_objects(get_objects_batch(SPAM_BATCH_SIZE))
         .await
-        .expect("batch request itself should succeed");
+        .expect("batch request itself should succeed")
+        .into_inner();
+    while let Some(item) = stream.next().await {
+        item.expect("stream item should be Ok");
+    }
 
     assert_client_blocked(SPAM_PROBE_ATTEMPTS, || {
         let mut client = client.clone();
@@ -358,6 +364,43 @@ async fn successful_requests_do_not_feed_the_error_policy() {
             .list_owned_objects(request.clone())
             .await
             .expect("valid request should succeed");
+        // Yield so the tally task runs; a wrongly tallied error would block the
+        // next request.
+        tokio::task::yield_now().await;
+    }
+}
+
+/// Read endpoints must not feed the error policy: a client cannot know an
+/// object or transaction was pruned, so per-item read failures must not count
+/// towards blocking.
+#[tokio::test]
+async fn read_errors_do_not_feed_the_error_policy() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            // Block on the first error tally, so a read error wrongly fed to the
+            // error policy would block the client and fail this test.
+            error_policy_type: PolicyType::TestNConnIP(1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let mut client = LedgerServiceClient::new(connect(&handle).await);
+
+    // Every requested object misses in the mock store, so each item is an
+    // embedded per-item error. Draining the stream tallies each item; reads must
+    // tally spam only, never the error policy.
+    for _ in 0..5 {
+        let mut stream = client
+            .get_objects(get_objects_batch(3))
+            .await
+            .expect("read request should succeed")
+            .into_inner();
+        while let Some(item) = stream.next().await {
+            item.expect("stream item should be Ok");
+        }
         // Yield so the tally task runs; a wrongly tallied error would block the
         // next request.
         tokio::task::yield_now().await;
