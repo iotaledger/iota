@@ -117,7 +117,8 @@ impl Metrics {
                 "monitored_channel_inflight",
                 "Inflight items in channels.",
                 &["name"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             channel_sent: register_int_gauge_vec_with_registry!(

@@ -98,7 +98,8 @@ impl CheckpointMetrics {
             last_sent_checkpoint_signature: register_int_gauge_with_registry!(
                 "last_sent_checkpoint_signature",
                 "Last checkpoint signature sent by myself",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_skipped_checkpoint_signature_submission: register_int_gauge_with_registry!(

@@ -25,7 +25,7 @@ use iota_types::{
 };
 use once_cell::sync::Lazy;
 use prometheus_filtered::{
-    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };
 use tokio::{
@@ -145,25 +145,29 @@ impl AuthorityStorePruningMetrics {
             last_pruned_checkpoint: register_int_gauge_with_registry!(
                 "last_pruned_checkpoint",
                 "Last pruned checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_pruned_objects: register_int_counter_with_registry!(
                 "num_pruned_objects",
                 "Number of pruned objects",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_pruned_tombstones: register_int_counter_with_registry!(
                 "num_pruned_tombstones",
                 "Number of pruned tombstones",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_pruned_effects_checkpoint: register_int_gauge_with_registry!(
                 "last_pruned_effects_checkpoint",
                 "Last pruned effects checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_pruned_indexes_transaction: register_int_gauge_with_registry!(
@@ -175,7 +179,8 @@ impl AuthorityStorePruningMetrics {
             num_epochs_to_retain_for_objects: register_int_gauge_with_registry!(
                 "num_epochs_to_retain_for_objects",
                 "Number of epochs to retain for objects",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_epochs_to_retain_for_checkpoints: register_int_gauge_with_registry!(
