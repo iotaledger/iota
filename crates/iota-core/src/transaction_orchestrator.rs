@@ -255,6 +255,10 @@ where
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
+        let transaction = epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+
         // Captured before `request` moves so the skip-cert reconcile reads
         // caller intent, not whatever the submitter happened to return — a
         // Byzantine submitter could otherwise censor a field by returning
@@ -263,14 +267,6 @@ where
         let include_input_objects = request.include_input_objects;
         let include_output_objects = request.include_output_objects;
 
-        let transaction = epoch_store
-            .verify_transaction(request.transaction.clone())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
-
-        let wait_for_local_execution = matches!(
-            request_type,
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        );
         let tx_digest = *transaction.digest();
 
         // A resubmission of an already-executed transaction is answered from
@@ -291,6 +287,19 @@ where
             return Ok((response, true));
         }
 
+        // Reject malformed transactions before either driver inspects shared
+        // inputs or `MoveAuthenticator`. Runs after the cache lookup so that,
+        // as on the upstream flow, a resubmission of an executed transaction
+        // gets its cached results even if it no longer passes the current
+        // epoch's checks (e.g. its expiration epoch has passed).
+        transaction
+            .validity_check(&epoch_store.tx_validity_check_context())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
+
+        let wait_for_local_execution = matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        );
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
                 self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
@@ -304,8 +313,14 @@ where
                 None,
             ),
             (Driver::Quorum(qd), _) => {
-                let (_, qd_resp) = self
-                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
+                let qd_resp = self
+                    .execute_transaction_impl(
+                        qd,
+                        &epoch_store,
+                        request,
+                        transaction.clone(),
+                        client_addr,
+                    )
                     .await?;
                 (Some(quorum_driver_response_to_v1(qd_resp)), None)
             }
@@ -578,10 +593,10 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        epoch_store
+        let transaction = epoch_store
             .verify_transaction(request.transaction.clone())
             .map_err(QuorumDriverError::InvalidUserSignature)?;
-        let tx_digest = *request.transaction.digest();
+        let tx_digest = *transaction.digest();
 
         // A resubmission of an already-executed transaction is answered from
         // the local cache instead of being driven through the validators
@@ -601,6 +616,15 @@ where
             return Ok(response);
         }
 
+        // Reject malformed transactions before either driver inspects shared
+        // inputs or `MoveAuthenticator`. Runs after the cache lookup so that,
+        // as on the upstream flow, a resubmission of an executed transaction
+        // gets its cached results even if it no longer passes the current
+        // epoch's checks (e.g. its expiration epoch has passed).
+        transaction
+            .validity_check(&epoch_store.tx_validity_check_context())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
+
         match &self.driver {
             Driver::Transaction(td) => {
                 // v1 does not do an internal wait; callers (e.g. the gRPC
@@ -617,9 +641,8 @@ where
             }
             Driver::Quorum(qd) => {
                 let qd_resp = self
-                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
-                    .await
-                    .map(|(_, r)| r)?;
+                    .execute_transaction_impl(qd, &epoch_store, request, transaction, client_addr)
+                    .await?;
                 Ok(quorum_driver_response_to_v1(qd_resp))
             }
         }
@@ -798,23 +821,18 @@ where
         )
     }
 
+    /// Submit a transaction via the QuorumDriver. `transaction` must be the
+    /// signature-verified form of `request.transaction`, and the caller must
+    /// have run `validity_check` on it beforehand.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     async fn execute_transaction_impl(
         &self,
         quorum_driver: &Arc<QuorumDriverHandler<A>>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         request: ExecuteTransactionRequestV1,
+        transaction: VerifiedTransaction,
         client_addr: Option<SocketAddr>,
-    ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
-        // Reject malformed transactions before any code path inspects shared
-        // inputs or `MoveAuthenticator`
-        request
-            .transaction
-            .validity_check(&epoch_store.tx_validity_check_context())
-            .map_err(QuorumDriverError::InvalidTransaction)?;
-        let transaction = epoch_store
-            .verify_transaction(request.transaction.clone())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
+    ) -> Result<QuorumDriverResponse, QuorumDriverError> {
         let (_in_flight_metrics_guards, good_response_metrics) = self.update_metrics(&transaction);
         let tx_digest = *transaction.digest();
         debug!(?tx_digest, "TO Received transaction execution request.");
@@ -875,7 +893,7 @@ where
             Ok(Err(err)) => Err(err),
             Ok(Ok(response)) => {
                 good_response_metrics.inc();
-                Ok((transaction, response))
+                Ok(response)
             }
         }
     }
