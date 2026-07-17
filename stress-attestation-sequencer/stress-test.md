@@ -102,8 +102,8 @@ Aggregation and reporting tooling (all under `h1/` directory):
 > [!NOTE]
 > Client-side `settlement_finality_latency` and `submit_transaction_latency` are
 > recorded only on the fullnode path, so they exist for `f1` configurations
-> only; the `v1`/`v4` (direct-to-validator) configurations bypass the fullnode
-> and report no client-side latency.
+> only; direct-to-validator configurations bypass the fullnode and report no
+> client-side latency.
 
 ---
 
@@ -159,36 +159,36 @@ sweep, matching it at the heavy end. The full attestation latency
 pulls away from `slow200` on — the wait and resume around the dry-run grow
 with load, on every client path:
 
-Fullnode path (`f1`), each latency cell `n4` · · · `n48` (CUs are identical
+Fullnode path (`f1`), each latency cell `n4` ∣ `n48` (CUs are identical
 on both networks):
 
 | slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |  0.95 ms · · · · ·  **0.99 ms** |   2.06 ms · · · · · **7.84 ms** |   0.95 ms · · · · · **58.17 ms** | 1k    |
-| 50  |  4.80 ms · · · · · **17.42 ms** |   5.87 ms · · · · · **190.88 ms** |   4.83 ms · · · · · **236.95 ms** | 1k    |
-| 100 | 16.21 ms · · · · **106.32 ms** |  20.30 ms · · · · **574.57 ms** |  19.29 ms · · · · **640.22 ms** | 4k    |
-| 200 | 94.85 ms · · · · **1.024 s** | 185.32 ms · · · **1.697 s** | 444.29 ms · · · **2.616 s** | 128k  |
-| 500 |  1.307 s · · · · · · **11.168 s** |   1.200 s · · · · · · **8.942 s** |   2.013 s · · · · · · **14.204 s** | 1.37M |
+| 0   | 0.95 ms  ∣ **0.99 ms** | 2.06 ms   ∣ **7.84 ms** | 0.95 ms   ∣ **58.17 ms** | 1k    |
+| 50  | 4.80 ms  ∣ **17.42 ms** | 5.87 ms   ∣ **190.88 ms** | 4.83 ms   ∣ **236.95 ms** | 1k    |
+| 100 | 16.21 ms ∣ **106.32 ms** | 20.30 ms  ∣ **574.57 ms** | 19.29 ms  ∣ **640.22 ms** | 4k    |
+| 200 | 94.85 ms ∣ **1.024 s** | 185.32 ms ∣ **1.697 s** | 444.29 ms ∣ **2.616 s** | 128k  |
+| 500 | 1.307 s   ∣ **11.168 s** | 1.200 s    ∣ **8.942 s** | 2.013 s    ∣ **14.204 s** | 1.37M |
 
 Direct-to-one-validator path (`v1`):
 
 | slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |   0.95 ms · · · · · **0.98 ms** |   1.32 ms · · · · · **8.40 ms** |   0.95 ms · · · · · **80.52 ms** | 1k    |
-| 50  |   4.80 ms · · · · · **7.39 ms** |   6.20 ms · · · · · **61.00 ms** |   4.85 ms · · · · · **713.25 ms** | 1k    |
-| 100 |  17.37 ms · · · · **41.84 ms** |  21.29 ms · · · · **251.13 ms** |  20.60 ms · · · · **1.483 s** | 4k    |
-| 200 |  78.78 ms · · · · **293.23 ms** | 207.46 ms · · · **1.234 s** | 505.16 ms · · · **4.125 s** | 128k  |
-| 500 | 990.24 ms · · · **2.615 s** | 999.34 ms · · · **1.812 s** |   2.515 s · · · · · · **10.585 s** | 1.37M |
+| 0   | 0.95 ms   ∣ **0.98 ms** | 1.32 ms   ∣ **8.40 ms** | 0.95 ms   ∣ **80.52 ms** | 1k    |
+| 50  | 4.80 ms   ∣ **7.39 ms** | 6.20 ms   ∣ **61.00 ms** | 4.85 ms   ∣ **713.25 ms** | 1k    |
+| 100 | 17.37 ms  ∣ **41.84 ms** | 21.29 ms  ∣ **251.13 ms** | 20.60 ms  ∣ **1.483 s** | 4k    |
+| 200 | 78.78 ms  ∣ **293.23 ms** | 207.46 ms ∣ **1.234 s** | 505.16 ms ∣ **4.125 s** | 128k  |
+| 500 | 990.24 ms ∣ **2.615 s** | 999.34 ms ∣ **1.812 s** | 2.515 s    ∣ **10.585 s** | 1.37M |
 
 Direct-to-all-validators path (`v4` / `v48`):
 
 | slow_size | attest. exec. lat. p95 | exec. lat. p95 | attest. full lat. p95 | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |  0.95 ms · · · · · **1.01 ms** |   1.21 ms · · · · · **7.86 ms** |   0.95 ms · · · · · **20.14 ms** | 1k    |
-| 50  |  4.80 ms · · · · · **15.91 ms** |   6.02 ms · · · · · **88.97 ms** |   4.84 ms · · · · · **81.18 ms** | 1k    |
-| 100 | 18.00 ms · · · · **91.85 ms** |  21.19 ms · · · · **617.04 ms** |  20.35 ms · · · · **673.67 ms** | 4k    |
-| 200 | 93.27 ms · · · · **1.010 s** | 221.61 ms · · · **1.769 s** | 503.07 ms · · · **3.517 s** | 128k  |
-| 500 |  1.372 s · · · · · · **9.892 s** |   1.478 s · · · · · · **7.933 s** |   2.712 s · · · · · · **16.607 s** | 1.37M |
+| 0   | 0.95 ms  ∣ **1.01 ms** | 1.21 ms   ∣ **7.86 ms** | 0.95 ms   ∣ **20.14 ms** | 1k    |
+| 50  | 4.80 ms  ∣ **15.91 ms** | 6.02 ms   ∣ **88.97 ms** | 4.84 ms   ∣ **81.18 ms** | 1k    |
+| 100 | 18.00 ms ∣ **91.85 ms** | 21.19 ms  ∣ **617.04 ms** | 20.35 ms  ∣ **673.67 ms** | 4k    |
+| 200 | 93.27 ms ∣ **1.010 s** | 221.61 ms ∣ **1.769 s** | 503.07 ms ∣ **3.517 s** | 128k  |
+| 500 | 1.372 s   ∣ **9.892 s** | 1.478 s    ∣ **7.933 s** | 2.712 s    ∣ **16.607 s** | 1.37M |
 
 The dry-run and the real execution share the bulk of the work — load the
 inputs, run the Move VM — so their latencies scale together with computation
@@ -235,11 +235,11 @@ nothing at light load, but from `slow200` on, the pool wait and async resume
 grow to dominate it (444 ms full vs 95 ms dry-run on `f1`); on `n48`, that
 scheduling overhead is visible at every size (58 ms full vs ≈1 ms dry-run on
 `f1` at `slow0`). The split into its three parts (pool wait + dry-run
-execution + async resume), each cell `n4` · · · `n48`:
+execution + async resume), each cell `n4` ∣ `n48`:
 
 > [!NOTE]
 > At light compute, every value is below the smallest histogram bucket (1 ms),
-> so each part reads as the interpolation floor — p × 1 ms, i.e. 0.50 ms at
+> so each part reads as the interpolation floor — `p × 1` ms, i.e. 0.50 ms at
 > p50 and 0.99 ms at p99 — rather than a real latency; sub-millisecond parts
 > are unresolvable, which is also why they don't sum to the full column.
 
@@ -247,31 +247,31 @@ Fullnode path (`f1`), p50:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |   0.50 ms · · · · · **5.66 ms** |   0.50 ms · · · · · **0.52 ms** | 0.50 ms · · · · · **0.60 ms** |   0.50 ms · · · · · **7.34 ms** |
-| 50  |   0.51 ms · · · · · **21.35 ms** |   2.96 ms · · · · · **3.41 ms** | 0.50 ms · · · · · **0.75 ms** |   2.99 ms · · · · · **28.13 ms** |
-| 100 |   0.55 ms · · · · · **55.93 ms** |   6.10 ms · · · · · **35.91 ms** | 0.51 ms · · · · · **1.32 ms** |   6.52 ms · · · · · **108.44 ms** |
-| 200 |  59.26 ms · · · · **286.38 ms** |  36.24 ms · · · · **410.53 ms** | 0.83 ms · · · · · **5.31 ms** | 113.94 ms · · · **846.21 ms** |
-| 500 | 170.36 ms · · · **824.21 ms** | 765.24 ms · · · **7.061 s** | 8.69 ms · · · · · **334.37 ms** |   1.050 s · · · · · · **8.638 s** |
+| 0   | 0.50 ms   ∣ **5.66 ms** | 0.50 ms   ∣ **0.52 ms** | 0.50 ms ∣ **0.60 ms** | 0.50 ms   ∣ **7.34 ms** |
+| 50  | 0.51 ms   ∣ **21.35 ms** | 2.96 ms   ∣ **3.41 ms** | 0.50 ms ∣ **0.75 ms** | 2.99 ms   ∣ **28.13 ms** |
+| 100 | 0.55 ms   ∣ **55.93 ms** | 6.10 ms   ∣ **35.91 ms** | 0.51 ms ∣ **1.32 ms** | 6.52 ms   ∣ **108.44 ms** |
+| 200 | 59.26 ms  ∣ **286.38 ms** | 36.24 ms  ∣ **410.53 ms** | 0.83 ms ∣ **5.31 ms** | 113.94 ms ∣ **846.21 ms** |
+| 500 | 170.36 ms ∣ **824.21 ms** | 765.24 ms ∣ **7.061 s** | 8.69 ms ∣ **334.37 ms** | 1.050 s    ∣ **8.638 s** |
 
 Direct-to-one-validator path (`v1`), p50:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |  0.50 ms · · · · · **7.28 ms** |   0.50 ms · · · · · **0.52 ms** |   0.50 ms · · · · · **0.57 ms** |   0.50 ms · · · · · **8.34 ms** |
-| 50  |  0.51 ms · · · · · **32.85 ms** |   2.97 ms · · · · · **1.74 ms** |   0.50 ms · · · · · **14.84 ms** |   3.01 ms · · · · · **80.92 ms** |
-| 100 |  0.57 ms · · · · · **103.07 ms** |   6.29 ms · · · · · **7.27 ms** |   0.51 ms · · · · · **83.93 ms** |   6.82 ms · · · · · **279.59 ms** |
-| 200 |  7.93 ms · · · · · **422.29 ms** |  10.86 ms · · · · **85.77 ms** |   7.16 ms · · · · · **692.45 ms** |  60.82 ms · · · · **1.348 s** |
-| 500 | 42.59 ms · · · · **1.221 s** | 201.44 ms · · · **652.29 ms** | 182.38 ms · · · **1.937 s** | 597.20 ms · · · **3.947 s** |
+| 0   | 0.50 ms  ∣ **7.28 ms** | 0.50 ms   ∣ **0.52 ms** | 0.50 ms   ∣ **0.57 ms** | 0.50 ms   ∣ **8.34 ms** |
+| 50  | 0.51 ms  ∣ **32.85 ms** | 2.97 ms   ∣ **1.74 ms** | 0.50 ms   ∣ **14.84 ms** | 3.01 ms   ∣ **80.92 ms** |
+| 100 | 0.57 ms  ∣ **103.07 ms** | 6.29 ms   ∣ **7.27 ms** | 0.51 ms   ∣ **83.93 ms** | 6.82 ms   ∣ **279.59 ms** |
+| 200 | 7.93 ms  ∣ **422.29 ms** | 10.86 ms  ∣ **85.77 ms** | 7.16 ms   ∣ **692.45 ms** | 60.82 ms  ∣ **1.348 s** |
+| 500 | 42.59 ms ∣ **1.221 s** | 201.44 ms ∣ **652.29 ms** | 182.38 ms ∣ **1.937 s** | 597.20 ms ∣ **3.947 s** |
 
 Direct-to-all-validators path (`v4` / `v48`), p50:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |   0.50 ms · · · · · **1.61 ms** |   0.50 ms · · · · · **0.52 ms** |  0.50 ms · · · · · **0.57 ms** |   0.50 ms · · · · · **2.92 ms** |
-| 50  |   0.51 ms · · · · · **8.86 ms** |   2.98 ms · · · · · **3.40 ms** |  0.50 ms · · · · · **0.72 ms** |   3.01 ms · · · · · **15.27 ms** |
-| 100 |   0.56 ms · · · · · **40.72 ms** |   6.49 ms · · · · · **29.31 ms** |  0.51 ms · · · · · **1.23 ms** |   6.92 ms · · · · · **85.78 ms** |
-| 200 |  45.72 ms · · · · **373.89 ms** |  36.77 ms · · · · **397.54 ms** |  2.02 ms · · · · · **7.37 ms** | 117.28 ms · · · **974.89 ms** |
-| 500 | 145.01 ms · · · **2.653 s** | 836.25 ms · · · **6.246 s** | 27.83 ms · · · · **41.28 ms** |   1.276 s · · · · · · **9.558 s** |
+| 0   | 0.50 ms   ∣ **1.61 ms** | 0.50 ms   ∣ **0.52 ms** | 0.50 ms  ∣ **0.57 ms** | 0.50 ms   ∣ **2.92 ms** |
+| 50  | 0.51 ms   ∣ **8.86 ms** | 2.98 ms   ∣ **3.40 ms** | 0.50 ms  ∣ **0.72 ms** | 3.01 ms   ∣ **15.27 ms** |
+| 100 | 0.56 ms   ∣ **40.72 ms** | 6.49 ms   ∣ **29.31 ms** | 0.51 ms  ∣ **1.23 ms** | 6.92 ms   ∣ **85.78 ms** |
+| 200 | 45.72 ms  ∣ **373.89 ms** | 36.77 ms  ∣ **397.54 ms** | 2.02 ms  ∣ **7.37 ms** | 117.28 ms ∣ **974.89 ms** |
+| 500 | 145.01 ms ∣ **2.653 s** | 836.25 ms ∣ **6.246 s** | 27.83 ms ∣ **41.28 ms** | 1.276 s    ∣ **9.558 s** |
 
 <details>
 <summary>The same split at p99 (the tails)</summary>
@@ -280,31 +280,31 @@ Fullnode path (`f1`), p99:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |   0.99 ms · · · · · **110.32 ms** |   0.99 ms · · · · · **4.00 ms** |   0.99 ms · · · · · **17.97 ms** |   0.99 ms · · · · · **111.67 ms** |
-| 50  |   2.17 ms · · · · · **404.98 ms** |   4.96 ms · · · · · **33.20 ms** |   0.99 ms · · · · · **33.25 ms** |   5.21 ms · · · · · **411.50 ms** |
-| 100 |   9.44 ms · · · · · **961.63 ms** |  23.24 ms · · · · **156.32 ms** |   2.93 ms · · · · · **87.63 ms** |  24.74 ms · · · · **1.035 s** |
-| 200 | 597.54 ms · · · **2.779 s** | 135.36 ms · · · **1.242 s** |  67.57 ms · · · · **457.24 ms** | 649.60 ms · · · **3.483 s** |
-| 500 |   1.413 s · · · · · · **5.426 s** |   1.475 s · · · · · · **12.309 s** | 498.77 ms · · · **2.600 s** |   2.474 s · · · · · · **16.316 s** |
+| 0   | 0.99 ms   ∣ **110.32 ms** | 0.99 ms   ∣ **4.00 ms** | 0.99 ms   ∣ **17.97 ms** | 0.99 ms   ∣ **111.67 ms** |
+| 50  | 2.17 ms   ∣ **404.98 ms** | 4.96 ms   ∣ **33.20 ms** | 0.99 ms   ∣ **33.25 ms** | 5.21 ms   ∣ **411.50 ms** |
+| 100 | 9.44 ms   ∣ **961.63 ms** | 23.24 ms  ∣ **156.32 ms** | 2.93 ms   ∣ **87.63 ms** | 24.74 ms  ∣ **1.035 s** |
+| 200 | 597.54 ms ∣ **2.779 s** | 135.36 ms ∣ **1.242 s** | 67.57 ms  ∣ **457.24 ms** | 649.60 ms ∣ **3.483 s** |
+| 500 | 1.413 s    ∣ **5.426 s** | 1.475 s    ∣ **12.309 s** | 498.77 ms ∣ **2.600 s** | 2.474 s    ∣ **16.316 s** |
 
 Direct-to-one-validator path (`v1`), p99:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |   0.99 ms · · · · · **148.72 ms** |   0.99 ms · · · · · **4.16 ms** |   0.99 ms · · · · · **8.93 ms** |   0.99 ms · · · · · **150.19 ms** |
-| 50  |   2.98 ms · · · · · **701.69 ms** |   4.97 ms · · · · · **18.78 ms** |   1.00 ms · · · · · **596.41 ms** |   6.19 ms · · · · · **1.016 s** |
-| 100 |  14.80 ms · · · · **1.313 s** |  23.47 ms · · · · **59.93 ms** |   2.84 ms · · · · · **1.190 s** |  27.92 ms · · · · **2.002 s** |
-| 200 | 474.62 ms · · · **3.171 s** | 125.30 ms · · · **406.11 ms** | 535.39 ms · · · **3.421 s** | 747.32 ms · · · **4.881 s** |
-| 500 |   1.297 s · · · · · · **6.693 s** |   1.296 s · · · · · · **3.290 s** |   2.217 s · · · · · · **6.288 s** |   3.287 s · · · · · · **12.389 s** |
+| 0   | 0.99 ms   ∣ **148.72 ms** | 0.99 ms   ∣ **4.16 ms** | 0.99 ms   ∣ **8.93 ms** | 0.99 ms   ∣ **150.19 ms** |
+| 50  | 2.98 ms   ∣ **701.69 ms** | 4.97 ms   ∣ **18.78 ms** | 1.00 ms   ∣ **596.41 ms** | 6.19 ms   ∣ **1.016 s** |
+| 100 | 14.80 ms  ∣ **1.313 s** | 23.47 ms  ∣ **59.93 ms** | 2.84 ms   ∣ **1.190 s** | 27.92 ms  ∣ **2.002 s** |
+| 200 | 474.62 ms ∣ **3.171 s** | 125.30 ms ∣ **406.11 ms** | 535.39 ms ∣ **3.421 s** | 747.32 ms ∣ **4.881 s** |
+| 500 | 1.297 s    ∣ **6.693 s** | 1.296 s    ∣ **3.290 s** | 2.217 s    ∣ **6.288 s** | 3.287 s    ∣ **12.389 s** |
 
 Direct-to-all-validators path (`v4` / `v48`), p99:
 
 | slow_size | pool wait | dry-run exec | async resume | full |
 | :---: | --- | --- | --- | --- |
-| 0   |   0.99 ms · · · · · **29.19 ms** |   0.99 ms · · · · · **4.23 ms** |   0.99 ms · · · · · **7.57 ms** |   0.99 ms · · · · · **31.93 ms** |
-| 50  |   2.55 ms · · · · · **145.09 ms** |   4.96 ms · · · · · **26.26 ms** |   0.99 ms · · · · · **18.72 ms** |   5.50 ms · · · · · **151.02 ms** |
-| 100 |   9.66 ms · · · · · **1.057 s** |  23.60 ms · · · · **141.39 ms** |   3.06 ms · · · · · **68.83 ms** |  24.42 ms · · · · **1.118 s** |
-| 200 | 644.57 ms · · · **4.030 s** | 132.85 ms · · · **1.229 s** | 293.54 ms · · · **793.91 ms** | 753.15 ms · · · **4.766 s** |
-| 500 |   1.793 s · · · · · · **12.596 s** |   1.547 s · · · · · · **11.412 s** |   1.723 s · · · · · · **2.684 s** |   3.457 s · · · · · · **19.638 s** |
+| 0   | 0.99 ms   ∣ **29.19 ms** | 0.99 ms   ∣ **4.23 ms** | 0.99 ms   ∣ **7.57 ms** | 0.99 ms   ∣ **31.93 ms** |
+| 50  | 2.55 ms   ∣ **145.09 ms** | 4.96 ms   ∣ **26.26 ms** | 0.99 ms   ∣ **18.72 ms** | 5.50 ms   ∣ **151.02 ms** |
+| 100 | 9.66 ms   ∣ **1.057 s** | 23.60 ms  ∣ **141.39 ms** | 3.06 ms   ∣ **68.83 ms** | 24.42 ms  ∣ **1.118 s** |
+| 200 | 644.57 ms ∣ **4.030 s** | 132.85 ms ∣ **1.229 s** | 293.54 ms ∣ **793.91 ms** | 753.15 ms ∣ **4.766 s** |
+| 500 | 1.793 s    ∣ **12.596 s** | 1.547 s    ∣ **11.412 s** | 1.723 s    ∣ **2.684 s** | 3.457 s    ∣ **19.638 s** |
 
 The tails sharpen the same picture.
 
@@ -407,37 +407,37 @@ B's dry-runs add CPU load that stretches the real execution's wall clock.
 Attestation does not touch the execution path itself; its cost lives in the
 pre-consensus dry-run (finding 1). Execution latency p95 (CUs are measured
 on attested transactions, so they exist for B only), each latency cell
-`n4` · · · `n48`:
+`n4` ∣ `n48`:
 
 Fullnode path (`f1`):
 
 | slow_size | A | B | B/A | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |   1.80 ms · · · · · · **7.59 ms** |   2.06 ms · · · · · · **7.84 ms** | 1.14 · · · · **1.03** | 1k    |
-| 50  |   5.45 ms · · · · · · **189.17 ms** |   5.87 ms · · · · · · **190.88 ms** | 1.08 · · · · **1.01** | 1k    |
-| 100 |  21.35 ms · · · · · **553.39 ms** |  20.30 ms · · · · · **574.57 ms** | 0.95 · · · · **1.04** | 4k    |
-| 200 | 212.18 ms · · · · **1.690 s** | 185.32 ms · · · · **1.697 s** | 0.87 · · · · **1.00** | 128k  |
-| 500 | 969.08 ms · · · · **7.895 s** |   1.200 s · · · · · · · **8.942 s** | 1.24 · · · · **1.13** | 1.37M |
+| 0   |   1.80 ms   ∣ **7.59 ms** |   2.06 ms   ∣ **7.84 ms** | 1.14 ∣ **1.03** | 1k    |
+| 50  |   5.45 ms   ∣ **189.17 ms** |   5.87 ms   ∣ **190.88 ms** | 1.08 ∣ **1.01** | 1k    |
+| 100 |  21.35 ms  ∣ **553.39 ms** |  20.30 ms  ∣ **574.57 ms** | 0.95 ∣ **1.04** | 4k    |
+| 200 | 212.18 ms ∣ **1.690 s** | 185.32 ms ∣ **1.697 s** | 0.87 ∣ **1.00** | 128k  |
+| 500 | 969.08 ms ∣ **7.895 s** |   1.200 s    ∣ **8.942 s** | 1.24 ∣ **1.13** | 1.37M |
 
 Direct-to-one-validator path (`v1`):
 
 | slow_size | A | B | B/A | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |   1.34 ms · · · · · · **8.35 ms** |   1.32 ms · · · · · · **8.40 ms** | 0.98 · · · · **1.01** | 1k    |
-| 50  |   5.91 ms · · · · · · **78.75 ms** |   6.20 ms · · · · · · **61.00 ms** | 1.05 · · · · **0.77** | 1k    |
-| 100 |  21.98 ms · · · · · **411.99 ms** |  21.29 ms · · · · · **251.13 ms** | 0.97 · · · · **0.61** | 4k    |
-| 200 | 222.24 ms · · · · **1.707 s** | 207.46 ms · · · · **1.234 s** | 0.93 · · · · **0.72** | 128k  |
-| 500 | 971.15 ms · · · · **7.583 s** | 999.34 ms · · · · **1.812 s** | 1.03 · · · · **0.24** | 1.37M |
+| 0   |   1.34 ms   ∣ **8.35 ms** |   1.32 ms   ∣ **8.40 ms** | 0.98 ∣ **1.01** | 1k    |
+| 50  |   5.91 ms   ∣ **78.75 ms** |   6.20 ms   ∣ **61.00 ms** | 1.05 ∣ **0.77** | 1k    |
+| 100 |  21.98 ms  ∣ **411.99 ms** |  21.29 ms  ∣ **251.13 ms** | 0.97 ∣ **0.61** | 4k    |
+| 200 | 222.24 ms ∣ **1.707 s** | 207.46 ms ∣ **1.234 s** | 0.93 ∣ **0.72** | 128k  |
+| 500 | 971.15 ms ∣ **7.583 s** | 999.34 ms ∣ **1.812 s** | 1.03 ∣ **0.24** | 1.37M |
 
 Direct-to-all-validators path (`v4` / `v48`):
 
 | slow_size | A | B | B/A | CUs |
 | :---: | --- | --- | --- | :---: |
-| 0   |   1.12 ms · · · · · · **8.01 ms** |   1.21 ms · · · · · · **7.86 ms** | 1.08 · · · · **0.98** | 1k    |
-| 50  |   5.95 ms · · · · · · **79.26 ms** |   6.02 ms · · · · · · **88.97 ms** | 1.01 · · · · **1.12** | 1k    |
-| 100 |  21.92 ms · · · · · **545.53 ms** |  21.19 ms · · · · · **617.04 ms** | 0.97 · · · · **1.13** | 4k    |
-| 200 | 207.40 ms · · · · **1.785 s** | 221.61 ms · · · · **1.769 s** | 1.07 · · · · **0.99** | 128k  |
-| 500 | 970.22 ms · · · · **7.678 s** |   1.478 s · · · · · · · **7.933 s** | 1.52 · · · · **1.03** | 1.37M |
+| 0   |   1.12 ms   ∣ **8.01 ms** |   1.21 ms   ∣ **7.86 ms** | 1.08 ∣ **0.98** | 1k    |
+| 50  |   5.95 ms   ∣ **79.26 ms** |   6.02 ms   ∣ **88.97 ms** | 1.01 ∣ **1.12** | 1k    |
+| 100 |  21.92 ms  ∣ **545.53 ms** |  21.19 ms  ∣ **617.04 ms** | 0.97 ∣ **1.13** | 4k    |
+| 200 | 207.40 ms ∣ **1.785 s** | 221.61 ms ∣ **1.769 s** | 1.07 ∣ **0.99** | 128k  |
+| 500 | 970.22 ms ∣ **7.678 s** |   1.478 s    ∣ **7.933 s** | 1.52 ∣ **1.03** | 1.37M |
 
 On `n48`, the picture splits by path. On `f1` and `v48`, the claim holds as
 on `n4`: the B/A p95 median is 1.01 and 1.00 (ranges 0.99–1.17 and 0.92–1.14,
@@ -490,49 +490,50 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 `validator_transaction_execution_latency` times the whole internal pipeline on
 the receiving validator — receipt via `submit_tx`, attestation, consensus,
 post-consensus validation, and execution — no client/fullnode time. Median
-(p50), each latency cell `n4` · · · `n48`:
+(p50), each latency cell `n4` ∣ `n48`:
 
 Fullnode path (`f1`):
 
 | slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
-| 0   | 300 ms · · · · · · · **972 ms** | 284 ms · · · · · · · **964 ms** | 0.95 · · · · **0.99** |
-| 50  | 299 ms · · · · · · · **2.87 s** | 294 ms · · · · · · · **3.27 s** | 0.98 · · · · **1.14** |
-| 100 | 290 ms · · · · · · · **6.38 s** | 305 ms · · · · · · · **7.35 s** | 1.05 · · · · **1.15** |
-| 200 | 787 ms · · · · · · · **15.80 s** | 1.37 s · · · · · · · · **17.74 s** | 1.75 · · · · **1.12** |
-| 500 | 4.23 s · · · · · · · · **31.78 s** | 8.39 s · · · · · · · · **31.87 s** | 1.99 · · · · **1.00** |
+| 0   | 300 ms ∣ **972 ms** | 284 ms ∣ **964 ms** | 0.95 ∣ **0.99** |
+| 50  | 299 ms ∣ **2.87 s** | 294 ms ∣ **3.27 s** | 0.98 ∣ **1.14** |
+| 100 | 290 ms ∣ **6.38 s** | 305 ms ∣ **7.35 s** | 1.05 ∣ **1.15** |
+| 200 | 787 ms ∣ **15.80 s** | 1.37 s  ∣ **17.74 s** | 1.75 ∣ **1.12** |
+| 500 | 4.23 s   ∣ **31.78 s** | 8.39 s  ∣ **31.87 s** | 1.99 ∣ **1.00** |
 
 Direct-to-one-validator path (`v1`):
 
 | slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
-| 0   |  244 ms · · · · · · · **779 ms** |  225 ms · · · · · · · **856 ms** | 0.92 · · · · **1.10** |
-| 50  |  245 ms · · · · · · · **2.03 s** |  288 ms · · · · · · · **5.95 s** | 1.18 · · · · **2.92** |
-| 100 |  265 ms · · · · · · · **4.62 s** |  286 ms · · · · · · · **11.94 s** | 1.08 · · · · **2.58** |
-| 200 |  1.60 s · · · · · · · · **17.54 s** |  2.93 s · · · · · · · · **22.53 s** | 1.82 · · · · **1.28** |
-| 500 | 10.83 s · · · · · · · **30.38 s** | 17.95 s · · · · · · · **19.90 s** | 1.66 · · · · **0.66** |
+| 0   |  244 ms ∣ **779 ms** |  225 ms ∣ **856 ms** | 0.92 ∣ **1.10** |
+| 50  |  245 ms ∣ **2.03 s** |  288 ms ∣ **5.95 s** | 1.18 ∣ **2.92** |
+| 100 |  265 ms ∣ **4.62 s** |  286 ms ∣ **11.94 s** | 1.08 ∣ **2.58** |
+| 200 |  1.60 s  ∣ **17.54 s** |  2.93 s  ∣ **22.53 s** | 1.82 ∣ **1.28** |
+| 500 | 10.83 s ∣ **30.38 s** | 17.95 s ∣ **19.90 s** | 1.66 ∣ **0.66** |
 
 Direct-to-all-validators path (`v4` / `v48`):
 
 | slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
-| 0   |  250 ms · · · · · · · **734 ms** |  249 ms · · · · · · · **740 ms** | 1.00 · · · · **1.01** |
-| 50  |  264 ms · · · · · · · **1.63 s** |  275 ms · · · · · · · **1.77 s** | 1.04 · · · · **1.09** |
-| 100 |  297 ms · · · · · · · **9.54 s** |  295 ms · · · · · · · **10.11 s** | 0.99 · · · · **1.06** |
-| 200 |  1.60 s · · · · · · · · **20.79 s** |  2.43 s · · · · · · · · **23.20 s** | 1.52 · · · · **1.12** |
-| 500 | 11.25 s · · · · · · · **30.43 s** | 13.29 s · · · · · · · **28.94 s** | 1.18 · · · · **0.95** |
+| 0   |  250 ms ∣ **734 ms** |  249 ms ∣ **740 ms** | 1.00 ∣ **1.01** |
+| 50  |  264 ms ∣ **1.63 s** |  275 ms ∣ **1.77 s** | 1.04 ∣ **1.09** |
+| 100 |  297 ms ∣ **9.54 s** |  295 ms ∣ **10.11 s** | 0.99 ∣ **1.06** |
+| 200 |  1.60 s  ∣ **20.79 s** |  2.43 s  ∣ **23.20 s** | 1.52 ∣ **1.12** |
+| 500 | 11.25 s ∣ **30.43 s** | 13.29 s ∣ **28.94 s** | 1.18 ∣ **0.95** |
 
-At light load, the pipeline is ≈230–300 ms and A≈B — dominated by consensus,
-with attestation (a few ms at these sizes) lost in the noise. At heavy compute,
-B runs ≈1.7–2.0× A (`slow500-f1` 4.23 s → 8.39 s), because attestation adds a
-second full execution before consensus (finding 1) and, under load, the extra
-work compounds through queueing. p95 tracks the same (`slow500-f1` 6.8 s →
-13.1 s). Two path effects stand out. The direct paths (`v1`, `v4`) start from
-a far higher A baseline under heavy compute (≈11 s vs 4.2 s on `f1` at
-`slow500`) — without the fullnode in between, the client pushes into consensus
-at full rate and the backlog builds up on the receiving side. And B's relative
-cost shrinks as attestation spreads: B/A at `slow500` is 1.99 on `f1`, 1.66 on
-`v1`, 1.18 on `v4`, where each validator attests only a quarter of the load.
+On `n4` at light load, the pipeline is ≈230–300 ms and A≈B — dominated by
+consensus, with attestation (a few ms at these sizes) lost in the noise. At
+heavy compute, B runs ≈1.7–2.0× A (`slow500-f1` 4.23 s → 8.39 s), because
+attestation adds a second full execution before consensus (finding 1) and,
+under load, the extra work compounds through queueing. p95 tracks the same
+(`slow500-f1` 6.8 s → 13.1 s). Two path effects stand out. The direct paths
+(`v1`, `v4`) start from a far higher A baseline under heavy compute (≈11 s vs
+4.2 s on `f1` at `slow500`) — without the fullnode in between, the client
+pushes into consensus at full rate and the backlog builds up on the receiving
+side. And B's relative cost shrinks as attestation spreads: B/A at `slow500`
+is 1.99 on `f1`, 1.66 on `v1`, 1.18 on `v4`, where each validator attests
+only a quarter of the load.
 
 On `n48`, the shape changes. The floor is ≈0.7–1.0 s already at `slow0`
 (consensus and execution share a saturated machine), and the heavy end hits
