@@ -182,6 +182,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             dynamic field.
 //             Report a failure of the Move authentication with a distinct
 //             `MoveAuthenticationError` execution error.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3037,15 +3039,17 @@ impl ProtocolConfig {
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
 
-                    // Amortize the minimum checkpoint interval over a sliding
-                    // window so the checkpoint rate holds at the ceiling.
-                    // Enabled on non-Mainnet/Testnet chains only for now.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
                         // Publish package metadata with the module metadata stored as a
                         // dynamic field.
                         cfg.feature_flags
                             .package_metadata_with_dynamic_module_metadata = true;
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
                     }
 
                     cfg.feature_flags.report_move_authentication_error = true;
