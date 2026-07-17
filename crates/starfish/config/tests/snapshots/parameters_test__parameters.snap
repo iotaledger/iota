@@ -10,7 +10,7 @@ min_block_delay:
   nanos: 50000000
 soft_leader_timeout:
   secs: 0
-  nanos: 100000000
+  nanos: 5000000
 block_rate_window:
   secs: 2
   nanos: 0
