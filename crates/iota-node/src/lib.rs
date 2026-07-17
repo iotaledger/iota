@@ -598,13 +598,20 @@ impl IotaNode {
 
         let index_store = if is_full_node && config.enable_index_processing {
             info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
+            Some(Arc::new(
+                IndexStore::new(
+                    config.db_path().join("indexes"),
+                    &prometheus_registry,
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    &store,
+                    &checkpoint_store,
+                    &epoch_store,
+                    cache_traits.backing_package_store.clone(),
+                )
+                .await,
+            ))
         } else {
             None
         };
@@ -694,7 +701,6 @@ impl IotaNode {
             grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
-            &genesis_objects,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,

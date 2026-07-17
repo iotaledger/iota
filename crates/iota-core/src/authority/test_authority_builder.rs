@@ -332,13 +332,20 @@ impl<'a> TestAuthorityBuilder<'a> {
         let index_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(IndexStore::new(
-                storage_dir.join("indexes"),
-                &registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
+            Some(Arc::new(
+                IndexStore::new(
+                    storage_dir.join("indexes"),
+                    &registry,
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    &authority_store,
+                    &checkpoint_store,
+                    &epoch_store,
+                    cache_traits.backing_package_store.clone(),
+                )
+                .await,
+            ))
         };
         let grpc_indexes_store = if self.disable_indexer {
             None
@@ -379,7 +386,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             grpc_indexes_store,
             checkpoint_store,
             &registry,
-            genesis.objects(),
             config.clone(),
             None,
             chain_identifier,
