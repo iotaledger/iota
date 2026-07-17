@@ -659,6 +659,12 @@ pub struct TxProcessingArgs {
     /// Perform a dev inspect of the transaction, without executing it.
     #[arg(long)]
     pub dev_inspect: bool,
+    /// Simulate the transaction locally through the Move VM instead of on the
+    /// node. Only valid together with --dry-run. Requires a `grpc` URL to be
+    /// configured for the active env, from which objects and chain parameters
+    /// are resolved.
+    #[arg(long, requires = "dry_run")]
+    pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -717,6 +723,9 @@ impl TxProcessingArgs {
         }
         if self.dev_inspect {
             args.push("--dev-inspect".to_string());
+        }
+        if self.local {
+            args.push("--local".to_string());
         }
         if self.serialize_unsigned_transaction {
             args.push("--serialize-unsigned-transaction".to_string());
@@ -3353,6 +3362,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         tx_digest,
         dry_run,
         dev_inspect,
+        local,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
         sender,
@@ -3397,6 +3407,18 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     }
 
     if dry_run {
+        if local {
+            return crate::local_simulation::execute_local_dry_run(
+                context,
+                signer,
+                tx_kind,
+                gas_budget,
+                gas_price,
+                gas_payment.clone(),
+                gas_sponsor,
+            )
+            .await;
+        }
         return execute_dry_run(
             context,
             signer,
