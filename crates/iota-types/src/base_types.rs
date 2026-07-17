@@ -665,4 +665,3 @@ impl fmt::Display for ObjectType {
         }
     }
 }
-
