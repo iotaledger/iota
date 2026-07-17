@@ -566,6 +566,11 @@ validator-internal pipeline, with no client/fullnode time.*
 **5. Checkpoint creation lag: attestation moves the backlog ahead of
 consensus.**
 
+> [!NOTE]
+> The title holds on both networks, but on `n48`, the shift is all-or-nothing:
+> total on the pinned path (B/A ≈0.07 at `slow500`), absent on the spread
+> paths (≈1.0); see the `n48` paragraph below.
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `checkpoint_creation_latency` | Latency from consensus commit timestamp to local checkpoint creation in milliseconds | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
@@ -574,18 +579,40 @@ consensus.**
 built (values are seconds, despite the help text saying milliseconds). The
 builder can only seal a checkpoint once that commit's transactions have
 executed, so the lag is a direct view of the post-consensus execution backlog.
-p95:
+p95, each latency cell `n4` ∣ `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 562 ms | 655 ms  | 1.17 | 499 ms  | 251 ms  | 0.50 | 243 ms  | 239 ms  | 0.98 |
-| 50  | 401 ms | 520 ms  | 1.30 | 268 ms  | 584 ms  | 2.18 | 511 ms  | 723 ms  | 1.42 |
-| 100 | 274 ms | 322 ms  | 1.18 | 293 ms  | 258 ms  | 0.88 | 695 ms  | 273 ms  | 0.39 |
-| 200 | 3.12 s | 4.47 s  | 1.43 | 15.57 s | 5.59 s  | 0.36 | 15.29 s | 11.74 s | 0.77 |
-| 500 | 9.99 s | 11.56 s | 1.16 | 30.21 s | 11.74 s | 0.39 | 32.39 s | 26.36 s | 0.81 |
+Fullnode path (`f1`):
 
-At light compute the lag is a steady ≈0.2–0.7 s on all paths. Under heavy
-compute the paths diverge, in two separate ways.
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 562 ms ∣ **683 ms** | 655 ms ∣ **683 ms** | 1.17 ∣ **1.00** |
+| 50  | 401 ms ∣ **3.33 s** | 520 ms ∣ **3.65 s** | 1.30 ∣ **1.10** |
+| 100 | 274 ms ∣ **7.94 s** | 322 ms ∣ **8.82 s** | 1.18 ∣ **1.11** |
+| 200 | 3.12 s  ∣ **15.67 s** | 4.47 s  ∣ **17.70 s** | 1.43 ∣ **1.13** |
+| 500 | 9.99 s  ∣ **35.14 s** | 11.56 s ∣ **32.55 s** | 1.16 ∣ **0.93** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 499 ms ∣ **519 ms** | 251 ms ∣ **529 ms** | 0.50 ∣ **1.02** |
+| 50  | 268 ms ∣ **1.27 s** | 584 ms ∣ **846 ms** | 2.18 ∣ **0.67** |
+| 100 | 293 ms ∣ **5.04 s** | 258 ms ∣ **1.98 s** | 0.88 ∣ **0.39** |
+| 200 | 15.57 s ∣ **13.64 s** | 5.59 s  ∣ **5.48 s** | 0.36 ∣ **0.40** |
+| 500 | 30.21 s ∣ **30.56 s** | 11.74 s ∣ **1.99 s** | 0.39 ∣ **0.07** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 243 ms ∣ **508 ms** | 239 ms ∣ **514 ms** | 0.98 ∣ **1.01** |
+| 50  | 511 ms ∣ **1.40 s** | 723 ms ∣ **1.56 s** | 1.42 ∣ **1.11** |
+| 100 | 695 ms ∣ **14.28 s** | 273 ms ∣ **15.70 s** | 0.39 ∣ **1.10** |
+| 200 | 15.29 s ∣ **30.02 s** | 11.74 s ∣ **29.62 s** | 0.77 ∣ **0.99** |
+| 500 | 32.39 s ∣ **34.06 s** | 26.36 s ∣ **33.98 s** | 0.81 ∣ **1.00** |
+
+At light compute, the lag is a steady ≈0.2–0.7 s on all paths. Under heavy
+compute, the paths diverge, in two separate ways.
 
 First, the A side splits by submission route, not by spreading: both direct
 paths pile up a huge post-consensus backlog (A at `slow500`: 30.21 s on `v1`,
@@ -596,11 +623,11 @@ does not substitute for it.
 
 Second, on the B side attestation moves the backlog ahead of consensus, and
 the strength of that shift follows how concentrated the attestation is. On
-`v1` one validator attests everything and intake is throttled hardest: A lags
-far more than B (30.21 vs 11.74 s; at p50 16.73 vs 2.31 s). On `v4` each
+`v1`, one validator attests everything and intake is throttled hardest: A lags
+far more than B (30.21 vs 11.74 s; at p50 16.73 vs 2.31 s). On `v4`, each
 validator attests a quarter and the shift is half-hearted (B/A 0.77–0.81). On
-`f1` attestation is spread the same way but B also keeps the deeper execution
-backlog, so B lags slightly more than A (1.2–1.4×). Without attestation the
+`f1`, attestation is spread the same way but B also keeps the deeper execution
+backlog, so B lags slightly more than A (1.2–1.4×). Without attestation, the
 load goes straight into consensus and the backlog piles up after it — exactly
 where checkpoints wait; with attestation, each transaction first spends time
 in the dry-run while the client holds a bounded number in flight (finding 4's
@@ -609,11 +636,35 @@ Attestation does not shrink the total backlog — it moves it from after
 consensus, where checkpoints wait on it, to before consensus, and the more
 concentrated the attestation, the stronger the move.
 
+On `n48`, the gradient sharpens into all-or-nothing. On `v1`, the shift is
+total: B/A p95 falls from 0.67 at `slow50` to 0.07 at `slow500` (p50:
+21.49 s → 514 ms) — the pinned validator's attestation pacing and continuous
+pre-consensus shedding (finding 14) keep the post-consensus backlog nearly
+empty. On `v48`, each validator attests 1/48th of the load and the shift
+vanishes (B/A 0.99–1.11); `f1` sits mildly above one (1.10–1.13, 0.93 at
+`slow500`). The A-side contrast from `n4` also dissolves: at `slow500`, every
+path hits the same ≈30–35 s ceiling — when execution itself is the
+bottleneck, the fullnode's pacing buys nothing — and at `slow200` the
+ordering flips: `v48`-A (30.0 s) doubles `f1`-A (15.7 s), while `v1`-A is
+lowest (13.6 s), capped by its own pre-consensus shedding rather than by any
+buffering.
+
 ![Checkpoint creation lag, n4](h1/results/summary_plots_n4/checkpoint_creation_latency.png)
 
-*Checkpoint creation lag (p99/p95/p50) — consensus commit created → checkpoint
-built. Note the heavy direct-path (`v1`, `v4`) configurations: A (attestation
-off) lags far more than B, because its backlog sits after consensus.*
+*Checkpoint creation lag (p99/p95/p50), `n4` campaign — consensus commit
+created → checkpoint built. Note the heavy direct-path (`v1`, `v4`)
+configurations: A (attestation off) lags far more than B, because its backlog
+sits after consensus.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Checkpoint creation lag, n48](h1/results/summary_plots_n48/checkpoint_creation_latency.png)
+
+*Checkpoint creation lag, `n48` campaign — on the pinned path B's bars
+collapse (the relocation at full strength); the spread paths show none.*
+
+</details>
 
 ---
 
