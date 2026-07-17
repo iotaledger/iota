@@ -3336,11 +3336,11 @@
           "name": "Write API"
         }
       ],
-      "description": "Calls a move view function.",
+      "description": "Calls a Move view function. The function must be declared with the `#[view]` attribute.",
       "params": [
         {
           "name": "function_name",
-          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.",
           "required": true,
           "schema": {
             "type": "string"

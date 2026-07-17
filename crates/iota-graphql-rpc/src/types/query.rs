@@ -13,7 +13,6 @@ use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_sdk_types::{ObjectReference, TransactionKind, TypeTag};
 use iota_types::{
     gas_coin::GAS,
-    supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI},
 };
 use move_core_types::account_address::AccountAddress;
@@ -96,23 +95,6 @@ impl Query {
         type_args: Option<Vec<String>>,
         arguments: Option<Vec<serde_json::Value>>,
     ) -> Result<MoveViewResult> {
-        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
-
-        let db = ctx.data_unchecked();
-        let metrics = ctx.data_unchecked();
-        let chain = chain_id_cache
-            .read(db, metrics)
-            .await
-            .extend()?
-            .into_inner()
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(Error::UnsupportedFeature(format!(
-                "View calls are not yet supported on {}",
-                chain.as_str()
-            )))
-            .extend();
-        }
         let type_args = type_args.map(|args| args.into_iter().map(IotaTypeTag::new).collect());
         let call_args = arguments
             .unwrap_or_default()

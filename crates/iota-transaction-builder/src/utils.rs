@@ -18,16 +18,20 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},
-    error::UserInputError,
+    error::{IotaError, UserInputError},
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::MovePackageExt,
+    move_package::{
+        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    file_format_common::IOTA_METADATA_KEY,
 };
 
 use crate::TransactionBuilder;
@@ -285,8 +289,8 @@ impl TransactionBuilder {
 
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity. Also, check that
-    /// the passed function is compliant to the Move View
-    /// Function specification.
+    /// the passed function is declared as a `#[view]` function in the
+    /// module's runtime metadata.
     pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -300,9 +304,29 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
-        // Extract the expected function signature and check the return type.
-        // If the function is a view function, it MUST return at least a value.
-        check_function_has_a_return(&module, function_ident)?;
+        fp_ensure!(
+            module.find_function_def_by_name(function_ident.as_str()).is_some(),
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} not found in module {module_ident} of package {package_id}"
+                ),
+            }
+            .into()
+        );
+
+        // Check the function against the view functions recorded in the module's
+        // runtime metadata. Functions recorded there passed the view function
+        // verifier at publish time, so no further signature checks are needed.
+        let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
+        fp_ensure!(
+            is_view,
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
+                ),
+            }
+            .into()
+        );
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -449,30 +473,45 @@ impl TransactionBuilder {
     }
 }
 
-/// Helper function to check if the provided function within a module has at
-/// least a return type.
-fn check_function_has_a_return(
+/// Checks whether `function_name` is recorded as a `#[view]` function in the
+/// module's runtime metadata.
+///
+/// Returns `false` for modules without version 2 runtime metadata (compiled
+/// before view functions were introduced, or carrying no function
+/// attributes), which therefore record no view function information.
+fn is_view_function_from_module_metadata(
     module: &CompiledModule,
-    function_ident: &Identifier,
-) -> Result<(), anyhow::Error> {
-    let (_, fdef) = module
-        .find_function_def_by_name(function_ident.as_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function_ident,
-                module.self_id()
-            )
+    function_name: &str,
+) -> Result<bool, IotaError> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(false);
+    };
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
         })?;
-    let function_signature = module.function_handle_at(fdef.function);
-    fp_ensure!(
-        !&module.signature_at(function_signature.return_).is_empty(),
-        UserInputError::InvalidMoveViewFunction {
-            error: "No return type for this function".to_owned(),
-        }
-        .into()
-    );
-    Ok(())
+    // Module metadata stored on chain passed the verifier at publish time, so
+    // decoding may assume view function support.
+    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
+        allow_view_function: true,
+    })?;
+    Ok(match metadata {
+        RuntimeModuleMetadata::V1(_) => false,
+        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
+            .fun_attributes
+            .get(function_name)
+            .is_some_and(|attributes| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+            }),
+    })
 }
 
 /// Result of resolving a call argument, distinguishing between single

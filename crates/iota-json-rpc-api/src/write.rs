@@ -47,12 +47,13 @@ pub trait WriteApi {
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse>;
 
-    /// Calls a move view function.
+    /// Calls a Move view function. The function must be declared with the `#[view]`
+    /// attribute.
     #[rustfmt::skip]
     #[method(name = "view")]
     async fn view_function_call(
         &self,
-        /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
+        /// The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.
         function_name: String,
         #[schemars(with = "Option<Vec<TypeTagSchema>>")]
         type_args: Option<Vec<IotaTypeTag>>,
