@@ -26,7 +26,7 @@ use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
+    signature::UserSignature,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
         TrafficControlReconfigParams, Weight,
@@ -262,7 +262,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
+    signatures.push(UserSignature::Simple(
         iota_types::crypto::zero_ed25519_signature(),
     ));
 
@@ -318,7 +318,7 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
+    signatures.push(UserSignature::Simple(
         iota_types::crypto::zero_ed25519_signature(),
     ));
 
@@ -549,7 +549,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
+    signatures.push(UserSignature::Simple(
         iota_types::crypto::zero_ed25519_signature(),
     ));
 

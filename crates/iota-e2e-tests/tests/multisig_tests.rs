@@ -19,7 +19,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
@@ -203,9 +203,9 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     .unwrap();
 
     let multisig =
-        GenericSignature::MultiSig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
+        UserSignature::Multisig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
 
-    Transaction::from_generic_sig_data(tx_data, vec![multisig])
+    Transaction::from_user_sig_data(tx_data, vec![multisig])
 }
 
 struct MyUserValidationMethod {}
@@ -315,9 +315,8 @@ async fn test_multisig_e2e() {
     );
 
     // 5. multisig with no single sig fails to execute. An empty multisig is
-    // rejected at signature deserialization time (the SDK's `validate()` returns
-    // `InvalidSignatureNumber`), which surfaces as a generic invalid-signature
-    // error rather than the detailed multisig message.
+    // rejected at signature deserialization time by the SDK's `validate()`,
+    // whose `InvalidSignatureNumber` error surfaces to the caller.
     let tx5 = TestTransactionBuilder::new(multisig_addr, gas, rgp)
         .transfer_iota(None, Address::ZERO)
         .build_and_sign_multisig(multisig_pk.clone(), &[], 0b001);
@@ -325,7 +324,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid signature was given to the function")
+            .contains("invalid multisig: Invalid number of signatures")
     );
 
     // 6. multisig two dup sigs fails to execute.

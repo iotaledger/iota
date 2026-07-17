@@ -7503,11 +7503,6 @@
           }
         }
       },
-      "GenericSignature": {
-        "description": "Base64 encoded signature",
-        "type": "string",
-        "format": "base64"
-      },
       "GetPastObjectRequest": {
         "type": "object",
         "required": [
@@ -11324,7 +11319,7 @@
           "txSignatures": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/GenericSignature"
+              "$ref": "#/components/schemas/UserSignature"
             }
           }
         }
@@ -12310,6 +12305,11 @@
             ]
           }
         }
+      },
+      "UserSignature": {
+        "description": "Base64 encoded signature",
+        "type": "string",
+        "format": "base64"
       },
       "ValidatorApy": {
         "type": "object",

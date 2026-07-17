@@ -494,8 +494,7 @@ FullCheckpointContents:
           TYPENAME: ExecutionData
     - user_signatures:
         SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
+          SEQ: BYTES
 GasCostSummary:
   STRUCT:
     - computation_cost: U64
@@ -512,9 +511,6 @@ GasPayment:
         TYPENAME: Address
     - price: U64
     - budget: U64
-GenericSignature:
-  NEWTYPESTRUCT:
-    SEQ: U8
 GenesisObject:
   ENUM:
     0:
@@ -790,8 +786,7 @@ SenderSignedTransaction:
     - intent_message:
         TYPENAME: IntentMessage
     - tx_signatures:
-        SEQ:
-          TYPENAME: GenericSignature
+        SEQ: BYTES
 SplitCoins:
   STRUCT:
     - coin:

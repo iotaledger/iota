@@ -16,10 +16,7 @@ use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use clap::*;
 use colored::Colorize;
-use fastcrypto::{
-    encoding::{Base64, Encoding},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
@@ -78,7 +75,7 @@ use iota_types::{
     move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
         TransactionDataAPI, TransactionKindExt,
@@ -1857,16 +1854,16 @@ impl IotaClientCommands {
                 let mut sigs = Vec::new();
                 for sig in signatures {
                     sigs.push(
-                        GenericSignature::from_bytes(
+                        UserSignature::from_bytes(
                             &Base64::try_from(sig)
                                 .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                                 .to_vec()
                                 .map_err(|e| anyhow!(e))?,
                         )
-                        .map_err(|_| anyhow!("Invalid generic signature"))?,
+                        .map_err(|_| anyhow!("Invalid user signature"))?,
                     );
                 }
-                let transaction = Transaction::from_generic_sig_data(data, sigs);
+                let transaction = Transaction::from_user_sig_data(data, sigs);
 
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
@@ -1912,7 +1909,7 @@ impl IotaClientCommands {
                     )
                     .await?
                 } else {
-                    GenericSignature::Signature(sign_secure(
+                    UserSignature::Simple(sign_secure(
                         context.config_mut().keystore_mut(),
                         &address,
                         &intent_msg.value,
@@ -1926,7 +1923,7 @@ impl IotaClientCommands {
                     intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
-                    iota_signature: iota_signature.encode_base64(),
+                    iota_signature: iota_signature.to_base64(),
                 })
             }
             IotaClientCommands::NewEnv {
@@ -3908,7 +3905,7 @@ async fn create_move_authenticator_signature(
     address: Address,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
-) -> Result<GenericSignature, anyhow::Error> {
+) -> Result<UserSignature, anyhow::Error> {
     let (call_args, type_args) =
         build_auth_args_for_signing(client, address, auth_call_args, auth_type_args)
             .await?
@@ -3916,7 +3913,7 @@ async fn create_move_authenticator_signature(
 
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
-    Ok(GenericSignature::MoveAuthenticator(
+    Ok(UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             call_args,
             type_args,

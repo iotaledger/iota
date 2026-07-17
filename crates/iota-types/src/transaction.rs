@@ -48,7 +48,7 @@ use crate::{
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::{GenericSignature, VerifyParams},
+    signature::{UserSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,
 };
 
@@ -1819,7 +1819,7 @@ pub struct SenderSignedTransaction {
     /// A list of signatures signed by all transaction participants.
     /// 1. non participant signature must not be present.
     /// 2. signature order does not matter.
-    pub tx_signatures: Vec<GenericSignature>,
+    pub tx_signatures: Vec<UserSignature>,
 }
 
 impl Serialize for SenderSignedTransaction {
@@ -1831,7 +1831,7 @@ impl Serialize for SenderSignedTransaction {
         #[serde(rename = "SenderSignedTransaction")]
         struct SignedTxn<'a> {
             intent_message: &'a IntentMessage<TransactionData>,
-            tx_signatures: &'a Vec<GenericSignature>,
+            tx_signatures: &'a Vec<UserSignature>,
         }
 
         if self.intent_message().intent != Intent::iota_transaction() {
@@ -1855,7 +1855,7 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
         #[serde(rename = "SenderSignedTransaction")]
         struct SignedTxn {
             intent_message: IntentMessage<TransactionData>,
-            tx_signatures: Vec<GenericSignature>,
+            tx_signatures: Vec<UserSignature>,
         }
 
         let SignedTxn {
@@ -1875,12 +1875,10 @@ impl<'de> Deserialize<'de> for SenderSignedTransaction {
 }
 
 impl SenderSignedTransaction {
-    pub(crate) fn get_signer_sig_mapping(
-        &self,
-    ) -> IotaResult<BTreeMap<Address, &GenericSignature>> {
+    pub(crate) fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
         let mut mapping = BTreeMap::new();
         for sig in &self.tx_signatures {
-            let address = sig.try_into()?;
+            let address = sig.derive_address();
             mapping.insert(address, sig);
         }
         Ok(mapping)
@@ -1917,7 +1915,7 @@ pub fn merge_authenticator_input_objects<'a>(
 }
 
 impl SenderSignedData {
-    pub fn new(tx_data: TransactionData, tx_signatures: Vec<GenericSignature>) -> Self {
+    pub fn new(tx_data: TransactionData, tx_signatures: Vec<UserSignature>) -> Self {
         Self(SizeOneVec::new(SenderSignedTransaction {
             intent_message: IntentMessage::new(Intent::iota_transaction(), tx_data),
             tx_signatures,
@@ -1949,9 +1947,7 @@ impl SenderSignedData {
         self.inner_mut().tx_signatures.push(new_signature.into());
     }
 
-    pub(crate) fn get_signer_sig_mapping(
-        &self,
-    ) -> IotaResult<BTreeMap<Address, &GenericSignature>> {
+    pub(crate) fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
         self.inner().get_signer_sig_mapping()
     }
 
@@ -1963,14 +1959,12 @@ impl SenderSignedData {
         self.inner().intent_message()
     }
 
-    pub fn tx_signatures(&self) -> &[GenericSignature] {
+    pub fn tx_signatures(&self) -> &[UserSignature] {
         &self.inner().tx_signatures
     }
 
     pub fn has_upgraded_multisig(&self) -> bool {
-        self.tx_signatures()
-            .iter()
-            .any(|sig| sig.is_upgraded_multisig())
+        self.tx_signatures().iter().any(|sig| sig.is_multisig())
     }
 
     #[cfg(test)]
@@ -1979,7 +1973,7 @@ impl SenderSignedData {
     }
 
     // used cross-crate, so cannot be #[cfg(test)]
-    pub fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<GenericSignature> {
+    pub fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
         &mut self.inner_mut().tx_signatures
     }
 
@@ -1999,13 +1993,7 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                #[allow(deprecated)]
-                GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                    return Err(IotaError::UserInput {
-                        error: UserInputError::Unsupported("zkLogin is not supported".to_string()),
-                    });
-                }
-                GenericSignature::PasskeyAuthenticator(_) => {
+                UserSignature::PasskeyAuthenticator(_) => {
                     if !config.passkey_auth() {
                         return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
@@ -2014,7 +2002,7 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::MoveAuthenticator(_) => {
+                UserSignature::MoveAuthenticator(_) => {
                     if !config.enable_move_authentication() {
                         return Err(IotaError::UserInput {
                             error: UserInputError::Unsupported(
@@ -2023,7 +2011,10 @@ impl SenderSignedData {
                         });
                     }
                 }
-                GenericSignature::Signature(_) | GenericSignature::MultiSig(_) => (),
+                UserSignature::Simple(_) | UserSignature::Multisig(_) => (),
+                _ => {
+                    unimplemented!("a new UserSignature variant was added and needs to be handled")
+                }
             }
         }
 
@@ -2089,7 +2080,7 @@ impl SenderSignedData {
         self.tx_signatures()
             .iter()
             .filter_map(|sig| {
-                if let GenericSignature::MoveAuthenticator(move_authenticator) = sig {
+                if let UserSignature::MoveAuthenticator(move_authenticator) = sig {
                     Some(move_authenticator)
                 } else {
                     None
@@ -2131,7 +2122,7 @@ impl SenderSignedData {
         let digest_for_address = |address: Address| {
             self.tx_signatures()
                 .iter()
-                .find(|sig| Address::try_from(*sig).ok() == Some(address))
+                .find(|sig| sig.derive_address() == address)
                 .ok_or_else(|| IotaError::InvalidSignature {
                     error: format!("no signature found for address {address}"),
                 })
@@ -2467,7 +2458,7 @@ impl Transaction {
 
     // TODO: Rename this function and above to make it clearer.
     pub fn from_data(data: TransactionData, signatures: Vec<Signature>) -> Self {
-        Self::from_generic_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
+        Self::from_user_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
     }
 
     pub fn signature_from_signer(
@@ -2479,12 +2470,12 @@ impl Transaction {
         Signature::new_secure(&intent_msg, signer)
     }
 
-    pub fn from_generic_sig_data(data: TransactionData, signatures: Vec<GenericSignature>) -> Self {
+    pub fn from_user_sig_data(data: TransactionData, signatures: Vec<UserSignature>) -> Self {
         Self::new(SenderSignedData::new(data, signatures))
     }
 
     /// Returns the Base64 encoded tx_bytes
-    /// and a list of Base64 encoded [enum GenericSignature].
+    /// and a list of Base64 encoded [`UserSignature`].
     pub fn to_tx_bytes_and_signatures(&self) -> (Base64, Vec<Base64>) {
         (
             Base64::from_bytes(&bcs::to_bytes(&self.data().intent_message().value).unwrap()),
@@ -3347,26 +3338,21 @@ impl TransactionKey {
     }
 }
 
-/// Computes the auth digest for a single [`GenericSignature`].
+/// Computes the auth digest for a single [`UserSignature`].
 ///
 /// For [`MoveAuthenticator`] signatures this equals
 /// [`MoveAuthenticator::digest()`]. For all other supported signature types it
 /// is the Blake2b256 of the serialized (flag-prefixed) signature bytes.
-/// Returns an error for [`GenericSignature::ZkLoginAuthenticatorDeprecated`]
-/// since zkLogin was never enabled on IOTA.
-#[allow(deprecated)]
-pub fn auth_digest_for_sig(sig: &GenericSignature) -> IotaResult<Digest> {
+pub fn auth_digest_for_sig(sig: &UserSignature) -> IotaResult<Digest> {
     match sig {
-        GenericSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
-        GenericSignature::ZkLoginAuthenticatorDeprecated(_) => Err(IotaError::UnsupportedFeature {
-            error: "zkLogin is not supported".to_string(),
-        }),
-        GenericSignature::MultiSig(_)
-        | GenericSignature::Signature(_)
-        | GenericSignature::PasskeyAuthenticator(_) => {
+        UserSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
+        UserSignature::Multisig(_)
+        | UserSignature::Simple(_)
+        | UserSignature::PasskeyAuthenticator(_) => {
             let mut hasher = DefaultHash::default();
             hasher.update(sig.to_bytes());
             Ok(Digest::new(hasher.finalize().into()))
         }
+        _ => unimplemented!("a new UserSignature variant was added and needs to be handled"),
     }
 }
