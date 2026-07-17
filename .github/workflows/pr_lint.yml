@@ -8,10 +8,15 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  # "Validate PR title" is a required status check, so it must also report on
+  # merge queue runs; there is no PR to validate there, so the job is skipped
+  # (a skipped check run counts as passed).
+  merge_group:
 
 jobs:
   main:
     name: Validate PR title
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
