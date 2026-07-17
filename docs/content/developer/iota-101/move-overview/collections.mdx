@@ -4,8 +4,6 @@ tags: [move-sc]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/collections.json';
 
 # Collections
 
@@ -80,7 +78,6 @@ Move, this difference remains unnoticeable.
 The [`PriorityQueue`](../../references/framework/iota/priority_queue.mdx) module is implemented using a max heap,
 providing an efficient way to manage prioritized elements.
 
-
 ## Vec Map
 
 The [`VecMap`](../../references/framework/iota/vec_map.mdx) module provides a map-like structure backed by a vector.
@@ -96,5 +93,3 @@ ensuring no duplicate keys.
 All operations are O(N) in relation to the set's size.
 Like `VecMap`, this structure is designed for convenience, not performance. 
 For sorted iteration or large sets, consider using custom structures.
-
-<Quiz questions={questions} />

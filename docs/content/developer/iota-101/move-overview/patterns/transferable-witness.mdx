@@ -4,8 +4,6 @@ tags: [move-sc]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/patterns/transferable-witness.json';
 
 # Transferable Witness
 
@@ -37,7 +35,6 @@ The example below demonstrates how to implement a transferable witness using Mov
 It defines a `WITNESS` struct that can be stored and transferred within a `WitnessCarrier`.
 This carrier can be sent to authorized users, who can then extract the witness when needed.
 
-
 ```move file=<rootDir>/docs/examples/move/move-overview/patterns/transferable-witness.move
 ```
 
@@ -59,5 +56,3 @@ This carrier can be sent to authorized users, who can then extract the witness w
 
 For more insights and practical implementations of advanced authorization patterns in Move, consider exploring the [Hero](https://github.com/iotaledger/iota/blob/develop/examples/move/hero/sources/example.move) example.
 This example demonstrates how transferable witnesses and similar patterns can be applied to build secure and robust smart contracts on the IOTA platform.
-
-<Quiz questions={questions} />

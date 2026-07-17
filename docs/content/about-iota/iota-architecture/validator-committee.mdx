@@ -2,8 +2,6 @@
 title: Validator Committee
 description: IOTA has a committee of validators to verify on-chain transactions. Epochs, quorums, transactions, _certificates_, and consensus are touch points for this committee.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/node-operators/validator-committee.json';
 
 A set of independent validators participate on the IOTA network, each running its own instance of the IOTA software on a dedicated machine or virtual server. Each validator handles read and write requests sent by clients, verifying transactions and updating on-chain information.
 
@@ -39,5 +37,3 @@ The process of collecting validator signatures on a transaction into a _certific
 After the client forms a _certificate_, it submits it to the validators, which perform _certificate_ validity checks. These checks ensure the signers are validators in the current epoch, and the signatures are cryptographically valid. If the checks pass, the validators execute the transaction inside the _certificate_. Execution of a transaction either succeeds and commits all of its effects or aborts and has no effect other than debiting the transaction's gas input. Some reasons a transaction might abort include an explicit abort instruction, a runtime error such as division by zero, or exceeding the maximum gas budget. Whether it succeeds or aborts, the validator durably stores the _certificate_ indexed by the hash of its inner transaction.
 
 If a client collects a quorum of signatures on the effects of a transaction, the transaction is final. This means the effects will persist on the shared database and be permanently recorded in a checkpoint within a few seconds. The epoch boundary serves as an upper bound, but in practice, the effects certificate can be used immediately to prove finality, access results, and trigger new transactions. Clients may share the certificate directly with others or use a third-party service to help propagate it.
-
-<Quiz questions={questions} />
