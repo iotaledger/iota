@@ -629,6 +629,7 @@ impl CheckpointExecutor {
 
     fn checkpoint_data_enabled(&self) -> bool {
         self.state.grpc_indexes_store.is_some()
+            || self.state.indexes.is_some()
             || self.config.data_ingestion_dir.is_some()
             || self.data_sender.is_some()
     }
@@ -696,15 +697,20 @@ impl CheckpointExecutor {
             return None;
         }
 
-        // Index the checkpoint. The grpc indexes accumulate non-idempotent state
-        // (owner indexes, live-object sets), so each update must land exactly
-        // once. Indexing runs here out of order (checkpoints execute
-        // concurrently), so the write is only staged now and committed later, in
-        // sequence order, via `commit_update_for_checkpoint` — keeping the grpc
-        // watermark consistent with the executed checkpoint and crash-safe.
+        // Index the checkpoint. The gRPC and JSON-RPC indexes accumulate
+        // non-idempotent state (owner indexes, live-object sets), so each update
+        // must land exactly once. The checkpoint's transaction outputs are not
+        // durable yet at this stage, so the writes are only staged now and
+        // committed later, after `FinalizeCheckpoint`, via
+        // `commit_index_updates` — keeping the indexes consistent with the
+        // executed checkpoint and crash-safe.
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store.index_checkpoint(&checkpoint_data);
         }
+
+        self.state
+            .index_checkpoint_for_jsonrpc(&checkpoint_data, &self.epoch_store)
+            .expect("failed to stage JSON-RPC index update");
 
         if let Some(path) = &self.config.data_ingestion_dir {
             store_checkpoint_locally(path, &checkpoint_data)
@@ -1034,10 +1040,16 @@ impl CheckpointExecutor {
     /// checkpoint
     #[instrument(level = "info", skip_all)]
     fn commit_index_updates(&self, checkpoint: CheckpointData) {
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store
-                .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+                .commit_update_for_checkpoint(sequence_number)
                 .expect("failed to update gRPC indexes");
+        }
+        if let Some(indexes) = &self.state.indexes {
+            indexes
+                .commit_update_for_checkpoint(sequence_number)
+                .expect("failed to update JSON-RPC indexes");
         }
     }
 
