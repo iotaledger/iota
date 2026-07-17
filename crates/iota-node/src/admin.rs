@@ -632,7 +632,7 @@ async fn set_metrics_filter(
         Ok(expanded) => expanded,
         Err(err) => return (StatusCode::BAD_REQUEST, format!("{err}\n")),
     };
-    match state.node.metrics_filter().set_runtime_filter(&expanded) {
+    match state.node.set_metrics_runtime_filter(&expanded) {
         Ok(()) => {
             info!(filter =% expanded, "Metrics filter updated");
             (
@@ -645,7 +645,7 @@ async fn set_metrics_filter(
 }
 
 async fn reset_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    state.node.metrics_filter().reset_runtime_filter();
+    state.node.reset_metrics_runtime_filter();
     info!("Metrics filter reset to startup configuration");
     (
         StatusCode::OK,

@@ -2345,6 +2345,14 @@ impl IotaNode {
         self.registry_service.default_registry().filter()
     }
 
+    pub fn set_metrics_runtime_filter(&self, s: &str) -> std::result::Result<(), String> {
+        self.registry_service.set_runtime_filter(s)
+    }
+
+    pub fn reset_metrics_runtime_filter(&self) {
+        self.registry_service.reset_runtime_filter();
+    }
+
     /// Sends signed capability notification to committee validators for
     /// non-committee validators. This method implements retry logic to handle
     /// failed attempts to send the notification. It will retry sending the

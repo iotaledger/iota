@@ -735,13 +735,33 @@ impl Filter {
 // Registry
 // ---------------------------------------------------------------------------
 
+/// A `prometheus::Collector` that can be boxed and cloned, so the registry can
+/// keep a handle to re-`register`/`unregister` it as the filter changes.
+pub trait CloneableCollector: prometheus::core::Collector {
+    fn clone_box(&self) -> Box<dyn CloneableCollector>;
+}
+
+impl<T: prometheus::core::Collector + Clone + 'static> CloneableCollector for T {
+    fn clone_box(&self) -> Box<dyn CloneableCollector> {
+        Box::new(self.clone())
+    }
+}
+
+/// A metric registered through the wrapper macros, retained so the filter can
+/// toggle its membership in the inner registry at runtime.
+struct RecordedMetric {
+    module: String,
+    level: MetricLevel,
+    collector: Box<dyn CloneableCollector>,
+}
+
 /// Wraps `prometheus::Registry` with an embedded `Filter` so that
-/// `register_*_with_registry!` macros can decide at construction time whether
-/// a metric should be active.
+/// `register_*_with_registry!` macros can decide whether a metric is exposed.
 ///
-/// Metrics registered through the wrapper macros are recorded with their
-/// module path and level, so [`Registry::gather`] can apply the filter's
-/// exposure directives to them.
+/// Metrics registered through the wrapper macros are recorded with their module
+/// path, level, and a collector handle. Exposure is enforced by membership in
+/// the inner registry: a metric that the filter disables is `unregister`ed and
+/// re-`register`ed if the filter later enables it.
 #[derive(Clone)]
 pub struct Registry {
     inner: prometheus::Registry,
@@ -749,9 +769,9 @@ pub struct Registry {
     /// Name prefix passed to [`Registry::new_custom`]; gathered family names
     /// include it.
     prefix: Option<String>,
-    /// Gathered family name → (module path, level) for metrics registered via
-    /// the wrapper macros; consulted by [`Registry::gather`].
-    registered: Arc<RwLock<HashMap<String, (String, MetricLevel)>>>,
+    /// Gathered family name → recorded metric, for metrics registered via the
+    /// wrapper macros.
+    registered: Arc<RwLock<HashMap<String, RecordedMetric>>>,
 }
 
 impl Registry {
@@ -787,19 +807,76 @@ impl Registry {
         self.filter.clone()
     }
 
-    /// Used by the wrapper macros: records a registering metric's module path
-    /// and level, so [`Registry::gather`] can apply the filter's exposure
-    /// directives to it.
-    #[inline]
-    pub fn record(&self, name: &str, module: &str, level: MetricLevel) {
-        let exposed_name = match &self.prefix {
+    fn exposed_name(&self, name: &str) -> String {
+        match &self.prefix {
             Some(prefix) => format!("{prefix}_{name}"),
             None => name.to_owned(),
+        }
+    }
+
+    /// Used by the wrapper macros: on a successful registration, retains a
+    /// handle to the metric with its module path and level, and immediately
+    /// `unregister`s it from the inner registry if the current filter disables
+    /// it.
+    #[inline]
+    pub fn record_collector<C>(
+        &self,
+        name: &str,
+        module: &str,
+        level: MetricLevel,
+        result: prometheus::Result<C>,
+    ) -> prometheus::Result<C>
+    where
+        C: prometheus::core::Collector + Clone + 'static,
+    {
+        let Ok(collector) = &result else {
+            return result;
         };
-        self.registered
-            .write()
-            .unwrap()
-            .insert(exposed_name, (module.to_owned(), level));
+        let collector: Box<dyn CloneableCollector> = Box::new(collector.clone());
+        let exposed_name = self.exposed_name(name);
+
+        let mut registered = self.registered.write().unwrap();
+        if registered.contains_key(&exposed_name) {
+            // The inner registry rejects a duplicate metric name, but only for names
+            // it still holds — a name the filter disabled has been `unregister`ed, so
+            // a second registration of it would slip through. This re-checks the
+            // recorded set to keep rejecting duplicates regardless of filter state.
+            // Check test `duplicate_name_is_rejected_even_when_filtered_out`
+            let _ = self.inner.unregister(collector);
+            return Err(prometheus::Error::AlreadyReg);
+        }
+        if !self.filter.is_exposed(&exposed_name, module, level) {
+            let _ = self.inner.unregister(collector.clone_box());
+        }
+        registered.insert(
+            exposed_name,
+            RecordedMetric {
+                module: module.to_owned(),
+                level,
+                collector,
+            },
+        );
+        result
+    }
+
+    /// Re-evaluates every recorded metric against the current filter. Call
+    /// after changing the filter's runtime override.
+    pub fn reconcile(&self) {
+        // Snapshot the runtime layer once so the whole pass sees a consistent
+        // filter and avoids re-locking it per metric.
+        let runtime = self.filter.runtime_layer();
+        let registered = self.registered.read().unwrap();
+        for (name, recorded) in registered.iter() {
+            let want = self
+                .filter
+                .threshold(runtime.as_deref(), name, &recorded.module)
+                >= recorded.level.verbosity();
+            if want {
+                let _ = self.register(recorded.collector.clone_box());
+            } else {
+                let _ = self.unregister(recorded.collector.clone_box());
+            }
+        }
     }
 
     /// Returns the underlying `prometheus::Registry` for use inside wrapper
@@ -817,25 +894,9 @@ impl Registry {
         self.inner.unregister(c)
     }
 
-    /// Gathers the registry's metric families, dropping those disabled by the
-    /// filter's exposure directives. Families not registered through the
-    /// wrapper macros (e.g. direct collectors) always pass through.
+    /// Gathers the registry's metric families.
     pub fn gather(&self) -> Vec<prometheus::proto::MetricFamily> {
-        // One runtime-layer snapshot for the whole pass, so a concurrent
-        // filter update cannot make a single scrape internally inconsistent.
-        let runtime = self.filter.runtime_layer();
-        let registered = self.registered.read().unwrap();
-        self.inner
-            .gather()
-            .into_iter()
-            .filter(|family| {
-                registered.get(family.name()).is_none_or(|(module, level)| {
-                    self.filter
-                        .threshold(runtime.as_deref(), family.name(), module)
-                        >= level.verbosity()
-                })
-            })
-            .collect()
+        self.inner.gather()
     }
 }
 
@@ -901,13 +962,18 @@ macro_rules! register_int_counter_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_int_counter_with_registry!(
-            name,
-            $help,
-            ($registry).inner()
-        )
-        .map($crate::core::GenericCounter::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_int_counter_with_registry!(
+                    name,
+                    $help,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::core::GenericCounter::new_some)
     }};
 }
 
@@ -923,14 +989,19 @@ macro_rules! register_int_counter_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_int_counter_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            ($registry).inner()
-        )
-        .map($crate::IntCounterVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_int_counter_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::IntCounterVec::new_some)
     }};
 }
 
@@ -946,8 +1017,17 @@ macro_rules! register_int_gauge_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_int_gauge_with_registry!(name, $help, ($registry).inner())
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_int_gauge_with_registry!(
+                    name,
+                    $help,
+                    ($registry).inner()
+                ),
+            )
             .map($crate::core::GenericGauge::new_some)
     }};
 }
@@ -964,14 +1044,19 @@ macro_rules! register_int_gauge_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_int_gauge_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            ($registry).inner()
-        )
-        .map($crate::IntGaugeVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_int_gauge_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::IntGaugeVec::new_some)
     }};
 }
 
@@ -991,22 +1076,36 @@ macro_rules! register_histogram_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_histogram_with_registry!(name, $help, ($registry).inner())
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_with_registry!(
+                    name,
+                    $help,
+                    ($registry).inner()
+                ),
+            )
             .map($crate::Histogram::new_some)
     }};
     ($name:expr, $help:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_histogram_with_registry!(
-            name,
-            $help,
-            $buckets,
-            ($registry).inner()
-        )
-        .map($crate::Histogram::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_with_registry!(
+                    name,
+                    $help,
+                    $buckets,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::Histogram::new_some)
     }};
 }
 
@@ -1028,28 +1127,38 @@ macro_rules! register_histogram_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_histogram_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            ($registry).inner()
-        )
-        .map($crate::HistogramVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_histogram_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            $buckets,
-            ($registry).inner()
-        )
-        .map($crate::HistogramVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    $buckets,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::HistogramVec::new_some)
     }};
 }
 
@@ -1065,14 +1174,19 @@ macro_rules! register_gauge_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_gauge_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            ($registry).inner()
-        )
-        .map($crate::core::GenericGaugeVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_gauge_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::core::GenericGaugeVec::new_some)
     }};
 }
 
@@ -1086,8 +1200,17 @@ macro_rules! register_gauge_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_gauge_with_registry!(name, $help, ($registry).inner())
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_gauge_with_registry!(
+                    name,
+                    $help,
+                    ($registry).inner()
+                ),
+            )
             .map($crate::core::GenericGauge::new_some)
     }};
 }
@@ -1102,8 +1225,13 @@ macro_rules! register_counter {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry().record(name, module, $level);
-        $crate::prometheus::register_counter!(name, $help)
+        $crate::default_registry()
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_counter!(name, $help),
+            )
             .map($crate::core::GenericCounter::new_some)
     }};
 }
@@ -1120,13 +1248,18 @@ macro_rules! register_counter_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_counter_with_registry!(
-            name,
-            $help,
-            ($registry).inner()
-        )
-        .map($crate::core::GenericCounter::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_counter_with_registry!(
+                    name,
+                    $help,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::core::GenericCounter::new_some)
     }};
 }
 
@@ -1142,14 +1275,19 @@ macro_rules! register_counter_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $level);
-        $crate::prometheus::register_counter_vec_with_registry!(
-            name,
-            $help,
-            $labels,
-            ($registry).inner()
-        )
-        .map($crate::core::GenericCounterVec::new_some)
+        ($registry)
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_counter_vec_with_registry!(
+                    name,
+                    $help,
+                    $labels,
+                    ($registry).inner()
+                ),
+            )
+            .map($crate::core::GenericCounterVec::new_some)
     }};
 }
 
@@ -1163,8 +1301,13 @@ macro_rules! register_counter_vec {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry().record(name, module, $level);
-        $crate::prometheus::register_counter_vec!(name, $help, $labels)
+        $crate::default_registry()
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_counter_vec!(name, $help, $labels),
+            )
             .map($crate::core::GenericCounterVec::new_some)
     }};
 }
@@ -1188,24 +1331,39 @@ macro_rules! register_histogram_vec {
         let opts = $opts;
         let name: &str = &opts.common_opts.name;
         let module: &str = module_path!();
-        $crate::default_registry().record(name, module, $level);
-        $crate::prometheus::register_histogram_vec!(opts, $labels)
+        $crate::default_registry()
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_vec!(opts, $labels),
+            )
             .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry().record(name, module, $level);
-        $crate::prometheus::register_histogram_vec!(name, $help, $labels)
+        $crate::default_registry()
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_vec!(name, $help, $labels),
+            )
             .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry().record(name, module, $level);
-        $crate::prometheus::register_histogram_vec!(name, $help, $labels, $buckets)
+        $crate::default_registry()
+            .record_collector(
+                name,
+                module,
+                $level,
+                $crate::prometheus::register_histogram_vec!(name, $help, $labels, $buckets),
+            )
             .map($crate::HistogramVec::new_some)
     }};
 }
@@ -1448,16 +1606,35 @@ mod gather_filter_tests {
     }
 
     #[test]
-    fn off_directive_hides_but_still_registers() {
+    fn off_directive_hides_but_metric_keeps_collecting() {
         let reg = registry("g_hidden=off");
         let g = crate::register_int_gauge_with_registry!("g_hidden", "h", &reg; MetricLevel::Warn)
             .unwrap();
-        // Registered (a disabled wrapper would print "(disabled)") and
-        // collecting, but absent from gather output.
+        // The metric handle is live and keeps collecting through the caller's
+        // copy, even though the filter unregistered it from the inner registry,
+        // so it is absent from gather output.
         assert_eq!(format!("{g:?}"), "GenericGauge");
         g.set(9);
         assert_eq!(g.get(), 9);
         assert_eq!(gathered_names(&reg), Vec::<String>::new());
+    }
+
+    #[test]
+    fn duplicate_name_is_rejected_even_when_filtered_out() {
+        // The `off` directive unregisters the metric from the inner registry,
+        // but a second registration of the same name must still be rejected.
+        let reg = registry("g_dup=off");
+        // The first registration is registered then un-registered because `g_dup=off`.
+        crate::register_int_gauge_with_registry!("g_dup", "h", &reg; MetricLevel::Warn).unwrap();
+        // The second registration is rejected because the metrics with the same name
+        // exists, it is just not in the registry map due to `g_dup=off`, so the
+        // second metric shouldn't exist.
+        let err = crate::register_int_gauge_with_registry!("g_dup", "h", &reg; MetricLevel::Warn)
+            .unwrap_err();
+        assert!(
+            matches!(err, prometheus::Error::AlreadyReg),
+            "unexpected error: {err:?}"
+        );
     }
 
     #[test]
@@ -1516,6 +1693,18 @@ mod runtime_filter_tests {
         names
     }
 
+    // The node drives this via `RegistryService`; here we exercise the same
+    // two steps directly: set the runtime override, then reconcile membership.
+    fn set_runtime(registry: &Registry, s: &str) {
+        registry.filter().set_runtime_filter(s).unwrap();
+        registry.reconcile();
+    }
+
+    fn reset_runtime(registry: &Registry) {
+        registry.filter().reset_runtime_filter();
+        registry.reconcile();
+    }
+
     #[test]
     fn raising_runtime_level_exposes_collected_metrics() {
         // A `warn` startup threshold hides the debug metric …
@@ -1527,9 +1716,7 @@ mod runtime_filter_tests {
 
         // … so raising the exposure level at runtime reveals it, with the
         // values it collected while hidden.
-        reg.filter()
-            .set_runtime_filter("runtime_filter_tests=debug")
-            .unwrap();
+        set_runtime(&reg, "runtime_filter_tests=debug");
         assert_eq!(gathered_names(&reg), ["g_debug", "g_warn"]);
         let family = reg
             .gather()
@@ -1545,7 +1732,7 @@ mod runtime_filter_tests {
             .unwrap();
         g.set(9);
         assert_eq!(gathered_names(&reg), Vec::<String>::new());
-        reg.filter().set_runtime_filter("g_hidden=warn").unwrap();
+        set_runtime(&reg, "g_hidden=warn");
         assert_eq!(gathered_names(&reg), ["g_hidden"]);
         let family = &reg.gather()[0];
         assert_eq!(family.get_metric()[0].get_gauge().value() as i64, 9);
@@ -1560,20 +1747,19 @@ mod runtime_filter_tests {
 
         // The override hides g_b; g_a is matched by no override directive
         // and keeps its startup exposure (hidden).
-        let filter = reg.filter();
-        filter.set_runtime_filter("g_b=off").unwrap();
+        set_runtime(&reg, "g_b=off");
         assert_eq!(gathered_names(&reg), Vec::<String>::new());
 
         // An empty override matches nothing, leaving the startup directives
         // fully in effect.
-        filter.set_runtime_filter("").unwrap();
+        set_runtime(&reg, "");
         assert_eq!(gathered_names(&reg), ["g_b"]);
 
         // A bare level matches everything: a full temporary override.
-        filter.set_runtime_filter("trace").unwrap();
+        set_runtime(&reg, "trace");
         assert_eq!(gathered_names(&reg), ["g_a", "g_b"]);
 
-        filter.reset_runtime_filter();
+        reset_runtime(&reg);
         assert_eq!(gathered_names(&reg), ["g_b"]);
     }
 

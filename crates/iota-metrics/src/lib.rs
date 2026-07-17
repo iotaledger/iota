@@ -630,6 +630,27 @@ impl RegistryService {
     pub fn gather_all(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
         self.get_all().iter().flat_map(|r| r.gather()).collect()
     }
+
+    /// Sets the runtime override on the shared filter and reconciles every
+    /// registry. Rejects the whole update if any directive is invalid.
+    pub fn set_runtime_filter(&self, s: &str) -> std::result::Result<(), String> {
+        self.filter.set_runtime_filter(s)?;
+        self.reconcile_all();
+        Ok(())
+    }
+
+    /// Drops the runtime override on the shared filter and reconciles every
+    /// registry back to its startup exposure.
+    pub fn reset_runtime_filter(&self) {
+        self.filter.reset_runtime_filter();
+        self.reconcile_all();
+    }
+
+    fn reconcile_all(&self) {
+        for registry in self.get_all() {
+            registry.reconcile();
+        }
+    }
 }
 
 /// Create a metric that measures the uptime from when this metric was
