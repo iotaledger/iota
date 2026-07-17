@@ -17,7 +17,10 @@ use strum::IntoEnumIterator;
 use crate::{
     chunk,
     errors::{IndexerError, IndexerResult},
-    ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
+    ingestion::{
+        common::{persist::CommitterTables, prepare::LiveObject},
+        primary::persist::EpochToCommit,
+    },
     models::{
         checkpoints::StoredChainIdentifier,
         display::StoredDisplay,
@@ -219,8 +222,9 @@ pub(crate) async fn populate_remaining_tables(
         &snapshot_epoch_boundary.last_checkpoint_contents,
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
+    let next_epoch = sync_watermark.epoch + 1;
     let pruning_watermarks: Vec<_> = PrunableTable::iter()
-        .map(|table| (table, sync_watermark.epoch + 1))
+        .map(|table| (table, next_epoch))
         .collect();
     tokio::try_join!(
         populate_epochs(store, verified_epoch_info),
@@ -229,7 +233,8 @@ pub(crate) async fn populate_remaining_tables(
     )?;
     tokio::try_join!(
         populate_protocol_and_feature_flags(store, snapshot_chain_id),
-        store.update_watermarks_lower_bound(pruning_watermarks.clone())
+        store.update_watermarks_lower_bound(pruning_watermarks.clone()),
+        store.update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, next_epoch)])
     )?;
     // finally align the lowest unpruned key with the lower bounds
     // to let the pruner know the pruning range start after restoring
@@ -241,7 +246,15 @@ pub(crate) async fn populate_remaining_tables(
             (table, table.pruning_strategy().range_end(watermark))
         })
         .collect::<Vec<_>>();
-    store
-        .update_watermarks_lowest_unpruned_key(lowest_unpruned_keys)
-        .await
+    tokio::try_join!(
+        store.update_watermarks_lowest_unpruned_key(lowest_unpruned_keys),
+        // object_versions is not pruned through the perioding pruning task, hence
+        // there is not pruning strategy. It is pruned only as a side-effect of the
+        // restore. so lowest_unpruned_key falls back to the `next_epoch`
+        store.update_watermarks_lowest_unpruned_key(vec![(
+            CommitterTables::ObjectsVersion,
+            next_epoch
+        )])
+    )?;
+    Ok(())
 }

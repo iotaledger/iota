@@ -1592,9 +1592,9 @@ impl PgIndexerStore {
             .collect())
     }
 
-    fn update_watermarks_lower_bound(
+    fn update_watermarks_lower_bound<Table: AsRef<str>>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError> {
         use diesel::query_dsl::methods::FilterDsl;
 
@@ -1687,9 +1687,9 @@ impl PgIndexerStore {
         )
     }
 
-    fn update_watermark_lowest_unpruned_keys(
+    fn update_watermark_lowest_unpruned_keys<Table: AsRef<str>>(
         &self,
-        unpruned_keys: &[(PrunableTable, u64)],
+        unpruned_keys: &[(Table, u64)],
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
@@ -2372,9 +2372,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn update_watermarks_lower_bound(
+    async fn update_watermarks_lower_bound<Table: AsRef<str> + Send + 'static>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.update_watermarks_lower_bound(watermarks))
             .await
@@ -2467,9 +2467,9 @@ impl IndexerStore for PgIndexerStore {
         .await
     }
 
-    async fn update_watermarks_lowest_unpruned_key(
+    async fn update_watermarks_lowest_unpruned_key<Table: AsRef<str> + Send + 'static>(
         &self,
-        unpruned_keys: Vec<(PrunableTable, u64)>,
+        unpruned_keys: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| {
             this.update_watermark_lowest_unpruned_keys(&unpruned_keys)
