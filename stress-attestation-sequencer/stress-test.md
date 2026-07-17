@@ -459,8 +459,9 @@ because this metric measures wall clock under CPU contention.
 > in finding 1's metric table.
 
 Attested computation units equal actual computation units for every
-owned-object configuration (ratio = 1.0), confirming attestation predicts the
-computation cost precisely for these transactions. CUs are reported as the
+owned-object configuration of both campaigns, `n4` and `n48` (ratio = 1.0),
+confirming attestation predicts the computation cost precisely for these
+transactions regardless of the committee size. CUs are reported as the
 exact per-transaction mean (`_sum`/`_count`), not a p50: the
 workload is deterministic, so every transaction is identical and the mean is
 the exact cost. A p50 would instead interpolate between histogram bucket edges
