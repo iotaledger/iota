@@ -22,10 +22,11 @@ use crate::{
         checkpoints::StoredChainIdentifier,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+        packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
     store::{IndexerStore, PgIndexerStore},
-    types::IndexedCheckpoint,
+    types::{IndexedCheckpoint, IndexedPackage},
 };
 
 /// Data derived from the live-object set included in the snapshot.
@@ -33,13 +34,18 @@ use crate::{
 struct ObjectDerivedData {
     hasher: Sha3_256,
     displays: BTreeMap<String, StoredDisplay>,
+    packages: Vec<StoredPackage>,
 }
 
 impl ObjectDerivedData {
-    fn extend(&mut self, object: &Object) {
+    fn extend(&mut self, object: &Object, checkpoint_sequence_number: u64) {
         self.hasher.update(object.object_ref().digest.inner());
         if let Some(display) = StoredDisplay::try_from_object(object) {
             self.displays.insert(display.object_type.clone(), display);
+        }
+        if let iota_sdk_types::ObjectData::Package(package) = object.data() {
+            self.packages
+                .push(IndexedPackage::new(package.clone(), checkpoint_sequence_number).into());
         }
     }
 }
@@ -61,7 +67,7 @@ impl Restore for PgIndexerStore {
                 } = snapshot_object;
                 let checkpoint_sequence_number =
                     previous_transaction_checkpoint.unwrap_or_default();
-                derived_data.extend(&object);
+                derived_data.extend(&object, checkpoint_sequence_number);
                 Some(LiveObject::new(checkpoint_sequence_number, object))
             },
         );
@@ -98,6 +104,7 @@ impl Restore for PgIndexerStore {
             })?;
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
+        self.persist_packages(derived_data.packages).await?;
         Ok(())
     }
 }

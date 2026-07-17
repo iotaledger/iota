@@ -18,13 +18,12 @@ use crate::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
+        packages::StoredPackage,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
     pruning::pruner::PrunableTable,
-    types::{
-        EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-    },
+    types::{EventIndex, IndexedCheckpoint, IndexedEvent, IndexedTransaction, TxIndex},
 };
 
 #[async_trait]
@@ -72,7 +71,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn persist_displays(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError>;
 
-    async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError>;
+    async fn persist_packages(&self, packages: Vec<StoredPackage>) -> Result<(), IndexerError>;
 
     async fn persist_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
 
