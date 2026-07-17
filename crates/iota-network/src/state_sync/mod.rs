@@ -1308,7 +1308,6 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         let start = highest_synced
             .checked_add(1)
             .expect("Checkpoint seq num overflow");
-        let end = lowest_checkpoint_on_peers.unwrap();
 
         let Some(ref checkpoint_archive_config) = checkpoint_archive_config else {
             warn!("Checkpoint archive for state sync is not configured");
@@ -1321,7 +1320,8 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         // `MaxCheckpoint` only fires once the reader delivers checkpoint `end`. If
         // the archive is behind and never serves it, `stall_timeout` makes the
         // executor give up after 60s without progress and the outer loop retries.
-        let archive_end = end - 1;
+        let ingestion_limit =
+            lowest_checkpoint_on_peers.map(|end| IngestionLimit::MaxCheckpoint(end - 1));
         let reader_options = ReaderOptions {
             download_concurrency: NonZeroUsize::new(checkpoint_archive_config.download_concurrency)
                 .expect("checkpoint-archive-config.download-concurrency must be non-zero"),
@@ -1330,7 +1330,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         };
         // Keep a clone for the final log; the original is moved into StateSyncWorker.
         let store_for_log = store.clone();
-        let Ok((run_future, _exit_sender)) = setup_single_workflow(
+        let setup_result = setup_single_workflow(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
                 historical_url: checkpoint_archive_config.url.clone(),
@@ -1339,11 +1339,15 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             start,
             1,
             Some(reader_options),
-            Some(IngestionLimit::MaxCheckpoint(archive_end)),
+            ingestion_limit,
         )
-        .await
-        else {
-            return;
+        .await;
+        let (run_future, _cancel_token) = match setup_result {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Failed to setup checkpoint archive state sync worker: {e}");
+                return;
+            }
         };
         let run_result = run_future.await;
         let highest_synced_now = store_for_log
@@ -1352,7 +1356,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         match run_result {
             Ok(_) => info!(
                 "State sync from checkpoint archive finished. Highest synced checkpoint = \
-                 {highest_synced_now} (target {archive_end})"
+                 {highest_synced_now} (target {ingestion_limit:?})"
             ),
             Err(err) => warn!("State sync from archive failed with error: {:?}", err),
         }

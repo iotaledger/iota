@@ -326,16 +326,16 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         let chk_bytes = Bytes::from(chk_buf.clone());
         let file_metadata =
             create_file_metadata_from_bytes(chk_bytes, 0..oldest_checkpoint_to_keep)?;
-        std::fs::write(temp_dir.join("0.chk"), &chk_buf)?;
+        std::fs::write(temp_dir.path().join("0.chk"), &chk_buf)?;
 
         let mut manifest = Manifest::new(0);
         manifest.update(oldest_checkpoint_to_keep, file_metadata);
         let manifest_bytes = finalize_manifest(manifest)?;
-        std::fs::write(temp_dir.join("MANIFEST"), &manifest_bytes[..])?;
+        std::fs::write(temp_dir.path().join("MANIFEST"), &manifest_bytes[..])?;
     }
     let checkpoint_archive_config = CheckpointArchiveConfig {
         download_concurrency: 1,
-        url: format!("file://{}", temp_dir.display()),
+        url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
     // store Node 2 will prune older checkpoints, so Node 1 is forced to
@@ -457,6 +457,8 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+    // make sure temp_dir lives long enough
+    drop(temp_dir);
     Ok(())
 }
 
