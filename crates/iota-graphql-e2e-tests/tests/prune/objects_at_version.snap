@@ -1,0 +1,134 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 21 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 11-32:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6703200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 34:
+//# run P0::m::create --sender A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 36:
+//# run P0::m::add_df --sender A --args object(2,0) 42 1
+created: object(3,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3716400, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 4, line 38:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, line 40:
+//# run P0::m::mutate_df --sender A --args object(2,0) 42 2
+mutated: object(0,0), object(2,0), object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3716400, storage_rebate: 3716400, non_refundable_storage_fee: 0
+
+task 6, line 42:
+//# run P0::m::bump --sender A --args object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 7, line 44:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 8, line 46:
+//# advance-epoch
+Epoch advanced: 0
+
+task 9, line 48:
+//# create-checkpoint
+Checkpoint created: 4
+
+task 10, line 50:
+//# advance-epoch
+Epoch advanced: 1
+
+task 11, line 52:
+//# create-checkpoint
+Checkpoint created: 6
+
+task 12, line 54:
+//# advance-epoch
+Epoch advanced: 2
+
+task 13, line 56:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 14, line 58:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 15, line 60:
+//# create-checkpoint
+Checkpoint created: 10
+
+task 16, lines 62-70:
+//# run-graphql --wait-for-checkpoint-pruned 6
+Response: {
+  "data": {
+    "object": null
+  }
+}
+
+task 17, lines 72-82:
+//# run-graphql
+Response: {
+  "data": {
+    "object": {
+      "asMoveObject": {
+        "contents": {
+          "json": {
+            "id": "0x843c5fd93fafc7cfca2e5650b9a80981090d17f139f52833326078623e814353",
+            "value": "1"
+          }
+        }
+      },
+      "status": "INDEXED",
+      "version": 5
+    }
+  }
+}
+
+task 18, lines 84-91:
+//# run-graphql
+Response: {
+  "data": {
+    "object": null
+  }
+}
+
+task 19, lines 93-105:
+//# run-graphql
+Response: {
+  "data": {
+    "owner": {
+      "dynamicField": null
+    }
+  }
+}
+
+task 20, lines 107-117:
+//# run-graphql
+Response: {
+  "data": {
+    "owner": {
+      "dynamicField": {
+        "value": {
+          "json": "2"
+        }
+      }
+    }
+  }
+}

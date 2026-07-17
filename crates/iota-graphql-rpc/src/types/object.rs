@@ -18,7 +18,9 @@ use iota_indexer::{
     schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_sdk_types::{MoveStruct as NativeMoveStruct, Owner as NativeOwner, StructTag, TypeTag};
+use iota_sdk_types::{
+    MoveStruct as NativeMoveStruct, ObjectId, Owner as NativeOwner, StructTag, TypeTag, Version,
+};
 use iota_types::object::{Object as NativeObject, bounded_visitor::BoundedVisitor};
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
@@ -1009,6 +1011,7 @@ impl Object {
     pub(crate) fn try_from_stored_object(
         stored_object: StoredObject,
         checkpoint_viewed_at: u64,
+        root_version: Option<u64>,
     ) -> Result<Self, Error> {
         let active_object = ActiveObject {
             native: NativeObject::try_from(&stored_object)?,
@@ -1018,7 +1021,7 @@ impl Object {
         Ok(Self::from_active_object(
             active_object,
             checkpoint_viewed_at,
-            None,
+            root_version,
         ))
     }
 }
@@ -1466,8 +1469,11 @@ impl Loader<HistoricalKey> for Db {
         }
 
         let mut result = HashMap::new();
+        // Keys not found in the DB, to be queried from fallback
+        let mut fallback_keys = Vec::new();
         for key in keys {
             let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) else {
+                fallback_keys.push(*key);
                 continue;
             };
 
@@ -1483,6 +1489,29 @@ impl Loader<HistoricalKey> for Db {
             // `Object::root_version`.
             let object = Object::from_active_object(active_object, key.checkpoint_viewed_at, None);
             result.insert(*key, object);
+        }
+
+        // Try to fill the keys not found in the DB from the KV
+        if self.inner.is_fallback_enabled() && !fallback_keys.is_empty() {
+            let object_refs: Vec<(ObjectId, Version)> = fallback_keys
+                .iter()
+                .map(|key| (key.id.into(), Version::from(key.version)))
+                .collect();
+            let fetched = self
+                .inner
+                .multi_get_fallback_objects(&object_refs, false)
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!("failed to fetch objects from fallback: {e}"))
+                })?;
+            for (key, stored) in fallback_keys.into_iter().zip(fetched) {
+                let Some(stored) = stored else {
+                    continue;
+                };
+                let object =
+                    Object::try_from_stored_object(stored, key.checkpoint_viewed_at, None)?;
+                result.insert(key, object);
+            }
         }
 
         Ok(result)
@@ -1531,7 +1560,7 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), u64::MAX)?;
+                let object = Object::try_from_stored_object(stored.clone(), u64::MAX, None)?;
                 result.insert(*key, object);
             } else {
                 missing_keys.push(*key);
@@ -1695,6 +1724,39 @@ impl Loader<ParentVersionKey> for Db {
                     parent_version: group_key.parent_version,
                 };
 
+                results.insert(key, object);
+            }
+        }
+
+        // Try to fill the keys not found in the DB from the KV
+        let fallback_keys: Vec<(ParentVersionKey, (ObjectId, Version))> = keys
+            .iter()
+            .filter(|key| !results.contains_key(*key))
+            .filter_map(|key| {
+                // `before_version` look-ups are exclusive, so we do +1
+                let before = key.parent_version.checked_add(1)?;
+                Some((*key, (key.id.into(), Version::from(before))))
+            })
+            .collect();
+        if self.inner.is_fallback_enabled() && !fallback_keys.is_empty() {
+            let object_refs: Vec<(ObjectId, Version)> =
+                fallback_keys.iter().map(|(_, obj_ref)| *obj_ref).collect();
+            let fetched = self
+                .inner
+                .multi_get_fallback_objects(&object_refs, true)
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!("failed to fetch objects from fallback: {e}"))
+                })?;
+            for ((key, _), stored) in fallback_keys.into_iter().zip(fetched) {
+                let Some(stored) = stored else {
+                    continue;
+                };
+                let object = Object::try_from_stored_object(
+                    stored,
+                    key.checkpoint_viewed_at,
+                    Some(key.parent_version),
+                )?;
                 results.insert(key, object);
             }
         }
