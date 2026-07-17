@@ -388,6 +388,11 @@ throughout.*
 
 **2. Internal execution latency: unchanged by attestation.**
 
+> [!NOTE]
+> The title holds as stated on `n4`. On `n48`, the pinned path deviates
+> one-sidedly — B's executions run faster than A's — through an admission
+> side effect, not an execution cost; see the `n48` paragraph below.
+
 > [!TIP]
 > Both metrics of this finding — `authority_state_internal_execution_latency`
 > and `actual_computation_units` — are described in finding 1's metric table.
@@ -472,6 +477,12 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 
 **4. Receipt → execution latency: roughly doubles under heavy load.**
 
+> [!NOTE]
+> The title describes `n4`. On `n48`, the doubling moves to the moderate
+> sizes on the pinned path (B/A ≈2.6–2.9) and washes out at heavy compute,
+> where every path sits at the backlog ceiling; see the `n48` paragraph
+> below.
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `validator_transaction_execution_latency` | Validator-internal latency from receiving a transaction via `submit_tx` until it finished executing (pre-consensus check, consensus, post-consensus validation, sequencing incl. deferral, execution); excludes client/fullnode time | histogram; p50/p95/p99 (`histogram_quantile`) per validator, then max across validators (busiest); averaged over all seconds of all iterations |
@@ -479,18 +490,40 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 `validator_transaction_execution_latency` times the whole internal pipeline on
 the receiving validator — receipt via `submit_tx`, attestation, consensus,
 post-consensus validation, and execution — no client/fullnode time. Median
-(p50):
+(p50), each latency cell `n4` · · · `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 300 ms | 284 ms | 0.95 | 244 ms  | 225 ms  | 0.92 | 250 ms  | 249 ms  | 1.00 |
-| 50  | 299 ms | 294 ms | 0.98 | 245 ms  | 288 ms  | 1.18 | 264 ms  | 275 ms  | 1.04 |
-| 100 | 290 ms | 305 ms | 1.05 | 265 ms  | 286 ms  | 1.08 | 297 ms  | 295 ms  | 0.99 |
-| 200 | 787 ms | 1.37 s | 1.75 | 1.60 s  | 2.93 s  | 1.82 | 1.60 s  | 2.43 s  | 1.52 |
-| 500 | 4.23 s | 8.39 s | 1.99 | 10.83 s | 17.95 s | 1.66 | 11.25 s | 13.29 s | 1.18 |
+Fullnode path (`f1`):
 
-At light load the pipeline is ≈230–300 ms and A≈B — dominated by consensus,
-with attestation (a few ms at these sizes) lost in the noise. At heavy compute
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 300 ms · · · · · · · **972 ms** | 284 ms · · · · · · · **964 ms** | 0.95 · · · · **0.99** |
+| 50  | 299 ms · · · · · · · **2.87 s** | 294 ms · · · · · · · **3.27 s** | 0.98 · · · · **1.14** |
+| 100 | 290 ms · · · · · · · **6.38 s** | 305 ms · · · · · · · **7.35 s** | 1.05 · · · · **1.15** |
+| 200 | 787 ms · · · · · · · **15.80 s** | 1.37 s · · · · · · · · **17.74 s** | 1.75 · · · · **1.12** |
+| 500 | 4.23 s · · · · · · · · **31.78 s** | 8.39 s · · · · · · · · **31.87 s** | 1.99 · · · · **1.00** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   |  244 ms · · · · · · · **779 ms** |  225 ms · · · · · · · **856 ms** | 0.92 · · · · **1.10** |
+| 50  |  245 ms · · · · · · · **2.03 s** |  288 ms · · · · · · · **5.95 s** | 1.18 · · · · **2.92** |
+| 100 |  265 ms · · · · · · · **4.62 s** |  286 ms · · · · · · · **11.94 s** | 1.08 · · · · **2.58** |
+| 200 |  1.60 s · · · · · · · · **17.54 s** |  2.93 s · · · · · · · · **22.53 s** | 1.82 · · · · **1.28** |
+| 500 | 10.83 s · · · · · · · **30.38 s** | 17.95 s · · · · · · · **19.90 s** | 1.66 · · · · **0.66** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   |  250 ms · · · · · · · **734 ms** |  249 ms · · · · · · · **740 ms** | 1.00 · · · · **1.01** |
+| 50  |  264 ms · · · · · · · **1.63 s** |  275 ms · · · · · · · **1.77 s** | 1.04 · · · · **1.09** |
+| 100 |  297 ms · · · · · · · **9.54 s** |  295 ms · · · · · · · **10.11 s** | 0.99 · · · · **1.06** |
+| 200 |  1.60 s · · · · · · · · **20.79 s** |  2.43 s · · · · · · · · **23.20 s** | 1.52 · · · · **1.12** |
+| 500 | 11.25 s · · · · · · · **30.43 s** | 13.29 s · · · · · · · **28.94 s** | 1.18 · · · · **0.95** |
+
+At light load, the pipeline is ≈230–300 ms and A≈B — dominated by consensus,
+with attestation (a few ms at these sizes) lost in the noise. At heavy compute,
 B runs ≈1.7–2.0× A (`slow500-f1` 4.23 s → 8.39 s), because attestation adds a
 second full execution before consensus (finding 1) and, under load, the extra
 work compounds through queueing. p95 tracks the same (`slow500-f1` 6.8 s →
@@ -501,10 +534,31 @@ at full rate and the backlog builds up on the receiving side. And B's relative
 cost shrinks as attestation spreads: B/A at `slow500` is 1.99 on `f1`, 1.66 on
 `v1`, 1.18 on `v4`, where each validator attests only a quarter of the load.
 
+On `n48`, the shape changes. The floor is ≈0.7–1.0 s already at `slow0`
+(consensus and execution share a saturated machine), and the heavy end hits
+a ceiling: at `slow500` every path sits at ≈30 s p50 for A and B alike —
+half the 60 s run window, pure backlog — so the doubling washes out (B/A
+0.66–1.00, with `v1`'s 0.66 the admission-throttling effect from finding 2).
+The attestation cost instead shows at the moderate sizes on the pinned path
+— B/A 2.92 at `slow50-v1` and 2.58 at `slow100-v1`, where B's transactions
+queue behind the one attesting validator's dry-runs and starved runtime
+(finding 1) — while the spread paths stay at 1.06–1.15 throughout.
+
 ![Receipt → execution latency, n4](h1/results/summary_plots_n4/receipt_to_exec_latency.png)
 
-*Validator-internal receipt → executed latency — the pure validator-internal
-pipeline, with no client/fullnode time.*
+*Validator-internal receipt → executed latency, `n4` campaign — the pure
+validator-internal pipeline, with no client/fullnode time.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Receipt → execution latency, n48](h1/results/summary_plots_n48/receipt_to_exec_latency.png)
+
+*Receipt → executed latency, `n48` campaign — the heavy sizes sit at the
+≈30–40 s backlog ceiling on every path; the pinned path's B penalty shows at
+`slow50`/`slow100`.*
+
+</details>
 
 ---
 
