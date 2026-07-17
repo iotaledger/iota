@@ -12,9 +12,6 @@ use iota_config::genesis::Genesis;
 use iota_data_ingestion_core::history::epoch_boundaries::EpochBoundaries;
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
-};
 use iota_types::{
     committee::CommitteeChainVerifier, messages_checkpoint::CertifiedCheckpointSummary,
 };
