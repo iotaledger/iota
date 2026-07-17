@@ -126,12 +126,12 @@ task 16, lines 66-71:
 //# run-graphql --show-usage --show-headers --show-service-version
 Headers: {
     "content-type": "application/graphql-response+json",
-    "x-iota-rpc-version": "1.28.0-testing-no-sha",
+    "x-iota-rpc-version": "1.29.0-testing-no-sha",
     "vary": "origin, access-control-request-method, access-control-request-headers",
     "access-control-allow-origin": "*",
     "content-length": "157",
 }
-Service version: 1.28.0-testing-no-sha
+Service version: 1.29.0-testing-no-sha
 Response: {
   "data": {
     "checkpoint": {
@@ -447,7 +447,7 @@ Response: {
   "data": {
     "serviceConfig": {
       "availableVersions": [
-        "1.28"
+        "1.29"
       ]
     }
   }
