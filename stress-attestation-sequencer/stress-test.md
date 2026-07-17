@@ -670,6 +670,11 @@ collapse (the relocation at full strength); the spread paths show none.*
 
 **6. Post-consensus validation latency: unaffected by attestation.**
 
+> [!NOTE]
+> The title holds as stated on `n4`. On `n48`, the pinned path's B runs the
+> pass far below A (B/A 0.02–0.26) — near-empty consensus commits under
+> throttled admission, not cheaper validation; see the `n48` paragraph below.
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `post_consensus_validation_latency` | Latency of `validate_and_resolve_conflicts` over one consensus commit's user transactions (Checks #0-#3 plus owned-object conflict resolution) | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
@@ -677,50 +682,71 @@ collapse (the relocation at full strength); the spread paths show none.*
 `validate_and_resolve_conflicts` (the post-consensus pass) is where attestation
 adds Check #3 — attestor verification plus cost bounds. But that's a few integer
 comparisons per tx; the pass is dominated by the already-executed cache lookup
-(Check #1) and owned-object lock/conflict resolution. All paths:
+(Check #1) and owned-object lock/conflict resolution. All paths, each
+cell `n4` ∣ `n48`:
 
 Fullnode path (`f1`):
 
 | slow_size | p50 A | p50 B | p50 B/A | p95 A | p95 B | p95 B/A |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0   | 2.9 ms | 2.8 ms | 0.96 | 5.7 ms | 5.1 ms | 0.89 |
-| 50  | 2.9 ms | 2.8 ms | 0.96 | 5.2 ms | 4.9 ms | 0.95 |
-| 100 | 2.5 ms | 2.0 ms | 0.80 | 4.9 ms | 4.8 ms | 0.98 |
-| 200 | 2.3 ms | 1.1 ms | 0.48 | 19 ms  | 12 ms  | 0.63 |
-| 500 | 2.1 ms | 1.7 ms | 0.82 | 26 ms  | 24 ms  | 0.94 |
+| :---: | --- | --- | --- | --- | --- | --- |
+| 0   | 2.9 ms ∣ **5.1 ms** | 2.8 ms ∣ **4.3 ms** | 0.96 ∣ **0.85** | 5.7 ms ∣ **39 ms** | 5.1 ms ∣ **36 ms** | 0.89 ∣ **0.91** |
+| 50  | 2.9 ms ∣ **10 ms** | 2.8 ms ∣ **8.7 ms** | 0.96 ∣ **0.85** | 5.2 ms ∣ **67 ms** | 4.9 ms ∣ **57 ms** | 0.95 ∣ **0.85** |
+| 100 | 2.5 ms ∣ **9.8 ms** | 2.0 ms ∣ **7.7 ms** | 0.80 ∣ **0.79** | 4.9 ms ∣ **94 ms** | 4.8 ms ∣ **81 ms** | 0.98 ∣ **0.86** |
+| 200 | 2.3 ms ∣ **8.6 ms** | 1.1 ms ∣ **8.9 ms** | 0.48 ∣ **1.04** | 19 ms ∣ **171 ms** | 12 ms ∣ **143 ms** | 0.63 ∣ **0.84** |
+| 500 | 2.1 ms ∣ **37 ms** | 1.7 ms ∣ **78 ms** | 0.82 ∣ **2.12** | 26 ms ∣ **278 ms** | 24 ms ∣ **296 ms** | 0.94 ∣ **1.07** |
 
 Direct-to-one-validator path (`v1`):
 
 | slow_size | p50 A | p50 B | p50 B/A | p95 A | p95 B | p95 B/A |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0   | 2.9 ms | 2.9 ms | 1.00 | 5.9 ms | 5.1 ms | 0.85 |
-| 50  | 2.9 ms | 2.8 ms | 0.98 | 5.4 ms | 5.0 ms | 0.93 |
-| 100 | 2.5 ms | 2.2 ms | 0.89 | 5.4 ms | 4.8 ms | 0.90 |
-| 200 | 3.3 ms | 0.6 ms | 0.20 | 22 ms  | 21 ms  | 0.95 |
-| 500 | 7.0 ms | 0.4 ms | 0.06 | 69 ms  | 15 ms  | 0.21 |
+| :---: | --- | --- | --- | --- | --- | --- |
+| 0   | 2.9 ms ∣ **3.3 ms** | 2.9 ms ∣ **2.6 ms** | 1.00 ∣ **0.78** | 5.9 ms ∣ **25 ms** | 5.1 ms ∣ **23 ms** | 0.85 ∣ **0.94** |
+| 50  | 2.9 ms ∣ **4.6 ms** | 2.8 ms ∣ **0.4 ms** | 0.98 ∣ **0.08** | 5.4 ms ∣ **45 ms** | 5.0 ms ∣ **12 ms** | 0.93 ∣ **0.26** |
+| 100 | 2.5 ms ∣ **3.4 ms** | 2.2 ms ∣ **0.3 ms** | 0.89 ∣ **0.09** | 5.4 ms ∣ **79 ms** | 4.8 ms ∣ **9.4 ms** | 0.90 ∣ **0.12** |
+| 200 | 3.3 ms ∣ **2.1 ms** | 0.6 ms ∣ **0.3 ms** | 0.20 ∣ **0.14** | 22 ms ∣ **124 ms** | 21 ms ∣ **17 ms** | 0.95 ∣ **0.13** |
+| 500 | 7.0 ms ∣ **28 ms** | 0.4 ms ∣ **0.6 ms** | 0.06 ∣ **0.02** | 69 ms ∣ **186 ms** | 15 ms ∣ **6.1 ms** | 0.21 ∣ **0.03** |
 
-Direct-to-all-4 path (`v4`):
+Direct-to-all-validators path (`v4` / `v48`):
 
 | slow_size | p50 A | p50 B | p50 B/A | p95 A | p95 B | p95 B/A |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0   | 3.0 ms | 2.9 ms | 0.98 | 5.3 ms | 4.9 ms | 0.93 |
-| 50  | 2.9 ms | 2.8 ms | 0.95 | 5.3 ms | 4.9 ms | 0.92 |
-| 100 | 2.5 ms | 2.2 ms | 0.87 | 4.9 ms | 4.8 ms | 0.98 |
-| 200 | 3.6 ms | 3.3 ms | 0.90 | 19 ms  | 22 ms  | 1.13 |
-| 500 | 13 ms  | 7.2 ms | 0.56 | 61 ms  | 57 ms  | 0.95 |
+| :---: | --- | --- | --- | --- | --- | --- |
+| 0   | 3.0 ms ∣ **3.9 ms** | 2.9 ms ∣ **3.5 ms** | 0.98 ∣ **0.89** | 5.3 ms ∣ **23 ms** | 4.9 ms ∣ **22 ms** | 0.93 ∣ **0.94** |
+| 50  | 2.9 ms ∣ **11 ms** | 2.8 ms ∣ **9.0 ms** | 0.95 ∣ **0.83** | 5.3 ms ∣ **48 ms** | 4.9 ms ∣ **46 ms** | 0.92 ∣ **0.96** |
+| 100 | 2.5 ms ∣ **8.7 ms** | 2.2 ms ∣ **8.5 ms** | 0.87 ∣ **0.98** | 4.9 ms ∣ **79 ms** | 4.8 ms ∣ **78 ms** | 0.98 ∣ **0.99** |
+| 200 | 3.6 ms ∣ **28 ms** | 3.3 ms ∣ **25 ms** | 0.90 ∣ **0.89** | 19 ms ∣ **234 ms** | 22 ms ∣ **183 ms** | 1.13 ∣ **0.78** |
+| 500 | 13 ms ∣ **222 ms** | 7.2 ms ∣ **45 ms** | 0.56 ∣ **0.20** | 61 ms ∣ **675 ms** | 57 ms ∣ **184 ms** | 0.95 ∣ **0.27** |
 
-p50 is ≈2–3 ms at light load, and the B/A column has no consistent direction —
-it swings from 0.06 to 1.13, worst on the direct-path heavy configs. That's
-noise, not
-an attestation effect: the pass is timed per consensus commit, so heavy configs
-(low throughput) get few samples. p95 rises under load (≈5 ms → 12–69 ms) on
-both A and B, from contention on the pass. Attestation's Check #3 is lost in the
-noise; its cost is pre-consensus (finding 1), not here.
+On `n4`, p50 is ≈2–3 ms at light load, and the B/A column has no consistent
+direction — it swings from 0.06 to 1.13, worst on the direct-path heavy
+configs. That's noise, not an attestation effect: the pass is timed per
+consensus commit, so heavy configs (low throughput) get few samples. p95
+rises under load (≈5 ms → 12–69 ms) on both A and B, from contention on the
+pass. Attestation's Check #3 is lost in the noise; its cost is pre-consensus
+(finding 1), not here.
+
+On `n48`, the absolute pass times inflate with everything else (p95 tens to
+hundreds of ms) and the spread paths stay A≈B (B/A mostly 0.78–1.07). The
+pinned path turns systematic instead of noisy: B runs the pass at a fraction
+of A from `slow50` up (p50 B/A 0.02–0.26 — e.g. 28 ms vs 0.6 ms at
+`slow500`). That is still not Check #3: the pass is timed per consensus
+commit, so its duration tracks how many transactions a commit carries, and
+B's throttled admission on `v1` (finding 14) produces near-empty commits.
+`v48` shows the same commit-size effect once, at `slow500` (p50 222 ms →
+45 ms), where A admits more than B and its commits arrive stuffed.
 
 ![Post-consensus validation latency, n4](h1/results/summary_plots_n4/post_consensus_validation_latency.png)
 
-*Time in `validate_and_resolve_conflicts`; Check #3 (attestor verification) is
-the attestation-added work on this path.*
+*Time in `validate_and_resolve_conflicts`, `n4` campaign; Check #3 (attestor
+verification) is the attestation-added work on this path.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Post-consensus validation latency, n48](h1/results/summary_plots_n48/post_consensus_validation_latency.png)
+
+*The pass on `n48` — spread paths A≈B at inflated absolute times; the pinned
+path's B bars collapse (near-empty commits).*
+
+</details>
 
 ---
 
