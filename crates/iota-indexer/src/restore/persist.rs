@@ -17,11 +17,15 @@ use strum::IntoEnumIterator;
 use crate::{
     chunk,
     errors::{IndexerError, IndexerResult},
-    ingestion::{common::prepare::LiveObject, primary::persist::EpochToCommit},
+    ingestion::{
+        common::{persist::CommitterTables, prepare::LiveObject},
+        primary::persist::EpochToCommit,
+    },
     models::{
         checkpoints::StoredChainIdentifier,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
+        obj_indices::StoredObjectVersion,
         packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
@@ -35,6 +39,7 @@ struct ObjectDerivedData {
     hasher: Sha3_256,
     displays: BTreeMap<String, StoredDisplay>,
     packages: Vec<StoredPackage>,
+    object_versions: Vec<StoredObjectVersion>,
 }
 
 impl ObjectDerivedData {
@@ -47,6 +52,11 @@ impl ObjectDerivedData {
             self.packages
                 .push(IndexedPackage::new(package.clone(), checkpoint_sequence_number).into());
         }
+        self.object_versions.push(StoredObjectVersion {
+            object_id: object.id().as_bytes().to_vec(),
+            object_version: object.version().as_u64() as i64,
+            cp_sequence_number: checkpoint_sequence_number as i64,
+        })
     }
 }
 
@@ -105,6 +115,8 @@ impl Restore for PgIndexerStore {
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
         self.persist_packages(derived_data.packages).await?;
+        self.persist_object_versions(derived_data.object_versions)
+            .await?;
         Ok(())
     }
 }
@@ -210,8 +222,9 @@ pub(crate) async fn populate_remaining_tables(
         &snapshot_epoch_boundary.last_checkpoint_contents,
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
+    let next_epoch = sync_watermark.epoch + 1;
     let pruning_watermarks: Vec<_> = PrunableTable::iter()
-        .map(|table| (table, sync_watermark.epoch + 1))
+        .map(|table| (table, next_epoch))
         .collect();
     tokio::try_join!(
         populate_epochs(store, verified_epoch_info),
@@ -220,9 +233,16 @@ pub(crate) async fn populate_remaining_tables(
     )?;
     tokio::try_join!(
         populate_protocol_and_feature_flags(store, snapshot_chain_id),
-        store.update_watermarks_lower_bound(pruning_watermarks.clone())
+        store.update_watermarks_lower_bound(pruning_watermarks.clone()),
+        // The restore effectively folds the object_versions table to the
+        // set of objects that were live at the end of the target epoch.
+        //
+        // The next epoch is the one where the table starts getting filled with historical
+        // versions again. Hence we use the respective lower bounds to represent that point in the
+        // history of the table.
+        store.update_watermarks_lower_bound(vec![(CommitterTables::ObjectsVersion, next_epoch)]),
     )?;
-    // finally align the lowest unpruned key with the lower bounds
+    // Finally align the lowest unpruned key with the lower bounds
     // to let the pruner know the pruning range start after restoring
     let (stored_watermarks, _) = store.get_watermarks().await?;
     let lowest_unpruned_keys = stored_watermarks
@@ -232,7 +252,14 @@ pub(crate) async fn populate_remaining_tables(
             (table, table.pruning_strategy().range_end(watermark))
         })
         .collect::<Vec<_>>();
-    store
-        .update_watermarks_lowest_unpruned_key(lowest_unpruned_keys)
-        .await
+    tokio::try_join!(
+        store.update_watermarks_lowest_unpruned_key(lowest_unpruned_keys),
+        // Same as for the lower bounds, we set the lowest_unpruned_key to
+        // the next epoch.
+        store.update_watermarks_lowest_unpruned_key(vec![(
+            CommitterTables::ObjectsVersion,
+            next_epoch
+        )]),
+    )?;
+    Ok(())
 }

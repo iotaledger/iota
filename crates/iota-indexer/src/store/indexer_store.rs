@@ -108,9 +108,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     /// Updates each watermark entry's lower bounds per the list of tables and
     /// their new epoch lower bounds.
-    async fn update_watermarks_lower_bound(
+    async fn update_watermarks_lower_bound<Table: AsRef<str> + Send + 'static>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError>;
 
     /// Load all watermark entries from the store, and the latest timestamp from
@@ -178,9 +178,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError>;
 
-    async fn update_watermarks_lowest_unpruned_key(
+    async fn update_watermarks_lowest_unpruned_key<Table: AsRef<str> + Send + 'static>(
         &self,
-        unpruned_keys: Vec<(PrunableTable, u64)>,
+        unpruned_keys: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError>;
 
     async fn get_watermark_by_entity(
