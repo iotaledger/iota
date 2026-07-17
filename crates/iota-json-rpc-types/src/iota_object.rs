@@ -841,7 +841,7 @@ impl Display for IotaParsedData {
         match self {
             IotaParsedData::MoveObject(o) => {
                 writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
-                write!(writer, "{}", &o.fields)?;
+                write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
                 write!(

@@ -431,7 +431,7 @@ async fn test_quorum_map_and_reduce_timeout() {
     let tx_info = TransactionInfoRequest {
         transaction_digest: *tx.digest(),
     };
-    for (_, client) in authorities.authority_clients.iter() {
+    for client in authorities.authority_clients.values() {
         let resp = client
             .handle_transaction_info_request(tx_info.clone())
             .await;
