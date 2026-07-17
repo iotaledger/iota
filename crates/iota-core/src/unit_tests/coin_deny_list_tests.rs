@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
+    TransactionDigest, TypeTag, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -17,21 +18,21 @@ use iota_types::{
         get_per_type_coin_deny_list_v1,
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
-    error::{IotaError, UserInputError},
+    error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedTransaction},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedTransaction},
 };
 
 use crate::{
     authority::{
-        AuthorityState, authority_tests::send_and_confirm_transaction_,
+        AuthorityState, authority_test_utils::send_and_confirm_transaction_with_execution_error,
+        authority_tests::send_and_confirm_transaction_,
         move_integration_tests::build_and_try_publish_test_package,
         test_authority_builder::TestAuthorityBuilder,
     },
     consensus_handler::VerifiedSequencedConsensusTransaction,
     post_consensus_validation,
-    test_utils::make_transfer_object_transaction,
 };
 
 // Test that a v1 regulated coin can be created and all the necessary objects
@@ -237,103 +238,103 @@ async fn test_regulated_coin_v1_types() {
 // authority) model those two execution frontiers.
 #[tokio::test]
 async fn test_coin_deny_list_read_modes_across_execution_progress() {
-    let env = new_authority_and_publish("coin_deny_list_v1_mintable").await;
-    let epoch_store = env.authority.epoch_store_for_testing();
-    assert_eq!(epoch_store.epoch(), 0);
-    let rgp = env.authority.reference_gas_price_for_testing().unwrap();
-
-    let (package_id, deny_cap_ref, coin_id) = find_published_objects(&env);
-    let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
-        package_id,
-        Identifier::from_static("regulated_coin"),
-        Identifier::from_static("REGULATED_COIN"),
-        vec![],
-    )));
-
-    // Give the transfer its own gas object so the deny-add below (which
-    // consumes the publisher's gas) does not invalidate the transfer's input
-    // references.
-    let transfer_gas_object = Object::with_owner_for_testing(env.sender);
-    env.authority
-        .insert_genesis_object(transfer_gas_object.clone());
-
-    let transfer_tx = VerifiedTransaction::new_unchecked(
-        TestTransactionBuilder::new(env.sender, transfer_gas_object.object_ref(), rgp)
-            .transfer(env.get_latest_object_ref(&coin_id).await, dbg_addr(2))
-            .build_and_sign(&env.keypair),
-    );
+    let env = RegulatedCoinEnv::new().await;
+    assert_eq!(env.epoch(), 0);
+    let transfer_tx = env.build_transfer().await;
 
     // Frontier 1 - the deny-add has not executed: no deny list config exists
     // for the coin type, both read modes pass the transaction.
     for epoch_gated in [false, true] {
-        env.authority
-            .handle_transaction_validation_checks(&transfer_tx, &epoch_store, epoch_gated)
+        env.validation_check(&transfer_tx, epoch_gated)
             .await
             .expect("no deny list entry executed yet");
     }
     assert!(
         get_per_type_coin_deny_list_v1(
-            &regulated_coin_type.to_canonical_string(false),
-            &env.authority.get_object_store(),
+            &env.regulated_coin_type.to_canonical_string(false),
+            &env.env.authority.get_object_store(),
         )
         .is_none()
     );
 
     // Execute `deny_list_v1_add(sender)` in the same epoch.
-    let deny_list_object_init_version = env
-        .get_latest_object_ref(&ObjectId::DENY_LIST)
-        .await
-        .version;
-    let deny_tx = TestTransactionBuilder::new(
-        env.sender,
-        env.get_latest_object_ref(&env.gas_object_id).await,
-        rgp,
-    )
-    .move_call(
-        ObjectId::FRAMEWORK,
-        "coin",
-        "deny_list_v1_add",
-        vec![
-            CallArg::Shared(SharedObjectReference::new(
-                ObjectId::DENY_LIST,
-                deny_list_object_init_version,
-                true,
-            )),
-            CallArg::ImmutableOrOwned(deny_cap_ref),
-            CallArg::pure(&env.sender),
-        ],
-    )
-    .with_type_args(vec![regulated_coin_type.clone()])
-    .build_and_sign(&env.keypair);
-    let (_, effects) = send_and_confirm_transaction_(&env.authority, None, deny_tx, true)
-        .await
-        .unwrap();
-    assert!(!effects.status().is_failure(), "{:?}", effects.status());
+    env.deny_sender().await;
 
     // Frontier 2, latest-value read - the very same transaction is now
     // rejected within the same epoch: the verdict followed the local
     // execution frontier.
-    let err = env
-        .authority
-        .handle_transaction_validation_checks(&transfer_tx, &epoch_store, false)
-        .await
-        .unwrap_err();
+    let err = env.validation_check(&transfer_tx, false).await.unwrap_err();
     assert!(
         matches!(
             &err,
             IotaError::UserInput {
                 error: UserInputError::AddressDeniedForCoin { address, .. }
-            } if *address == env.sender
+            } if *address == env.env.sender
         ),
         "unexpected error: {err:?}"
     );
 
     // Frontier 2, epoch-gated read - same verdict as frontier 1: the entry
     // written this epoch is not active yet, execution progress is irrelevant.
-    env.authority
-        .handle_transaction_validation_checks(&transfer_tx, &epoch_store, true)
+    env.validation_check(&transfer_tx, true)
         .await
         .expect("entry written this epoch must not be active for the epoch-gated read");
+}
+
+// Relaxation mirror of the test above: a denial settled in a previous epoch
+// is lifted in the current one. The latest-value read honors the removal
+// immediately, while the epoch-gated read still denies until the removal
+// settles at the next epoch boundary - the window in which admission accepts
+// transactions that post-consensus deterministically drops.
+#[tokio::test]
+async fn test_coin_deny_list_read_modes_after_denial_relaxed() {
+    let env = RegulatedCoinEnv::new().await;
+    env.deny_sender().await;
+
+    // Settle the denial: entries written in epoch 0 activate in epoch 1.
+    env.reconfigure().await;
+    assert_eq!(env.epoch(), 1);
+
+    let transfer_tx = env.build_transfer().await;
+
+    // Frontier 1 - the removal has not executed: the denial is settled, both
+    // read modes reject the transaction.
+    for epoch_gated in [false, true] {
+        let err = env
+            .validation_check(&transfer_tx, epoch_gated)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                IotaError::UserInput {
+                    error: UserInputError::AddressDeniedForCoin { .. }
+                }
+            ),
+            "a settled denial must be enforced by both read modes, got {err:?}"
+        );
+    }
+
+    // Execute `deny_list_v1_remove(sender)` in the same epoch.
+    env.undeny_sender().await;
+
+    // Frontier 2, latest-value read - the removal applies immediately.
+    env.validation_check(&transfer_tx, false)
+        .await
+        .expect("a removal must apply immediately for the latest-value read");
+
+    // Frontier 2, epoch-gated read - the removal is not settled yet, the
+    // denial still holds until the next epoch boundary.
+    let err = env.validation_check(&transfer_tx, true).await.unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::AddressDeniedForCoin { .. }
+            }
+        ),
+        "a removal written this epoch must not be active for the epoch-gated read, got {err:?}"
+    );
 }
 
 // Runs the real post-consensus validation pipeline over a `UserTransactionV1`
@@ -352,99 +353,272 @@ async fn test_post_consensus_keeps_tx_spending_coin_paused_this_epoch() {
         config
     });
 
-    let env = new_authority_and_publish("coin_deny_list_v1_mintable").await;
-    let rgp = env.authority.reference_gas_price_for_testing().unwrap();
-
-    let (package_id, deny_cap_ref, coin_id) = find_published_objects(&env);
-    let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
-        package_id,
-        Identifier::from_static("regulated_coin"),
-        Identifier::from_static("REGULATED_COIN"),
-        vec![],
-    )));
+    let env = RegulatedCoinEnv::new().await;
 
     // Globally pause the regulated coin; executes in the current epoch.
-    let deny_list_object_init_version = env
-        .get_latest_object_ref(&ObjectId::DENY_LIST)
-        .await
-        .version;
-    let pause_tx = TestTransactionBuilder::new(
-        env.sender,
-        env.get_latest_object_ref(&env.gas_object_id).await,
-        rgp,
-    )
-    .move_call(
-        ObjectId::FRAMEWORK,
-        "coin",
-        "deny_list_v1_enable_global_pause",
-        vec![
-            CallArg::Shared(SharedObjectReference::new(
-                ObjectId::DENY_LIST,
-                deny_list_object_init_version,
-                true,
-            )),
-            CallArg::ImmutableOrOwned(deny_cap_ref),
-        ],
-    )
-    .with_type_args(vec![regulated_coin_type.clone()])
-    .build_and_sign(&env.keypair);
-    let (_, effects) = send_and_confirm_transaction_(&env.authority, None, pause_tx, true)
-        .await
-        .unwrap();
-    assert!(!effects.status().is_failure(), "{:?}", effects.status());
+    env.pause().await;
 
     // A transaction spending the paused coin, sequenced as `UserTransactionV1`.
-    let transfer_tx = make_transfer_object_transaction(
-        env.get_latest_object_ref(&coin_id).await,
-        env.get_latest_object_ref(&env.gas_object_id).await,
-        env.sender,
-        &env.keypair,
-        dbg_addr(9),
-        rgp,
-    );
-    let digest = *transfer_tx.digest();
-    let consensus_tx = ConsensusTransaction {
-        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transfer_tx)),
-        tracking_id: Default::default(),
-    };
-    let mut transactions = vec![VerifiedSequencedConsensusTransaction::new_test(
-        consensus_tx,
-    )];
+    let transfer_tx = env.build_transfer().await;
+    let (dropped, kept) = env.post_consensus_validate(transfer_tx).await;
+    assert!(dropped.is_empty(), "unexpected drops: {dropped:?}");
+    assert!(kept);
+}
 
-    let epoch_store = env.authority.epoch_store_for_testing();
-    let (dropped, _locks, user_tx_digests) =
-        post_consensus_validation::validate_and_resolve_conflicts(
-            &env.authority,
-            &epoch_store,
-            &mut transactions,
+// The admitted-then-dropped window end-to-end: a pause settled at the epoch
+// boundary is lifted mid-epoch. Admission (latest-value read) honors the
+// lifted pause immediately, while the epoch-gated post-consensus read still
+// sees the settled pause, so the admitted transaction is deterministically
+// dropped until the removal settles at the next epoch boundary.
+#[tokio::test]
+async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+    env.pause().await;
+
+    // `reconfigure_for_testing` applies its own config override (carrying the
+    // current epoch store's config, including the flag set above, into the
+    // next epoch) and panics if another override is still installed.
+    drop(guard);
+
+    // Settle the pause: entries written in epoch 0 activate in epoch 1.
+    env.reconfigure().await;
+    assert_eq!(env.epoch(), 1);
+
+    // Lift the pause; executes in epoch 1, settles at epoch 2.
+    env.unpause().await;
+
+    let transfer_tx = env.build_transfer().await;
+
+    // Admission honors the lifted pause immediately.
+    env.validation_check(&transfer_tx, false)
+        .await
+        .expect("a lifted pause must apply immediately at admission");
+
+    // Post-consensus still sees the settled pause and drops.
+    let (dropped, kept) = env.post_consensus_validate(transfer_tx).await;
+    assert!(!kept);
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::UserInput {
+                error: UserInputError::CoinTypeGlobalPause { .. }
+            }
+        ),
+        "unexpected drop reason: {:?}",
+        dropped[0].1
+    );
+}
+
+/// A published `coin_deny_list_v1_mintable` package - the regulated coin
+/// type, its deny cap, and one minted coin - with helpers for the deny-list
+/// operations the tests exercise.
+struct RegulatedCoinEnv {
+    env: TestEnv,
+    regulated_coin_type: TypeTag,
+    deny_cap_id: ObjectId,
+    coin_id: ObjectId,
+    /// Captured before any deny-list mutation: `CallArg::Shared` needs the
+    /// initial shared version, which later mutations do not change.
+    deny_list_initial_version: Version,
+}
+
+impl RegulatedCoinEnv {
+    async fn new() -> Self {
+        let env = new_authority_and_publish("coin_deny_list_v1_mintable").await;
+        let mut package_id = None;
+        let mut deny_cap_id = None;
+        let mut coin_id = None;
+
+        for (oref, _owner) in env.publish_effects.created() {
+            let object = env.authority.get_object(&oref.object_id).unwrap();
+            if object.is_package() {
+                package_id = Some(object.id());
+                continue;
+            }
+            if object.type_().unwrap().is_deny_cap_v1() {
+                deny_cap_id = Some(object.id());
+            } else if !object.is_gas_coin() && object.coin_type_opt().is_some() {
+                coin_id = Some(object.id());
+            }
+        }
+
+        let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
+            package_id.expect("package must be created"),
+            Identifier::from_static("regulated_coin"),
+            Identifier::from_static("REGULATED_COIN"),
+            vec![],
+        )));
+        let deny_list_initial_version = env
+            .get_latest_object_ref(&ObjectId::DENY_LIST)
+            .await
+            .version;
+
+        Self {
+            env,
+            regulated_coin_type,
+            deny_cap_id: deny_cap_id.expect("deny cap must be created"),
+            coin_id: coin_id.expect("minted regulated coin must be created"),
+            deny_list_initial_version,
+        }
+    }
+
+    fn rgp(&self) -> u64 {
+        self.env
+            .authority
+            .reference_gas_price_for_testing()
+            .unwrap()
+    }
+
+    fn epoch(&self) -> u64 {
+        self.env.authority.epoch_store_for_testing().epoch()
+    }
+
+    async fn reconfigure(&self) {
+        self.env.authority.reconfigure_for_testing().await;
+    }
+
+    /// Executes a `0x2::coin` deny-list function over the regulated coin
+    /// type; `deny_list_v1_add`/`deny_list_v1_remove` take a target address,
+    /// the global pause functions take none.
+    async fn call_deny_list(&self, function: &'static str, address: Option<Address>) {
+        let mut args = vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::DENY_LIST,
+                self.deny_list_initial_version,
+                true,
+            )),
+            // Re-fetched every call: the cap's version bumps on each one.
+            CallArg::ImmutableOrOwned(self.env.get_latest_object_ref(&self.deny_cap_id).await),
+        ];
+
+        if let Some(address) = address {
+            args.push(CallArg::pure(&address));
+        }
+
+        let tx = TestTransactionBuilder::new(
+            self.env.sender,
+            self.env
+                .get_latest_object_ref(&self.env.gas_object_id)
+                .await,
+            self.rgp(),
+        )
+        .move_call(ObjectId::FRAMEWORK, "coin", function, args)
+        .with_type_args(vec![self.regulated_coin_type.clone()])
+        .build_and_sign(&self.env.keypair);
+
+        // `fake_consensus = false`: assign the shared-object version directly
+        // instead of going through the consensus commit handler, which
+        // requires a randomness manager - the epoch store created by
+        // `reconfigure_for_testing` has none.
+        let (_, effects, _) = send_and_confirm_transaction_with_execution_error(
+            &self.env.authority,
+            None,
+            tx,
+            true,
+            false,
         )
         .await
         .unwrap();
 
-    assert!(dropped.is_empty(), "unexpected drops: {dropped:?}");
-    assert_eq!(transactions.len(), 1);
-    assert_eq!(user_tx_digests, vec![digest]);
-}
-
-/// Returns the package id, deny cap reference, and minted regulated coin id
-/// created by publishing `coin_deny_list_v1_mintable`.
-fn find_published_objects(env: &TestEnv) -> (ObjectId, ObjectReference, ObjectId) {
-    let mut package_id = None;
-    let mut deny_cap_ref = None;
-    let mut coin_id = None;
-    for (oref, _owner) in env.publish_effects.created() {
-        let object = env.authority.get_object(&oref.object_id).unwrap();
-        if object.is_package() {
-            package_id = Some(object.id());
-            continue;
-        }
-        if object.type_().unwrap().is_deny_cap_v1() {
-            deny_cap_ref = Some(object.object_ref());
-        } else if !object.is_gas_coin() && object.coin_type_opt().is_some() {
-            coin_id = Some(object.id());
-        }
+        assert!(
+            !effects.status().is_failure(),
+            "{function}: {:?}",
+            effects.status()
+        );
     }
-    (package_id.unwrap(), deny_cap_ref.unwrap(), coin_id.unwrap())
+
+    async fn deny_sender(&self) {
+        self.call_deny_list("deny_list_v1_add", Some(self.env.sender))
+            .await;
+    }
+
+    async fn undeny_sender(&self) {
+        self.call_deny_list("deny_list_v1_remove", Some(self.env.sender))
+            .await;
+    }
+
+    async fn pause(&self) {
+        self.call_deny_list("deny_list_v1_enable_global_pause", None)
+            .await;
+    }
+
+    async fn unpause(&self) {
+        self.call_deny_list("deny_list_v1_disable_global_pause", None)
+            .await;
+    }
+
+    /// A transfer of the regulated coin with its own freshly inserted gas
+    /// object, so the deny-list calls above (which spend the publisher's gas)
+    /// never invalidate its input references.
+    async fn build_transfer(&self) -> Transaction {
+        let gas_object = Object::with_owner_for_testing(self.env.sender);
+        self.env.authority.insert_genesis_object(gas_object.clone());
+
+        TestTransactionBuilder::new(self.env.sender, gas_object.object_ref(), self.rgp())
+            .transfer(
+                self.env.get_latest_object_ref(&self.coin_id).await,
+                dbg_addr(2),
+            )
+            .build_and_sign(&self.env.keypair)
+    }
+
+    /// Runs `handle_transaction_validation_checks` with the given coin
+    /// deny-list read mode. The epoch store is fetched per call, so the check
+    /// follows epoch changes made through [`Self::reconfigure`].
+    async fn validation_check(
+        &self,
+        transaction: &Transaction,
+        epoch_gated_coin_deny_list: bool,
+    ) -> IotaResult<Vec<ObjectReference>> {
+        let epoch_store = self.env.authority.epoch_store_for_testing();
+
+        self.env
+            .authority
+            .handle_transaction_validation_checks(
+                &VerifiedTransaction::new_unchecked(transaction.clone()),
+                &epoch_store,
+                epoch_gated_coin_deny_list,
+            )
+            .await
+    }
+
+    /// Runs post-consensus validation over the transaction sequenced as a
+    /// `UserTransactionV1`. Returns the drop list and whether the transaction
+    /// was kept in the sequence.
+    async fn post_consensus_validate(
+        &self,
+        transaction: Transaction,
+    ) -> (Vec<(TransactionDigest, IotaError)>, bool) {
+        let digest = *transaction.digest();
+        let consensus_tx = ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+            tracking_id: Default::default(),
+        };
+
+        let mut transactions = vec![VerifiedSequencedConsensusTransaction::new_test(
+            consensus_tx,
+        )];
+
+        let epoch_store = self.env.authority.epoch_store_for_testing();
+        let (dropped, _locks, user_tx_digests) =
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &self.env.authority,
+                &epoch_store,
+                &mut transactions,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(user_tx_digests, vec![digest]);
+
+        (dropped, transactions.len() == 1)
+    }
 }
 
 struct TestEnv {
