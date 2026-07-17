@@ -394,11 +394,11 @@ fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
 }
 
 fn default_grpc_api_max_get_objects_batch_size() -> u32 {
-    50
+    1000
 }
 
 fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
-    50
+    1000
 }
 
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
