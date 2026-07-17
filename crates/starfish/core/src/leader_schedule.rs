@@ -17,6 +17,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, GENESIS_COMMIT_INDEX},
     context::Context,
     dag_state::DagState,
+    error::ConsensusResult,
     leader_scoring::ReputationScores,
 };
 
@@ -51,14 +52,6 @@ fn recover_leader_swap_table(
     )
 }
 
-/// The window where the schedule change takes place in consensus. It
-/// represents number of committed sub dags.
-/// TODO: move this to protocol config
-#[cfg(not(msim))]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
-#[cfg(msim)]
-pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
-
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
 /// an epoch. The leader schedule is subject to change periodically based on
 /// calculated `ReputationScores` of the authorities.
@@ -66,20 +59,21 @@ pub(crate) const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 10;
 pub(crate) struct LeaderSchedule {
     pub leader_swap_table: Arc<RwLock<LeaderSwapTable>>,
     context: Arc<Context>,
-    num_commits_per_schedule: u64,
+    num_commits_per_schedule: u32,
 }
 
 impl LeaderSchedule {
     pub(crate) fn new(context: Arc<Context>, leader_swap_table: LeaderSwapTable) -> Self {
+        let num_commits_per_schedule = context.protocol_config.commits_per_schedule();
         Self {
             context,
-            num_commits_per_schedule: CONSENSUS_COMMITS_PER_SCHEDULE,
+            num_commits_per_schedule,
             leader_swap_table: Arc::new(RwLock::new(leader_swap_table)),
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u64) -> Self {
+    pub(crate) fn with_num_commits_per_schedule(mut self, num_commits_per_schedule: u32) -> Self {
         self.num_commits_per_schedule = num_commits_per_schedule;
         self
     }
@@ -118,7 +112,7 @@ impl LeaderSchedule {
         &self,
         dag_state: Arc<RwLock<DagState>>,
     ) -> usize {
-        let subdag_count = dag_state.read().scoring_subdags_count() as u64;
+        let subdag_count = dag_state.read().scoring_subdags_count() as u32;
 
         // In the normal online flow, `scoring_subdag` is cleared every time we
         // update the schedule, so its size stays within `num_commits_per_schedule`.
@@ -294,14 +288,14 @@ impl LeaderSchedule {
         dag_state_write_lock: &mut DagState,
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
-    ) {
+    ) -> ConsensusResult<()> {
         // Determine the commit range for these scores.
         // Reputation scores are attached to the *first* commit after a schedule
         // update, so the scores correspond to the previous window ending at
         // commit_index - 1.
         let range_end = commit_index.saturating_sub(1);
         if range_end == GENESIS_COMMIT_INDEX {
-            return;
+            return Ok(());
         }
 
         // Skip stale scores: if the incoming scores are for a range we've already
@@ -315,17 +309,17 @@ impl LeaderSchedule {
                 "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_commit_info_index={last_commit_info_index})",
                 self.context.own_index
             );
-            return;
+            return Ok(());
         }
 
-        let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
+        let range_start = range_end.saturating_sub(self.num_commits_per_schedule - 1);
         let commit_range = CommitRange::new(range_start..=range_end);
 
         let reputation_scores = ReputationScores::from_scores_desc(
             self.context.committee.size(),
             commit_range,
             reputation_scores_desc,
-        );
+        )?;
 
         tracing::info!(
             "[AUTH {}] Updating leader schedule from commit scores at index {commit_index}: {reputation_scores:?}",
@@ -346,6 +340,7 @@ impl LeaderSchedule {
         );
         self.persist_scores(dag_state_write_lock, reputation_scores);
         self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -436,7 +431,7 @@ impl LeaderSwapTable {
         authorities_by_score.shuffle(&mut rng);
         // Stable sort the authorities by score descending. Order of authorities with
         // the same score is preserved.
-        authorities_by_score.sort_by(|a1, a2| a2.1.cmp(&a1.1));
+        authorities_by_score.sort_by_key(|a2| std::cmp::Reverse(a2.1));
 
         // Calculating the good nodes
         let good_nodes = Self::retrieve_first_nodes(
@@ -655,7 +650,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 11, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -694,7 +689,6 @@ mod tests {
                     .commit_info(vec![(commit_ref, commit_info)])
                     .block_headers(block_headers_to_write)
                     .commits(expected_commits),
-                context.clone(),
             )
             .unwrap();
 
@@ -737,7 +731,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
@@ -766,7 +760,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 2, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -795,7 +789,6 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(headers_to_write)
                     .commits(expected_commits),
-                context.clone(),
             )
             .unwrap();
 
@@ -830,7 +823,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let unscored_subdags = vec![
             CommittedSubDag::new(
@@ -840,6 +833,7 @@ mod tests {
                 vec![],
                 context.clock.timestamp_utc_ms(),
                 CommitRef::new(1, CommitDigest::MIN),
+                vec![],
                 vec![],
             )
             .base,
@@ -865,7 +859,7 @@ mod tests {
         ));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
 
         // Populate fully connected test blocks for round 0 ~ 4, authorities 0 ~ 3.
@@ -943,6 +937,7 @@ mod tests {
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),
+                vec![],
                 vec![],
             )
             .base,

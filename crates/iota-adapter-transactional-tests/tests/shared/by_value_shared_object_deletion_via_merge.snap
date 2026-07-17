@@ -10,23 +10,23 @@ task 1, lines 14-61:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9279600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9279600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 63:
 //# run t2::o2::mint_shared_coin
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 65:
 //# run t2::o2::mint_owned_coin
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 67:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -41,7 +41,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 5, lines 69-72:
 //# view-object 3,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -61,29 +61,29 @@ task 6, lines 73-77:
 // **Merge owned into shared**
 mutated: object(0,0), object(3,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 7, line 79:
 //# run t2::o2::mint_owned_coin
 created: object(7,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 81:
 //# run t2::o2::mint_shared_coin
 created: object(8,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 9, line 83:
 //# run t2::o2::mint_shared_obj
 created: object(9,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, line 85:
 //# view-object 7,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 5
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -98,7 +98,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 11, line 87:
 //# view-object 8,0
-Owner: Shared( 6 )
+Owner: Shared(6)
 Version: 6
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -113,7 +113,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 12, lines 89-91:
 //# view-object 9,0
-Owner: Shared( 7 )
+Owner: Shared(7)
 Version: 7
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -130,29 +130,29 @@ task 13, lines 92-96:
 // **Merge shared into shared**
 mutated: object(0,0), object(9,0)
 deleted: object(7,0), object(8,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600,  storage_rebate: 4172400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600, storage_rebate: 4172400, non_refundable_storage_fee: 0
 
 task 14, line 98:
 //# run t2::o2::mint_shared_coin
 created: object(14,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 15, line 100:
 //# run t2::o2::mint_shared_coin
 created: object(15,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 16, line 102:
 //# run t2::o2::mint_shared_obj
 created: object(16,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 17, line 104:
 //# view-object 14,0
-Owner: Shared( 8 )
+Owner: Shared(8)
 Version: 8
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -167,7 +167,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 18, line 106:
 //# view-object 15,0
-Owner: Shared( 9 )
+Owner: Shared(9)
 Version: 9
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -182,7 +182,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 19, lines 108-110:
 //# view-object 16,0
-Owner: Shared( 10 )
+Owner: Shared(10)
 Version: 10
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -198,4 +198,4 @@ task 20, lines 111-113:
 //> 1: t2::o2::deleter(Input(1));
 mutated: object(0,0), object(16,0)
 deleted: object(14,0), object(15,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600,  storage_rebate: 4172400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2211600, storage_rebate: 4172400, non_refundable_storage_fee: 0

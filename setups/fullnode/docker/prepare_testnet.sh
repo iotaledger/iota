@@ -14,3 +14,6 @@ docker compose pull
 
 # download the genesis file
 curl -fLJ https://dbfiles.testnet.iota.cafe/genesis.blob -o $CONFIG_DIR/genesis.blob
+
+# create the memory profiles directory for jemalloc
+mkdir -p "$DATA_DIR/profiles/memory"

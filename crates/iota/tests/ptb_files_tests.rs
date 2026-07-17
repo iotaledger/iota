@@ -6,7 +6,7 @@
 use std::path::Path;
 
 #[cfg(not(msim))]
-use iota_types::transaction::{CallArg, ObjectArg};
+use iota_types::transaction::CallArg;
 
 #[cfg(not(msim))]
 const TEST_DIR: &str = "tests";
@@ -105,13 +105,12 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
 fn stable_call_arg_display(ca: &CallArg) -> String {
     match ca {
         CallArg::Pure(v) => format!("Pure({v:?})"),
-        CallArg::Object(oa) => match oa {
-            ObjectArg::ImmOrOwnedObject(_) => "ImmutableOrOwnedObject".to_string(),
-            ObjectArg::SharedObject { mutable, .. } => {
-                format!("SharedObject(mutable: {mutable})")
-            }
-            ObjectArg::Receiving(_) => "Receiving".to_string(),
-        },
+        CallArg::ImmutableOrOwned(_) => "ImmutableOrOwnedObject".to_string(),
+        CallArg::Shared(shared) => {
+            format!("SharedObject(mutable: {})", shared.mutable)
+        }
+        CallArg::Receiving(_) => "Receiving".to_string(),
+        _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
     }
 }
 

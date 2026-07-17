@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_macros::sim_test;
-use iota_types::{IOTA_FRAMEWORK_ADDRESS, base_types::ObjectID};
+use iota_sdk_types::{Address, ObjectId};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -18,7 +18,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
     let move_modules = http_client
-        .get_normalized_move_modules_by_package(ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()))
+        .get_normalized_move_modules_by_package(ObjectId::FRAMEWORK)
         .await?;
 
     assert_eq!(
@@ -53,6 +53,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "hash",
             "hex",
             "hmac",
+            "intent",
             "iota",
             "kiosk",
             "kiosk_extension",
@@ -61,9 +62,11 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "object",
             "object_bag",
             "object_table",
+            "module_metadata",
             "package",
             "pay",
             "poseidon",
+            "protocol_config",
             "priority_queue",
             "package_metadata",
             "ptb",
@@ -100,7 +103,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
 async fn get_normalized_move_modules_by_package_wrong_package() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
-    let wrong_package_address = ObjectID::ZERO;
+    let wrong_package_address = ObjectId::ZERO;
 
     let response = http_client
         .get_normalized_move_modules_by_package(wrong_package_address)
@@ -121,14 +124,11 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_module = http_client
-        .get_normalized_move_module(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            module_name.into(),
-        )
+        .get_normalized_move_module(ObjectId::FRAMEWORK, module_name.into())
         .await?;
 
     assert_eq!(move_module.file_format_version, 6);
-    assert_eq!(move_module.address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+    assert_eq!(move_module.address, Address::FRAMEWORK.to_short_hex());
     assert_eq!(move_module.name, module_name);
     assert_eq!(move_module.friends.len(), 0);
     assert_eq!(
@@ -210,10 +210,7 @@ async fn get_normalized_move_module_wrong_module() -> Result<(), anyhow::Error> 
     let wrong_module_name = "foobar";
 
     let response = http_client
-        .get_normalized_move_module(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            wrong_module_name.into(),
-        )
+        .get_normalized_move_module(ObjectId::FRAMEWORK, wrong_module_name.into())
         .await;
 
     assert!(response.is_err_and(|e| e.to_string().contains("No module found with module name")));
@@ -228,11 +225,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_struct = http_client
-        .get_normalized_move_struct(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            module_name.into(),
-            "Coin".into(),
-        )
+        .get_normalized_move_struct(ObjectId::FRAMEWORK, module_name.into(), "Coin".into())
         .await?;
 
     assert_eq!(move_struct.abilities.abilities.len(), 2);
@@ -263,7 +256,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
             type_arguments,
         } = &**inner;
 
-        assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "object");
         assert_eq!(name, "UID");
         assert_eq!(type_arguments.len(), 0);
@@ -281,7 +274,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
             name,
             type_arguments,
         } = &**inner;
-        assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "balance");
         assert_eq!(name, "Balance");
         assert_eq!(type_arguments.len(), 1);
@@ -303,7 +296,7 @@ async fn get_normalized_move_struct_wrong_struct_name() -> Result<(), anyhow::Er
 
     let response = http_client
         .get_normalized_move_struct(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_struct_name.into(),
         )
@@ -324,11 +317,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_function = http_client
-        .get_normalized_move_function(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            module_name.into(),
-            "split".into(),
-        )
+        .get_normalized_move_function(ObjectId::FRAMEWORK, module_name.into(), "split".into())
         .await?;
 
     assert!(matches!(
@@ -362,7 +351,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
                 name,
                 type_arguments,
             } = &**inner;
-            assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+            assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
             assert_eq!(module, "coin");
             assert_eq!(name, "Coin");
             assert_eq!(type_arguments.len(), 1);
@@ -392,7 +381,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
                 name,
                 type_arguments,
             } = &**inner;
-            assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+            assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
             assert_eq!(module, "tx_context");
             assert_eq!(name, "TxContext");
             assert_eq!(type_arguments.len(), 0);
@@ -410,7 +399,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
             name,
             type_arguments,
         } = &**inner;
-        assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "coin");
         assert_eq!(name, "Coin");
         assert_eq!(type_arguments.len(), 1);
@@ -432,7 +421,7 @@ async fn get_normalized_move_function_wrong_function_name() -> Result<(), anyhow
 
     let response = http_client
         .get_normalized_move_function(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_function_name.into(),
         )
@@ -453,11 +442,7 @@ async fn get_move_function_arg_types() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let arg_types = http_client
-        .get_move_function_arg_types(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-            module_name.into(),
-            "split".into(),
-        )
+        .get_move_function_arg_types(ObjectId::FRAMEWORK, module_name.into(), "split".into())
         .await?;
 
     assert_eq!(arg_types.len(), 3);
@@ -487,7 +472,7 @@ async fn get_move_function_arg_types_wrong_function_name() -> Result<(), anyhow:
 
     let response = http_client
         .get_move_function_arg_types(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_function_name.into(),
         )

@@ -9,7 +9,7 @@ import Quiz from '@site/src/components/Quiz';
 import quizData from '../../../site/static/json/about-iota/iota-architecture/consensus.json';
 import ThemedImage from '@theme/ThemedImage';
 
-The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and a Byzantine Fault Tolerant (BFT) protocol. Currently, the Testnet and Mainnet validators employ the Mysticeti BFT protocol, however they will switch to the Starfish BFT protocol, already deployed on the Devnet, once the validators accept the protocol upgrade.
+The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and a Byzantine Fault Tolerant (BFT) protocol. All IOTA networks — Devnet, Testnet, and Mainnet — run the **Starfish** BFT consensus protocol.
 
 
 IOTA's consensus mechanism ensures:
@@ -25,7 +25,7 @@ IOTA's consensus mechanism ensures:
 IOTA employs Delegated Proof-of-Stake (dPoS) as the overarching consensus mechanism. In this model:
 
 - Token holders delegate their voting power to validators.
-- Validators participate in block production and execute the Mysticeti protocol to finalize transactions.
+- Validators participate in block production and execute the Starfish protocol to finalize transactions.
 - Staking rewards serve as the main incentive for validators to behave honestly and secure the network.
 - This structure ensures security and decentralization while maintaining scalability.
 
@@ -44,11 +44,11 @@ Validators that participate in the consensus protocol collectively form the **Co
 
 For more details on validator staking, refer to the [Validators Staking](../tokenomics/validators-staking.mdx) page. To understand epoch transitions, see the [Epochs](./epochs.mdx) documentation.
 
-## The Mysticeti Protocol
+## The Starfish Protocol
 
-**Mysticeti** is a _BFT_ consensus protocol optimized for **low latency** and **high throughput** using an uncertified _DAG_ structure. It enables efficient and parallel transaction processing while maintaining strong security guarantees.
+**Starfish** is a _BFT_ consensus protocol optimized for **low latency** and **high throughput** using an uncertified _DAG_ structure. It is designed for robust operation under disrupted connections, uneven network latency, and adversarial validator behavior.
 
-### Key Features of Mysticeti
+### Key Features of Starfish
 
 - **Parallel Block Proposals**
 Multiple validators can propose blocks simultaneously, maximizing network bandwidth and improving censorship resistance — a core advantage of DAG-based protocols.
@@ -57,32 +57,7 @@ Multiple validators can propose blocks simultaneously, maximizing network bandwi
 Blocks reach finality in only three rounds of communication, matching the efficiency of pBFT and achieving the theoretical minimum for BFT consensus.
 
 - **Optimized Voting**
-Unlike traditional leader-based protocols, Mysticeti allows validators to vote and certify blocks in parallel, significantly reducing median and tail latencies.
-
-- **Fault Tolerance**
-The protocol remains resilient even if some validators are offline or crashed, without substantially impacting commit latency.
-
-🔗 **Reference:** [Mysticeti Paper](https://arxiv.org/pdf/2310.14821)
-
----
-
-### Observed Limitations of Mysticeti
-
-Testing across the IOTA Testnet, Mainnet, and controlled local deployments revealed several scenarios where the Mysticeti performance may degrade due to network behavior or validator misbehavior, such as:
-
-- Disrupted or blocked connections between validators
-- Network latency patterns violating triangle inequality assumptions
-- Validators behaving adversarially or delaying messages
-
-These conditions may increase latency or disrupt transaction propagation, limiting throughput under adverse or hostile environments.
-
----
-
-## The Starfish Protocol
-
-**Starfish** is a _BFT_ consensus protocol inspired by Mysticeti and designed specifically to address the limitations above while retaining its advantages.
-
-### Key Improvements Introduced by Starfish
+Validators vote and certify blocks in parallel rather than sequentially behind a single leader, significantly reducing median and tail latencies.
 
 - **Decoupled Block Headers and Transaction Payloads**
 Block header metadata is separated from transaction data, enabling efficient and flexible dissemination of headers.
@@ -91,12 +66,14 @@ Block header metadata is separated from transaction data, enabling efficient and
 Even if multiple network routes are unavailable, a single functioning connection is sufficient to propagate block headers — without retries or request–response cycles.
 This ensures deterministic and predictable commit performance.
 
+- **Push-based Header Dissemination**
+Block headers are propagated between validators by push rather than on-demand pull. Validators at the edge of the network — with long round-trip times or a single reliable peer — achieve stable p95 commit latency, because no chain of request–response round-trips is needed to assemble a block's history.
+
 - **Linear Communication Cost for Transaction Data**
 Transactions are encoded into shards using Reed–Solomon erasure coding. Nodes can reconstruct missing data from partial shards, removing redundant broadcasts and enabling scalable throughput.
 
----
-
-These design improvements significantly strengthen Starfish’s robustness in Byzantine and unstable environments.
+- **Fault Tolerance**
+The protocol tolerates up to one-third of validators by stake being offline, crashed, or actively misbehaving, without substantially impacting commit latency.
 
 🔗 **Reference:** [Starfish Paper](https://eprint.iacr.org/2025/567)
 

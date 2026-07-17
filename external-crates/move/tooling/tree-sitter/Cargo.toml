@@ -23,3 +23,8 @@ tree-sitter = "~0.20.10"
 
 [build-dependencies]
 cc = "1.0"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "tree-sitter", # consumed by `bindings/rust/lib.rs`, which is not checked in to this repo
+]

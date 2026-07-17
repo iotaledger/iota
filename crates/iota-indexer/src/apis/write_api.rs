@@ -7,74 +7,66 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
-use iota_grpc_client::Client as GrpcClient;
-use iota_grpc_types::field::{FieldMask, FieldMaskUtil};
+use iota_grpc_client::{
+    Client as GrpcClient, ReadMask,
+    read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
     IotaRpcModule, ObjectProvider, get_balance_changes_from_effect, get_object_changes,
 };
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTypeTag, MoveFunctionName,
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_protocol_config::Chain;
+use iota_sdk_types::{
+    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
+    Version,
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{
-        GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
-        TransactionExpiration, TransactionKind,
-    },
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
-    apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
     ingestion::primary::prepare::InMemObjectCache,
-    models::transactions::tx_events_to_iota_tx_events,
-    optimistic_indexing::OptimisticTransactionExecutor,
+    models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
+    optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
-    types::{IndexedObjectChange, IotaTransactionBlockResponseWithOptions, grpc_conversion},
+    types::{IndexedObjectChange, grpc_conversion},
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
 const DRY_RUN_TRANSACTION_READ_MASK: &[&str] = &[
-    "executed_transaction.signatures.bcs",
-    "executed_transaction.effects.bcs",
-    "executed_transaction.events.events.bcs",
-    "executed_transaction.input_objects.bcs",
-    "executed_transaction.output_objects.bcs",
-    "suggested_gas_price",
-    "execution_result.execution_error.source",
+    SimulateExecutedTransactionField::SIGNATURES_BCS,
+    SimulateExecutedTransactionField::EFFECTS_BCS,
+    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
+    SimulateExecutedTransactionField::INPUT_OBJECTS_BCS,
+    SimulateExecutedTransactionField::OUTPUT_OBJECTS_BCS,
+    SimulateField::SUGGESTED_GAS_PRICE,
+    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
 const DEV_INSPECT_TRANSACTION_READ_MASK: &[&str] = &[
-    "executed_transaction.effects.bcs",
-    "executed_transaction.events.events.bcs",
-    "execution_result.execution_error.bcs_kind",
-    "execution_result.execution_error.source",
-    "execution_result.execution_error.command_index",
-    "execution_result.command_results.mutated_by_ref.argument",
-    "execution_result.command_results.mutated_by_ref.type_tag",
-    "execution_result.command_results.mutated_by_ref.bcs",
-    "execution_result.command_results.return_values.type_tag",
-    "execution_result.command_results.return_values.bcs",
-];
-const EPOCH_READ_MASK: &[&str] = &[
-    "reference_gas_price",
-    "protocol_config.attributes.max_tx_gas",
+    SimulateExecutedTransactionField::EFFECTS_BCS,
+    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
+    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
+    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
+    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_COMMAND_INDEX,
+    SimulateField::EXECUTION_RESULT_COMMAND_RESULTS_MUTATED_BY_REF,
+    SimulateField::EXECUTION_RESULT_COMMAND_RESULTS_RETURN_VALUES,
 ];
 
 #[derive(Clone)]
@@ -111,16 +103,12 @@ impl WriteApi {
         let transaction_data = bcs::from_bytes::<TransactionData>(&tx_bytes.to_vec()?)?;
         let tx_digest = transaction_data.digest();
 
-        let readmask = FieldMask::from_paths(DRY_RUN_TRANSACTION_READ_MASK)
-            .display()
-            .to_string();
-
         let simulate_tx_response = self
             .fullnode_grpc_client
             .simulate_transaction(
-                transaction_data.clone().try_into()?,
+                transaction_data.clone(),
                 false,
-                Some(readmask.as_str()),
+                Some(ReadMask::from(DRY_RUN_TRANSACTION_READ_MASK)),
             )
             .await?
             .into_inner();
@@ -139,8 +127,7 @@ impl WriteApi {
             .chain(output_objects.iter())
             .collect::<Vec<_>>();
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let tx_signatures = executed_transaction
             .signatures()?
@@ -151,7 +138,7 @@ impl WriteApi {
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = executed_transaction.events()?.events()?;
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
@@ -201,7 +188,7 @@ impl WriteApi {
 
     async fn dev_inspect_transaction_block_impl(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
@@ -219,12 +206,12 @@ impl WriteApi {
         let skip_checks = skip_checks.unwrap_or(true);
 
         let (price, budget) = match (gas_price, gas_budget) {
-            (Some(price), Some(budget)) => (price.into_inner(), budget.into_inner()),
+            (Some(price), Some(budget)) => (price.into_inner(), budget),
             (price, budget) => {
                 let (ref_price, max_gas) = self.reference_gas_price_and_max_tx_gas().await?;
                 (
                     price.map(BigInt::into_inner).unwrap_or(ref_price),
-                    budget.map(BigInt::into_inner).unwrap_or(max_gas),
+                    budget.unwrap_or(max_gas),
                 )
             }
         };
@@ -237,8 +224,8 @@ impl WriteApi {
         let transaction_data = TransactionData::V1(TransactionDataV1 {
             kind,
             sender: sender_address,
-            gas_data: GasData {
-                payment,
+            gas_payment: GasPayment {
+                objects: payment,
                 owner,
                 price,
                 budget,
@@ -251,31 +238,26 @@ impl WriteApi {
             .transpose()?
             .unwrap_or_default();
 
-        let readmask = FieldMask::from_paths(DEV_INSPECT_TRANSACTION_READ_MASK)
-            .display()
-            .to_string();
-
         let simulate_tx_response = self
             .fullnode_grpc_client
             .simulate_transaction(
-                transaction_data.try_into()?,
+                transaction_data,
                 skip_checks,
-                Some(readmask.as_str()),
+                Some(ReadMask::from(DEV_INSPECT_TRANSACTION_READ_MASK)),
             )
             .await?
             .into_inner();
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let raw_effects = show_raw_txn_data_and_effects
             .then(|| bcs::to_bytes(&tx_effects))
             .transpose()?
             .unwrap_or_default();
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = executed_transaction.events()?.events()?;
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
@@ -292,9 +274,9 @@ impl WriteApi {
                     .clone()
                     .map(|s| -> Box<dyn std::error::Error + Send + Sync> { s.into() });
 
-                let mut error = ExecutionError::new(exec_err.into(), source);
+                let mut error = ExecutionError::new(exec_err, source);
                 if let Some(command_index) = execution_error.command_index {
-                    error = error.with_command_index(command_index as usize);
+                    error = error.with_command_index(command_index);
                 }
                 Ok(error.to_string())
             })
@@ -317,13 +299,17 @@ impl WriteApi {
 
     /// Gets the reference gas price and max transaction gas from the gRPC API.
     async fn reference_gas_price_and_max_tx_gas(&self) -> IndexerResult<(u64, u64)> {
-        let readmask = FieldMask::from_paths(EPOCH_READ_MASK).display().to_string();
-
         let epoch = self
             .fullnode_grpc_client
             .get_epoch(
                 None, // we're requesting the information for the current epoch.
-                Some(readmask.as_str()),
+                {
+                    let max_tx_gas = EpochField::attribute("max_tx_gas");
+                    Some(ReadMask::from(&[
+                        EpochField::REFERENCE_GAS_PRICE,
+                        &max_tx_gas,
+                    ]))
+                },
             )
             .await?
             .into_inner();
@@ -349,6 +335,22 @@ impl OptimisticWriteApi {
             optimistic_tx_executor,
         }
     }
+
+    async fn build_response(
+        &self,
+        ingestion_path: IngestionPath,
+        options: IotaTransactionBlockResponseOptions,
+    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+        let package_resolver = self.write_api.package_resolver.clone();
+        let stored_transaction = StoredTransaction::from(ingestion_path);
+        stored_transaction
+            .try_into_iota_transaction_block_response(options, &package_resolver)
+            .await
+    }
+
+    pub fn executor(&self) -> &OptimisticTransactionExecutor {
+        &self.optimistic_tx_executor
+    }
 }
 
 #[async_trait]
@@ -370,7 +372,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -407,7 +409,7 @@ impl WriteApiServer for WriteApi {
             module,
             function,
         } = function_name.as_str().parse().map_err(IndexerError::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -441,20 +443,18 @@ impl WriteApiServer for OptimisticWriteApi {
         options: Option<IotaTransactionBlockResponseOptions>,
         _request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = self
+        let ingestion_path = self
             .optimistic_tx_executor
-            .execute_and_index_transaction(tx_bytes, signatures, options.clone())
+            .execute_and_index_transaction(tx_bytes, signatures)
             .await?;
-        Ok(IotaTransactionBlockResponseWithOptions {
-            response: iota_transaction_response,
-            options: options.unwrap_or_default(),
-        }
-        .into())
+        Ok(self
+            .build_response(ingestion_path, options.unwrap_or_default())
+            .await?)
     }
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         epoch: Option<BigInt<u64>>,
@@ -484,20 +484,6 @@ impl WriteApiServer for OptimisticWriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let chain = self
-            .optimistic_tx_executor
-            .read
-            .get_chain_identifier_in_blocking_task()
-            .await?
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(ApiError::UnsupportedFeature(format!(
-                "View calls are not yet supported on {}",
-                chain.as_str()
-            ))
-            .into());
-        }
-
         self.write_api
             .view_function_call(function_name, type_args, arguments)
             .await
@@ -548,8 +534,8 @@ impl TxObjectResolver {
 
     async fn get_past_object_read_with_retry(
         &self,
-        id: ObjectID,
-        version: SequenceNumber,
+        id: ObjectId,
+        version: Version,
     ) -> IndexerResult<PastObjectRead> {
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),
@@ -591,7 +577,7 @@ impl TxObjectResolver {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
+                panic!("checkpointed tx {tx_digest} has invalid input objects: {e}")
             }),
             None,
         )
@@ -604,11 +590,7 @@ impl TxObjectResolver {
 impl ObjectProvider for TxObjectResolver {
     type Error = IndexerError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         // try in-memory cache first
         if let Some(o) = self.object_cache.get(id, Some(version)) {
             return Ok(o.clone());
@@ -625,8 +607,8 @@ impl ObjectProvider for TxObjectResolver {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         // try exact version in cache
         if let Some(o) = self.object_cache.get(id, Some(version)) {

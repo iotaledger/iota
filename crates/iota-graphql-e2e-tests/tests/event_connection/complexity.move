@@ -68,7 +68,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         events {
@@ -88,7 +88,7 @@ module Test::M1 {
 //# run-graphql
 # This should fail due to the complexity of the query
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         events {
@@ -110,7 +110,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         dependencies {
@@ -146,7 +146,7 @@ module Test::M1 {
 //# run-graphql
 # This should fail due to the complexity of the query
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         dependencies {
@@ -184,7 +184,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         checkpoint {
@@ -211,7 +211,7 @@ module Test::M1 {
 //# run-graphql
 # This should fail due to the complexity of the query
 {
-  transactionBlocks(filter: { signAddress: "@{A}" }) {
+  transactionBlocks(filter: { sentAddress: "@{A}" }) {
     nodes {
       effects{
         checkpoint {

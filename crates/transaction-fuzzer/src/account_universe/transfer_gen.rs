@@ -6,13 +6,14 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, TransactionKind,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{GasData, Transaction, TransactionData, TransactionKind},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use once_cell::sync::Lazy;
@@ -129,15 +130,15 @@ impl TransactionSponsorship {
         accounts: &mut AccountTriple,
         exec: &mut Executor,
         gas_coins: u32,
-    ) -> (Vec<ObjectRef>, (u64, Object), IotaAddress) {
+    ) -> (Vec<ObjectReference>, (u64, Object), Address) {
         match self {
             TransactionSponsorship::None => {
                 let gas_object = accounts.account_1.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_1.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_1.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_1.current_balances.last().unwrap();
                 }
                 (
@@ -149,10 +150,10 @@ impl TransactionSponsorship {
             TransactionSponsorship::Good => {
                 let gas_object = accounts.account_3.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_3.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_3.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_3.current_balances.last().unwrap();
                 }
                 (
@@ -164,10 +165,10 @@ impl TransactionSponsorship {
             TransactionSponsorship::WrongGasOwner => {
                 let gas_object = accounts.account_1.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_1.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_1.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_1.current_balances.last().unwrap();
                 }
                 (
@@ -413,12 +414,12 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             builder.finish()
         };
         let sender_address = sender.initial_data.account.address;
-        let kind = TransactionKind::ProgrammableTransaction(txn);
+        let kind = TransactionKind::Programmable(txn);
         let tx_data = TransactionData::new_with_gas_data(
             kind,
             sender_address,
-            GasData {
-                payment: gas_coin_refs,
+            GasPayment {
+                objects: gas_coin_refs,
                 owner: gas_payer,
                 price: self.gas_price,
                 budget: self.gas,
@@ -525,7 +526,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => {
                 self.fix_balance_and_gas_coins(payer, false);
                 Ok(ExecutionStatus::Failure {
-                    error: ExecutionFailureStatus::InsufficientCoinBalance,
+                    error: ExecutionError::InsufficientCoinBalance,
                     command: Some(0),
                 })
             }
@@ -535,7 +536,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => {
                 self.fix_balance_and_gas_coins(payer, false);
                 Ok(ExecutionStatus::Failure {
-                    error: ExecutionFailureStatus::InsufficientGas,
+                    error: ExecutionError::InsufficientGas,
                     command: None,
                 })
             }

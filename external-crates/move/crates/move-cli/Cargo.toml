@@ -10,14 +10,11 @@ description = "CLI frontend for the Move compiler and VM"
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-bcs.workspace = true
 clap.workspace = true
-codespan-reporting.workspace = true
 colored.workspace = true
 serde_yaml.workspace = true
 similar.workspace = true
 tempfile.workspace = true
-toml_edit.workspace = true
 walkdir.workspace = true
 
 # internal dependencies
@@ -33,10 +30,8 @@ move-coverage.workspace = true
 move-disassembler.workspace = true
 move-docgen.workspace = true
 move-ir-types.workspace = true
-move-model-2.workspace = true
 move-package.workspace = true
 move-stdlib-natives.workspace = true
-move-symbol-pool.workspace = true
 move-unit-test.workspace = true
 move-vm-profiler.workspace = true
 move-vm-runtime.workspace = true

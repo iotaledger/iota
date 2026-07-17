@@ -15,14 +15,13 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
+use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, TransactionExpiration};
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
-    event::Event as NativeEvent,
     message_envelope::Message,
     transaction::{
         SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI, TransactionExpiration,
+        TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -113,8 +112,6 @@ pub(crate) enum TransactionBlockKindInput {
     Genesis = 2,
     /// The consensus commit prologue transaction block.
     ConsensusCommitPrologueV1 = 3,
-    /// The authenticator state update transaction block.
-    AuthenticatorStateUpdateV1 = 4,
     /// The randomness state update transaction block.
     RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
@@ -208,7 +205,7 @@ impl TransactionBlock {
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
-        (sender != NativeIotaAddress::ZERO).then(|| Address {
+        (sender != NativeAddress::ZERO).then(|| Address {
             address: IotaAddress::from(sender),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
         })
@@ -246,10 +243,7 @@ impl TransactionBlock {
     /// comprising the transaction of this kind.
     #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
-        Some(TransactionBlockKind::from(
-            self.native().kind().clone(),
-            self.checkpoint_viewed_at,
-        ))
+        TransactionBlockKind::try_from(self.native().kind().clone(), self.checkpoint_viewed_at).ok()
     }
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially
@@ -259,7 +253,7 @@ impl TransactionBlock {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
                 .iter()
-                .map(|sig| Base64::from(sig.as_ref()))
+                .map(|sig| Base64::from(sig.to_bytes()))
                 .collect()
         })
     }

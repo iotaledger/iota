@@ -5,8 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, TransactionDigest},
+    base_types::EpochId,
     error::{IotaError, IotaResult, UserInputError},
     storage::ObjectKey,
     transaction::{
@@ -19,7 +20,7 @@ use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::{
-    authority::authority_per_epoch_store::{AuthorityPerEpochStore, CertLockGuard},
+    authority::authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
     execution_cache::ObjectCacheRead,
 };
 
@@ -45,7 +46,7 @@ impl TransactionInputLoader {
         &self,
         _tx_digest_for_caching: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         // Length of input_object_kinds have been checked via validity_check() for
@@ -144,7 +145,7 @@ impl TransactionInputLoader {
         // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
         // execution of the same tx to enter this point after the first execution has
         // finished and the shared locks have been deleted.
-        _tx_lock: &CertLockGuard,
+        _tx_lock: &TxLockGuard,
         input_object_kinds: &[InputObjectKind],
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
@@ -158,7 +159,9 @@ impl TransactionInputLoader {
             match input {
                 InputObjectKind::MovePackage(id) => {
                     let package = self.cache.try_get_package_object(id)?.unwrap_or_else(|| {
-                        panic!("Executable transaction {tx_key:?} depends on non-existent package {id:?}")
+                        panic!(
+                            "Executable transaction {tx_key:?} depends on non-existent package {id}"
+                        )
                     });
 
                     results[i] = Some(ObjectReadResult {
@@ -174,9 +177,14 @@ impl TransactionInputLoader {
                 InputObjectKind::SharedMoveObject { id, .. } => {
                     let assigned_shared_versions = assigned_shared_versions_cell
                         .get_or_init(|| {
-                            epoch_store
-                                .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect())
+                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                |versions| {
+                                    versions
+                                        .into_iter()
+                                        .map(|v| (v.object_id, v.version))
+                                        .collect()
+                                },
+                            )
                         })
                         .as_ref()
                         .unwrap_or_else(|| {
@@ -191,7 +199,7 @@ impl TransactionInputLoader {
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
-                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
                     if version.is_cancelled() {
                         // Do not need to fetch shared object for cancelled transaction.
@@ -260,17 +268,19 @@ impl TransactionInputLoader {
 impl TransactionInputLoader {
     fn read_receiving_objects_for_signing(
         &self,
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<ReceivingObjects> {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let (object_id, version, _) = objref;
+            let ObjectReference {
+                object_id, version, ..
+            } = *objref;
 
             if self
                 .cache
-                .try_have_received_object_at_version(object_id, *version, epoch_id)?
+                .try_have_received_object_at_version(&object_id, version, epoch_id)?
             {
                 receiving_results.push(ReceivingObjectReadResult::new(
                     *objref,
@@ -279,10 +289,10 @@ impl TransactionInputLoader {
                 continue;
             }
 
-            let Some(object) = self.cache.try_get_object(object_id)? else {
+            let Some(object) = self.cache.try_get_object(&object_id)? else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: *object_id,
-                    version: Some(*version),
+                    object_id,
+                    version: Some(version),
                 }
                 .into());
             };

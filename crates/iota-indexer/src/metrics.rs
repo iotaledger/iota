@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::RegistryService;
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, IntGauge, Registry, TextEncoder, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
@@ -18,7 +18,7 @@ pub fn start_prometheus_server(
     addr: SocketAddr,
 ) -> Result<(RegistryService, Registry), anyhow::Error> {
     info!(address =% addr, "Starting prometheus server");
-    let registry = Registry::new_custom(Some("indexer".to_string()), None)?;
+    let registry = Registry::new_custom(Some("indexer".to_string()), None, None)?;
     let registry_service = RegistryService::new(registry.clone());
 
     let app = Router::new()
@@ -51,9 +51,8 @@ async fn metrics(Extension(registry_service): Extension<RegistryService>) -> (St
 const DATA_INGESTION_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0,
 ];
-/// NOTE: for objects_snapshot update and advance_epoch, which are expected to
-/// be within [0.1, 100] seconds, and can go up to high hundreds of seconds when
-/// things go wrong.
+/// NOTE: for advance_epoch, which is expected to be within [0.1, 100] seconds,
+/// and can go up to high hundreds of seconds when things go wrong.
 const DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0,
     10000.0,
@@ -74,11 +73,10 @@ pub struct IndexerMetrics {
     pub total_object_change_committed: IntCounter, // not used
     pub total_transaction_chunk_committed: IntCounter, // not used
     pub total_object_change_chunk_committed: IntCounter, // not used
-    pub total_epoch_committed: IntCounter,
+    pub last_committed_epoch: IntGauge,
     pub latest_fullnode_checkpoint_sequence_number: IntGauge,
     pub latest_tx_checkpoint_sequence_number: IntGauge,
     pub latest_indexer_object_checkpoint_sequence_number: IntGauge, // not used
-    pub latest_object_snapshot_sequence_number: IntGauge,
     // max checkpoint sequence numbers on various stages of indexer data ingestion
     pub max_downloaded_checkpoint_sequence_number: IntGauge,
     pub max_indexed_checkpoint_sequence_number: IntGauge,
@@ -122,13 +120,9 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_tx_insertion_order: Histogram,
     pub checkpoint_db_commit_latency_tx_insertion_order_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects: Histogram,
-    pub checkpoint_db_commit_latency_objects_snapshot: Histogram,
     pub checkpoint_db_commit_latency_objects_version: Histogram,
-    pub checkpoint_db_commit_latency_objects_history: Histogram,
     pub checkpoint_db_commit_latency_objects_chunks: Histogram,
-    pub checkpoint_db_commit_latency_objects_snapshot_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_version_chunks: Histogram,
-    pub checkpoint_db_commit_latency_objects_history_chunks: Histogram,
     pub checkpoint_db_commit_latency_events: Histogram,
     pub checkpoint_db_commit_latency_events_chunks: Histogram,
     pub checkpoint_db_commit_latency_event_indices: Histogram,
@@ -144,7 +138,7 @@ pub struct IndexerMetrics {
     pub object_mutation_db_commit_latency: Histogram, // not used
     pub object_deletion_db_commit_latency: Histogram, // not used
     pub epoch_db_commit_latency: Histogram,  // not used
-    // latencies of slow DB update queries, now only advance epoch and objects_snapshot update
+    // latencies of slow DB update queries, now only advance epoch
     pub advance_epoch_latency: Histogram,
     // latencies of RPC endpoints in read.rs
     pub get_transaction_block_latency: Histogram, // not used
@@ -241,9 +235,9 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
-            total_epoch_committed: register_int_counter_with_registry!(
-                "total_epoch_committed",
-                "Total number of epoch committed",
+            last_committed_epoch: register_int_gauge_with_registry!(
+                "last_committed_epoch",
+                "Latest epoch committed to the DB",
                 registry,
             )
             .unwrap(),
@@ -265,11 +259,6 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
-            latest_object_snapshot_sequence_number: register_int_gauge_with_registry!(
-                "latest_object_snapshot_sequence_number",
-                "Latest object snapshot sequence number from the Indexer",
-                registry,
-            ).unwrap(),
             max_downloaded_checkpoint_sequence_number: register_int_gauge_with_registry!(
                 "max_downloaded_checkpoint_sequence_number",
                 "Max downloaded checkpoint sequence number",
@@ -485,22 +474,9 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
-            checkpoint_db_commit_latency_objects_snapshot: register_histogram_with_registry!(
-                "checkpoint_db_commit_latency_objects_snapshot",
-                "Time spent committing objects snapshots",
-                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
             checkpoint_db_commit_latency_objects_version: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_version",
                 "Time spent committing objects version",
-                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            ).unwrap(),
-            checkpoint_db_commit_latency_objects_history: register_histogram_with_registry!(
-                "checkpoint_db_commit_latency_objects_history",
-                "Time spent committing objects history",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -511,22 +487,9 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
-            checkpoint_db_commit_latency_objects_snapshot_chunks: register_histogram_with_registry!(
-                "checkpoint_db_commit_latency_objects_snapshot_chunks",
-                "Time spent committing objects snapshot chunks",
-                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
             checkpoint_db_commit_latency_objects_version_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_version_chunks",
                 "Time spent committing objects version chunks",
-                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            ).unwrap(),
-            checkpoint_db_commit_latency_objects_history_chunks: register_histogram_with_registry!(
-                "checkpoint_db_commit_latency_objects_history_chunks",
-                "Time spent committing objects history chunks",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),

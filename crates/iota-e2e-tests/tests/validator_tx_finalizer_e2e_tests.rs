@@ -61,7 +61,7 @@ async fn test_validator_tx_finalizer_consensus_tx() {
     let tx_data = cluster
         .test_transaction_builder()
         .await
-        .call_counter_increment(package.0, counter.0, counter.1)
+        .call_counter_increment(package.object_id, counter.object_id, counter.version)
         .build();
     let tx = cluster.sign_transaction(&tx_data);
     let tx_digest = *tx.digest();

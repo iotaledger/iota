@@ -15,13 +15,16 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, GasPayment, ProgrammableTransaction, TransactionDigest, TransactionKind,
+};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
-    base_types::{IotaAddress, TxContext},
+    auth_context::AuthContextData,
+    base_types::TxContext,
     committee::EpochId,
-    digests::TransactionDigest,
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
@@ -30,8 +33,9 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
+    move_package::ProtocolBuildConfig,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
+    transaction::CheckedInputObjects,
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
@@ -80,10 +84,10 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -121,10 +125,10 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (
@@ -184,17 +188,20 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -213,13 +220,12 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_data,
             gas_status,
-            authenticator,
-            authenticator_function_ref_for_execution,
-            authenticator_input_objects,
+            authenticators,
             authenticator_and_transaction_input_objects,
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            auth_context_data,
             trace_builder_opt,
             &self.0,
         )
@@ -235,16 +241,20 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRef,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        move_authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -256,12 +266,12 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_data,
             gas_status,
-            authenticator,
-            authenticator_function_ref,
-            authenticator_input_objects,
+            move_authenticators,
+            aggregated_authenticator_input_objects,
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
+            auth_context_data,
             trace_builder_opt,
             &self.0,
         )
@@ -302,10 +312,16 @@ impl verifier::Verifier for Verifier<'_> {
 
     fn meter_compiled_modules(
         &mut self,
-        _protocol_config: &ProtocolConfig,
+        protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
         meter: &mut dyn Meter,
     ) -> IotaResult<()> {
-        run_metered_move_bytecode_verifier(modules, &self.config, meter, self.metrics)
+        run_metered_move_bytecode_verifier(
+            modules,
+            &self.config,
+            meter,
+            self.metrics,
+            &ProtocolBuildConfig::from(protocol_config),
+        )
     }
 }

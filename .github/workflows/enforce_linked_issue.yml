@@ -1,0 +1,152 @@
+name: Enforce Linked Issue
+
+# Closes pull requests from external contributors that either do not reference an
+# issue the PR closes, or whose linked issue is not assigned to the PR author.
+# Members of the iotaledger/iota-foundation team and bots are exempt.
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - edited
+      - ready_for_review
+
+concurrency:
+  group: enforce-linked-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  issues: read
+
+jobs:
+  enforce:
+    name: Require linked & assigned issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check iota-foundation team membership
+        id: membership
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.TEAM_LABELER_TOKEN }}
+          script: |
+            const org = 'iotaledger';
+            const team = 'iota-foundation';
+            const author = context.payload.pull_request.user;
+
+            if (author.type === 'Bot' || author.login.endsWith('[bot]')) {
+              core.info(`Author ${author.login} is a bot; exempt.`);
+              core.setOutput('exempt', 'true');
+              return;
+            }
+
+            try {
+              await github.rest.teams.getMembershipForUserInOrg({
+                org,
+                team_slug: team,
+                username: author.login,
+              });
+              core.info(`${author.login} is a member of ${org}/${team}; exempt.`);
+              core.setOutput('exempt', 'true');
+            } catch (err) {
+              if (err.status === 404) {
+                core.info(`${author.login} is not a member of ${org}/${team}; enforcing.`);
+                core.setOutput('exempt', 'false');
+              } else {
+                throw err;
+              }
+            }
+
+      - name: Enforce linked & assigned issue
+        if: steps.membership.outputs.exempt == 'false'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Only act on open PRs; an `edited` event can fire on an already
+            // closed PR, and we must not re-comment / re-close it.
+            if (pr.state !== 'open') {
+              core.info(`PR #${pr.number} is ${pr.state}; nothing to do.`);
+              return;
+            }
+
+            const author = pr.user.login;
+
+            // closingIssuesReferences covers both closing keywords in the PR
+            // body (e.g. "Closes #123") and issues linked via the development
+            // sidebar.
+            const query = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 50) {
+                      nodes {
+                        number
+                        assignees(first: 50) { nodes { login } }
+                      }
+                    }
+                  }
+                }
+              }`;
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              number: pr.number,
+            });
+            const issues = result.repository.pullRequest.closingIssuesReferences.nodes;
+
+            const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
+
+            let reason = null;
+            if (issues.length === 0) {
+              reason = 'this PR does not reference an issue it closes. Please link an '
+                + 'issue with a closing keyword (e.g. `Closes #123`) in the PR description.';
+            } else {
+              const assignedToAuthor = issues.some(issue =>
+                // We could replace some with every if we required all linked issues to be assigned to the author
+                issue.assignees.nodes.some(a => eq(a.login, author))
+              );
+              if (!assignedToAuthor) {
+                const list = issues.map(i => `#${i.number}`).join(', ');
+                reason = `the linked issue(s) (${list}) are not assigned to you (@${author}). `
+                  + 'Please have the issue assigned to you before opening a PR.';
+              }
+            }
+
+            if (!reason) {
+              core.info(`PR #${pr.number} satisfies the linked-issue requirements.`);
+              return;
+            }
+
+            const body = [
+              `Hi @${author}, thanks for your contribution!`,
+              '',
+              `This PR has been closed automatically because ${reason}`,
+              '',
+              'We require external contributions to be tied to an issue assigned to '
+                + 'the author so that work is coordinated. To proceed:',
+              '',
+              '1. Open or find an issue describing the change.',
+              '2. Ask a maintainer to assign that issue to you.',
+              '3. Reference it from your PR description with a closing keyword (e.g. `Closes #123`).',
+              '',
+              'Once that is done, feel free to reopen this PR. See our '
+                + '[contribution guidelines](../../CONTRIBUTING.md) for more details.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
+            core.notice(`Closed PR #${pr.number}: ${reason}`);

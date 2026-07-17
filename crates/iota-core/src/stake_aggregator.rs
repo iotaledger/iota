@@ -115,10 +115,6 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
         self.total_votes
     }
 
-    pub fn has_quorum(&self) -> bool {
-        self.total_votes >= self.committee.threshold::<STRENGTH>()
-    }
-
     pub fn validator_sig_count(&self) -> usize {
         self.data.len()
     }
@@ -191,9 +187,21 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                         bad_authorities.push(*name);
                                     }
                                 }
-                                InsertResult::NotEnoughVotes {
-                                    bad_votes,
-                                    bad_authorities,
+                                // After evicting invalid sigs, the remaining valid sigs may
+                                // still constitute a quorum on their own.
+                                if self.total_votes >= self.committee.threshold::<STRENGTH>() {
+                                    match AuthorityQuorumSignInfo::<STRENGTH>::new_from_auth_sign_infos(
+                                        self.data.values().cloned().collect(),
+                                        self.committee(),
+                                    ) {
+                                        Ok(aggregated) => InsertResult::QuorumReached(aggregated),
+                                        Err(error) => InsertResult::Failed { error },
+                                    }
+                                } else {
+                                    InsertResult::NotEnoughVotes {
+                                        bad_votes,
+                                        bad_authorities,
+                                    }
                                 }
                             }
                         }
@@ -330,94 +338,99 @@ where
     }
 }
 
-/// Like MultiStakeAggregator, but for counting votes for a generic value
-/// instead of an envelope, in scenarios where byzantine validators may submit
-/// multiple votes for different values.
-pub struct GenericMultiStakeAggregator<K, const STRENGTH: bool> {
-    committee: Arc<Committee>,
-    stake_maps: HashMap<K, StakeAggregator<(), STRENGTH>>,
-    votes_per_authority: HashMap<AuthorityName, u64>,
-}
+#[cfg(test)]
+mod stake_aggregator_insert_tests {
+    use std::{collections::BTreeMap, sync::Arc};
 
-impl<K, const STRENGTH: bool> GenericMultiStakeAggregator<K, STRENGTH>
-where
-    K: Hash + Eq,
-{
-    pub fn new(committee: Arc<Committee>) -> Self {
-        Self {
-            committee,
-            stake_maps: Default::default(),
-            votes_per_authority: Default::default(),
+    use fastcrypto::{
+        hash::{HashFunction, Sha3_256},
+        traits::KeyPair,
+    };
+    use iota_sdk_types::crypto::IntentScope;
+    use iota_types::{
+        base_types::AuthorityName,
+        committee::Committee,
+        crypto::{AuthoritySignInfo, random_committee_key_pairs_of_size},
+        message_envelope::{Envelope, Message},
+    };
+    use serde::Serialize;
+
+    use super::*;
+
+    #[derive(Clone, Debug, Serialize, PartialEq, Eq, Hash)]
+    struct TestMessage {
+        value: String,
+    }
+
+    impl Message for TestMessage {
+        type DigestType = [u8; 32];
+        const SCOPE: IntentScope = IntentScope::SenderSignedTransaction;
+
+        fn digest(&self) -> Self::DigestType {
+            let mut hasher = Sha3_256::default();
+            hasher.update(self.value.as_bytes());
+            hasher.finalize().digest
         }
     }
 
-    pub fn insert(
-        &mut self,
-        authority: AuthorityName,
-        k: K,
-    ) -> InsertResult<&HashMap<AuthorityName, ()>> {
-        let agg = self
-            .stake_maps
-            .entry(k)
-            .or_insert_with(|| StakeAggregator::new(self.committee.clone()));
+    /// Regression test: `StakeAggregator::insert` must not return
+    /// `NotEnoughVotes` when the remaining valid sigs (after bad-sig
+    /// eviction) still form a quorum.
+    #[test]
+    fn test_quorum_not_lost_after_bad_sig_eviction() {
+        // Two-validator committee: first sorted authority has ~7000 weight
+        // (> QUORUM_THRESHOLD ~6667), second has ~3000 weight.
+        let key_pairs = random_committee_key_pairs_of_size(2);
+        let mut names: Vec<AuthorityName> = key_pairs
+            .iter()
+            .map(|kp| AuthorityName::from(kp.public()))
+            .collect();
+        names.sort();
 
-        if !agg.contains_key(&authority) {
-            *self.votes_per_authority.entry(authority).or_default() += 1;
-        }
+        let voting_rights: BTreeMap<AuthorityName, u64> = names
+            .iter()
+            .enumerate()
+            .map(|(i, name)| (*name, if i == 0 { 7 } else { 3 }))
+            .collect();
+        let committee = Arc::new(Committee::new_for_testing_with_normalized_voting_power(
+            0,
+            voting_rights,
+        ));
 
-        agg.insert_generic(authority, ())
+        let find_kp = |name: &AuthorityName| {
+            key_pairs
+                .iter()
+                .find(|kp| &AuthorityName::from(kp.public()) == name)
+                .unwrap()
+        };
+        let (auth0, key0) = (names[0], find_kp(&names[0]));
+        let (auth1, key1) = (names[1], find_kp(&names[1]));
+
+        let mut agg: StakeAggregator<AuthoritySignInfo, true> = StakeAggregator::new(committee);
+
+        let msg = TestMessage {
+            value: "real".to_string(),
+        };
+        let msg_bad = TestMessage {
+            value: "wrong".to_string(),
+        };
+
+        // auth1 signs the wrong message — weight (~3000) < threshold, no quorum yet.
+        let envelope_bad = Envelope::<TestMessage, AuthoritySignInfo>::new(0, msg_bad, key1, auth1);
+        assert!(matches!(
+            agg.insert(envelope_bad),
+            InsertResult::NotEnoughVotes { .. }
+        ));
+
+        // auth0 signs the real message — total weight crosses threshold, triggering
+        // batch verify. Batch fails (auth1's sig is for the wrong message);
+        // individual verify evicts auth1. auth0's weight alone (~7000) still
+        // exceeds the threshold, so the result must be QuorumReached, not
+        // NotEnoughVotes.
+        let envelope_good = Envelope::<TestMessage, AuthoritySignInfo>::new(0, msg, key0, auth0);
+        assert!(
+            agg.insert(envelope_good).is_quorum_reached(),
+            "valid sig with weight > quorum threshold must yield QuorumReached after bad sig eviction"
+        );
     }
-
-    pub fn has_quorum_for_key(&self, k: &K) -> bool {
-        if let Some(entry) = self.stake_maps.get(k) {
-            entry.has_quorum()
-        } else {
-            false
-        }
-    }
-
-    pub fn votes_for_authority(&self, authority: AuthorityName) -> u64 {
-        self.votes_per_authority
-            .get(&authority)
-            .copied()
-            .unwrap_or_default()
-    }
-}
-
-#[test]
-fn test_votes_per_authority() {
-    let (committee, _) = Committee::new_simple_test_committee();
-    let authorities: Vec<_> = committee.names().copied().collect();
-
-    let mut agg: GenericMultiStakeAggregator<&str, true> =
-        GenericMultiStakeAggregator::new(Arc::new(committee));
-
-    // 1. Inserting an `authority` and a `key`, and then checking the number of
-    //    votes for that `authority`.
-    let key1: &str = "key1";
-    let authority1 = authorities[0];
-    agg.insert(authority1, key1);
-    assert_eq!(agg.votes_for_authority(authority1), 1);
-
-    // 2. Inserting the same `authority` and `key` pair multiple times to ensure
-    //    votes aren't incremented incorrectly.
-    agg.insert(authority1, key1);
-    agg.insert(authority1, key1);
-    assert_eq!(agg.votes_for_authority(authority1), 1);
-
-    // 3. Checking votes for an authority that hasn't voted.
-    let authority2 = authorities[1];
-    assert_eq!(agg.votes_for_authority(authority2), 0);
-
-    // 4. Inserting multiple different authorities and checking their vote counts.
-    let key2: &str = "key2";
-    agg.insert(authority2, key2);
-    assert_eq!(agg.votes_for_authority(authority2), 1);
-    assert_eq!(agg.votes_for_authority(authority1), 1);
-
-    // 5. Verifying that inserting different keys for the same authority increments
-    //    the vote count.
-    let key3: &str = "key3";
-    agg.insert(authority1, key3);
-    assert_eq!(agg.votes_for_authority(authority1), 2);
 }

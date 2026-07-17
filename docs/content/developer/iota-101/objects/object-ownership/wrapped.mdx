@@ -139,7 +139,7 @@ public fun request_swap(
 
 In this function, the `Object` is passed by value, fully consuming it and wrapping it into a `SwapRequest`.
 The wrapper object is then sent to the service operator.
-The example also uses [`coin::into_balance`](../../../../developer/references/framework/iota/coin.mdx#function-into_balance)
+The example also uses [`coin::into_balance`](../../../../developer/references/framework/iota/coin.mdx#iota_coin_into_balance)
 to wrap the fee's [`Coin`](../../../../developer/references/framework/iota/coin.mdx) into a
 [`Balance`](../../../../developer/references/framework/iota/balance.mdx).
 
@@ -247,7 +247,7 @@ and passes a `sword` by value to wrap it into the `warrior`.
 
 Since `Sword` is an object type without `drop` ability,
 the warrior can't drop that sword if he's already equipped another.
-If you call [`option::fill`](../../../../developer/references/framework/std/option.mdx#function-fill) without checking and taking out the existing sword,
+If you call [`option::fill`](../../../../developer/references/framework/std/option.mdx#std_option_fill) without checking and taking out the existing sword,
 an error will occur.
 Therefore, `equip_sword` should start by checking whether there is already a sword equipped. If so, remove it out and send it back to the sender, in this case, the player's inventory.
 

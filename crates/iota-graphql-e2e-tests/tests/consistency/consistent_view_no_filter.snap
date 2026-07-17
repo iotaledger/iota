@@ -1,0 +1,206 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 8 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 12-29:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5380800, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 31:
+//# run P0::m::create --sender A --args 1 @A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 33:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, line 35:
+//# run P0::m::update --sender A --args object(2,0) 2
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 5, line 37:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 6, lines 39-47:
+//# run-graphql --cursors bcs(@{obj_0_0},1)
+Response: {
+  "data": {
+    "objects": {
+      "nodes": [
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000403",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1
+        },
+        {
+          "address": "0x0542d2a82a622eb15ac3ff090b06b8505abbf466276554704f061e86de8ba3df",
+          "version": 1
+        },
+        {
+          "address": "0x254b377ebf6fbe1caa760ebde91d62e76c05bf2038ec371320b60e92f76bf2ea",
+          "version": 1
+        },
+        {
+          "address": "0x27c2e10b6b1765182fb460e5bce1dee438aa115be31b84f92b81420ec8cf7126",
+          "version": 1
+        },
+        {
+          "address": "0x31bfb3c99189fffa2b66e511afa03559442e9e74845b83383da0a432da2da9c0",
+          "version": 1
+        },
+        {
+          "address": "0x4fe0424cf997fd29d280684bfb2b33cafc2c28da316c489b4ba80ba598081d8c",
+          "version": 1
+        },
+        {
+          "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+          "version": 1
+        },
+        {
+          "address": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6",
+          "version": 2
+        },
+        {
+          "address": "0x7c12c24f0db6749c3e2dd0115b5ea7853cf808d9ddc961ccd9551558d8d35205",
+          "version": 2
+        },
+        {
+          "address": "0x96b43c2e24f626fb7da2c874536bdde1e8b425778c5f034e6916f903b57ecaa4",
+          "version": 1
+        },
+        {
+          "address": "0xcde1a7fec57f05ad9a5d5e883ca4b22be850e07be891293ce3b1e80220b8b634",
+          "version": 1
+        }
+      ]
+    }
+  }
+}
+
+task 7, lines 49-57:
+//# run-graphql --cursors bcs(@{obj_0_0},2)
+Response: {
+  "data": {
+    "objects": {
+      "nodes": [
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000003",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000006",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000000b",
+          "version": 1
+        },
+        {
+          "address": "0x0000000000000000000000000000000000000000000000000000000000000403",
+          "version": 1
+        },
+        {
+          "address": "0x000000000000000000000000000000000000000000000000000000000000107a",
+          "version": 1
+        },
+        {
+          "address": "0x0542d2a82a622eb15ac3ff090b06b8505abbf466276554704f061e86de8ba3df",
+          "version": 1
+        },
+        {
+          "address": "0x254b377ebf6fbe1caa760ebde91d62e76c05bf2038ec371320b60e92f76bf2ea",
+          "version": 1
+        },
+        {
+          "address": "0x27c2e10b6b1765182fb460e5bce1dee438aa115be31b84f92b81420ec8cf7126",
+          "version": 1
+        },
+        {
+          "address": "0x31bfb3c99189fffa2b66e511afa03559442e9e74845b83383da0a432da2da9c0",
+          "version": 1
+        },
+        {
+          "address": "0x4fe0424cf997fd29d280684bfb2b33cafc2c28da316c489b4ba80ba598081d8c",
+          "version": 1
+        },
+        {
+          "address": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
+          "version": 1
+        },
+        {
+          "address": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6",
+          "version": 2
+        },
+        {
+          "address": "0x7c12c24f0db6749c3e2dd0115b5ea7853cf808d9ddc961ccd9551558d8d35205",
+          "version": 3
+        },
+        {
+          "address": "0x96b43c2e24f626fb7da2c874536bdde1e8b425778c5f034e6916f903b57ecaa4",
+          "version": 1
+        },
+        {
+          "address": "0xcde1a7fec57f05ad9a5d5e883ca4b22be850e07be891293ce3b1e80220b8b634",
+          "version": 1
+        }
+      ]
+    }
+  }
+}

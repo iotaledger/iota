@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_sdk::IotaClientBuilder;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use tracing::info;
 
 use crate::{
@@ -61,7 +61,7 @@ impl FromStr for FuzzStartPoint {
                         "{} is not a valid checkpoint (err: {:?}) or transaction digest (err: {:?})",
                         s, u64_err, tx_err
                     );
-                    Err(tx_err)
+                    Err(tx_err.into())
                 }
             },
         }

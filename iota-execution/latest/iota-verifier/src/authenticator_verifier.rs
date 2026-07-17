@@ -8,7 +8,6 @@
 /// that the function signature matches the expected signature for an
 /// authenticator function.
 use iota_types::{
-    Identifier,
     auth_context::{AuthContext, AuthContextKind},
     base_types::{TxContext, TxContextKind},
     error::ExecutionError,
@@ -20,6 +19,7 @@ use move_binary_format::{
     file_format::{AbilitySet, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
+use move_core_types::identifier::IdentStr;
 
 use crate::verification_failure;
 
@@ -38,7 +38,7 @@ use crate::verification_failure;
 /// - TxContext has to be an immutable reference
 pub fn verify_authenticate_func_v1(
     module: &CompiledModule,
-    function_identifier: Identifier,
+    function_identifier: &IdentStr,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 

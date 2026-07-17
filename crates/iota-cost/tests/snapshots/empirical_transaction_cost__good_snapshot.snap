@@ -5,66 +5,66 @@ snapshot_kind: text
 ---
 {
   "MergeCoin": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "1960800",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "1960800",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "Publish": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "13474800",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "13474800",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "SharedCounterAssertValue": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "2576400",
-    "storageRebate": "1596000",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "2576400",
+    "storage_rebate": "1596000",
+    "non_refundable_storage_fee": "0"
   },
   "SharedCounterCreate": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "2576400",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "2576400",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "SharedCounterIncrement": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "2576400",
-    "storageRebate": "1596000",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "2576400",
+    "storage_rebate": "1596000",
+    "non_refundable_storage_fee": "0"
   },
   "SplitCoin": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "4902000",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "4902000",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "TransferPortionIotaCoin": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "1960800",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "1960800",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "TransferWholeCoin": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "1960800",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "1960800",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   },
   "TransferWholeIotaCoin": {
-    "computationCost": "1000000",
-    "computationCostBurned": "1000000",
-    "storageCost": "980400",
-    "storageRebate": "0",
-    "nonRefundableStorageFee": "0"
+    "computation_cost": "1000000",
+    "computation_cost_burned": "1000000",
+    "storage_cost": "980400",
+    "storage_rebate": "0",
+    "non_refundable_storage_fee": "0"
   }
 }

@@ -10,7 +10,7 @@ use bytes::buf::Reader;
 use fastcrypto::ed25519::Ed25519PublicKey;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
-use prometheus::{
+use prometheus_filtered::{
     Counter, CounterVec, HistogramVec,
     proto::{self, MetricFamily},
     register_counter, register_counter_vec, register_histogram_vec,
@@ -342,7 +342,7 @@ pub async fn convert_to_remote_write(
 
 #[cfg(test)]
 mod tests {
-    use prometheus::proto;
+    use prometheus_filtered::proto;
 
     use crate::{
         consumer::populate_labels,

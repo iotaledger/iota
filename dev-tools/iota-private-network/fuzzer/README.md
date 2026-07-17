@@ -17,7 +17,7 @@ The goal of this document is to show how to:
 ## Environment setup
 
 From the repository root for the private network (make sure the validator
-network is running, e.g. `./run.sh -n 10 -p mysticeti`):
+network is running, e.g. `./run.sh -n 10`):
 
 ```bash
 cd ~/iota/dev-tools/iota-private-network
@@ -212,7 +212,7 @@ calls `disruptions.reset_network`, which:
 If `--spammer-tps` is greater than zero, the scenario will also:
 
 - stop any existing `stress-benchmark` container
-- start a background `stress` spammer via the `iotaledger/iota-tools`
+- start a background `stress` spammer via the `iotaledger/stress`
   image with `--target-qps` set to the given TPS
 - ensure the spammer container is stopped again during scenario cleanup
 
@@ -238,9 +238,9 @@ This will:
 
 Long-running stress experiments live under `net_fuzz.experiments`. See
 `dev-tools/iota-private-network/fuzzer/src/net_fuzz/experiments/README.md` for
-details. Protocol comparison runners (`run_*.py`) also live in
+details. Experiment runners (`run_*.py`) also live in
 `dev-tools/iota-private-network/fuzzer/src/net_fuzz/experiments/` and automate
-running the same scenario across Mysticeti and Starfish.
+the full lifecycle (build images, bootstrap network, run scenario, clean up).
 
 ## Logging
 

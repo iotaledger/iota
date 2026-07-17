@@ -1,0 +1,151 @@
+---
+title: Delete Records
+sidebar_label: Delete Records
+description: How to delete individual records or batch-delete all records from an Audit Trail.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Delete Records
+
+This guide shows how to delete records from an `AuditTrail` object — both individually by sequence number and in batch. Record deletion respects the trail's [locking configuration](./configure-locking.mdx), so records within a deletion window cannot be removed.
+
+## Prerequisites
+
+- An existing `AuditTrail` object with records
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a maintenance-admin wallet that will be delegated record-deletion rights.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/06_delete_records.rs#L26-L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L25-L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Role with Delete Permissions
+
+Define a role that includes `AddRecord`, `DeleteRecord`, and `DeleteAllRecords` permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/06_delete_records.rs#L41-L71
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L37-L45
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Delete a Single Record
+
+Remove a specific record by its sequence number.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/06_delete_records.rs#L92-L96
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L66-L69
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Batch-Delete Remaining Records
+
+Delete up to N records from the front of the trail in a single transaction. The operation returns the sequence numbers of the records actually deleted — fewer than N if locked or tag-filtered records are skipped.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/06_delete_records.rs#L108-L117
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L80-L92
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Deleted records are permanently removed and can no longer be fetched by sequence number.
+- Batch deletion respects the deletion window — records within the protected window are skipped.
+- The record count decreases accordingly after each deletion.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/06_delete_records.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts
+```
+
+</TabItem>
+</Tabs>

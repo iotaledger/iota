@@ -1,6 +1,0 @@
-{
-    "entryPoints": ["src/ledger/*.ts", "src/webcrypto/*.ts"],
-    "excludeInternal": true,
-    "excludePrivate": true,
-    "intentionallyNotExported": []
-}

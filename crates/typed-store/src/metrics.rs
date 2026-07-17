@@ -12,9 +12,10 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
-use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+use prometheus_filtered::{
+    HistogramVec, IntCounterVec, IntGaugeVec, MetricLevel, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 use rocksdb::{PerfContext, PerfMetric, PerfStatsLevel, perf::set_perf_stats};
 use tap::TapFallible;
@@ -119,91 +120,104 @@ impl ColumnFamilyMetrics {
                 "rocksdb_total_sst_files_size",
                 "The storage size occupied by the sst files in the column family",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_total_blob_files_size: register_int_gauge_vec_with_registry!(
                 "rocksdb_total_blob_files_size",
                 "The storage size occupied by the blob files in the column family",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_total_num_files: register_int_gauge_vec_with_registry!(
                 "rocksdb_total_num_files",
                 "Total number of files used in the column family",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_level0_files: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_level0_files",
                 "Number of level 0 files in the column family",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_current_size_active_mem_tables: register_int_gauge_vec_with_registry!(
                 "rocksdb_current_size_active_mem_tables",
                 "The current approximate size of active memtable (bytes).",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_size_all_mem_tables: register_int_gauge_vec_with_registry!(
                 "rocksdb_size_all_mem_tables",
                 "The memory size occupied by the column family's in-memory buffer",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_snapshots: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_snapshots",
                 "Number of snapshots held for the column family",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_oldest_snapshot_time: register_int_gauge_vec_with_registry!(
                 "rocksdb_oldest_snapshot_time",
                 "Unit timestamp of the oldest unreleased snapshot",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_actual_delayed_write_rate: register_int_gauge_vec_with_registry!(
                 "rocksdb_actual_delayed_write_rate",
                 "The current actual delayed write rate. 0 means no delay",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_is_write_stopped: register_int_gauge_vec_with_registry!(
                 "rocksdb_is_write_stopped",
                 "A flag indicating whether writes are stopped on this column family. 1 indicates writes have been stopped.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_block_cache_capacity: register_int_gauge_vec_with_registry!(
                 "rocksdb_block_cache_capacity",
                 "The block cache capacity of the column family.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_block_cache_usage: register_int_gauge_vec_with_registry!(
                 "rocksdb_block_cache_usage",
                 "The memory size used by the column family in the block cache.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_block_cache_pinned_usage: register_int_gauge_vec_with_registry!(
                 "rocksdb_block_cache_pinned_usage",
                 "The memory size used by the column family in the block cache where entries are pinned",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_estimate_table_readers_mem: register_int_gauge_vec_with_registry!(
@@ -212,14 +226,16 @@ impl ColumnFamilyMetrics {
                 family such as filters and index blocks. Note that this number does not
                 include the memory used in block cache.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_immutable_mem_tables: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_immutable_mem_tables",
                 "The number of immutable memtables that have not yet been flushed.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_mem_table_flush_pending: register_int_gauge_vec_with_registry!(
@@ -228,7 +244,8 @@ impl ColumnFamilyMetrics {
                 If this number is 1, it means a memtable is waiting for being flushed,
                 but there might be too many L0 files that prevents it from being flushed.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_compaction_pending: register_int_gauge_vec_with_registry!(
@@ -240,7 +257,8 @@ impl ColumnFamilyMetrics {
                 other dependent compactions to be finished or waiting for an available
                 compaction thread.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_estimate_pending_compaction_bytes: register_int_gauge_vec_with_registry!(
@@ -248,21 +266,24 @@ impl ColumnFamilyMetrics {
                 "Estimated total number of bytes compaction needs to rewrite to get all levels down
                 to under target size. Not valid for other compactions than level-based.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_running_compactions: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_running_compactions",
                 "The number of compactions that are currently running for the column family.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_running_flushes: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_running_flushes",
                 "The number of flushes that are currently running for the column family.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_estimate_oldest_key_time: register_int_gauge_vec_with_registry!(
@@ -270,28 +291,32 @@ impl ColumnFamilyMetrics {
                 "Estimation of the oldest key timestamp in the DB. Only available
                 for FIFO compaction with compaction_options_fifo.allow_compaction = false.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_estimated_num_keys: register_int_gauge_vec_with_registry!(
                 "rocksdb_estimated_num_keys",
                 "The estimated number of keys in the table",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_background_errors: register_int_gauge_vec_with_registry!(
                 "rocksdb_background_errors",
                 "The accumulated number of RocksDB background errors.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_base_level: register_int_gauge_vec_with_registry!(
                 "rocksdb_base_level",
                 "The number of level to which L0 data will be compacted.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
         }
@@ -329,24 +354,27 @@ impl OperationMetrics {
                 "Rocksdb iter latency in seconds",
                 &["cf_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_iter_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_iter_bytes",
                 "Rocksdb iter size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_iter_keys: register_histogram_vec_with_registry!(
                 "rocksdb_iter_keys",
                 "Rocksdb iter num keys",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_get_latency_seconds: register_histogram_vec_with_registry!(
@@ -354,17 +382,19 @@ impl OperationMetrics {
                 "Rocksdb get latency in seconds",
                 &["cf_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_get_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_get_bytes",
                 "Rocksdb get call returned data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_multiget_latency_seconds: register_histogram_vec_with_registry!(
@@ -372,17 +402,19 @@ impl OperationMetrics {
                 "Rocksdb multiget latency in seconds",
                 &["cf_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_multiget_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_multiget_bytes",
                 "Rocksdb multiget call returned data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_put_latency_seconds: register_histogram_vec_with_registry!(
@@ -390,27 +422,30 @@ impl OperationMetrics {
                 "Rocksdb put latency in seconds",
                 &["cf_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_put_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_put_bytes",
                 "Rocksdb put call puts data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_batch_put_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_batch_put_bytes",
                 "Rocksdb batch put call puts data size in bytes",
                 &["cf_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_delete_latency_seconds: register_histogram_vec_with_registry!(
@@ -418,14 +453,16 @@ impl OperationMetrics {
                 "Rocksdb delete latency in seconds",
                 &["cf_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_deletes: register_int_counter_vec_with_registry!(
                 "rocksdb_deletes",
                 "Rocksdb delete calls",
                 &["cf_name"],
-                registry
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_batch_commit_latency_seconds: register_histogram_vec_with_registry!(
@@ -433,52 +470,59 @@ impl OperationMetrics {
                 "Rocksdb schema batch commit latency in seconds",
                 &["db_name"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_batch_commit_bytes: register_histogram_vec_with_registry!(
                 "rocksdb_batch_commit_bytes",
                 "Rocksdb schema batch commit size in bytes",
                 &["db_name"],
-                prometheus::exponential_buckets(1.0, 4.0, 15)
+                prometheus_filtered::exponential_buckets(1.0, 4.0, 15)
                     .unwrap()
                     .to_vec(),
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_num_active_db_handles: register_int_gauge_vec_with_registry!(
                 "rocksdb_num_active_db_handles",
                 "Number of active db handles",
                 &["db_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_very_slow_batch_writes_count: register_int_counter_vec_with_registry!(
                 "rocksdb_num_very_slow_batch_writes",
                 "Number of batch writes that took more than 1 second",
                 &["db_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_very_slow_batch_writes_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_batch_writes_duration",
                 "Total duration of batch writes that took more than 1 second",
                 &["db_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_very_slow_puts_count: register_int_counter_vec_with_registry!(
                 "rocksdb_num_very_slow_puts",
                 "Number of puts that took more than 1 second",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             rocksdb_very_slow_puts_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_puts_duration",
                 "Total duration of puts that took more than 1 second",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
         }
@@ -548,7 +592,8 @@ impl ReadPerfContextMetrics {
                 levels, an significant increase of the counter can indicate unexpected LSM-tree shape.
                 You may want to check whether flush/compaction can keep up with the write speed",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_cache_hit_count: register_int_counter_vec_with_registry!(
@@ -557,14 +602,16 @@ impl ReadPerfContextMetrics {
                 times we have to read blocks from the file system (either block cache is disabled or it is a cache miss).
                 We can evaluate the block cache efficiency by looking at the two counters over time.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_read_count: register_int_counter_vec_with_registry!(
                 "block_read_count",
                 "Tells us how many times we have to read blocks from the file system (either block cache is disabled or it is a cache miss)",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_read_byte: register_int_counter_vec_with_registry!(
@@ -573,189 +620,216 @@ impl ReadPerfContextMetrics {
                 large blocks from the file system. Index and bloom filter blocks are usually large blocks. A large block can also be the result
                 of a very large key or value",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_read_nanos: register_int_counter_vec_with_registry!(
                 "block_read_nanos",
                 "Total nanos spent on block reads",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_checksum_nanos: register_int_counter_vec_with_registry!(
                 "block_checksum_nanos",
                 "Total nanos spent on verifying block checksum",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_decompress_nanos: register_int_counter_vec_with_registry!(
                 "block_decompress_nanos",
                 "Total nanos spent on decompressing a block",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_read_bytes: register_int_counter_vec_with_registry!(
                 "get_read_bytes",
                 "Total bytes for values returned by Get",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             multiget_read_bytes: register_int_counter_vec_with_registry!(
                 "multiget_read_bytes",
                 "Total bytes for values returned by MultiGet.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_snapshot_nanos: register_int_counter_vec_with_registry!(
                 "get_snapshot_nanos",
                 "Time spent in getting snapshot.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_from_memtable_nanos: register_int_counter_vec_with_registry!(
                 "get_from_memtable_nanos",
                 "Time spent on reading data from memtable.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_from_memtable_count: register_int_counter_vec_with_registry!(
                 "get_from_memtable_count",
                 "Number of memtables queried",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_post_process_nanos: register_int_counter_vec_with_registry!(
                 "get_post_process_nanos",
                 "Total nanos spent after Get() finds a key",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             get_from_output_files_nanos: register_int_counter_vec_with_registry!(
                 "get_from_output_files_nanos",
                 "Total nanos reading from output files",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             db_mutex_lock_nanos: register_int_counter_vec_with_registry!(
                 "db_mutex_lock_nanos",
                 "Time spent on acquiring db mutex",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             db_condition_wait_nanos: register_int_counter_vec_with_registry!(
                 "db_condition_wait_nanos",
                 "Time spent waiting with a condition variable created with DB Mutex.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             merge_operator_nanos: register_int_counter_vec_with_registry!(
                 "merge_operator_nanos",
                 "Time spent on merge operator.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             read_index_block_nanos: register_int_counter_vec_with_registry!(
                 "read_index_block_nanos",
                 "Time spent on reading index block from block cache or SST file",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             read_filter_block_nanos: register_int_counter_vec_with_registry!(
                 "read_filter_block_nanos",
                 "Time spent on reading filter block from block cache or SST file",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             new_table_block_iter_nanos: register_int_counter_vec_with_registry!(
                 "new_table_block_iter_nanos",
                 "Time spent on creating data block iterator",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             block_seek_nanos: register_int_counter_vec_with_registry!(
                 "block_seek_nanos",
                 "Time spent on seeking a key in data/index blocks",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             find_table_nanos: register_int_counter_vec_with_registry!(
                 "find_table_nanos",
                 "Time spent on finding or creating a table reader",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             bloom_memtable_hit_count: register_int_counter_vec_with_registry!(
                 "bloom_memtable_hit_count",
                 "Total number of mem table bloom hits",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             bloom_memtable_miss_count: register_int_counter_vec_with_registry!(
                 "bloom_memtable_miss_count",
                 "Total number of mem table bloom misses",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             bloom_sst_hit_count: register_int_counter_vec_with_registry!(
                 "bloom_sst_hit_count",
                 "Total number of SST table bloom hits",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             bloom_sst_miss_count: register_int_counter_vec_with_registry!(
                 "bloom_sst_miss_count",
                 "Total number of SST table bloom misses",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             key_lock_wait_time: register_int_counter_vec_with_registry!(
                 "key_lock_wait_time",
                 "Time spent waiting on key locks in transaction lock manager",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             key_lock_wait_count: register_int_counter_vec_with_registry!(
                 "key_lock_wait_count",
                 "Number of times acquiring a lock was blocked by another transaction",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             internal_delete_skipped_count: register_int_counter_vec_with_registry!(
                 "internal_delete_skipped_count",
                 "Total number of deleted keys skipped during iteration",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
                 .unwrap(),
             internal_skipped_count: register_int_counter_vec_with_registry!(
                 "internal_skipped_count",
                 "Totall number of internal keys skipped during iteration",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
                 .unwrap(),
         }
@@ -881,56 +955,64 @@ impl WritePerfContextMetrics {
                 "write_wal_nanos",
                 "Total nanos spent on writing to WAL",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_memtable_nanos: register_int_counter_vec_with_registry!(
                 "write_memtable_nanos",
                 "Total nanos spent on writing to memtable",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_delay_nanos: register_int_counter_vec_with_registry!(
                 "write_delay_nanos",
                 "Total nanos spent on delaying or throttling write",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_pre_and_post_process_nanos: register_int_counter_vec_with_registry!(
                 "write_pre_and_post_process_nanos",
                 "Total nanos spent on writing a record, excluding the above four things",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_db_mutex_lock_nanos: register_int_counter_vec_with_registry!(
                 "write_db_mutex_lock_nanos",
                 "Time spent on acquiring db mutex",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_db_condition_wait_nanos: register_int_counter_vec_with_registry!(
                 "write_db_condition_wait_nanos",
                 "Time spent waiting with a condition variable created with DB Mutex.",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_key_lock_wait_nanos: register_int_counter_vec_with_registry!(
                 "write_key_lock_wait_time",
                 "Time spent waiting on key locks in transaction lock manager",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
             write_key_lock_wait_count: register_int_counter_vec_with_registry!(
                 "write_key_lock_wait_count",
                 "Number of times acquiring a lock was blocked by another transaction",
                 &["cf_name"],
-                registry,
+                registry;
+                MetricLevel::Trace,
             )
             .unwrap(),
         }
@@ -1013,7 +1095,9 @@ impl DBMetrics {
             .dec();
     }
     pub fn get() -> &'static Arc<DBMetrics> {
-        ONCE.get()
-            .unwrap_or_else(|| DBMetrics::init(prometheus::default_registry()))
+        // Lazily initialize against the global default registry when no explicit
+        // `init` has run. `get_or_init` ensures the rocksdb metrics are
+        // registered at most once even when first reached concurrently.
+        ONCE.get_or_init(|| Arc::new(DBMetrics::new(prometheus_filtered::default_registry())))
     }
 }

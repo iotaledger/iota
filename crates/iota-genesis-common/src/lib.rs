@@ -5,6 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -14,9 +15,9 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI, TransactionKind},
+    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
 pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
@@ -75,7 +76,7 @@ pub fn execute_genesis_transaction(
     let certificate_deny_set = HashSet::new();
     let transaction_data = &genesis_transaction.data().intent_message().value;
     let (kind, signer, mut gas_data) = transaction_data.execution_parts();
-    gas_data.payment = vec![];
+    gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
     let (inner_temp_store, _, effects, _execution_error) = executor.execute_transaction_to_effects(
         &InMemoryStorage::new(Vec::new()),

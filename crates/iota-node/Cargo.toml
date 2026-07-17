@@ -11,6 +11,7 @@ workspace = true
 
 [features]
 flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+dag-visualizer = ["iota-core/dag-visualizer"]
 
 [dependencies]
 # external dependencies
@@ -22,15 +23,12 @@ axum.workspace = true
 base64.workspace = true
 bcs.workspace = true
 clap.workspace = true
-fastcrypto.workspace = true
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 humantime.workspace = true
-prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 tap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "signal", "net"] }
 tokio-util.workspace = true
 tonic.workspace = true
 tower.workspace = true
@@ -40,7 +38,7 @@ url.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-archival.workspace = true
-iota-common = { workspace = true, features = ["metrics"] }
+iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-grpc-server.workspace = true
@@ -49,10 +47,10 @@ iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-metrics-push-client.workspace = true
 iota-names.workspace = true
 iota-network.workspace = true
 iota-network-stack.workspace = true
-iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
@@ -60,6 +58,7 @@ iota-storage.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

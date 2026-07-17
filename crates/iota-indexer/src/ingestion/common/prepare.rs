@@ -6,15 +6,13 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
-    digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -38,7 +36,7 @@ impl<'chk> Extractor<'chk> {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(obj_ref.object_id));
             }
         }
         latest_live_objects.into_values()
@@ -46,12 +44,12 @@ impl<'chk> Extractor<'chk> {
 
     pub(crate) fn iter_removed_objects(
         &'chk self,
-    ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
+    ) -> impl Iterator<Item = (ObjectReference, TransactionDigest)> + 'chk {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
+                eventually_removed_object_refs.insert(obj_ref.object_id, (obj_ref, *digest));
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -65,14 +63,14 @@ impl<'chk> Extractor<'chk> {
 /// Field or a Dynamic Object Field based on its type.
 pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
-    let move_object = o.data.try_as_move()?;
+    let move_object = o.data.as_opt_struct()?;
 
-    if !move_object.type_().is_dynamic_field() {
+    if !move_object.struct_tag().is_dynamic_field() {
         return None;
     }
 
-    let type_: StructTag = move_object.type_().clone().into();
-    let [name, _] = type_.type_params.as_slice() else {
+    let type_ = move_object.struct_tag();
+    let [name, _] = type_.type_params() else {
         return None;
     };
 
@@ -140,13 +138,12 @@ impl RemovedObject {
     pub fn new(
         checkpoint_sequence_number: CheckpointSequenceNumber,
         transaction_digest: TransactionDigest,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> Self {
-        let (object_id, object_version, _) = object_ref;
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
-            object_id,
-            object_version: object_version.into(),
+            object_id: object_ref.object_id,
+            object_version: object_ref.version.as_u64(),
         };
         Self {
             indexed_object,
@@ -158,7 +155,7 @@ impl RemovedObject {
         self.indexed_object.object_version
     }
 
-    pub(crate) fn object_id(&self) -> ObjectID {
+    pub(crate) fn object_id(&self) -> ObjectId {
         self.indexed_object.object_id
     }
 
@@ -222,8 +219,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 ) -> CheckpointObjectChanges {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, LiveObject>::new();
-    let mut deletions = HashMap::<ObjectID, RemovedObject>::new();
+    let mut mutations = HashMap::<ObjectId, LiveObject>::new();
+    let mut deletions = HashMap::<ObjectId, RemovedObject>::new();
 
     for change in checkpoint_batch_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
@@ -235,8 +232,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.version() < version.value(),
-                    "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    existing.version() < version,
+                    "mutation version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }
@@ -244,7 +241,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = mutations.insert(id, mutation) {
                 assert!(
                     existing.object().version() < version,
-                    "mutation version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    "mutation version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version()
                 );
             }
@@ -256,8 +253,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object().version().value() < version,
-                    "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    existing.object().version() < version,
+                    "deletion version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version(),
                 );
             }
@@ -265,7 +262,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = deletions.insert(id, deletion) {
                 assert!(
                     existing.version() < version,
-                    "deletion version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    "deletion version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }

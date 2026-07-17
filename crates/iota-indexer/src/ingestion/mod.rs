@@ -3,4 +3,3 @@
 
 pub mod common;
 pub(crate) mod primary;
-pub(crate) mod snapshot;

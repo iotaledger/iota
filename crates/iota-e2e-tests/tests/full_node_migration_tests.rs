@@ -26,11 +26,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Address, Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -38,10 +36,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
     timelock::timelock::TimeLock,
-    transaction::{Argument, ObjectArg, Transaction, TransactionData},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
-use move_core_types::ident_str;
-use tempfile::tempdir;
 use test_cluster::TestClusterBuilder;
 
 const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bin";
@@ -62,8 +58,8 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // Setup the temporary dir and create the writer for the stardust object
     // snapshot
-    let dir = tempdir()?;
-    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let tmp_dir = iota_common::tempdir();
+    let stardudst_object_snapshot_file_path = tmp_dir.path().join(MIGRATION_DATA_FILE_NAME);
     let object_snapshot_writer =
         BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
 
@@ -81,8 +77,12 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
+        // The tx response requests full content (balance/object changes), which
+        // reads input objects at their pre-transaction versions; disable pruning
+        // so those versions are not pruned before the response is built.
+        .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -97,7 +97,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // The transaction must be successful
     assert!(confirmed_local_execution.unwrap());
-    assert!(errors.is_empty());
+    assert!(errors.is_empty(), "unexpected tx errors: {errors:?}");
     Ok(())
 }
 
@@ -107,8 +107,8 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
 
     // Setup the temporary dir and create the writer for the stardust object
     // snapshot
-    let dir = tempdir()?;
-    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let tmp_dir = iota_common::tempdir();
+    let stardudst_object_snapshot_file_path = tmp_dir.path().join(MIGRATION_DATA_FILE_NAME);
     let object_snapshot_writer =
         BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
 
@@ -126,8 +126,12 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
 
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
+        // The tx response requests full content (balance/object changes), which
+        // reads input objects at their pre-transaction versions; disable pruning
+        // so those versions are not pruned before the response is built.
+        .disable_fullnode_pruning()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -172,8 +176,8 @@ async fn address_unlock_condition(
     iota_client: IotaClient,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     // Setup the temporary file based keystore
-    let dir = tempdir()?;
-    let keystore_path = dir.path().join(PathBuf::from("iotatempdb"));
+    let tmp_dir = iota_common::tempdir();
+    let keystore_path = tmp_dir.path().join(PathBuf::from("iotatempdb"));
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
 
     // For this example we need to derive an address that is not at index 0. This
@@ -203,9 +207,8 @@ async fn address_unlock_condition(
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
-    let alias_output_object_id = ObjectID::from_hex_literal(
-        "0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a",
-    )?;
+    let alias_output_object_id =
+        ObjectId::from_hex("0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a")?;
 
     let alias_output_object = iota_client
         .read_api()
@@ -234,7 +237,7 @@ async fn address_unlock_condition(
         .await?
         .data
         .ok_or(anyhow!("alias not found"))?;
-    let alias_object_address = alias_object.object_ref().0;
+    let alias_object_address = alias_object.object_ref().object_id;
 
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.
@@ -266,11 +269,11 @@ async fn address_unlock_condition(
 
         // Extract alias output assets
         let type_arguments = vec![GAS::type_tag()];
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
-            STARDUST_ADDRESS.into(),
-            ident_str!("alias_output").to_owned(),
-            ident_str!("extract_assets").to_owned(),
+            ObjectId::STARDUST,
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -284,9 +287,9 @@ async fn address_unlock_condition(
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("coin").to_owned(),
-                ident_str!("from_balance").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::COIN_MODULE,
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -297,9 +300,9 @@ async fn address_unlock_condition(
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("bag").to_owned(),
-                ident_str!("destroy_empty").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::BAG_MODULE,
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -308,13 +311,13 @@ async fn address_unlock_condition(
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![
                 alias,
-                builder.obj(ObjectArg::Receiving(nft_output_object_ref))?,
+                builder.obj(CallArg::Receiving(nft_output_object_ref))?,
             ];
 
             let nft_output = builder.programmable_move_call(
-                STARDUST_ADDRESS.into(),
-                ident_str!("address_unlock_condition").to_owned(),
-                ident_str!("unlock_alias_address_owned_nft").to_owned(),
+                ObjectId::STARDUST,
+                Identifier::from_static("address_unlock_condition"),
+                Identifier::from_static("unlock_alias_address_owned_nft"),
                 type_arguments,
                 arguments,
             );
@@ -327,9 +330,9 @@ async fn address_unlock_condition(
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-                STARDUST_ADDRESS.into(),
-                ident_str!("nft_output").to_owned(),
-                ident_str!("extract_assets").to_owned(),
+                ObjectId::STARDUST,
+                Identifier::from_static("nft_output"),
+                Identifier::from_static("extract_assets"),
                 type_arguments,
                 arguments,
             ) {
@@ -345,9 +348,9 @@ async fn address_unlock_condition(
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
-                    ident_str!("coin").to_owned(),
-                    ident_str!("from_balance").to_owned(),
+                    ObjectId::FRAMEWORK,
+                    Identifier::COIN_MODULE,
+                    Identifier::from_static("from_balance"),
                     type_arguments,
                     arguments,
                 );
@@ -358,9 +361,9 @@ async fn address_unlock_condition(
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
-                    ident_str!("bag").to_owned(),
-                    ident_str!("destroy_empty").to_owned(),
+                    ObjectId::FRAMEWORK,
+                    Identifier::BAG_MODULE,
+                    Identifier::from_static("destroy_empty"),
                     vec![],
                     arguments,
                 );
@@ -405,7 +408,7 @@ async fn address_unlock_condition(
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
+    recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
@@ -478,7 +481,7 @@ async fn check_address_swap_split_map_after_migration(
                         *destination,
                         Some(IotaObjectResponseQuery::new(
                             Some(IotaObjectDataFilter::StructType(
-                                MoveObjectType::timelocked_iota_balance().into(),
+                                StructTag::new_timelocked_gas_balance(),
                             )),
                             Some(IotaObjectDataOptions::new().with_bcs()),
                         )),

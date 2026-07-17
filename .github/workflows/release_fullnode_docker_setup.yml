@@ -84,7 +84,7 @@ jobs:
         network: ${{ fromJson(needs.determine-ref-and-networks.outputs.iota_networks) }}
     steps:
       - name: Check out ${{ needs.determine-ref-and-networks.outputs.iota_ref }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.determine-ref-and-networks.outputs.iota_ref }}
@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload artifact to workflow run
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.vars.outputs.archive_name }}
           if-no-files-found: error
@@ -139,6 +139,6 @@ jobs:
 
       - name: Attach artifact to ${{ needs.determine-ref-and-networks.outputs.iota_ref }} release in GH
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: ${{ steps.vars.outputs.target_dir }}/${{ steps.vars.outputs.archive_name }}

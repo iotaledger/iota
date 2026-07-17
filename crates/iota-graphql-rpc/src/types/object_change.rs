@@ -41,9 +41,9 @@ impl ObjectChange {
         };
 
         let object_lookup = match self.source {
-            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.as_u64()),
             ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
-                Object::at_version(version.value(), self.checkpoint_viewed_at)
+                Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
         Object::query(ctx, self.native.id.into(), object_lookup)
@@ -58,9 +58,9 @@ impl ObjectChange {
         };
 
         let object_lookup = match self.source {
-            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.as_u64()),
             ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
-                Object::at_version(version.value(), self.checkpoint_viewed_at)
+                Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
         Object::query(ctx, self.native.id.into(), object_lookup)

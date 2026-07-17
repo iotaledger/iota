@@ -7,6 +7,7 @@ use std::time::Duration;
 use iota_network_stack::config::Config;
 
 pub mod api;
+pub mod convert;
 pub mod discovery;
 pub mod randomness;
 pub mod state_sync;

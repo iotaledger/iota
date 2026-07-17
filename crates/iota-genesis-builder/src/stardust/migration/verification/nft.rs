@@ -4,14 +4,12 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
-    object::Owner,
     stardust::output::{
         NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Nft as MoveNft,
         NftOutput as MoveNftOutput,
@@ -50,20 +48,20 @@ pub(super) fn verify_nft_output(
     })?;
     let created_output = created_output_obj
         .to_rust::<MoveNftOutput>()
-        .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
+        .map_err(|e| anyhow!("invalid nft output object for {output_id}: {e}"))?;
 
     let created_nft_obj = storage
-        .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
+        .get_object(&ObjectId::new(*output.nft_id_non_null(&output_id)))
         .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
     let created_nft = created_nft_obj
         .to_rust::<MoveNft>()
-        .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
+        .map_err(|e| anyhow!("invalid nft object for {output_id}: {e}"))?;
 
     // Output Owner
     // If there is an expiration unlock condition, the NFT is shared.
     if output.unlock_conditions().expiration().is_some() {
         ensure!(
-            matches!(created_output_obj.owner, Owner::Shared { .. }),
+            matches!(created_output_obj.owner, Owner::Shared(_)),
             "nft output owner mismatch: found {:?}, expected Shared",
             created_output_obj.owner,
         );
@@ -77,17 +75,14 @@ pub(super) fn verify_nft_output(
     }
 
     // NFT Owner
-    let expected_nft_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_nft_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_nft_obj.owner == expected_nft_owner,

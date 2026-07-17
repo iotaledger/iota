@@ -24,7 +24,7 @@ RUN echo "IOTA_RUST_LOG=$IOTA_RUST_LOG" >> /.env
 
 FROM scratch
 
-COPY ./docker-compose-antithesis.yaml /docker-compose.yaml
+COPY ./docker-compose.yaml /docker-compose.yaml
 COPY /genesis/overlays/* /genesis/overlays/
 COPY /genesis/static/* /genesis/static/
 COPY --from=setup /genesis/files/* /genesis/files/

@@ -10,7 +10,7 @@ use iota_grpc_client::Client as GrpcClient;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_metrics::spawn_monitored_task;
 use metrics::IndexerMetrics;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -50,11 +50,12 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
-) -> Result<(ServerHandle, CancellationToken), IndexerError> {
+    cancel: CancellationToken,
+) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
 
-    let fullnode_grpc_client = GrpcClient::connect(&config.rpc_client_url).await?;
+    let fullnode_grpc_client = GrpcClient::new(&config.rpc_client_url)?;
     // Register common modules
     builder.register_module(IndexerApi::new(
         reader.clone(),
@@ -72,16 +73,9 @@ pub async fn build_json_rpc_server(
             .await?,
     ))?;
 
-    let cancel = CancellationToken::new();
-
     let handle = builder
-        .start(
-            config.rpc_address,
-            None,
-            ServerType::Http,
-            Some(cancel.clone()),
-        )
+        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
         .await?;
 
-    Ok((handle, cancel))
+    Ok(handle)
 }

@@ -4,7 +4,8 @@
 
 use criterion::{Criterion, *};
 use iota_core::signature_verifier::SignatureVerifierMetrics;
-use iota_types::{digests::CertificateDigest, signature_verification::VerifiedDigestCache};
+use iota_sdk_types::CertificateDigest;
+use iota_types::signature_verification::VerifiedDigestCache;
 
 fn verified_cert_cache_bench(c: &mut Criterion) {
     let mut digests: Vec<_> = (0..(1 << 18))
@@ -22,7 +23,7 @@ fn verified_cert_cache_bench(c: &mut Criterion) {
         .collect();
     assert_eq!(chunks.len(), cpus);
 
-    let registry = prometheus::Registry::new();
+    let registry = prometheus_filtered::Registry::new();
     let metrics = SignatureVerifierMetrics::new(&registry);
     let cache = VerifiedDigestCache::<CertificateDigest>::new(
         metrics.certificate_signatures_cache_hits.clone(),

@@ -20,13 +20,10 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::{CheckpointDigest, ObjectData, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::ObjectID,
-    committee::Committee,
-    digests::{CheckpointDigest, TransactionDigest},
-    event::EventID,
-    full_checkpoint_content::CheckpointData,
-    object::{Data, bounded_visitor::BoundedVisitor},
+    committee::Committee, effects::TransactionEffectsExt, event::EventID,
+    full_checkpoint_content::CheckpointData, object::bounded_visitor::BoundedVisitor,
 };
 use tracing::{debug, error, info};
 
@@ -55,7 +52,7 @@ pub enum LightClientCommand {
     CheckObject {
         /// Object ID
         #[arg(value_name = "HEX")]
-        object_id: ObjectID,
+        object_id: ObjectId,
     },
     /// Check a transaction for inclusion
     CheckTransaction {
@@ -75,7 +72,7 @@ pub enum LightClientCommand {
         event_ids: Vec<EventID>,
         /// Objects that should be included in the proof
         #[arg(name = "objects", long, num_args(0..))]
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         /// Whether to include the next committee in the proof
         #[arg(long, default_value_t = false)]
         include_committee: bool,
@@ -146,18 +143,22 @@ pub async fn main() -> Result<()> {
             let object = get_verified_object(&config, object_id).await?;
             println!("Successfully verified object: {object_id}");
 
-            if let Data::Move(move_object) = &object.data {
-                let object_type = move_object.type_().clone();
+            if let ObjectData::Struct(move_object) = &object.data {
+                let object_type = move_object.struct_tag();
 
-                let type_layout = resolver.type_layout(object_type.clone().into()).await?;
+                let type_layout = resolver.type_layout(move_object.type_tag()).await?;
 
                 let result =
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
                         .context("Failed to deserialize object")?;
 
-                let (object_id, version, hash) = object.compute_object_reference();
+                let ObjectReference {
+                    object_id,
+                    version,
+                    digest: hash,
+                } = object.object_ref();
                 println!(
-                    "ObjectID: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
+                    "ObjectId: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
                     serde_json::to_string(&result).expect("JSON deserialization error")
                 );
@@ -180,7 +181,7 @@ pub async fn main() -> Result<()> {
             );
 
             if let Some(events) = &events {
-                for event in &events.data {
+                for event in &events.0 {
                     let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
@@ -189,7 +190,7 @@ pub async fn main() -> Result<()> {
                     println!(
                         "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
                         event.package_id,
-                        event.transaction_module,
+                        event.module,
                         event.sender,
                         event.type_,
                         serde_json::to_string(&result).expect("JSON deserialization error")
@@ -229,7 +230,7 @@ pub async fn main() -> Result<()> {
 
             // add event and object targets
             let mut event_ids_map: HashSet<EventID> = event_ids.iter().cloned().collect();
-            let mut object_ids_map: HashSet<ObjectID> = object_ids.iter().cloned().collect();
+            let mut object_ids_map: HashSet<ObjectId> = object_ids.iter().cloned().collect();
             let mut committee: Option<Committee> = None;
             let mut events = Vec::new();
             let mut objects = Vec::new();
@@ -238,7 +239,7 @@ pub async fn main() -> Result<()> {
                 if let Some(tx_events) = &tx.events {
                     let tx_digest = *tx.transaction.digest();
                     // TODO: make sure this is the correct way to get the event sequence number
-                    for (event_seq, event) in tx_events.data.iter().cloned().enumerate() {
+                    for (event_seq, event) in tx_events.iter().cloned().enumerate() {
                         let event_id = (tx_digest, event_seq as u64).into();
                         if event_ids.contains(&event_id) {
                             event_ids_map.remove(&event_id);
@@ -249,8 +250,8 @@ pub async fn main() -> Result<()> {
                 // add object ID targets
                 for obj in &tx.output_objects {
                     if object_ids.contains(&obj.id()) {
-                        let obj_ref = obj.compute_object_reference();
-                        object_ids_map.remove(&obj_ref.0);
+                        let obj_ref = obj.object_ref();
+                        object_ids_map.remove(&obj_ref.object_id);
                         objects.push((obj_ref, obj.clone()));
                     }
                 }
@@ -287,7 +288,7 @@ pub async fn main() -> Result<()> {
                 }
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                committee.replace(Committee::new(epoch + 1, authorities.into_iter().collect()));
+                committee.replace(Committee::from_committee_members(epoch + 1, &authorities));
             }
 
             let targets = ProofTargets {
@@ -338,7 +339,7 @@ pub async fn main() -> Result<()> {
                 };
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                Committee::new(epoch, authorities.into_iter().collect())
+                Committee::from_committee_members(epoch, &authorities)
             };
 
             proof::verify_proof(&committee, &proof)?;

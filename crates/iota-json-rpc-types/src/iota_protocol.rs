@@ -5,28 +5,37 @@
 use std::collections::BTreeMap;
 
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use iota_types::iota_serde::{AsProtocolVersion, BigInt, Readable};
+use iota_types::move_package::ProtocolBuildConfig;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
+
+use crate::iota_primitives::ProtocolVersion as ProtocolVersionSchema;
+
+/// Feature-flag key mirroring
+/// [`ProtocolConfig::package_metadata_with_dynamic_module_metadata`]; the flag
+/// is exposed in [`ProtocolConfigResponse::feature_flags`] under its field
+/// name.
+const PACKAGE_METADATA_WITH_DYNAMIC_MODULE_METADATA: &str =
+    "package_metadata_with_dynamic_module_metadata";
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase", rename = "ProtocolConfigValue")]
 pub enum IotaProtocolConfigValue {
     U16(
-        #[schemars(with = "BigInt<u16>")]
-        #[serde_as(as = "BigInt<u16>")]
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
         u16,
     ),
     U32(
-        #[schemars(with = "BigInt<u32>")]
-        #[serde_as(as = "BigInt<u32>")]
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
         u32,
     ),
     U64(
-        #[schemars(with = "BigInt<u64>")]
-        #[serde_as(as = "BigInt<u64>")]
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
         u64,
     ),
     F64(
@@ -56,17 +65,29 @@ impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase", rename = "ProtocolConfig")]
 pub struct ProtocolConfigResponse {
-    #[schemars(with = "AsProtocolVersion")]
-    #[serde_as(as = "Readable<AsProtocolVersion, _>")]
+    #[schemars(with = "ProtocolVersionSchema")]
+    #[serde_as(as = "ProtocolVersionSchema")]
     pub min_supported_protocol_version: ProtocolVersion,
-    #[schemars(with = "AsProtocolVersion")]
-    #[serde_as(as = "Readable<AsProtocolVersion, _>")]
+    #[schemars(with = "ProtocolVersionSchema")]
+    #[serde_as(as = "ProtocolVersionSchema")]
     pub max_supported_protocol_version: ProtocolVersion,
-    #[schemars(with = "AsProtocolVersion")]
-    #[serde_as(as = "Readable<AsProtocolVersion, _>")]
+    #[schemars(with = "ProtocolVersionSchema")]
+    #[serde_as(as = "ProtocolVersionSchema")]
     pub protocol_version: ProtocolVersion,
     pub feature_flags: BTreeMap<String, bool>,
     pub attributes: BTreeMap<String, Option<IotaProtocolConfigValue>>,
+}
+
+impl From<&ProtocolConfigResponse> for ProtocolBuildConfig {
+    fn from(response: &ProtocolConfigResponse) -> Self {
+        Self {
+            allow_view_function: response
+                .feature_flags
+                .get(PACKAGE_METADATA_WITH_DYNAMIC_MODULE_METADATA)
+                .copied()
+                .unwrap_or(false),
+        }
+    }
 }
 
 impl From<ProtocolConfig> for ProtocolConfigResponse {

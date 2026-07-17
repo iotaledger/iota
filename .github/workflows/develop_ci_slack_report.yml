@@ -9,13 +9,37 @@ on:
 jobs:
   on-failure:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'timed_out'
+    if: contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion)
+    permissions:
+      actions: read
     steps:
-      - uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
-        with:
-          status: ${{ github.event.workflow_run.conclusion }}
-          notification_title: " ${{github.event.workflow_run.name}} - ${{github.event.workflow_run.conclusion}} on ${{github.event.workflow_run.head_branch}}"
-          message_format: ":fire: *${{github.event.workflow_run.name}}* ${{github.event.workflow_run.conclusion}} <${{github.server_url}}/${{github.repository}}/actions/runs/${{github.event.workflow_run.id}}|View Failure> author: ${{ github.event.workflow_run.head_commit.author.name }}"
-          footer: "${{ github.event.workflow_run.display_title }} \n<${{github.server_url}}/${{github.repository}}/commit/${{github.event.workflow_run.head_commit.id}}>"
+      - name: Check for failed jobs
+        id: failed-jobs
+        # A cancelled run only indicates a broken develop if one of its jobs actually
+        # failed (the *-cancel fail-fast jobs cancel the whole run on failure); cancellations
+        # from the concurrency group or a manual cancel have no failed jobs and are not reported.
+        run: |
+          FAILED=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs?per_page=100" --paginate --jq '.jobs[] | select(.conclusion == "failure") | .id' | wc -l | tr -d '[:space:]')
+          echo "count=$FAILED" >> "$GITHUB_OUTPUT"
         env:
-          SLACK_WEBHOOK_URL: ${{ (github.event.workflow_run.name == 'Nightly checks' || github.event.workflow_run.name == 'Turborepo Nightly checks') && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+      - uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        if: github.event.workflow_run.conclusion != 'cancelled' || steps.failed-jobs.outputs.count != '0'
+        with:
+          webhook: ${{ (github.event.workflow_run.name == 'Nightly checks' || github.event.workflow_run.name == 'Turborepo Nightly checks') && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          # Fail the run if Slack rejects the request, so a broken webhook is visible instead of silently dropped.
+          errors: true
+          # `text` and `footer` embed the free-form author name and commit title, so build them with toJSON to keep the payload valid JSON when those contain quotes or newlines.
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ github.event.workflow_run.conclusion == 'timed_out' && 'warning' || 'danger' }}",
+                  "mrkdwn_in": ["text"],
+                  "pretext": " ${{ github.event.workflow_run.name }} - ${{ github.event.workflow_run.conclusion }} on ${{ github.event.workflow_run.head_branch }}",
+                  "text": ${{ toJSON(format(':fire: *{0}* {1} <{2}/{3}/actions/runs/{4}|View Failure> author: {5}', github.event.workflow_run.name, github.event.workflow_run.conclusion, github.server_url, github.repository, github.event.workflow_run.id, github.event.workflow_run.head_commit.author.name)) }},
+                  "footer": ${{ toJSON(format('{0} {1}<{2}/{3}/commit/{4}>', github.event.workflow_run.display_title, fromJSON('"\n"'), github.server_url, github.repository, github.event.workflow_run.head_commit.id)) }}
+                }
+              ]
+            }

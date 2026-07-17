@@ -3,12 +3,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
+use iota_sdk_types::{Event, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    event::{Event, EventID},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
+    event::EventID,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, EndOfEpochData,
+    },
     object::Object,
     transaction::Transaction,
 };
@@ -33,7 +37,7 @@ pub struct Proof {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProofTargets {
     /// Objects that need to be certified.
-    pub objects: Vec<(ObjectRef, Object)>,
+    pub objects: Vec<(ObjectReference, Object)>,
 
     /// Events that need to be certified.
     pub events: Vec<(EventID, Event)>,
@@ -53,7 +57,7 @@ impl ProofTargets {
     /// verified proof will ensure that both the reference and content are
     /// correct. Note that some content is metadata such as the transaction
     /// that created this object.
-    pub fn add_object(mut self, object_ref: ObjectRef, object: Object) -> Self {
+    pub fn add_object(mut self, object_ref: ObjectReference, object: Object) -> Self {
         self.objects.push((object_ref, object));
         self
     }
@@ -127,9 +131,9 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         };
 
         // Extract the end of epoch committee
-        let new_committee = Committee::new(
+        let new_committee = Committee::from_committee_members(
             summary.epoch().checked_add(1).unwrap(),
-            next_epoch_committee.iter().cloned().collect(),
+            next_epoch_committee,
         );
 
         if new_committee != *committee {
@@ -161,7 +165,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         if !contents_proof
             .checkpoint_contents
             .enumerate_transactions(summary)
-            .any(|x| x.1 == &digests)
+            .any(|x| x.1 == digests)
         {
             // Could not find the digest in the checkpoint contents
             bail!("Transaction digest not found in the checkpoint contents");
@@ -192,12 +196,12 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
             // The sequence number must be a valid index
             // Note: safe to unwrap as we have checked that its not None above
-            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().data.len() {
+            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().len() {
                 bail!("Event sequence number out of bounds");
             }
 
             // Now check that the contents of the event are the same
-            if &contents_proof.events.as_ref().unwrap().data[event_id.event_seq as usize] != event {
+            if &contents_proof.events.as_ref().unwrap()[event_id.event_seq as usize] != event {
                 bail!("Event contents do not match");
             }
         }
@@ -209,7 +213,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
         for (object_ref, object) in &proof.targets.objects {
             // Is the given reference correct?
-            if object_ref != &object.compute_object_reference() {
+            if object_ref != &object.object_ref() {
                 bail!("Object reference does not match the object");
             }
 

@@ -17,17 +17,18 @@ use iota_move::{
     self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
 };
 use iota_move_build::{
-    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_conflicting_addresses,
-    check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, ProtocolBuildConfig,
+    check_conflicting_addresses, check_invalid_dependencies, check_unpublished_dependencies,
+    implicit_deps,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::Address;
 use iota_types::crypto::SignatureScheme;
 use move_analyzer::analyzer;
-use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use serde_json::json;
 use url::Url;
@@ -245,7 +246,7 @@ impl IotaCommand {
                                 &rerooted_path,
                                 build_config.install_dir.clone(),
                                 chain_id,
-                                AccountAddress::ZERO,
+                                Address::ZERO,
                             )?
                         } else {
                             None
@@ -254,11 +255,16 @@ impl IotaCommand {
                         let protocol_config = read_api.get_protocol_config(None).await?;
                         build_config.implicit_dependencies =
                             implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
+                        let mut protocol_build_config_args =
+                            build.protocol_build_config_args.clone();
+                        protocol_build_config_args
+                            .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                         let mut pkg = IotaBuildConfig {
                             config: build_config.clone(),
                             run_bytecode_verifier: true,
                             print_diags_to_stderr: true,
                             chain_id: chain_id.clone(),
+                            protocol_build_config: protocol_build_config_args.into(),
                         }
                         .build(&rerooted_path)?;
 
@@ -297,7 +303,8 @@ impl IotaCommand {
                 }
 
                 // If a specific environment is specified for the build command we set the chain
-                // ID to the one that is specified.
+                // ID to the one that is specified and the protocol config to the one that is
+                // returned by the node.
                 if client_config.env.is_some() && matches!(cmd, MoveCommand::Build(_)) {
                     // TODO replace with get_chain_id_and_client when https://github.com/iotaledger/iota/issues/10215 is done
                     let mut context = WalletContext::new(
@@ -315,12 +322,18 @@ impl IotaCommand {
                         );
                     };
                     let chain_id = client.read_api().get_chain_identifier().await.ok();
+                    let protocol_config = client.read_api().get_protocol_config(None).await?;
 
                     let MoveCommand::Build(build_config) = &mut cmd else {
                         unreachable!("We checked for Build above, so this should never happen");
                     };
 
                     build_config.chain_id = chain_id;
+                    // Populate the protocol build config from the node unless the user
+                    // already provided an override on the command line.
+                    build_config
+                        .protocol_build_config_args
+                        .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                 }
 
                 execute_move_command(package_path.as_deref(), build_config, cmd)

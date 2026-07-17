@@ -19,7 +19,7 @@ elif [[ -n $PROJECT_ID ]]; then
   command+=(-project "$PROJECT_ID")
 fi
 
-for table in objects transactions checkpoints checkpoints_by_digest watermark; do
+for table in objects transactions checkpoints checkpoints_by_digest watermark transactions_by_address; do
   (
     set -x
     "${command[@]}" createtable $table

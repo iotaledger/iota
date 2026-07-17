@@ -8,7 +8,7 @@
 use std::task::{Context, Poll};
 
 use futures::{Future, TryFutureExt as _};
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use tap::Tap;
 use tokio::sync::mpsc::{
     self,
@@ -584,7 +584,7 @@ mod test {
     use std::task::{Context, Poll};
 
     use futures::{FutureExt as _, task::noop_waker};
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use tokio::sync::mpsc::error::TrySendError;
 
     use crate::{

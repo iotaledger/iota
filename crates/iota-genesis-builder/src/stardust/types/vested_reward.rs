@@ -4,13 +4,14 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::TxContext,
     error::ExecutionError,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -26,7 +27,7 @@ pub const VESTED_REWARD_ID_PREFIX: &str =
 pub enum VestedRewardError {
     #[error("failed to create genesis move object, owner: {owner}, timelock: {timelock:#?}")]
     ObjectCreation {
-        owner: IotaAddress,
+        owner: Address,
         timelock: TimeLock<Balance>,
         source: ExecutionError,
     },
@@ -92,7 +93,7 @@ pub fn try_from_stardust(
         return Err(VestedRewardError::NativeTokensNotSupported);
     }
 
-    let id = UID::new(ObjectID::new(output_id.hash()));
+    let id = UID::new(ObjectId::new(output_id.hash()));
     let locked = Balance::new(basic_output.amount());
 
     // We already checked the existence of the timelock unlock condition at this
@@ -111,14 +112,14 @@ pub fn try_from_stardust(
 /// Creates a genesis object from a time-locked balance.
 pub fn to_genesis_object(
     timelock: TimeLock<Balance>,
-    owner: IotaAddress,
+    owner: Address,
     protocol_config: &ProtocolConfig,
     tx_context: &TxContext,
-    version: SequenceNumber,
+    version: Version,
 ) -> Result<Object, VestedRewardError> {
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             version,
             timelock.to_bcs_bytes(),
             protocol_config,
@@ -131,8 +132,8 @@ pub fn to_genesis_object(
     };
 
     Ok(Object::new_from_genesis(
-        Data::Move(move_object),
-        Owner::AddressOwner(owner),
+        ObjectData::Struct(move_object),
+        Owner::Address(owner),
         tx_context.digest(),
     ))
 }
@@ -141,6 +142,7 @@ pub fn to_genesis_object(
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_types::ObjectId;
     use iota_stardust_types::block::{
         address::Ed25519Address,
         output::{
@@ -153,7 +155,6 @@ mod tests {
     };
     use iota_types::{
         balance::Balance,
-        base_types::ObjectID,
         id::UID,
         timelock::{
             label::label_struct_tag_to_string,
@@ -179,7 +180,7 @@ mod tests {
 
     #[test]
     fn timelock_ser_deser_roundtrip() {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(100);
         let expiration_timestamp_ms = 10;
         let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

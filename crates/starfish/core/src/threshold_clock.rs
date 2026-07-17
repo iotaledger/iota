@@ -29,20 +29,13 @@ impl ThresholdClock {
         }
     }
 
-    /// If quorum (2f+1) is reached, advance to the next round and record
-    /// latency metrics. Returns true if quorum was reached.
+    /// If quorum (2f+1) is reached, advance to the next round. Returns true if
+    /// quorum was reached.
     fn try_advance_round(&mut self, new_round: Round) -> bool {
         if self.aggregator.reached_threshold(&self.context.committee) {
             self.aggregator.clear();
             self.round = new_round;
-
-            let now = Instant::now();
-            self.context
-                .metrics
-                .node_metrics
-                .quorum_receive_latency
-                .observe(now.duration_since(self.quorum_ts).as_secs_f64());
-            self.quorum_ts = now;
+            self.quorum_ts = Instant::now();
             true
         } else {
             false
@@ -58,23 +51,45 @@ impl ThresholdClock {
     /// - block.round == current: continue accumulating stake until quorum
     ///   (2f+1) reached
     ///
-    /// When quorum is reached, advance to round + 1.
-    pub(crate) fn add_block_header(&mut self, block_header: BlockRef) {
+    /// When quorum is reached, advance to round + 1. Returns true when the
+    /// round advanced.
+    pub(crate) fn add_block_header(&mut self, block_header: BlockRef) -> bool {
+        // Captured before the match, which may advance `self.round` for a
+        // higher-round block.
+        let is_equal_round = block_header.round == self.round;
         match block_header.round.cmp(&self.round) {
-            Ordering::Less => {}
+            Ordering::Less => return false,
             Ordering::Greater => {
                 // Jump to the new round and start with fresh state
                 self.aggregator.clear();
                 self.aggregator
                     .add(block_header.author, &self.context.committee);
                 self.round = block_header.round;
+                self.quorum_ts = Instant::now();
             }
             Ordering::Equal => {
                 self.aggregator
                     .add(block_header.author, &self.context.committee);
             }
         }
-        self.try_advance_round(block_header.round + 1);
+        let advanced = self.try_advance_round(block_header.round.saturating_add(1));
+        // For an equal-round block that did not complete the round's quorum,
+        // record how long after the round started this peer's block arrived.
+        if is_equal_round && !advanced {
+            let delay_ms = Instant::now().duration_since(self.quorum_ts).as_millis() as u64;
+            let hostname = &self
+                .context
+                .committee
+                .authority(block_header.author)
+                .hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .block_receive_delay
+                .with_label_values(&[hostname])
+                .inc_by(delay_ms);
+        }
+        advanced
     }
 
     /// Add the block references that have been successfully processed and
@@ -158,6 +173,21 @@ mod tests {
             BlockHeaderDigest::default(),
         ));
         assert_eq!(aggregator.get_round(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_threshold_clock_max_round_does_not_overflow() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let mut aggregator = ThresholdClock::new(0, context);
+
+        for authority in 0..3 {
+            aggregator.add_block_header(BlockRef::new(
+                Round::MAX,
+                AuthorityIndex::new_for_test(authority),
+                BlockHeaderDigest::default(),
+            ));
+        }
+        assert_eq!(aggregator.get_round(), Round::MAX);
     }
 
     #[tokio::test]

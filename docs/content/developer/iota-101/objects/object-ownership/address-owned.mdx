@@ -27,8 +27,8 @@ public fun transfer<T: key>(obj: T, recipient: address)
 public fun public_transfer<T: key + store>(obj: T, recipient: address)
 ```
 
-- Use [`iota::transfer::transfer`](../../../../developer/references/framework/iota/transfer.mdx#function-transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
-- Use [`iota::transfer::public_transfer`](../../../../developer/references/framework/iota/transfer.mdx#function-public_transfer) if the object has the `store` capability and you do not need a custom policy.
+- Use [`iota::transfer::transfer`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
+- Use [`iota::transfer::public_transfer`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_public_transfer) if the object has the `store` capability and you do not need a custom policy.
 
 After creating an address-owned object, its ownership can change over time by transferring it,
 adding it as a dynamic object field, or making it immutable.

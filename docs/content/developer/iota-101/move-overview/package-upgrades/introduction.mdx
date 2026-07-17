@@ -46,7 +46,7 @@ relying on a single key to manage upgrades can introduce significant security ri
 ## Making Packages Truly Immutable
 
 To eliminate the risks associated with single-key control, you can make your package _immutable_ after it is published.
-You can do this with the [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#function-make_immutable) function,
+You can do this with the [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#iota_package_make_immutable) function,
 which destroys the `UpgradeCap` associated with the package, preventing any future upgrades.
 However, making a package immutable also means that you lose the ability to fix bugs or introduce new features,
 so it should be done with caution.

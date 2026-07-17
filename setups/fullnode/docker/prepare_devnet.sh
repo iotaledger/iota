@@ -16,3 +16,6 @@ docker compose pull
 curl -fLJ https://dbfiles.devnet.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
 # download the migration file
 curl -fLJ https://dbfiles.devnet.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
+
+# create the memory profiles directory for jemalloc
+mkdir -p "$DATA_DIR/profiles/memory"

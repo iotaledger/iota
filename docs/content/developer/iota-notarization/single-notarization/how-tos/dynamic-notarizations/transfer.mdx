@@ -1,0 +1,255 @@
+---
+title: Transfer Dynamic Notarization
+sidebar_label: Transfer Ownership
+description: Transfer ownership of a Dynamic Notarization to another address.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - single-notarization
+  - dynamic-notarization
+  - how-to
+---
+
+## Transfer Dynamic Notarizations
+
+This guide demonstrates how to transfer ownership of a Dynamic Notarization to another address. Dynamic notarizations can be transferred unless they have active transfer locks.
+
+### Prerequisites
+
+- A Dynamic Notarization owned by your address
+- The notarization must not be transfer-locked
+- Target recipient address
+
+### Understanding Transfer Locks
+
+Dynamic notarizations can have transfer locks that prevent ownership changes:
+
+- **None**: No transfer restrictions (transferable)
+- **UnlockAt(timestamp)**: Locked until specified timestamp
+- **UntilDestroyed**: Locked until notarization is destroyed
+
+:::note
+
+Locked notarizations can **never** be transferred, regardless of any settings.
+
+:::
+
+### 1. Get the Notarization Client
+
+First, ensure you have a funded notarization client with ownership of the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L39-L50
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Recipients
+
+Generate or specify the recipient addresses for the transfer:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L19
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L16-L18
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Create an Unlocked Dynamic Notarization
+
+Create a dynamic notarization without transfer locks for successful transfer:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L28-L40
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L25-L33
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Check Transfer Lock Status
+
+Before attempting a transfer, check if the notarization is transfer-locked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L42-L50
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L36-L40
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Transfer the Notarization
+
+Transfer the unlocked notarization to the recipient:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L49-L58
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L41-L50
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Transfer Lock Scenarios
+
+### Transfer-Locked Notarizations
+
+If you attempt to transfer a transfer-locked notarization, the operation will fail:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L67-L96
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L54-L82
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### Locked Notarizations
+
+Locked notarizations can never be transferred:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs#L99-L128
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L83-L110
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Transfer Rules Summary
+
+| Notarization Type | Transfer Lock    | Can Transfer? | Notes                                      |
+|-------------------|------------------|---------------|--------------------------------------------|
+| Dynamic           | None             | ✅ Yes        | Free to transfer                          |
+| Dynamic           | UnlockAt(future) | ❌ No         | Wait until unlock time                    |
+| Dynamic           | UnlockAt(past)   | ✅ Yes        | Lock has expired                          |
+| Dynamic           | UntilDestroyed   | ❌ No         | Cannot transfer until destroyed           |
+| Locked            | UntilDestroyed   | ❌ No         | Locked notarizations are non-transferable therefore Transfer Lock is always set to UntilDestroyed |
+
+## Error Handling
+
+Transfer operations may fail due to:
+
+- **Transfer locks**: Active transfer locks prevent ownership changes
+- **Insufficient funds**: Not enough gas to complete the transaction
+- **Invalid recipient**: Malformed or invalid recipient address
+- **Ownership**: Only the current owner can initiate transfers
+- **Network issues**: Connectivity or node problems
+
+## Best Practices
+
+1. **Check lock status**: Always verify transfer lock status before attempting transfer
+2. **Handle errors gracefully**: Implement proper error handling for failed transfers
+3. **Verify recipient**: Ensure the recipient address is valid and intended
+4. **Gas estimation**: Estimate gas costs before initiating transfers
+5. **Time awareness**: Consider time-based locks and their expiration
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynamic_notarization.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup. 

@@ -32,7 +32,7 @@ impl TestCaseImpl for RandomBeaconTest {
 
         let package_ref = publish_basics_package(wallet_context).await;
 
-        let response = emit_new_random_u128(wallet_context, package_ref.0).await;
+        let response = emit_new_random_u128(wallet_context, package_ref.object_id).await;
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success,
@@ -50,7 +50,7 @@ impl TestCaseImpl for RandomBeaconTest {
         );
         assert_eq!(
             "RandomU128Event".to_string(),
-            events.data[0].type_.name.to_string()
+            events.data[0].type_.name().to_string()
         );
 
         // Verify fullnode observes the txn

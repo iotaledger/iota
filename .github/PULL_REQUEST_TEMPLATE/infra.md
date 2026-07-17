@@ -33,3 +33,22 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] CLI:
 - [ ] Rust SDK:
 - [ ] gRPC:
+
+#### Breaking Changes Rollout
+
+If your PR introduces breaking changes, list all of the affected crates. Provide detailed information about when those changes are expected to land on a particular public network and what actions users need to take to keep their applications running. See the comment below for an example.
+
+<!-- EXAMPLE
+
+Affected Crates:
+
+- iota-data-ingestion-core
+- iota-data-ingestion
+
+Required User Actions:
+
+- devnet: <action-needed-by> E.g. Users of these libraries should update their application immediately.
+- testnet: Update dependent applications by v1.20
+- mainnet: ...
+
+-->

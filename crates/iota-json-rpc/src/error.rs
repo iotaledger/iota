@@ -9,9 +9,10 @@ use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
     TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
+use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    error::{IotaError, IotaObjectResponseError, UserInputError},
+    error::{IotaError, UserInputError},
     quorum_driver_types::QuorumDriverError,
 };
 use jsonrpsee::{
@@ -86,7 +87,6 @@ impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
             IotaError::UserInput { error } => Self::UserInput(error),
-            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponse(error),
             IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
@@ -161,6 +161,7 @@ impl From<Error> for RpcError {
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
+                    | QuorumDriverError::InvalidTransaction { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned::<()>(
@@ -278,19 +279,19 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_types::{
-        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        base_types::AuthorityName,
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
-        digests::{ObjectDigest, TransactionDigest},
     };
 
     use super::*;
 
-    fn test_object_ref() -> ObjectRef {
-        (
-            ObjectID::ZERO,
-            SequenceNumber::from_u64(0),
+    fn test_object_ref() -> ObjectReference {
+        ObjectReference::new(
+            ObjectId::ZERO,
+            Version::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
     }
@@ -352,7 +353,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -381,7 +382,7 @@ mod tests {
                 - 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);
@@ -392,7 +393,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -422,7 +423,7 @@ mod tests {
                 - 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);
@@ -461,7 +462,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
         }
@@ -473,7 +474,7 @@ mod tests {
                     (
                         IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
-                                object_id: test_object_ref().0,
+                                object_id: test_object_ref().object_id,
                                 version: None,
                             },
                         },

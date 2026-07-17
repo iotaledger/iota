@@ -1,0 +1,87 @@
+---
+description: "How to properly implement transaction data cryptographic protection in authenticator functions to prevent transaction tampering attacks."
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
+---
+
+# Transaction Data Cryptographic Protection in Authenticators
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains the importance of cryptographic protection for the transaction data when building authenticator functions and demonstrates a critical vulnerability that can occur when it's missing.
+
+## The Vulnerability
+
+When implementing custom authenticator functions for abstract accounts, it's critical to include cryptographic verification of the transaction data. Without proper cryptographic protection, an attacker can tamper with transaction parameters, potentially redirecting funds or executing unauthorized actions.
+
+## Attack Scenario
+
+Consider a time-locked account that only allows transactions after a specific unlock time. If the authenticator only checks the time condition without cryptographically binding the authentication to the specific transaction data, an attacker can:
+
+1. Create a legitimate transaction from the account (e.g., transferring funds to address A)
+2. Sign the transaction with the account's authenticator
+3. **Modify the transaction data** before the transaction is processed by a validator (e.g., change recipient from address A to attacker's address B)
+4. Submit the modified transaction, which will be accepted
+
+## Vulnerable Implementation
+
+Here's an example of a **vulnerable** authenticator that lacks transaction data cryptographic protection:
+
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-tx-data-cryptographic-protection/sources/account.move
+```
+
+**Problem**: The authenticator only checks the time condition. It doesn't verify that the transaction data hasn't been tampered with.
+
+## Exploitation Example
+
+An attacker can exploit this vulnerability:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-tx-data-cryptographic-protection.rs#L102-L115
+```
+
+The `swap_recipient_in_transaction` function modifies the programmable transaction block inputs:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-tx-data-cryptographic-protection.rs#L229-L245
+```
+
+## Secure Implementation
+
+To prevent this attack, always include cryptographic verification in your authenticator. Here are recommended approaches:
+
+### Option 1: Signature Verification
+
+Use standard, for example, Ed25519 signature verification that cryptographically binds the authentication to the transaction digest:
+
+```move
+#[authenticator]
+public fun authenticate(
+    account: &Account,
+    signature: vector<u8>,
+    _: &AuthContext,
+    ctx: &TxContext,
+) { 
+    // ✅ SECURE: Verify signature against transaction digest
+    let public_key = dynamic_field::borrow(&account.id, OwnerPublicKey {});
+    assert!(
+        ed25519::ed25519_verify(&signature, public_key, ctx.digest()),
+        EEd25519VerificationFailed
+    );
+
+    ...
+}
+```
+
+## Key Takeaways
+
+✅ **Always verify transaction data**: Every authenticator must cryptographically bind the authentication to the specific transaction being executed
+
+✅ **Use transaction digest**: The `ctx.digest()` function provides a cryptographic hash of the entire transaction that should be used in signature verification
+
+✅ **Test for tampering**: When developing authenticators, create tests that attempt to modify transaction data after authentication to verify your implementation is secure
+
+❌ **Never rely on application logic alone**: Time checks, balance checks, or other business logic must be combined with cryptographic verification

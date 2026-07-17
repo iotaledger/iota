@@ -57,10 +57,7 @@ pub fn try_do_fallback_lookup<K: Clone, V: Default + Clone>(
     assert_eq!(fallback_results.len(), fallback_indices.len());
     assert_eq!(fallback_results.len(), fallback_keys.len());
 
-    for (i, result) in fallback_indices
-        .into_iter()
-        .zip(fallback_results.into_iter())
-    {
+    for (i, result) in fallback_indices.into_iter().zip(fallback_results) {
         results[i] = result;
     }
 

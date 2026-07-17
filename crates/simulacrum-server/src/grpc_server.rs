@@ -46,6 +46,8 @@ pub async fn start_simulacrum_grpc_server(
         shutdown_token,
         chain_id,
         None,
+        None,
+        None,
     )
     .await
 }

@@ -14,6 +14,7 @@ pub mod obj_indices;
 pub mod objects;
 pub mod packages;
 pub mod participation_metrics;
+pub mod system_state;
 pub mod transactions;
 pub mod tx_count_metrics;
 pub mod tx_indices;

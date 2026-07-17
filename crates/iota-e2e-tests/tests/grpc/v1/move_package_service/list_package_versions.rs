@@ -4,7 +4,9 @@
 use iota_grpc_types::v1::move_package_service::ListPackageVersionsRequest;
 use iota_macros::sim_test;
 
-use crate::utils::{assert_tonic_error, object_id_from_hex, setup_grpc_test};
+use crate::utils::{
+    assert_field_presence, assert_tonic_error, object_id_from_hex, setup_grpc_test,
+};
 
 #[sim_test]
 async fn list_package_versions_framework_package() {
@@ -25,19 +27,14 @@ async fn list_package_versions_framework_package() {
         "Framework package should have at least 1 version, got 0"
     );
 
-    // Each version should have original_id, storage_id and version number
-    for version in &response.versions {
-        assert!(
-            version.original_id.is_some(),
-            "Each version should have an original_id"
-        );
-        assert!(
-            version.version.is_some(),
-            "Each version should have a version number"
-        );
-        assert!(
-            version.storage_id.is_some(),
-            "Each version should have a storage_id"
+    // ListPackageVersionsRequest has no `read_mask`; the server populates every
+    // field on each `PackageVersion`.
+    for (idx, version) in response.versions.iter().enumerate() {
+        assert_field_presence(
+            version,
+            &["original_id", "storage_id", "version"],
+            &[],
+            &format!("framework package versions (version {idx})"),
         );
     }
 }

@@ -8,8 +8,15 @@ use std::{
     hash::Hasher,
 };
 
-use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use move_core_types::language_storage::StructTag;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    traits::{AggregateAuthenticator, KeyPair},
+};
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::{
+    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
+    TransactionEventsDigest, gas::GasCostSummary,
+};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -18,16 +25,18 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, IotaSignatureInner,
-        Secp256k1IotaSignature, VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
+        VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
-    digests::TransactionEventsDigest,
-    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI},
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
-    object::Owner,
+    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
+    signature::ZkLoginAuthenticatorDeprecated,
+    utils::{
+        blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
+        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_upgraded_multisig_tx,
+    },
 };
 
 #[test]
@@ -66,7 +75,7 @@ fn test_signed_values() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(committee.epoch(), &Default::default())
+    .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
     let bad_transaction = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
@@ -159,7 +168,7 @@ fn test_certificates() {
         ),
         vec![&sender_sec],
     )
-    .try_into_verified_for_testing(committee.epoch(), &Default::default())
+    .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
     let v1 = SignedTransaction::new(
@@ -190,12 +199,8 @@ fn test_certificates() {
     let c =
         CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee).unwrap();
     assert!(
-        c.verify_signatures_authenticated(
-            &committee,
-            &Default::default(),
-            Arc::new(VerifiedDigestCache::new_empty())
-        )
-        .is_ok()
+        c.verify_signatures_authenticated(&committee, &Default::default(),)
+            .is_ok()
     );
 
     let sigs = vec![v1.auth_sig().clone(), v3.auth_sig().clone()];
@@ -511,7 +516,7 @@ fn test_digest_caching() {
         ),
         vec![&ssec2],
     )
-    .try_into_verified_for_testing(committee.epoch(), &Default::default())
+    .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
     let mut signed_tx = SignedTransaction::new(
@@ -641,7 +646,7 @@ fn test_user_signature_committed_in_signed_transactions() {
         gas_price,
     );
     let transaction_a = Transaction::from_data_and_signer(tx_data.clone(), vec![&sender_sec])
-        .try_into_verified_for_testing(epoch, &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
     let transaction_b = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
@@ -711,7 +716,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: &dyn Signer<Signature>,
+    signer: impl Into<IotaKeyPair>,
 ) -> Signature {
     let intent_msg = IntentMessage::new(intent, data);
     Signature::new_secure(&intent_msg, signer)
@@ -719,7 +724,6 @@ fn signature_from_signer(
 
 #[test]
 fn test_sponsored_transaction_message() {
-    let epoch = 0;
     let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sender = (&sender_kp.public()).into();
     let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
@@ -732,10 +736,10 @@ fn test_sponsored_transaction_message() {
         builder.finish()
     };
     let gas_price = 10;
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let gas_obj_ref = random_object_ref();
-    let gas_data = GasData {
-        payment: vec![gas_obj_ref],
+    let gas_data = GasPayment {
+        objects: vec![gas_obj_ref],
         owner: sponsor,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -750,7 +754,7 @@ fn test_sponsored_transaction_message() {
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
-    .try_into_verified_for_testing(epoch, &Default::default())
+    .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
     assert_eq!(
@@ -766,13 +770,13 @@ fn test_sponsored_transaction_message() {
         tx_data.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
-    .try_into_verified_for_testing(epoch, &Default::default())
+    .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
         Transaction::from_generic_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
-            .try_into_verified_for_testing(epoch, &Default::default())
+            .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -780,7 +784,7 @@ fn test_sponsored_transaction_message() {
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
         Transaction::from_generic_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
-            .try_into_verified_for_testing(epoch, &Default::default())
+            .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -794,7 +798,7 @@ fn test_sponsored_transaction_message() {
             tx_data.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
-        .try_into_verified_for_testing(epoch, &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
@@ -802,7 +806,7 @@ fn test_sponsored_transaction_message() {
     // Test irrelevant sigs
     assert!(matches!(
         Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
-            .try_into_verified_for_testing(epoch, &Default::default())
+            .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
     ));
@@ -824,8 +828,8 @@ fn test_sponsored_transaction_validity_check() {
     // This is a sponsored transaction
     let gas_price = 10;
     assert_ne!(sender, sponsor);
-    let gas_data = GasData {
-        payment: vec![random_object_ref()],
+    let gas_data = GasPayment {
+        objects: vec![random_object_ref()],
         owner: sponsor,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -838,7 +842,7 @@ fn test_sponsored_transaction_validity_check() {
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -847,18 +851,16 @@ fn test_sponsored_transaction_validity_check() {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                ObjectID::random(),
-                Identifier::new("random_module").unwrap(),
-                Identifier::new("random_function").unwrap(),
+                ObjectId::random(),
+                Identifier::from_static("random_module"),
+                Identifier::from_static("random_function"),
                 vec![],
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    random_object_ref(),
-                ))],
+                vec![CallArg::ImmutableOrOwned(random_object_ref())],
             )
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -868,7 +870,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.publish_immutable(vec![vec![]], vec![]);
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -879,13 +881,13 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![IotaAddress::random_for_testing_only()],
+                vec![Address::random()],
                 vec![100000],
             )
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -893,10 +895,10 @@ fn test_sponsored_transaction_validity_check() {
     // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(IotaAddress::random_for_testing_only(), Some(50000));
+        builder.transfer_iota(Address::random(), Some(50000));
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -907,7 +909,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.pay_iota(vec![], vec![]).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -915,10 +917,10 @@ fn test_sponsored_transaction_validity_check() {
     // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_iota(IotaAddress::random_for_testing_only());
+        builder.pay_all_iota(Address::random());
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data)
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -964,7 +966,7 @@ fn verify_sender_signature_correctly_with_flag() {
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
     let transaction = Transaction::from_data_and_signer(tx_data, vec![&sender_kp])
-        .try_into_verified_for_testing(committee.epoch(), &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
     // create tx also signed by authority
@@ -980,7 +982,10 @@ fn verify_sender_signature_correctly_with_flag() {
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(s.scheme().flag(), Secp256k1IotaSignature::SCHEME.flag());
+    assert_eq!(
+        s.signature_scheme().flag(),
+        SignatureScheme::Secp256k1.flag()
+    );
 
     // authority accepts signs tx after verification
     assert!(
@@ -995,7 +1000,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     let transaction_1 = Transaction::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
-        .try_into_verified_for_testing(committee.epoch(), &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
     let signed_tx_1 = SignedTransaction::new(
@@ -1010,7 +1015,7 @@ fn verify_sender_signature_correctly_with_flag() {
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.scheme().flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(s.signature_scheme().flag(), SignatureScheme::ED25519.flag());
 
     // signature verified
     assert!(
@@ -1042,11 +1047,11 @@ fn verify_sender_signature_correctly_with_flag() {
 
     // r1 signature tx verifies ok
     assert!(
-        tx_3.try_into_verified_for_testing(committee.epoch(), &Default::default())
+        tx_3.try_into_verified_for_testing(&Default::default())
             .is_ok()
     );
     let verified_tx_3 = tx_31
-        .try_into_verified_for_testing(committee.epoch(), &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap();
     // r1 signature verified and accepted by authority
     let signed_tx_3 = SignedTransaction::new(
@@ -1078,11 +1083,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
-            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
+        SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1098,25 +1099,25 @@ fn test_consensus_commit_prologue_v1_transaction() {
 
 #[test]
 fn test_move_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
     let gas_object_ref = random_object_ref();
-    let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+    let mk_st = |package: ObjectId, type_args| {
+        TypeTag::Struct(Box::new(StructTag::new(
+            package,
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);
@@ -1124,32 +1125,30 @@ fn test_move_input_objects() {
     let type_args = vec![t1, t2, t3];
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = vec![
-        builder
-            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(o1)))
-            .unwrap(),
+        builder.input(CallArg::ImmutableOrOwned(o1)).unwrap(),
         builder
             .make_obj_vec(vec![
-                ObjectArg::ImmOrOwnedObject(o2),
-                ObjectArg::ImmOrOwnedObject(o3),
+                CallArg::ImmutableOrOwned(o2),
+                CallArg::ImmutableOrOwned(o3),
             ])
             .unwrap(),
         builder
-            .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectReference::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
-        Identifier::new("foo").unwrap(),
-        Identifier::new("bar").unwrap(),
+        Identifier::from_static("foo"),
+        Identifier::from_static("bar"),
         type_args,
         args,
     ));
     let data = TransactionData::new_programmable(
-        IotaAddress::random_for_testing_only(),
+        Address::random(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
@@ -1178,8 +1177,8 @@ fn test_move_input_objects() {
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o2));
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o3));
     rem!(InputObjectKind::SharedMoveObject {
-        id: shared.0,
-        initial_shared_version: shared.1,
+        id: shared.object_id,
+        initial_shared_version: shared.version,
         mutable: true,
     });
     rem!(InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref));
@@ -1188,24 +1187,24 @@ fn test_move_input_objects() {
 
 #[test]
 fn test_unique_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
-    let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+    let mk_st = |package: ObjectId, type_args| {
+        TypeTag::Struct(Box::new(StructTag::new(
+            package,
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);
@@ -1213,23 +1212,21 @@ fn test_unique_input_objects() {
     let type_args = vec![t1, t2, t3];
     let mut builder = ProgrammableTransactionBuilder::new();
     let args_1 = vec![
-        builder
-            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(o1)))
-            .unwrap(),
+        builder.input(CallArg::ImmutableOrOwned(o1)).unwrap(),
         builder
             .make_obj_vec(vec![
-                ObjectArg::ImmOrOwnedObject(o2),
-                ObjectArg::ImmOrOwnedObject(o3),
+                CallArg::ImmutableOrOwned(o2),
+                CallArg::ImmutableOrOwned(o3),
             ])
             .unwrap(),
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectReference::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
 
@@ -1237,29 +1234,29 @@ fn test_unique_input_objects() {
     let sender = (&sender_kp.public()).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
-    let gas_data = GasData {
-        payment: vec![gas_object_ref],
+    let gas_data = GasPayment {
+        objects: vec![gas_object_ref],
         owner: sender,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args.clone(),
         args_1,
     ));
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args,
         args_2,
     ));
     let pt = builder.finish();
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let transaction_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
 
     let input_objects = transaction_data.input_objects().unwrap();
@@ -1280,7 +1277,7 @@ fn test_certificate_digest() {
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec| {
+    let make_tx = |sender, sender_sec: Ed25519KeyPair| {
         Transaction::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,
@@ -1292,7 +1289,7 @@ fn test_certificate_digest() {
             ),
             vec![&sender_sec],
         )
-        .try_into_verified_for_testing(committee.epoch(), &Default::default())
+        .try_into_verified_for_testing(&Default::default())
         .unwrap()
     };
 
@@ -1317,12 +1314,8 @@ fn test_certificate_digest() {
 
         let cert = CertifiedTransaction::new(transaction.clone().into_message(), sigs, &committee)
             .unwrap();
-        cert.verify_signatures_authenticated(
-            &committee,
-            &Default::default(),
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )
-        .unwrap();
+        cert.verify_signatures_authenticated(&committee, &Default::default())
+            .unwrap();
         cert
     };
 
@@ -1378,7 +1371,7 @@ fn check_approx_effects_components_size() {
         "Update APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST constant"
     );
     assert!(
-        size_of::<ObjectRef>() < APPROX_SIZE_OF_OBJECT_REF,
+        size_of::<ObjectReference>() < APPROX_SIZE_OF_OBJECT_REF,
         "Update APPROX_SIZE_OF_OBJECT_REF constant"
     );
     assert!(
@@ -1393,4 +1386,97 @@ fn check_approx_effects_components_size() {
         size_of::<ExecutionStatus>() < APPROX_SIZE_OF_EXECUTION_STATUS,
         "Update APPROX_SIZE_OF_EXECUTION_STATUS constant"
     );
+}
+
+#[test]
+fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
+    let (sender, _): (_, AccountKeyPair) = get_key_pair();
+    let (sig, authenticator) = make_move_authenticator_sig(sender);
+    assert_eq!(auth_digest_for_sig(&sig).unwrap(), authenticator.digest());
+}
+
+#[test]
+fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
+    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let tx = make_transaction(sender, &kp);
+    let sig = tx.tx_signatures().first().unwrap();
+    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+}
+
+#[test]
+fn auth_digest_for_multisig_is_hash_of_sig_bytes() {
+    let tx = make_upgraded_multisig_tx();
+    let sig = tx.tx_signatures().first().unwrap();
+    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+}
+
+#[test]
+fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
+    let sig = make_passkey_authenticator_sig();
+    assert_eq!(auth_digest_for_sig(&sig).unwrap(), blake2b256_of_sig(&sig));
+}
+
+#[test]
+#[allow(deprecated)]
+fn auth_digest_for_zk_login_returns_unsupported_error() {
+    let sig = GenericSignature::ZkLoginAuthenticatorDeprecated(ZkLoginAuthenticatorDeprecated);
+    let err = auth_digest_for_sig(&sig).unwrap_err();
+    assert!(
+        matches!(err, IotaError::UnsupportedFeature { .. }),
+        "expected UnsupportedFeature, got {err:?}",
+    );
+}
+
+#[test]
+fn compute_auth_digests_non_sponsored_move_authenticator() {
+    let sender = Address::random();
+    let (_, authenticator) = make_move_authenticator_sig(sender);
+    let tx = make_move_authenticator_tx(sender);
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, authenticator.digest());
+    assert!(sponsor_digest.is_none());
+}
+
+#[test]
+fn compute_auth_digests_non_sponsored_regular_signature() {
+    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let tx = make_transaction(sender, &kp);
+    let sig = tx.tx_signatures().first().unwrap();
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, blake2b256_of_sig(sig));
+    assert!(sponsor_digest.is_none());
+}
+
+#[test]
+fn compute_auth_digests_sponsored_both_move_authenticators() {
+    let (tx, sender_auth, sponsor_auth) =
+        make_sponsored_move_authenticator_tx(Address::random(), Address::random());
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, sender_auth.digest());
+    assert_eq!(sponsor_digest.unwrap(), sponsor_auth.digest());
+    assert_ne!(sender_digest, sponsor_digest.unwrap());
+}
+
+#[test]
+fn compute_auth_digests_sponsored_regular_signatures() {
+    let (tx, sender, sponsor) = make_sponsored_regular_sig_tx();
+
+    let sender_sig = tx
+        .tx_signatures()
+        .iter()
+        .find(|s| Address::try_from(*s).ok() == Some(sender))
+        .unwrap();
+    let sponsor_sig = tx
+        .tx_signatures()
+        .iter()
+        .find(|s| Address::try_from(*s).ok() == Some(sponsor))
+        .unwrap();
+
+    let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
+    assert_eq!(sender_digest, blake2b256_of_sig(sender_sig));
+    assert_eq!(sponsor_digest.unwrap(), blake2b256_of_sig(sponsor_sig));
 }

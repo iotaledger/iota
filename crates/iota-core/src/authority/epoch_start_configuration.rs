@@ -5,17 +5,16 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheType, NodeConfig};
+use iota_config::NodeConfig;
+use iota_sdk_types::{CheckpointDigest, Version};
 use iota_types::{
-    authenticator_state::get_authenticator_state_obj_initial_shared_version,
-    base_types::SequenceNumber,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
     },
-    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
+    messages_checkpoint::CheckpointTimestamp,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     storage::ObjectStore,
 };
@@ -26,17 +25,8 @@ pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
-
-    fn execution_cache_type(&self) -> ExecutionCacheType {
-        if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
-            ExecutionCacheType::WritebackCache
-        } else {
-            ExecutionCacheType::PassthroughCache
-        }
-    }
+    fn randomness_obj_initial_shared_version(&self) -> Version;
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version;
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values
@@ -52,13 +42,8 @@ pub enum EpochFlag {
     // The deprecated flags have all been in production for long enough that
     // we have deleted the old code paths they were guarding.
     // We retain them here in order not to break deserialization.
+    _WritebackCacheEnabledDeprecated = 0,
     _DataQuarantineFromBeginningOfEpochDeprecated = 1,
-
-    // When switching between different cache types mid-epoch, partial checkpoint transactions
-    // might already be on disk. During lock initialization, we check if there is any existing
-    // lock or not, depending on the used implementation. That's why we should not switch
-    // mid-epoch.
-    WritebackCacheEnabled = 0,
 
     // Used for `test_epoch_flag_upgrade`.
     #[cfg(msim)]
@@ -66,8 +51,10 @@ pub enum EpochFlag {
 }
 
 impl EpochFlag {
-    pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
-        Self::default_flags_impl(config.execution_cache)
+    pub fn default_flags_for_new_epoch(_config: &NodeConfig) -> Vec<Self> {
+        // NodeConfig arg is not currently used, but we keep it here for future
+        // flags that might depend on the config.
+        Self::default_flags_impl()
     }
 
     // Return flags that are mandatory for the current version of the code. This is
@@ -80,21 +67,14 @@ impl EpochFlag {
     /// For situations in which there is no config available (e.g. setting up a
     /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
-        Self::default_flags_impl(Default::default())
+        Self::default_flags_impl()
     }
 
-    fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
-        let mut new_flags = vec![
+    fn default_flags_impl() -> Vec<Self> {
+        vec![
             #[cfg(msim)]
             EpochFlag::DummyFlag,
-        ];
-
-        // Load cache type from env
-        if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
-            new_flags.push(EpochFlag::WritebackCacheEnabled);
-        }
-
-        new_flags
+        ]
     }
 }
 
@@ -103,7 +83,9 @@ impl fmt::Display for EpochFlag {
         // Important - implementation should return low cardinality values because this
         // is used as metric key
         match self {
-            EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
+            EpochFlag::_WritebackCacheEnabledDeprecated => {
+                write!(f, "WritebackCacheEnabled (DEPRECATED)")
+            }
             EpochFlag::_DataQuarantineFromBeginningOfEpochDeprecated => {
                 write!(f, "DataQuarantineFromBeginningOfEpoch (DEPRECATED)")
             }
@@ -130,8 +112,6 @@ impl EpochStartConfiguration {
         object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
     ) -> IotaResult<Self> {
-        let authenticator_obj_initial_shared_version =
-            get_authenticator_state_obj_initial_shared_version(object_store)?;
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
@@ -140,7 +120,9 @@ impl EpochStartConfiguration {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
-            authenticator_obj_initial_shared_version,
+            // Field retained for serialization compatibility; always None because
+            // authenticator state (JWK/zkLogin) was never enabled on IOTA.
+            authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,
         }))
@@ -198,10 +180,10 @@ pub struct EpochStartConfigurationV1 {
     epoch_digest: CheckpointDigest,
     flags: Vec<EpochFlag>,
     /// Do the state objects exist at the beginning of the epoch?
-    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
-    randomness_obj_initial_shared_version: SequenceNumber,
-    coin_deny_list_obj_initial_shared_version: SequenceNumber,
-    bridge_obj_initial_shared_version: Option<SequenceNumber>,
+    authenticator_obj_initial_shared_version: Option<Version>,
+    randomness_obj_initial_shared_version: Version,
+    coin_deny_list_obj_initial_shared_version: Version,
+    bridge_obj_initial_shared_version: Option<Version>,
     bridge_committee_initiated: bool,
 }
 
@@ -218,15 +200,11 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn randomness_obj_initial_shared_version(&self) -> Version {
         self.randomness_obj_initial_shared_version
     }
 
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version {
         self.coin_deny_list_obj_initial_shared_version
     }
 }
@@ -237,9 +215,9 @@ pub struct EpochStartConfigurationV2 {
     epoch_digest: CheckpointDigest,
     flags: Vec<EpochFlag>,
     /// Do the state objects exist at the beginning of the epoch?
-    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
-    randomness_obj_initial_shared_version: SequenceNumber,
-    coin_deny_list_obj_initial_shared_version: SequenceNumber,
+    authenticator_obj_initial_shared_version: Option<Version>,
+    randomness_obj_initial_shared_version: Version,
+    coin_deny_list_obj_initial_shared_version: Version,
 }
 
 impl EpochStartConfigTrait for EpochStartConfigurationV2 {
@@ -255,15 +233,11 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
-    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn randomness_obj_initial_shared_version(&self) -> Version {
         self.randomness_obj_initial_shared_version
     }
 
-    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+    fn coin_deny_list_obj_initial_shared_version(&self) -> Version {
         self.coin_deny_list_obj_initial_shared_version
     }
 }

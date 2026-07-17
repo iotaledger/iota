@@ -3,9 +3,9 @@
 
 module account::account;
 
-use iota::package_metadata::PackageMetadataV1;
 use iota::account;
 use iota::authenticator_function;
+use iota::package_metadata::PackageMetadataV1;
 
 public struct Account has key, store {
     id: UID,
@@ -20,8 +20,19 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     });
 }
 
-public fun link_auth(account: Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<Account>(package, module_name, function_name);
+public fun link_auth(
+    account: Account,
+    package: &PackageMetadataV1,
+    module_name: std::ascii::String,
+    function_name: std::ascii::String,
+) {
+    let authenticator = authenticator_function::create_auth_function_ref_v1<
+        Account,
+    >(
+        package,
+        module_name,
+        function_name,
+    );
     account::create_account_v1<Account>(account, authenticator);
 }
 
@@ -44,3 +55,13 @@ public fun authenticate(
 ) {
     assert!(msg == std::ascii::string(b"hello"), 0);
 }
+
+/// An unsecure example authenticator function that takes no user-facing inputs.
+/// Used by the CLI tests that exercise signing an abstract account without
+/// `--auth-call-args` / `--auth-type-args`.
+#[authenticator]
+public fun authenticate_no_args(
+    _account: &Account,
+    _auth_ctx: &iota::auth_context::AuthContext,
+    _ctx: &TxContext,
+) {}

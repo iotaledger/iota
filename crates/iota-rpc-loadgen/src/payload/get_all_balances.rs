@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_json_rpc_types::Balance;
 use iota_sdk::IotaClient;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::Address;
 
 use super::validation::chunk_entities;
 use crate::payload::{GetAllBalances, ProcessPayload, RpcCommandProcessor, SignerInfo};
@@ -41,7 +41,7 @@ impl<'a> ProcessPayload<'a, &'a GetAllBalances> for RpcCommandProcessor {
     }
 }
 
-async fn get_all_balances(client: &IotaClient, owner_address: IotaAddress) -> Result<Vec<Balance>> {
+async fn get_all_balances(client: &IotaClient, owner_address: Address) -> Result<Vec<Balance>> {
     let balances = client
         .coin_read_api()
         .get_all_balances(owner_address)

@@ -19,7 +19,7 @@ use bytes::Buf;
 use hyper::header::CONTENT_ENCODING;
 use iota_tls::TlsConnectionInfo;
 use once_cell::sync::Lazy;
-use prometheus::{CounterVec, proto::MetricFamily, register_counter_vec};
+use prometheus_filtered::{CounterVec, proto::MetricFamily, register_counter_vec};
 use tracing::error;
 
 use crate::{consumer::ProtobufDecoder, peers::IotaNodeProvider};
@@ -59,7 +59,7 @@ pub async fn expect_iota_proxy_header(
     next: Next,
 ) -> Result<Response, (StatusCode, &'static str)> {
     match format!("{content_type}").as_str() {
-        prometheus::PROTOBUF_FORMAT => Ok(next.run(request).await),
+        prometheus_filtered::PROTOBUF_FORMAT => Ok(next.run(request).await),
         ct => {
             error!("invalid content-type; {ct}");
             MIDDLEWARE_OPS

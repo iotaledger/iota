@@ -3,7 +3,7 @@
     "iota": ["iota-names", "gen-completions", "tracing"],
     "iota-localnet": ["indexer"],
     "iota-node": [],
-    "iota-tool": [],
+    "iota-tool": ["tracing"],
     "iota-faucet": [],
     "iota-data-ingestion": [],
     "iota-graphql-rpc": [],

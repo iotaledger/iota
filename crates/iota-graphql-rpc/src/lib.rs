@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use iota_graphql_rpc_client as client;
+pub(crate) mod backward_view;
 pub mod commands;
 pub mod config;
 pub(crate) mod connection;

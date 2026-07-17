@@ -2,7 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, net::SocketAddr, str::FromStr};
+// Raise rustc's query-depth limit for monomorphizing deeply-nested generic
+// futures. The JSON-RPC handler routes requests through axum → orchestrator
+// → `submit_with_checkpoint_race` (a `tokio::select!` over the driver and
+// checkpoint-inclusion arms) → transaction_driver → effects_certifier →
+// `FuturesUnordered` of per-validator queries → safe_client RPC. Each
+// `.await` and combinator adds one nested anonymous Future type, and when
+// `iota_metrics::spawn_monitored_task!` wraps the resulting future, computing
+// its layout walks the entire chain — overshooting the default limit of 128
+// by ~2 today. 256 leaves headroom; if a future change pushes us past it,
+// that is the signal to box-pin a major arm rather than bump again. See
+// `iota-indexer/src/lib.rs` for the same pattern, same reason.
+#![recursion_limit = "256"]
+
+use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     body::Body,
@@ -14,15 +27,15 @@ use hyper::{
     header::{HeaderName, HeaderValue},
 };
 pub use iota_config::node::ServerType;
-use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
+use iota_core::traffic_controller::TrafficController;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use iota_types::traffic_control::PolicyConfig;
 use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 use tower_http::{
@@ -62,8 +75,8 @@ pub struct JsonRpcServerBuilder {
     module: RpcModule<()>,
     rpc_doc: Project,
     registry: Registry,
+    traffic_controller: Option<Arc<TrafficController>>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
 }
 
 pub fn iota_rpc_doc(version: &str) -> Project {
@@ -83,15 +96,15 @@ impl JsonRpcServerBuilder {
     pub fn new(
         version: &str,
         prometheus_registry: &Registry,
+        traffic_controller: Option<Arc<TrafficController>>,
         policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         Self {
             module: RpcModule::new(()),
             rpc_doc: iota_rpc_doc(version),
             registry: prometheus_registry.clone(),
+            traffic_controller,
             policy_config,
-            firewall_config,
         }
     }
 
@@ -168,7 +181,6 @@ impl JsonRpcServerBuilder {
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
-        let traffic_controller_metrics = TrafficControllerMetrics::new(&self.registry);
 
         let middleware = tower::ServiceBuilder::new()
             .layer(Self::trace_layer())
@@ -178,9 +190,8 @@ impl JsonRpcServerBuilder {
             module.into(),
             rpc_router,
             metrics_logger,
-            self.firewall_config.clone(),
+            self.traffic_controller.clone(),
             self.policy_config.clone(),
-            traffic_controller_metrics,
             Extensions::new(),
         );
 
@@ -234,23 +245,31 @@ impl JsonRpcServerBuilder {
             Error::Unexpected(format!("invalid listen address {listen_address}: {e}"))
         })?;
 
-        let fut = async move {
-            axum::serve(
-                listener,
-                app.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .await
-            .unwrap();
-            if let Some(cancel) = cancel {
-                // Signal that the server is shutting down, so other tasks can clean-up.
-                cancel.cancel();
+        let serve = axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        );
+        let shutdown = cancel.clone().map(|token| token.cancelled_owned());
+        let run_server = async move {
+            if let Some(shutdown) = shutdown {
+                serve
+                    .with_graceful_shutdown(shutdown)
+                    .await
+                    .inspect(|_| info!("Shutting down IOTA JSON-RPC server"))
+                    .unwrap()
+            } else {
+                serve.await.unwrap()
+            };
+            if let Some(token) = cancel {
+                token.cancel();
             }
         };
+
         let handle = if let Some(custom_runtime) = custom_runtime {
             debug!("Spawning server with custom runtime");
-            custom_runtime.spawn(fut)
+            custom_runtime.spawn(run_server)
         } else {
-            tokio::spawn(fut)
+            tokio::spawn(run_server)
         };
 
         let handle = ServerHandle {

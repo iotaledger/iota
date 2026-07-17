@@ -6,7 +6,7 @@ The account is created with a public key and an authenticator function. To authe
 
 The implementation of this module is based on the OneSig protocol (https://github.com/LayerZero-Labs/OneSig) and is designed for demonstration purposes only. It can be extended to support more complex authentication schemes, such as multiple signatures or different types of authenticators.
 
-## How to run (WIP, currently the --auth-call-args is broken for this example)
+## How to run
 
 In a dedicated terminal run a local IOTA network:
 
@@ -133,15 +133,14 @@ export PROOF_2_0=$(echo "$VIEW_RESULT" | jq -r '.result.functionReturnValues[1][
 export PROOF_2_1=$(echo "$VIEW_RESULT" | jq -r '.result.functionReturnValues[1][1][1][]' | xargs printf "%02x")
 export PROOF_3_0=$(echo "$VIEW_RESULT" | jq -r '.result.functionReturnValues[1][2][0][]' | xargs printf "%02x")
 
-# Obtain the signature where the message is the TX1 digest and the signing key is part of the keypair from which the signing address was derived
-export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX_1 --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
+# Obtain the signature where the message is the Merkle root (what `onesig_authenticator::verify_merkle_root` checks) and the signing key is part of the keypair from which the signing address was derived
+export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $MERKLE_ROOT --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
 # The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 
 # Finally, execute the TX using the signature just created as auth-call-arg
-# TODO fix --auth-call-args in order to support vector<vector<u8>>
 export SIGNED_TX_BYTES=$(iota client ptb \
 --move-call 0x2::clock::timestamp_ms @0x6 \
 --sender @$ABSTRACTACCOUNT \

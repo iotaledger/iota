@@ -44,7 +44,7 @@ impl Builder {
         self
     }
 
-    pub fn with_metrics(mut self, registry: &prometheus::Registry) -> Self {
+    pub fn with_metrics(mut self, registry: &prometheus_filtered::Registry) -> Self {
         self.metrics = Some(Metrics::enabled(registry));
         self
     }

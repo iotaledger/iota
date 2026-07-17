@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
-use crate::{base_types::ObjectID, id::UID};
+use crate::id::UID;
 
 /// Rust version of the Move iota::vec_map::VecMap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -35,7 +36,7 @@ impl Default for TableVec {
     fn default() -> Self {
         TableVec {
             contents: Table {
-                id: ObjectID::ZERO,
+                id: ObjectId::ZERO,
                 size: 0,
             },
         }
@@ -45,14 +46,14 @@ impl Default for TableVec {
 /// Rust version of the Move iota::table::Table type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Table {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub size: u64,
 }
 
 impl Default for Table {
     fn default() -> Self {
         Table {
-            id: ObjectID::ZERO,
+            id: ObjectId::ZERO,
             size: 0,
         }
     }
@@ -61,7 +62,7 @@ impl Default for Table {
 /// Rust version of the Move iota::linked_table::LinkedTable type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct LinkedTable<K> {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub size: u64,
     pub head: Option<K>,
     pub tail: Option<K>,
@@ -70,7 +71,7 @@ pub struct LinkedTable<K> {
 impl<K> Default for LinkedTable<K> {
     fn default() -> Self {
         LinkedTable {
-            id: ObjectID::ZERO,
+            id: ObjectId::ZERO,
             size: 0,
             head: None,
             tail: None,
@@ -96,7 +97,7 @@ pub struct Bag {
 impl Default for Bag {
     fn default() -> Self {
         Self {
-            id: UID::new(ObjectID::ZERO),
+            id: UID::new(ObjectId::ZERO),
             size: 0,
         }
     }

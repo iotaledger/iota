@@ -6,7 +6,3 @@
 crates/iota-core/tests/staged/iota.yaml text eol=lf
 crates/iota-open-rpc/spec/openrpc.json text eol=lf
 iota_core/tests/staged/iota.yaml text eol=lf
-
-# These files are auto generated
-sdk/graphql-transport/src/queries/generated.ts linguist-generated=true
-sdk/typescript/src/graphql/generated/** linguist-generated=true

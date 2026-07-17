@@ -9,6 +9,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    move_package::MovePackageExt,
     object::Object,
 };
 use tokio::sync::Mutex;
@@ -95,9 +96,9 @@ impl PackageHandler {
         object: &Object,
         state: &mut State,
     ) -> Result<()> {
-        if let iota_types::object::Data::Package(p) = &object.data {
+        if let iota_sdk_types::ObjectData::Package(p) = &object.data {
             let package_id = p.id();
-            let package_version = p.version().value();
+            let package_version = p.version().as_u64();
             let original_package_id = p.original_package_id();
             let package = MovePackageEntry {
                 package_id: package_id.to_string(),

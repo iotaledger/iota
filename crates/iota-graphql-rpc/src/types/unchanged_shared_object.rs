@@ -76,19 +76,19 @@ impl UnchangedSharedObject {
 
             I::ReadDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
                 address: id.into(),
-                version: v.value().into(),
+                version: v.as_u64().into(),
                 mutable: false,
             })),
 
             I::MutateDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
                 address: id.into(),
-                version: v.value().into(),
+                version: v.as_u64().into(),
                 mutable: true,
             })),
 
             I::Cancelled(id, v) => Ok(U::Cancelled(SharedObjectCancelled {
                 address: id.into(),
-                version: v.value().into(),
+                version: v.as_u64().into(),
             })),
         }
     }

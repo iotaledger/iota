@@ -157,8 +157,8 @@ where
         })
         .chain(
             callgraphs
-                .into_iter()
-                .flat_map(|(_, flame)| flame.collect_nested_set().into_iter())
+                .into_values()
+                .flat_map(|flame| flame.collect_nested_set().into_iter())
                 .map(|mut frame| {
                     frame.level += 1;
                     frame

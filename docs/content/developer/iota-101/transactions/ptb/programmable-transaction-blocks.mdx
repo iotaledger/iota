@@ -179,7 +179,7 @@ When borrowing arguments:
 
 #### Special Considerations
 
-- **Object Inputs**: For `ObjectArg::Receiving` inputs, the object type `T` is wrapped as [`iota::transfer::Receiving<T>`](../../../references/framework/iota/transfer.mdx#struct-receiving). You need to call [`iota::transfer::receive`](../../../references/framework/iota/transfer.mdx#function-receive) to prove ownership.
+- **Object Inputs**: For `ObjectArg::Receiving` inputs, the object type `T` is wrapped as [`iota::transfer::Receiving<T>`](../../../references/framework/iota/transfer.mdx#struct-receiving). You need to call [`iota::transfer::receive`](../../../references/framework/iota/transfer.mdx#iota_transfer_receive) to prove ownership.
 - **Gas Coin**: You can only use the gas coin by-value with the [`TransferObjects`](#transferobjects) command. This ensures that any remaining gas can be returned to it.
   - **Shared Objects**: Shared objects have restrictions to ensure they remain shared or are deleted by the end of the transaction. They cannot be unshared or wrapped.
    A shared object:

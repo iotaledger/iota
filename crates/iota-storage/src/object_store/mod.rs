@@ -16,6 +16,9 @@ pub mod util;
 pub trait ObjectStoreGetExt: std::fmt::Display + Send + Sync + 'static {
     /// Return the bytes at given path in object store
     async fn get_bytes(&self, src: &Path) -> Result<Bytes>;
+
+    /// Return whether an object exists at the given path.
+    async fn exists(&self, src: &Path) -> Result<bool>;
 }
 
 macro_rules! as_ref_get_ext_impl {
@@ -24,6 +27,10 @@ macro_rules! as_ref_get_ext_impl {
         impl ObjectStoreGetExt for $type {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.as_ref().get_bytes(src).await
+            }
+
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                self.as_ref().exists(src).await
             }
         }
     };
@@ -39,16 +46,21 @@ macro_rules! as_ref_get_impl {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.get(src)
                     .await
-                    .map_err(|e| anyhow!("Failed to get file {} with error: {:?}", src, e))?
+                    .map_err(|e| anyhow!("Failed to get file {src} with error: {e:?}"))?
                     .bytes()
                     .await
                     .map_err(|e| {
                         anyhow!(
-                            "Failed to collect GET result for file {} into bytes with error: {:?}",
-                            src,
-                            e
-                        )
+                            "Failed to collect GET result for file {src} into bytes with error: {e:?}")
                     })
+            }
+
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                match self.head(src).await {
+                    Ok(_) => Ok(true),
+                    Err(object_store::Error::NotFound { .. }) => Ok(false),
+                    Err(e) => Err(anyhow!("Failed to check if file {src} exists with error: {e:?}")),
+                }
             }
         }
     };
@@ -146,6 +158,28 @@ as_ref_delete_ext_impl!(Box<dyn ObjectStoreDeleteExt>);
 impl ObjectStoreDeleteExt for Arc<DynObjectStore> {
     async fn delete_object(&self, src: &Path) -> Result<()> {
         self.delete(src).await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use object_store::{ObjectStore, memory::InMemory, path::Path};
+
+    use crate::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
+
+    #[tokio::test]
+    async fn test_dyn_object_store_exists() -> anyhow::Result<()> {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("file1");
+        store
+            .put_bytes(&path, bytes::Bytes::from_static(b"Lorem ipsum"))
+            .await?;
+
+        assert!(store.exists(&path).await?);
+        assert!(!store.exists(&Path::from("missing")).await?);
         Ok(())
     }
 }

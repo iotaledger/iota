@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 #[derive(thiserror::Error, Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -23,7 +23,7 @@ pub enum IotaNamesError {
     #[error("Name has expired")]
     NameExpired,
     #[error("Malformed object for {0}")]
-    MalformedObject(ObjectID),
+    MalformedObject(ObjectId),
     #[error("Invalid TLN {0}")]
     InvalidTln(String),
 }

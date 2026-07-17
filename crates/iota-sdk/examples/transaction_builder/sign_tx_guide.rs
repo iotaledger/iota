@@ -23,14 +23,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        base_types::IotaAddress,
         crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         signature::GenericSignature,
-        transaction::TransactionData,
+        transaction::{TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Address,
+    crypto::{Intent, IntentMessage},
+};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 
@@ -98,7 +100,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // replace `ikp_determ_0` with the variable names above
     let pk = ikp_determ_0.public();
-    let sender = IotaAddress::from(&pk);
+    let sender = Address::from(&pk);
     println!("Sender: {sender:?}");
 
     // make sure the sender has a gas coin as an example.
@@ -167,7 +169,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!(
         "Transaction executed. Transaction digest: {}",
-        transaction_response.digest.base58_encode()
+        transaction_response.digest
     );
     println!("{transaction_response}");
     Ok(())

@@ -13,22 +13,43 @@ fn test_macro_shows_feature_enabled() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+/// Spawns a local network, executes a Move call, then profiles it via the
+/// replay tool and checks that a profile was written.
+///
+/// The transaction is produced on a local cluster rather than fetched from a
+/// public network: a live network prunes historical data, and both the pinned
+/// transaction and the epoch-change events the replay engine needs to
+/// reconstruct the transaction's environment eventually become unfetchable.
+#[iota_macros::sim_test]
 async fn test_profiler() {
     use std::fs;
 
     use iota_replay::ReplayToolCommand;
-    use tempfile::tempdir;
+    use iota_test_transaction_builder::publish_basics_package;
+    use test_cluster::TestClusterBuilder;
 
-    let output_dir = tempdir().unwrap();
-    let profile_output = output_dir.path().join("profile.json");
+    let tmp_dir = iota_common::tempdir();
+    let profile_output = tmp_dir.path().join("profile.json");
 
-    let testnet_url = "https://api.testnet.iota.cafe".to_string();
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rpc_url = test_cluster.rpc_url().to_string();
 
-    // HINT: if the test is flaky, update this tx_digest to a more recent one.
-    // Just pick a random transaction from a recent checkpoint, involving shared
-    // objects, or simply run "update_profiler_tx.sh" script.
-    let tx_digest = "BKUBrYxQsatsPFj9z9fNFaChYkLX6rCFoSpPxnVh7ESr".to_string();
+    // The replay engine does not support transactions from epoch 0.
+    test_cluster.force_new_epoch().await;
+
+    // Publish a package and call one of its functions so the profiled
+    // transaction actually executes Move bytecode.
+    let package = publish_basics_package(test_cluster.wallet()).await;
+    let tx_data = test_cluster
+        .test_transaction_builder()
+        .await
+        .call_counter_create(package.object_id)
+        .build();
+    let tx_digest = test_cluster
+        .sign_and_execute_transaction(&tx_data)
+        .await
+        .digest
+        .to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,
@@ -39,13 +60,13 @@ async fn test_profiler() {
     };
 
     let command_result =
-        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
+        iota_replay::execute_replay_command(Some(rpc_url), false, false, None, None, cmd).await;
 
-    command_result.expect("Failed to execute replay command. HINT: if the test is flaky, update the tx_digest to a more recent one by running \"update_profiler_tx.sh\".");
+    command_result.expect("Failed to execute replay command.");
 
     // check that the profile was written
     let mut found = false;
-    for entry in fs::read_dir(output_dir.keep()).unwrap().flatten() {
+    for entry in fs::read_dir(tmp_dir.path()).unwrap().flatten() {
         if entry
             .file_name()
             .into_string()

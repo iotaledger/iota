@@ -13,20 +13,41 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
+    Version,
+};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
+
+// ---------------------------------------------------------------------------
+// Stream invariant helpers
+// ---------------------------------------------------------------------------
+
+/// Assert that every message in `messages` has an encoded size within `limit`
+/// bytes.  Used by the chunking tests to enforce the per-message size invariant
+/// that `create_batching_stream!` and the checkpoint streaming pipeline must
+/// uphold.
+pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u32) {
+    let limit_usize = usize::try_from(limit).unwrap();
+    for (i, msg) in messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= limit_usize,
+            "Message {i} has encoded_len {size} which exceeds limit {limit}"
+        );
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Mock helpers
@@ -41,7 +62,7 @@ pub fn mock_summary(
         epoch: 0,
         sequence_number,
         network_total_transactions: 0,
-        content_digest: *contents.digest(),
+        content_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         timestamp_ms: 0,
@@ -90,13 +111,14 @@ pub struct MockGrpcStateReader {
     pub large_checkpoint_transactions: Vec<CheckpointTransaction>,
 
     // -- Objects --
-    pub objects: HashMap<ObjectID, Object>,
+    pub objects: HashMap<ObjectId, Object>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
-    /// Pre-sorted in v2 key order. The iterator respects cursor-based seeking.
+    /// Pre-sorted in owner index key order. The iterator respects cursor-based
+    /// seeking.
     pub owned_objects: Vec<(
         iota_types::storage::AccountOwnedObjectInfo,
-        iota_types::storage::OwnedObjectV2Cursor,
+        iota_types::storage::OwnedObjectCursor,
     )>,
 
     // -- Transactions --
@@ -143,14 +165,14 @@ impl MockGrpcStateReader {
 
 // -- ObjectStore impl --
 impl iota_types::storage::ObjectStore for MockGrpcStateReader {
-    fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
-        _version: SequenceNumber,
+        object_id: &ObjectId,
+        _version: Version,
     ) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
     }
@@ -201,7 +223,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _digest: &iota_types::digests::CheckpointDigest,
+        _digest: &CheckpointDigest,
     ) -> StorageResult<Option<VerifiedCheckpoint>> {
         Ok(None)
     }
@@ -235,7 +257,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<CheckpointContents>> {
         unimplemented!()
     }
@@ -282,7 +304,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<iota_types::messages_checkpoint::FullCheckpointContents>> {
         unimplemented!()
     }
@@ -340,13 +362,20 @@ impl GrpcStateReader for MockGrpcStateReader {
         Ok(None)
     }
 
+    fn get_epoch_info(
+        &self,
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<iota_types::storage::EpochInfoV2>> {
+        Ok(None)
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         Some(self)
     }
 
     fn get_struct_layout(
         &self,
-        _type_tag: &move_core_types::language_storage::StructTag,
+        _type_tag: &StructTag,
     ) -> StorageResult<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         Ok(None)
     }
@@ -354,13 +383,6 @@ impl GrpcStateReader for MockGrpcStateReader {
 
 // -- GrpcIndexes impl --
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
-    fn get_epoch_info(
-        &self,
-        _epoch: iota_types::committee::EpochId,
-    ) -> StorageResult<Option<iota_types::storage::EpochInfo>> {
-        Ok(None)
-    }
-
     fn get_transaction_info(
         &self,
         _digest: &TransactionDigest,
@@ -368,12 +390,12 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Ok(None)
     }
 
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
-        cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectV2IteratorItem> + '_>>
+        owner: Address,
+        cursor: Option<&iota_types::storage::OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
         // Find the start index: if cursor is provided, seek to its position
         // (inclusive — the GrpcReader wrapper handles skip(1)).
@@ -403,10 +425,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         let iter = self.owned_objects[start..]
             .iter()
             .filter(move |(info, _)| {
-                info.owner == owner_filter
-                    && type_filter.as_ref().is_none_or(|t| {
-                        move_core_types::language_storage::StructTag::from(info.type_.clone()) == *t
-                    })
+                info.owner == owner_filter && type_filter.as_ref().is_none_or(|t| info.type_ == *t)
             })
             .map(|(info, cursor)| {
                 Ok((
@@ -425,8 +444,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn dynamic_field_iter(
         &self,
-        _parent: ObjectID,
-        _cursor: Option<ObjectID>,
+        _parent: ObjectId,
+        _cursor: Option<ObjectId>,
     ) -> StorageResult<
         Box<
             dyn Iterator<
@@ -440,16 +459,16 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Ok(Box::new(std::iter::empty()))
     }
 
-    fn get_coin_v2_info(
+    fn get_coin_info(
         &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> StorageResult<Option<iota_types::storage::CoinInfoV2>> {
+        _coin_type: &StructTag,
+    ) -> StorageResult<Option<iota_types::storage::CoinInfo>> {
         Ok(None)
     }
 
     fn package_versions_iter(
         &self,
-        _original_package_id: ObjectID,
+        _original_package_id: ObjectId,
         _cursor: Option<u64>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>>
     {
@@ -485,6 +504,8 @@ pub async fn start_test_server(
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
+        None,
+        None,
         None,
     )
     .await

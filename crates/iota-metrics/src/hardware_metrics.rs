@@ -7,8 +7,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use prometheus::{
-    IntGauge, Opts, Registry,
+use prometheus_filtered::{
+    Filter, IntGauge, MetricLevel, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
 };
@@ -19,9 +19,15 @@ use crate::RegistryService;
 #[derive(thiserror::Error, Debug)]
 pub enum HardwareMetricsErr {
     #[error("Failed creating metric: {0}")]
-    ErrCreateMetric(prometheus::Error),
+    ErrCreateMetric(prometheus_filtered::Error),
     #[error("Failed registering hardware metrics onto RegistryService: {0}")]
-    ErrRegisterHardwareMetrics(prometheus::Error),
+    ErrRegisterHardwareMetrics(prometheus_filtered::Error),
+}
+
+/// Returns whether the hardware metrics should be registered under `filter`:
+/// any effective level for this module except `off` registers them.
+pub fn hardware_metrics_enabled(filter: &Filter) -> bool {
+    filter.is_exposed("hw", module_path!(), MetricLevel::Warn)
 }
 
 /// Register all hardware metrics: CPU specs, Memory specs/usage, Disk
@@ -32,13 +38,25 @@ pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
 ) -> Result<(), HardwareMetricsErr> {
-    let registry = Registry::new_custom(Some("hw".to_string()), None)
-        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
-    registry
-        .register(Box::new(HardwareMetrics::new(db_path)?))
-        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
-    registry_service.add(registry);
-    Ok(())
+    // In the simulator these metrics would describe the host, not the simulated
+    // node, and sysinfo's refreshes run on the test thread where the intercepted
+    // clock and rng make them a source of non-determinism. Skip them entirely.
+    #[cfg(msim)]
+    {
+        let _ = (registry_service, db_path);
+        return Ok(());
+    }
+    #[cfg(not(msim))]
+    {
+        let registry = registry_service
+            .new_registry_custom(Some("hw".to_string()), None)
+            .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
+        registry
+            .register(Box::new(HardwareMetrics::new(db_path)?))
+            .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
+        registry_service.add(registry);
+        Ok(())
+    }
 }
 
 pub struct HardwareMetrics {
@@ -114,7 +132,7 @@ impl HardwareMetrics {
         value: u64,
         labels: &[Option<LabelPair>],
     ) -> MetricFamily {
-        let mut g = prometheus::proto::Gauge::default();
+        let mut g = prometheus_filtered::proto::Gauge::default();
         let mut m = Metric::default();
         let mut mf = MetricFamily::new();
 
@@ -173,7 +191,7 @@ impl HardwareMetrics {
         Self::uint_gauge(
             "cpu_core_count",
             "CPU core count (and labels: model,vendor_id,arch)",
-            system.physical_core_count().unwrap_or_default() as u64,
+            System::physical_core_count().unwrap_or_default() as u64,
             &[
                 Some(Self::label("model", Self::cpu_model(system))),
                 Some(Self::label("vendor_id", Self::cpu_vendor_id(system))),

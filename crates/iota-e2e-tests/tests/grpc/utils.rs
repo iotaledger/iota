@@ -3,11 +3,14 @@
 
 use std::collections::{HashMap, HashSet};
 
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    effects::TransactionEffectsAPI,
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, Transaction,
+    TransactionDigest, TypeTag,
 };
+use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
+use iota_types::{effects::TransactionEffectsAPI, gas_coin::GAS};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // --- Shared example package names used by filter tests ---
@@ -51,7 +54,6 @@ where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
     let builder = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
         .disable_fullnode_pruning()
         .with_num_validators(1);
 
@@ -61,8 +63,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::connect(test_cluster.grpc_url())
-        .await
+    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -74,23 +75,28 @@ where
 
 /// Helper to create a proto `ObjectId` from a hex literal (e.g. "0x5").
 pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
-    ProtoObjectId::default().with_object_id(ObjectID::from_hex_literal(hex).unwrap().to_vec())
+    ProtoObjectId::default().with_object_id(
+        ObjectId::from_prefixed_short_hex(hex)
+            .unwrap()
+            .into_bytes()
+            .to_vec(),
+    )
 }
 
-/// Helper to create a proto `Address` from an `IotaAddress`.
-pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
-    ProtoAddress::default().with_address(addr.to_vec())
+/// Helper to create a proto `Address` from an [`Address`].
+pub fn address_proto(addr: Address) -> ProtoAddress {
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
 /// Publish an example Move package from the `iota-test-transaction-builder`
-/// examples directory and return the published package's `ObjectID`.
+/// examples directory and return the published package's `ObjectId`.
 ///
 /// The `sender` signs and executes the publish transaction on `cluster`.
 pub async fn publish_example_package(
     cluster: &TestCluster,
-    sender: IotaAddress,
+    sender: Address,
     package_name: &'static str,
-) -> ObjectID {
+) -> ObjectId {
     let tx = cluster
         .test_transaction_builder_with_sender(sender)
         .await
@@ -105,8 +111,310 @@ pub async fn publish_example_package(
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .unwrap_or_else(|| panic!("Should have created '{package_name}' package"))
+}
+
+/// Get the first wallet address from a test cluster.
+pub fn first_sender(cluster: &TestCluster) -> Address {
+    cluster.wallet.get_addresses().first().copied().unwrap()
+}
+
+/// Check if execution status is success.
+pub fn is_success(status: &ExecutionStatus) -> bool {
+    matches!(status, ExecutionStatus::Success)
+}
+
+/// Create a signed transaction for testing (IOTA transfer to random recipient).
+pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
+    let recipient = Address::random();
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
+    tx.try_into().expect("SDK type conversion failed")
+}
+
+/// Create an unsigned transaction for simulation testing.
+pub async fn create_transaction_for_simulation(test_cluster: &TestCluster) -> Transaction {
+    let (sender, gas) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build()
+}
+
+/// Execute a transaction and return its digest.
+///
+/// This is useful for tests that need a finalized transaction to query.
+pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> TransactionDigest {
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let digest = *tx.digest();
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .unwrap();
+    digest
+}
+
+/// Wait until every transaction executed via `cluster.execute_transaction(...)`
+/// is guaranteed to be in a checkpoint executed by the fullnode, then return
+/// a checkpoint sequence number that bounds those transactions.
+///
+/// `cluster.execute_transaction` uses `WaitForLocalExecution`, which only
+/// guarantees the fullnode has executed the transaction locally via the
+/// certificate — checkpoint inclusion is asynchronous.  We read the current
+/// latest as a baseline `N`, then wait for `N + 2`: `N + 1` may have already
+/// had its consensus content sealed before our transaction was certified, in
+/// which case the transaction lands in `N + 2`.  The returned `N + 2` is a
+/// safe upper bound for stream ranges that need to cover those transactions.
+pub async fn wait_for_executed_transactions_checkpointed(
+    cluster: &TestCluster,
+    client: &iota_grpc_client::Client,
+) -> u64 {
+    let baseline_seq = client
+        .get_checkpoint_latest(
+            Some(ReadMask::from(CheckpointResponseField::ALL)),
+            None,
+            None,
+        )
+        .await
+        .expect("get latest checkpoint")
+        .body()
+        .sequence_number();
+    let target_seq = baseline_seq + 2;
+    cluster.wait_for_checkpoint(target_seq, None).await;
+    target_seq
+}
+
+/// A balance change reduced to a comparable form for assertions:
+/// (owner, coin type, amount).
+pub type NormalizedBalanceChange = (Owner, TypeTag, i128);
+
+/// An object change reduced to a comparable form for assertions. Mirrors the
+/// variants the server can produce.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NormalizedObjectChange {
+    Published {
+        package_id: ObjectId,
+        version: u64,
+        digest: ObjectDigest,
+        modules: Vec<String>,
+    },
+    Mutated {
+        sender: Address,
+        owner: Owner,
+        object_type: String,
+        object_id: ObjectId,
+        version: u64,
+        previous_version: u64,
+        digest: ObjectDigest,
+    },
+    Deleted {
+        sender: Address,
+        object_type: String,
+        object_id: ObjectId,
+        version: u64,
+    },
+    Wrapped {
+        sender: Address,
+        object_type: String,
+        object_id: ObjectId,
+        version: u64,
+    },
+    Unwrapped {
+        sender: Address,
+        owner: Owner,
+        object_type: String,
+        object_id: ObjectId,
+        version: u64,
+        digest: ObjectDigest,
+    },
+    Created {
+        sender: Address,
+        owner: Owner,
+        object_type: String,
+        object_id: ObjectId,
+        version: u64,
+        digest: ObjectDigest,
+    },
+}
+
+/// Normalize the balance changes of a gRPC `ExecutedTransaction` into a
+/// sorted, comparable form.
+pub fn normalize_grpc_balance_changes(
+    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+) -> Vec<NormalizedBalanceChange> {
+    let mut changes = executed_transaction
+        .balance_changes()
+        .expect("balance_changes should be present")
+        .balance_changes
+        .iter()
+        .map(|change| {
+            (
+                change.owner().unwrap(),
+                change.coin_type().unwrap(),
+                change.amount_i128().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    changes.sort();
+    changes
+}
+
+/// Normalize the object changes of a gRPC `ExecutedTransaction` into a
+/// sorted, comparable form.
+pub fn normalize_grpc_object_changes(
+    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+) -> Vec<NormalizedObjectChange> {
+    use iota_grpc_types::v1::transaction::object_change::Kind;
+
+    let mut changes = executed_transaction
+        .object_changes()
+        .expect("object_changes should be present")
+        .object_changes
+        .iter()
+        .map(|change| match change.kind.as_ref().unwrap() {
+            Kind::Published(published) => NormalizedObjectChange::Published {
+                package_id: published.package_id().unwrap(),
+                version: published.version.unwrap(),
+                digest: published.digest().unwrap(),
+                modules: published.modules.clone(),
+            },
+            Kind::Mutated(mutated) => NormalizedObjectChange::Mutated {
+                sender: mutated.sender().unwrap(),
+                owner: mutated.owner().unwrap(),
+                object_type: mutated.object_type().unwrap().to_string(),
+                object_id: mutated.object_id().unwrap(),
+                version: mutated.version.unwrap(),
+                previous_version: mutated.previous_version.unwrap(),
+                digest: mutated.digest().unwrap(),
+            },
+            Kind::Deleted(deleted) => NormalizedObjectChange::Deleted {
+                sender: deleted.sender().unwrap(),
+                object_type: deleted.object_type().unwrap().to_string(),
+                object_id: deleted.object_id().unwrap(),
+                version: deleted.version.unwrap(),
+            },
+            Kind::Wrapped(wrapped) => NormalizedObjectChange::Wrapped {
+                sender: wrapped.sender().unwrap(),
+                object_type: wrapped.object_type().unwrap().to_string(),
+                object_id: wrapped.object_id().unwrap(),
+                version: wrapped.version.unwrap(),
+            },
+            Kind::Unwrapped(unwrapped) => NormalizedObjectChange::Unwrapped {
+                sender: unwrapped.sender().unwrap(),
+                owner: unwrapped.owner().unwrap(),
+                object_type: unwrapped.object_type().unwrap().to_string(),
+                object_id: unwrapped.object_id().unwrap(),
+                version: unwrapped.version.unwrap(),
+                digest: unwrapped.digest().unwrap(),
+            },
+            Kind::Created(created) => NormalizedObjectChange::Created {
+                sender: created.sender().unwrap(),
+                owner: created.owner().unwrap(),
+                object_type: created.object_type().unwrap().to_string(),
+                object_id: created.object_id().unwrap(),
+                version: created.version.unwrap(),
+                digest: created.digest().unwrap(),
+            },
+            kind => panic!("unknown object change kind: {kind:?}"),
+        })
+        .collect::<Vec<_>>();
+    changes.sort();
+    changes
+}
+
+/// Extract the net gas usage from the effects of a gRPC
+/// `ExecutedTransaction` (requires `effects` in the read mask).
+pub fn grpc_net_gas_usage(
+    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+) -> i64 {
+    executed_transaction
+        .effects()
+        .expect("effects should be present")
+        .effects()
+        .expect("effects should deserialize")
+        .as_v1()
+        .gas_cost_summary
+        .net_gas_usage()
+}
+
+/// Assert that a transaction transferring `amount` NANOS of IOTA from
+/// `sender` to `recipient` produced exactly the expected derived changes:
+///
+/// - balance changes: `-(amount + gas)` for the sender, `+amount` for the
+///   recipient (gas taken from the transaction's effects, so the read mask must
+///   include `effects`);
+/// - object changes: one coin `Created` for the recipient, all remaining
+///   entries gas-coin `Mutated` for the sender (source coin and/or gas coin).
+pub fn assert_transfer_derived_changes(
+    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    sender: Address,
+    recipient: Address,
+    amount: i128,
+    scenario: &str,
+) {
+    let gas = grpc_net_gas_usage(executed_transaction) as i128;
+    let mut expected = vec![
+        (Owner::Address(sender), GAS::type_tag(), -(amount + gas)),
+        (Owner::Address(recipient), GAS::type_tag(), amount),
+    ];
+    expected.sort();
+    assert_eq!(
+        normalize_grpc_balance_changes(executed_transaction),
+        expected,
+        "{scenario}: unexpected balance changes"
+    );
+
+    let object_changes = normalize_grpc_object_changes(executed_transaction);
+    let gas_coin_type = iota_sdk_types::StructTag::new_gas_coin().to_string();
+    let created: Vec<_> = object_changes
+        .iter()
+        .filter(|change| {
+            matches!(
+                change,
+                NormalizedObjectChange::Created { sender: s, owner, object_type, .. }
+                    if *s == sender
+                        && *owner == Owner::Address(recipient)
+                        && *object_type == gas_coin_type
+            )
+        })
+        .collect();
+    assert_eq!(
+        created.len(),
+        1,
+        "{scenario}: expected exactly one coin created for the recipient: {object_changes:?}"
+    );
+    let mutated_count = object_changes
+        .iter()
+        .filter(|change| {
+            matches!(
+                change,
+                NormalizedObjectChange::Mutated {
+                    sender: s,
+                    owner,
+                    object_type,
+                    version,
+                    previous_version,
+                    ..
+                } if *s == sender
+                    && *owner == Owner::Address(sender)
+                    && *object_type == gas_coin_type
+                    && previous_version < version
+            )
+        })
+        .count();
+    assert_eq!(
+        mutated_count,
+        object_changes.len() - 1,
+        "{scenario}: all other object changes should be sender-owned coin mutations: {object_changes:?}"
+    );
 }
 
 /// Assert that a raw tonic result is an error with the expected status code.
@@ -457,8 +765,7 @@ pub(crate) fn assert_field_presence(
     for expected_top_level_field in &expected_top_level_fields {
         assert!(
             actual_top_level_fields.contains(expected_top_level_field),
-            "Invalid field '{}' in '{scenario}': field does not exist on this type",
-            expected_top_level_field
+            "Invalid field '{expected_top_level_field}' in '{scenario}': field does not exist on this type"
         );
     }
 
@@ -488,7 +795,7 @@ pub(crate) fn assert_field_presence(
                 "Contradictory field paths in '{scenario}': '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
                 expected_nested_field_paths[non_nested_field]
                     .iter()
-                    .map(|s| format!("{}.{}", non_nested_field, s))
+                    .map(|s| format!("{non_nested_field}.{s}"))
                     .collect::<Vec<_>>()
                     .join(", ")
             );

@@ -20,8 +20,8 @@ use iota_swarm_config::{
 
 #[sim_test]
 async fn test_genesis() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
-    let working_dir = temp_dir.path();
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
 
     // Genesis
     LocalnetCommand::Genesis {
@@ -89,14 +89,14 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     .await;
     assert!(matches!(result, Err(..)));
 
-    temp_dir.close()?;
+    tmp_dir.close()?;
     Ok(())
 }
 
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
-    let working_dir = temp_dir.path();
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
 
     if let Ok(res) = tokio::time::timeout(
         Duration::from_secs(10),
@@ -114,7 +114,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
-            indexer_feature_args: IndexerFeatureArgs::for_testing(),
+            indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
             local_migration_snapshots: vec![],
             remote_migration_snapshots: vec![],
             delegator: None,
@@ -149,7 +149,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
 
     assert_eq!(5, wallet_conf.keystore().addresses().len());
 
-    temp_dir.close()?;
+    tmp_dir.close()?;
     Ok(())
 }
 

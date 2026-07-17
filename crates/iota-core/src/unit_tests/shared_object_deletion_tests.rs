@@ -6,24 +6,21 @@
 use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{
+    Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
+    ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
+    ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,
+    Version,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError},
-    execution_status::{
-        CommandArgumentError, ExecutionFailureStatus,
-        ExecutionFailureStatus::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedCertificate},
 };
-use move_core_types::ident_str;
 
 use crate::{
     authority::{
@@ -40,11 +37,11 @@ use crate::{
 };
 
 pub struct TestRunner {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub sender_key: AccountKeyPair,
-    pub gas_object_ids: Vec<ObjectID>,
+    pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
+    pub package: ObjectReference,
 }
 
 impl TestRunner {
@@ -61,9 +58,9 @@ impl TestRunner {
 
         let mut gas_object_ids = vec![];
         for _ in 0..20 {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-            authority_state.insert_genesis_object(gas_object).await;
+            authority_state.insert_genesis_object(gas_object);
             gas_object_ids.push(gas_object_id);
         }
 
@@ -91,7 +88,7 @@ impl TestRunner {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (self.package.0)::o2::create()
+                (self.package.object_id)::o2::create()
             };
             builder.finish()
         })
@@ -103,26 +100,26 @@ impl TestRunner {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (self.package.0)::o2::create_owned()
+                (self.package.object_id)::o2::create_owned()
             };
             builder.finish()
         })
         .await
     }
 
-    pub fn get_object_latest_version(&mut self, obj_id: ObjectID) -> SequenceNumber {
+    pub fn get_object_latest_version(&mut self, obj_id: ObjectId) -> Version {
         self.authority_state
             .get_object_cache_reader()
             .get_latest_object_ref_or_tombstone(obj_id)
             .unwrap()
-            .1
+            .version
     }
 
     pub async fn mutate_n_times(
         &mut self,
         mut n: u64,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) {
         while n > 0 {
             let mutate_obj_tx = self
@@ -161,20 +158,20 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::consume_o2(arg)
+            (self.package.object_id)::o2::consume_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -184,20 +181,20 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_tx_immut(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: false,
-            })
+                false,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::consume_o2(arg)
+            (self.package.object_id)::o2::consume_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -207,25 +204,25 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_with_owned_tx(
         &mut self,
-        owned_obj: ObjectRef,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        owned_obj: ObjectReference,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
-            .obj(ObjectArg::ImmOrOwnedObject(owned_obj))
+            .obj(CallArg::ImmutableOrOwned(owned_obj))
             .unwrap();
         let arg_2 = object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
 
         move_call! {
             object_transaction_builder,
-            (self.package.0)::o2::consume_with_owned(arg_1, arg_2)
+            (self.package.object_id)::o2::consume_with_owned(arg_1, arg_2)
         };
         let delete_obj_tx = object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -235,31 +232,31 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_with_shared_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
-        shared_obj_id_2: ObjectID,
-        initial_shared_version_2: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
+        shared_obj_id_2: ObjectId,
+        initial_shared_version_2: Version,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         // this one gets deleted
         let arg_2 = object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id_2,
-                mutable: true,
-                initial_shared_version: initial_shared_version_2,
-            })
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id_2,
+                initial_shared_version_2,
+                true,
+            )))
             .unwrap();
 
         move_call! {
             object_transaction_builder,
-            (self.package.0)::o2::consume_with_shared(arg_1, arg_2)
+            (self.package.object_id)::o2::consume_with_shared(arg_1, arg_2)
         };
         let delete_obj_tx = object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -269,24 +266,24 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_with_owned_tx(
         &mut self,
-        owned_obj: ObjectRef,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        owned_obj: ObjectReference,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = delete_object_transaction_builder
-            .obj(ObjectArg::ImmOrOwnedObject(owned_obj))
+            .obj(CallArg::ImmutableOrOwned(owned_obj))
             .unwrap();
         let arg_2 = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::mutate_with_owned(arg_1, arg_2)
+            (self.package.object_id)::o2::mutate_with_owned(arg_1, arg_2)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -296,30 +293,30 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_with_shared_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
-        shared_obj_id_2: ObjectID,
-        initial_shared_version_2: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
+        shared_obj_id_2: ObjectId,
+        initial_shared_version_2: Version,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         let arg_2 = object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id_2,
-                mutable: true,
-                initial_shared_version: initial_shared_version_2,
-            })
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id_2,
+                initial_shared_version_2,
+                true,
+            )))
             .unwrap();
 
         move_call! {
             object_transaction_builder,
-            (self.package.0)::o2::mutate_o2_with_shared(arg_1, arg_2)
+            (self.package.object_id)::o2::mutate_o2_with_shared(arg_1, arg_2)
         };
         let delete_obj_tx = object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -329,20 +326,20 @@ impl TestRunner {
 
     pub async fn vec_delete_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .make_obj_vec(vec![ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .make_obj_vec(vec![CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }])
+                true,
+            ))])
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::vec_delete(arg)
+            (self.package.object_id)::o2::vec_delete(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -352,44 +349,40 @@ impl TestRunner {
 
     pub async fn mutate_and_read(
         &mut self,
-        so1: (ObjectID, SequenceNumber, bool),
-        so2: (ObjectID, SequenceNumber, bool),
+        so1: (ObjectId, Version, bool),
+        so2: (ObjectId, Version, bool),
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg1 = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: so1.0,
-                initial_shared_version: so1.1,
-                mutable: so1.2,
-            })
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                so1.0, so1.1, so1.2,
+            )))
             .unwrap();
         let arg2 = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: so2.0,
-                initial_shared_version: so2.1,
-                mutable: so2.2,
-            })
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                so2.0, so2.1, so2.2,
+            )))
             .unwrap();
         // If both mutable
         if so1.2 && so2.2 {
             move_call! {
                 delete_object_transaction_builder,
-                (self.package.0)::o2::mutate_and_mutate(arg1, arg2)
+                (self.package.object_id)::o2::mutate_and_mutate(arg1, arg2)
             };
         } else if !so1.2 && !so2.2 {
             move_call! {
                 delete_object_transaction_builder,
-                (self.package.0)::o2::read_and_read(arg1, arg2)
+                (self.package.object_id)::o2::read_and_read(arg1, arg2)
             };
         } else if so1.2 {
             move_call! {
                 delete_object_transaction_builder,
-                (self.package.0)::o2::read_and_write(arg2, arg1)
+                (self.package.object_id)::o2::read_and_write(arg2, arg1)
             };
         } else {
             move_call! {
                 delete_object_transaction_builder,
-                (self.package.0)::o2::read_and_write(arg1, arg2)
+                (self.package.object_id)::o2::read_and_write(arg1, arg2)
             };
         }
         let delete_obj_tx = delete_object_transaction_builder.finish();
@@ -400,20 +393,20 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::mutate_o2(arg)
+            (self.package.object_id)::o2::mutate_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -423,20 +416,20 @@ impl TestRunner {
 
     pub async fn read_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: false,
-            })
+                false,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::read_o2(arg)
+            (self.package.object_id)::o2::read_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -446,20 +439,20 @@ impl TestRunner {
 
     pub async fn wrap_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::wrap_o2(arg)
+            (self.package.object_id)::o2::wrap_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -469,20 +462,20 @@ impl TestRunner {
 
     pub async fn transfer_to_single_owner_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::transfer_to_single_owner(arg)
+            (self.package.object_id)::o2::transfer_to_single_owner(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -492,20 +485,20 @@ impl TestRunner {
 
     pub async fn freeze_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        shared_obj_id: ObjectId,
+        initial_shared_version: Version,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(ObjectArg::SharedObject {
-                id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectReference::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
-            (self.package.0)::o2::freeze_o2(arg)
+            (self.package.object_id)::o2::freeze_o2(arg)
         };
         let delete_obj_tx = delete_object_transaction_builder.finish();
         let gas_id = self.gas_object_ids.pop().unwrap();
@@ -516,7 +509,7 @@ impl TestRunner {
     pub async fn create_signed_transaction_from_pt(
         &mut self,
         pt: ProgrammableTransaction,
-        account_id: ObjectID,
+        account_id: ObjectId,
     ) -> Transaction {
         build_programmable_transaction(
             &self.authority_state,
@@ -553,8 +546,8 @@ impl TestRunner {
 
     pub fn object_exists_in_marker_table(
         &mut self,
-        object_id: &ObjectID,
-        version: &SequenceNumber,
+        object_id: &ObjectId,
+        version: &Version,
         epoch: EpochId,
     ) -> Option<TransactionDigest> {
         self.authority_state
@@ -571,8 +564,8 @@ async fn test_delete_shared_object() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
     let delete_obj_tx = user1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
         .await;
@@ -592,16 +585,16 @@ async fn test_delete_shared_object() {
     assert_eq!(effects.deleted().len(), 1);
 
     // assert the shared object was deleted
-    let deleted_obj_id = effects.deleted()[0].0;
+    let deleted_obj_id = effects.deleted()[0].object_id;
     let shared_obj_id = effects.input_shared_objects()[0].id_and_version().0;
     assert_eq!(deleted_obj_id, shared_obj_id);
 
     // assert the version of the deleted shared object was incremented
-    let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    let deleted_obj_ver = effects.deleted()[0].version;
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -622,8 +615,8 @@ async fn test_delete_shared_object_immut() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
     let delete_obj_tx = user1
         .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
         .await;
@@ -638,12 +631,12 @@ async fn test_delete_shared_object_immut() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -657,8 +650,8 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
     let delete_obj_tx_immut1 = user1
         .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
         .await;
@@ -692,12 +685,12 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -712,16 +705,16 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
     assert_eq!(effects.deleted().len(), 1);
 
     // assert the shared object was deleted
-    let deleted_obj_id = effects.deleted()[0].0;
+    let deleted_obj_id = effects.deleted()[0].object_id;
     let shared_obj_id = effects.input_shared_objects()[0].id_and_version().0;
     assert_eq!(deleted_obj_id, shared_obj_id);
 
     // assert the version of the deleted shared object was incremented
-    let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    let deleted_obj_ver = effects.deleted()[0].version;
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -740,7 +733,7 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::InputObjectDeleted
@@ -755,8 +748,8 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
     let delete_obj_tx_immut1 = user1
         .delete_shared_obj_tx_immut(shared_obj_id, initial_shared_version)
         .await;
@@ -779,12 +772,12 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -810,16 +803,16 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
     assert_eq!(effects.deleted().len(), 1);
 
     // assert the shared object was deleted
-    let deleted_obj_id = effects.deleted()[0].0;
+    let deleted_obj_id = effects.deleted()[0].object_id;
     let shared_obj_id = effects.input_shared_objects()[0].id_and_version().0;
     assert_eq!(deleted_obj_id, shared_obj_id);
 
     // assert the version of the deleted shared object was incremented
-    let deleted_obj_ver = effects.deleted()[0].1;
-    assert_eq!(deleted_obj_ver, 4.into());
+    let deleted_obj_ver = effects.deleted()[0].version;
+    assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -836,7 +829,7 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 }
 
 #[tokio::test]
@@ -847,8 +840,8 @@ async fn test_mutate_after_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let mutate_obj_tx = user_1
         .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -881,7 +874,7 @@ async fn test_mutate_after_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -902,8 +895,8 @@ async fn test_delete_after_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let delete_obj_tx1 = user_1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -936,7 +929,7 @@ async fn test_delete_after_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -956,11 +949,11 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     let effects2 = runner.create_shared_object().await;
     let (so1, so1_isv) = {
         let shared_obj = effects1.created()[0].0;
-        (shared_obj.0, shared_obj.1)
+        (shared_obj.object_id, shared_obj.version)
     };
     let (so2, so2_isv) = {
         let shared_obj = effects2.created()[0].0;
-        (shared_obj.0, shared_obj.1)
+        (shared_obj.object_id, shared_obj.version)
     };
 
     // Test that in the presence of multiple shared objects one of which may be
@@ -1030,13 +1023,13 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_1
     {
         let effects = &effects[0];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     // Tx_2
     {
         let effects = &effects[1];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1047,7 +1040,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_3
     {
         let effects = &effects[2];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1059,7 +1052,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_4
     {
         let effects = &effects[3];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1072,7 +1065,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_5
     {
         let effects = &effects[4];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[1].digest()));
         assert!(!effects.dependencies().contains(txs[2].digest()));
         assert!(!effects.dependencies().contains(txs[0].digest()));
@@ -1081,7 +1074,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_6
     {
         let effects = &effects[5];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[1].digest()));
         assert!(!effects.dependencies().contains(txs[2].digest()));
         assert!(!effects.dependencies().contains(txs[0].digest()));
@@ -1090,7 +1083,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_7
     {
         let effects = &effects[6];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1102,7 +1095,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_8
     {
         let effects = &effects[7];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[6].digest()));
     }
 }
@@ -1115,8 +1108,8 @@ async fn test_mutate_after_delete_enqueued() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let mutate_obj_tx = user_1
         .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1152,7 +1145,7 @@ async fn test_mutate_after_delete_enqueued() {
 
     let effects = res.get(1).unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1165,7 +1158,7 @@ async fn test_mutate_after_delete_enqueued() {
     let digest = effects.transaction_digest();
 
     let effects = res.get(2).unwrap();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1186,8 +1179,8 @@ async fn test_delete_after_delete_enqueued() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let delete_obj_tx0 = user_1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1223,7 +1216,7 @@ async fn test_delete_after_delete_enqueued() {
 
     let effects = res.get(1).unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1236,7 +1229,7 @@ async fn test_delete_after_delete_enqueued() {
     let digest = effects.transaction_digest();
 
     let effects = res.get(2).unwrap();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1257,8 +1250,8 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let mutate_obj_tx = user_1
         .mutate_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1321,7 +1314,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
     {
         let effects = res.get(1).unwrap();
 
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1334,7 +1327,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(2).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1349,7 +1342,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(3).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1365,7 +1358,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(4).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1387,8 +1380,8 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     let effects_0 = user_1.create_shared_object().await;
 
     let shared_obj = effects_0.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     user_1
         .mutate_n_times(3, shared_obj_id, initial_shared_version)
@@ -1397,8 +1390,8 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     let effects_2 = user_1.create_shared_object().await;
 
     let shared_obj_2 = effects_2.created()[0].0;
-    let shared_obj_id_2 = shared_obj_2.0;
-    let initial_shared_version_2 = shared_obj_2.1;
+    let shared_obj_id_2 = shared_obj_2.object_id;
+    let initial_shared_version_2 = shared_obj_2.version;
 
     // delete object with the higher version
     let delete_tx = user_1
@@ -1426,15 +1419,15 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
 
     let second_object_effects = user_1.create_shared_object().await;
     let second_shared_obj = second_object_effects.created()[0].0;
-    let second_shared_obj_id = second_shared_obj.0;
-    let second_initial_shared_version = second_shared_obj.1;
+    let second_shared_obj_id = second_shared_obj.object_id;
+    let second_initial_shared_version = second_shared_obj.version;
 
     user_1
         .mutate_n_times(10, second_shared_obj_id, second_initial_shared_version)
         .await;
 
     let second_obj_version = user_1.get_object_latest_version(second_shared_obj_id);
-    assert_eq!(second_obj_version, 15.into());
+    assert_eq!(second_obj_version, 15);
 
     let second_mutate_tx = user_1
         .mutate_shared_obj_with_shared_tx(
@@ -1474,8 +1467,8 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
         .unwrap();
 
     let delete_effects = res.first().unwrap();
-    assert!(delete_effects.status().is_ok());
-    let deleted_obj_ver = delete_effects.deleted()[0].1;
+    assert!(delete_effects.status().is_success());
+    let deleted_obj_ver = delete_effects.deleted()[0].version;
 
     assert!(
         user_1
@@ -1484,13 +1477,13 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     );
 
     let mutate_effects = res.get(1).unwrap();
-    assert!(mutate_effects.status().is_ok());
+    assert!(mutate_effects.status().is_success());
 
     let second_mutate_effects = res.get(2).unwrap();
-    assert!(second_mutate_effects.status().is_err());
+    assert!(second_mutate_effects.status().is_failure());
 
     let third_mutate_effects = res.get(3).unwrap();
-    assert!(third_mutate_effects.status().is_err());
+    assert!(third_mutate_effects.status().is_failure());
 }
 
 #[tokio::test]
@@ -1501,8 +1494,8 @@ async fn test_wrap_not_allowed() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let wrap_shared_obj_tx = user_1
         .wrap_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1524,7 +1517,7 @@ async fn test_wrap_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1536,8 +1529,8 @@ async fn test_vec_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let shared_obj_tx = user_1
         .vec_delete_obj_tx(shared_obj_id, initial_shared_version)
@@ -1564,8 +1557,8 @@ async fn test_convert_to_owned_not_allowed() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let tx = user_1
         .transfer_to_single_owner_tx(shared_obj_id, initial_shared_version)
@@ -1584,7 +1577,7 @@ async fn test_convert_to_owned_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1596,8 +1589,8 @@ async fn test_freeze_not_allowed() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let tx = user_1
         .freeze_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1616,7 +1609,7 @@ async fn test_freeze_not_allowed() {
     ));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 2);
 }
 
@@ -1628,8 +1621,8 @@ async fn test_deletion_twice() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let delete_obj_tx = user_1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1662,7 +1655,7 @@ async fn test_deletion_twice() {
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
 
     let new_version = user_1.get_object_latest_version(shared_obj_id);
-    assert_eq!(new_version, 4.into());
+    assert_eq!(new_version, 4);
     assert_eq!(effects.mutated().len(), 1);
 }
 
@@ -1674,8 +1667,8 @@ async fn test_certs_fail_after_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let delete_obj_tx = user_1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1710,8 +1703,8 @@ async fn test_delete_before_two_mutations() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     // t1 mutates object
     // t2 mutates object
@@ -1758,7 +1751,7 @@ async fn test_delete_before_two_mutations() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1777,7 +1770,7 @@ async fn test_delete_before_two_mutations() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1797,8 +1790,8 @@ async fn test_object_lock_conflict() {
 
     assert_eq!(effects.created().len(), 1);
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let owned_effects = user_1.create_owned_object().await;
 
@@ -1833,14 +1826,14 @@ async fn test_owned_object_version_increments_on_cert_denied() {
 
     assert_eq!(effects.created().len(), 1);
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     let owned_effects = user_1.create_owned_object().await;
 
     assert_eq!(owned_effects.created().len(), 1);
     let owned_obj = owned_effects.created()[0].0;
-    let owned_obj_id = owned_obj.0;
+    let owned_obj_id = owned_obj.object_id;
 
     let delete_obj_tx = user_1
         .delete_shared_obj_tx(shared_obj_id, initial_shared_version)
@@ -1866,7 +1859,7 @@ async fn test_owned_object_version_increments_on_cert_denied() {
         .unwrap();
 
     let version = user_1.get_object_latest_version(owned_obj_id);
-    assert_eq!(version, 4.into());
+    assert_eq!(version, 4);
 
     user_1
         .execute_sequenced_certificate_to_effects(mutate_cert)
@@ -1874,7 +1867,7 @@ async fn test_owned_object_version_increments_on_cert_denied() {
         .unwrap();
 
     let next_version = user_1.get_object_latest_version(owned_obj_id);
-    assert_eq!(next_version, 5.into());
+    assert_eq!(next_version, 5);
 }
 
 #[tokio::test]
@@ -1885,8 +1878,8 @@ async fn test_interspersed_mutations_with_delete() {
     assert_eq!(effects.created().len(), 1);
 
     let shared_obj = effects.created()[0].0;
-    let shared_obj_id = shared_obj.0;
-    let initial_shared_version = shared_obj.1;
+    let shared_obj_id = shared_obj.object_id;
+    let initial_shared_version = shared_obj.version;
 
     // t1 mutates object
     // t2 mutates object
@@ -1936,7 +1929,7 @@ async fn test_interspersed_mutations_with_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());

@@ -13,17 +13,17 @@
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
 
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectID},
-    digests::{ChainIdentifier, TransactionDigest},
+    base_types::EpochId,
+    digests::ChainIdentifier,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
-        CoinInfoV2, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectV2Cursor,
-        OwnedObjectV2IteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 /// Trait extending [`ReadStore`] with full-node-specific queries that may
 /// require richer databases or indexes to support.
@@ -37,6 +37,10 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
     fn get_chain_identifier(&self) -> Result<ChainIdentifier>;
 
     fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
+
+    /// Per-epoch verified metadata, held by every node in the CheckpointStore's
+    /// `epoch_info` table (served by `GetEpoch`).
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
 
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
@@ -72,24 +76,22 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 /// GRPC-index-specific queries.
 ///
 /// Provides access to the on-disk indexes needed by the gRPC server:
-/// epoch info, transaction-to-checkpoint mapping, owned objects, dynamic
-/// fields, coin info, and package versions.
+/// transaction-to-checkpoint mapping, owned objects, dynamic fields, coin
+/// info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
-
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
-    /// Iterate over objects owned by `owner` using the v2 index, optionally
-    /// filtered by `object_type`.
+    /// Iterate over objects owned by `owner`, optionally filtered by
+    /// `object_type`.
     ///
-    /// Each item includes an [`OwnedObjectV2Cursor`] for seek-based pagination.
+    /// Each item includes an [`OwnedObjectCursor`] for seek-based pagination.
     /// The `cursor` bound is **inclusive**.
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>;
 
     /// Iterate over the dynamic fields of `parent`.
     ///
@@ -97,32 +99,17 @@ pub trait GrpcIndexes: Send + Sync {
     /// returned; field metadata is loaded on demand from the object store.
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
-    /// Get unified coin info from the `coin_v2` table.
-    fn get_coin_v2_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+    /// Get unified coin info.
+    fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 
     /// Iterate over all versions of a package by its original package ID.
     fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
-
-    /// Returns `true` once the `owner_v2` backfill has completed.
-    fn is_owner_v2_index_ready(&self) -> bool {
-        true
-    }
-
-    /// Returns `true` once the `coin_v2` backfill has completed.
-    fn is_coin_v2_index_ready(&self) -> bool {
-        true
-    }
-
-    /// Returns `true` once the `package_version` backfill has completed.
-    fn is_package_version_index_ready(&self) -> bool {
-        true
-    }
 }

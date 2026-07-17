@@ -38,7 +38,7 @@ enum Snapshot {
         snapshot_path: String,
         #[arg(
             long,
-            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an (ed25519 hex) IOTA Address that will be used for the swap."
+            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an Address present in the Hornet full-snapshot and in the second column an (ed25519 hex) IOTA Address that will be used for the swap."
         )]
         address_swap_map_path: Option<String>,
         #[arg(

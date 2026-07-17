@@ -4,10 +4,8 @@
 
 use std::path::Path;
 
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    transaction::TransactionData,
-};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::transaction::TransactionData;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{DBMapUtils, Map, TypedStoreError, rocks::DBMap};
@@ -22,14 +20,14 @@ use uuid::Uuid;
 /// were in-flight that it needs to confirm succeeded or failed.
 #[derive(DBMapUtils, Clone)]
 pub struct WriteAheadLog {
-    pub log: DBMap<ObjectID, Entry>,
+    pub log: DBMap<ObjectId, Entry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Entry {
     pub uuid: uuid::Bytes,
     // TODO (jian): remove recipient
-    pub recipient: IotaAddress,
+    pub recipient: Address,
     pub tx: TransactionData,
     pub retry_count: u64,
     pub in_flight: bool,
@@ -51,8 +49,8 @@ impl WriteAheadLog {
     pub(crate) fn reserve(
         &mut self,
         uuid: Uuid,
-        coin: ObjectID,
-        recipient: IotaAddress,
+        coin: ObjectId,
+        recipient: Address,
         tx: TransactionData,
     ) -> Result<(), TypedStoreError> {
         if self.log.contains_key(&coin)? {
@@ -79,7 +77,7 @@ impl WriteAheadLog {
     /// Check whether `coin` has a pending transaction in the WAL.  Returns
     /// `Ok(Some(entry))` if a pending transaction exists, `Ok(None)` if
     /// not, and `Err(_)` if there was an internal error accessing the WAL.
-    pub(crate) fn reclaim(&self, coin: ObjectID) -> Result<Option<Entry>, TypedStoreError> {
+    pub(crate) fn reclaim(&self, coin: ObjectId) -> Result<Option<Entry>, TypedStoreError> {
         match self.log.get(&coin) {
             Ok(entry) => Ok(entry),
             Err(TypedStoreError::Serialization(_)) => {
@@ -97,11 +95,11 @@ impl WriteAheadLog {
 
     /// Indicate that the transaction in flight for `coin` has landed, and the
     /// entry in the WAL can be removed.
-    pub(crate) fn commit(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
+    pub(crate) fn commit(&mut self, coin: ObjectId) -> Result<(), TypedStoreError> {
         self.log.remove(&coin)
     }
 
-    pub(crate) fn increment_retry_count(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
+    pub(crate) fn increment_retry_count(&mut self, coin: ObjectId) -> Result<(), TypedStoreError> {
         if let Some(mut entry) = self.log.get(&coin)? {
             entry.retry_count += 1;
             self.log.insert(&coin, &entry)?;
@@ -111,7 +109,7 @@ impl WriteAheadLog {
 
     pub(crate) fn set_in_flight(
         &mut self,
-        coin: ObjectID,
+        coin: ObjectId,
         bool: bool,
     ) -> Result<(), TypedStoreError> {
         if let Some(mut entry) = self.log.get(&coin)? {
@@ -133,27 +131,28 @@ impl WriteAheadLog {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectReference;
     use iota_types::{
-        base_types::{ObjectRef, random_object_ref},
-        transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        base_types::random_object_ref,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
     };
 
     use super::*;
 
     #[tokio::test]
     async fn reserve_reclaim_reclaim() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
+        let tmp_dir = iota_common::tempdir();
+        let mut wal = WriteAheadLog::open(&tmp_dir.path().join("wal"));
 
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
         let (recv, tx) = random_request(coin);
 
-        assert!(wal.reserve(uuid, coin.0, recv, tx.clone()).is_ok());
+        assert!(wal.reserve(uuid, coin.object_id, recv, tx.clone()).is_ok());
 
         // Reclaim once
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -161,8 +160,8 @@ mod tests {
         assert_eq!(tx, entry.tx);
 
         // Reclaim again, should still be there.
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -172,24 +171,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_increment_wal() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
+        let tmp_dir = iota_common::tempdir();
+        let mut wal = WriteAheadLog::open(&tmp_dir.path().join("wal"));
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
         let (recv0, tx0) = random_request(coin);
 
         // First write goes through
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
-        wal.increment_retry_count(coin.0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
+        wal.increment_retry_count(coin.object_id).unwrap();
 
-        let entry = wal.reclaim(coin.0).unwrap().unwrap();
+        let entry = wal.reclaim(coin.object_id).unwrap().unwrap();
         assert_eq!(entry.retry_count, 1);
     }
 
     #[tokio::test]
     async fn reserve_reserve() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
+        let tmp_dir = iota_common::tempdir();
+        let mut wal = WriteAheadLog::open(&tmp_dir.path().join("wal"));
 
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
@@ -197,29 +196,29 @@ mod tests {
         let (recv1, tx1) = random_request(coin);
 
         // First write goes through
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
 
         // Second write fails because it tries to write to the same coin
         assert!(matches!(
-            wal.reserve(uuid, coin.0, recv1, tx1),
+            wal.reserve(uuid, coin.object_id, recv1, tx1),
             Err(TypedStoreError::Serialization(_)),
         ));
     }
 
     #[tokio::test]
     async fn reserve_reclaim_commit_reclaim() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
+        let tmp_dir = iota_common::tempdir();
+        let mut wal = WriteAheadLog::open(&tmp_dir.path().join("wal"));
 
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
         let (recv, tx) = random_request(coin);
 
-        wal.reserve(uuid, coin.0, recv, tx.clone()).unwrap();
+        wal.reserve(uuid, coin.object_id, recv, tx.clone()).unwrap();
 
         // Reclaim to show that the entry is there
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -227,16 +226,16 @@ mod tests {
         assert_eq!(tx, entry.tx);
 
         // Commit the transaction, which removes it from the log.
-        wal.commit(coin.0).unwrap();
+        wal.commit(coin.object_id).unwrap();
 
         // Expect it to now be gone
-        assert_eq!(Ok(None), wal.reclaim(coin.0));
+        assert_eq!(Ok(None), wal.reclaim(coin.object_id));
     }
 
     #[tokio::test]
     async fn reserve_commit_reserve() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
+        let tmp_dir = iota_common::tempdir();
+        let mut wal = WriteAheadLog::open(&tmp_dir.path().join("wal"));
 
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
@@ -244,19 +243,19 @@ mod tests {
         let (recv1, tx1) = random_request(coin);
 
         // Write the transaction
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
 
         // Commit the transaction, which removes it from the log.
-        wal.commit(coin.0).unwrap();
+        wal.commit(coin.object_id).unwrap();
 
         // Write a fresh transaction, which should now pass
-        wal.reserve(uuid, coin.0, recv1, tx1).unwrap();
+        wal.reserve(uuid, coin.object_id, recv1, tx1).unwrap();
     }
 
-    fn random_request(coin: ObjectRef) -> (IotaAddress, TransactionData) {
+    fn random_request(coin: ObjectReference) -> (Address, TransactionData) {
         let gas_price = 1;
-        let send = IotaAddress::random_for_testing_only();
-        let recv = IotaAddress::random_for_testing_only();
+        let send = Address::random();
+        let recv = Address::random();
         (
             recv,
             TransactionData::new_pay_iota(

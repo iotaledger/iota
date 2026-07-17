@@ -20,23 +20,33 @@ if [ "$PROFILE" = "dev" ]; then
     TARGET_FOLDER="target/debug"
 fi
 IMAGE_TAG=""
+DOCKERFILE_DIR=""
 
 # Parse command line arguments
 # Usage:
 # --image-tag <image_tag> - the name and tag of the image
+# --dockerfile-dir <dir> - optional path (relative to repo root) containing the Dockerfile
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --image-tag=*) 
+        --image-tag=*)
             IMAGE_TAG="${1#*=}"
             shift
             ;;
-        --image-tag) 
+        --image-tag)
             IMAGE_TAG="$2"
             shift 2
             ;;
-        *) 
+        --dockerfile-dir=*)
+            DOCKERFILE_DIR="${1#*=}"
+            shift
+            ;;
+        --dockerfile-dir)
+            DOCKERFILE_DIR="$2"
+            shift 2
+            ;;
+        *)
             print_error "Unknown argument: $1"
-            print_step "Usage: $0 --image-tag <image_tag>"
+            print_step "Usage: $0 --image-tag <image_tag> [--dockerfile-dir <dir>]"
             exit 1
             ;;
     esac
@@ -45,11 +55,15 @@ done
 # check if the image tag is set
 if [ -z "$IMAGE_TAG" ]; then
     print_error "Image tag is not set"
-    print_step "Usage: $0 --image-tag <image_tag>"
+    print_step "Usage: $0 --image-tag <image_tag> [--dockerfile-dir <dir>]"
     exit 1
 fi
 
-DOCKERFILE="$REPO_ROOT/docker/$(basename "${IMAGE_TAG%%:*}")/Dockerfile"
+if [ -n "$DOCKERFILE_DIR" ]; then
+    DOCKERFILE="$REPO_ROOT/$DOCKERFILE_DIR/Dockerfile"
+else
+    DOCKERFILE="$REPO_ROOT/docker/$(basename "${IMAGE_TAG%%:*}")/Dockerfile"
+fi
 
 print_step "Parse the rust toolchain version from 'rust-toolchain.toml'..."
 RUST_VERSION=$(grep -oE 'channel = "[^"]+' ${REPO_ROOT}/rust-toolchain.toml | sed 's/channel = "//')
@@ -75,15 +89,23 @@ if [ "${DOCKER_BUILDKIT:-0}" = "1" ]; then
 	print_step "Cache mounts enabled - creating temporary Dockerfile with cache support"
 	DOCKERFILE_TMP="${DOCKERFILE}.cache"
 
-	# Add BuildKit syntax and inject cache mounts before cargo build
+	# Add BuildKit syntax and inject cache mounts into the RUN instruction
+	# that builds the binaries (either `RUN cargo build ...` or the
+	# `RUN BINARIES=...` loop form used by multi-binary images).
 	{
 		echo "# syntax=docker/dockerfile:1"
-		sed 's/^RUN cargo build --profile \${PROFILE}/RUN --mount=type=cache,target=\/usr\/local\/cargo\/registry \\\
+		sed -E 's/^RUN (cargo build --profile \$\{PROFILE\}|BINARIES=)/RUN --mount=type=cache,target=\/usr\/local\/cargo\/registry \\\
     --mount=type=cache,target=\/usr\/local\/cargo\/git \\\
     --mount=type=cache,target=\/iota\/target,sharing=locked \\\
-    cargo build --profile ${PROFILE}/' "$DOCKERFILE"
+    \1/' "$DOCKERFILE"
 	} > "$DOCKERFILE_TMP"
 	
+	# A pattern mismatch must fail loudly: a silent no-op here means every
+	# source change triggers a full cold rebuild of all binaries.
+	if ! grep -q -- '--mount=type=cache' "$DOCKERFILE_TMP"; then
+		print_error "Failed to inject cargo cache mounts into $DOCKERFILE: no build instruction matched"
+		exit 1
+	fi
 	DOCKERFILE="$DOCKERFILE_TMP"
 	
 	# Ensure cleanup on exit

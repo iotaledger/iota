@@ -4,6 +4,8 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +15,12 @@ use super::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::{
+    EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
+};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
@@ -25,9 +30,6 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
-    },
     multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
@@ -76,7 +78,7 @@ pub struct SystemParametersV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
     pub protocol_pubkey_bytes: Vec<u8>,
@@ -100,7 +102,7 @@ pub struct ValidatorMetadataV1 {
 
 #[derive(derive_more::Debug, Clone, Eq, PartialEq)]
 pub struct VerifiedValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
@@ -131,7 +133,7 @@ impl VerifiedValidatorMetadataV1 {
 impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
-    pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
+    pub fn verify(&self, metadata_v2: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
@@ -153,15 +155,19 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
         // Ensure p2p and primary address are both Multiaddr's and valid
-        // anemo addresses
+        // anemo addresses. The anemo check is node-only; on wasm we're
+        // inspecting already-on-chain state, which the Move verifier
+        // gated at validator creation time.
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         p2p_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         primary_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -214,10 +220,32 @@ impl ValidatorMetadataV1 {
                         .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?,
                 )),
             }?;
-        if next_epoch_network_pubkey.is_some()
-            && next_epoch_network_pubkey == next_epoch_protocol_pubkey
-        {
-            return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
+        if metadata_v2 {
+            match (&next_epoch_network_pubkey, &next_epoch_protocol_pubkey) {
+                (Some(next_epoch_network_pubkey), Some(next_epoch_protocol_pubkey)) => {
+                    if next_epoch_network_pubkey == next_epoch_protocol_pubkey {
+                        return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
+                    }
+                }
+                (Some(next_epoch_network_pubkey), None) => {
+                    if next_epoch_network_pubkey == &protocol_pubkey {
+                        return Err(E_METADATA_INVALID_NET_PUBKEY);
+                    }
+                }
+                (None, Some(next_epoch_protocol_pubkey)) => {
+                    if next_epoch_protocol_pubkey == &network_pubkey {
+                        return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
+                    }
+                }
+                (None, None) => (),
+            }
+        } else {
+            // TODO: Clean up this after metadata v2 is fully deployed.
+            if next_epoch_network_pubkey.is_some()
+                && next_epoch_network_pubkey == next_epoch_protocol_pubkey
+            {
+                return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
+            }
         }
 
         let next_epoch_net_address = match self.next_epoch_net_address.clone() {
@@ -232,6 +260,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
@@ -245,6 +274,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -299,12 +329,20 @@ impl ValidatorV1 {
     pub fn verified_metadata(&self) -> &VerifiedValidatorMetadataV1 {
         self.verified_metadata.get_or_init(|| {
             self.metadata
-                .verify()
+                .verify(true)
                 .expect("Validity of metadata should be verified on-chain")
         })
     }
 
-    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+    /// Create the validator summary.
+    ///
+    /// The effective commission rate is evaluated based on the value of the
+    /// `protocol_version` passed. If [`None`] it resolves to the commission
+    /// rate set by the validator.
+    pub fn into_iota_validator_summary(
+        self,
+        protocol_version: Option<u64>,
+    ) -> IotaValidatorSummary {
         let Self {
             metadata:
                 ValidatorMetadataV1 {
@@ -357,6 +395,10 @@ impl ValidatorV1 {
             next_epoch_commission_rate,
             extra_fields: _,
         } = self;
+        let effective_commission_rate = Some(match protocol_version {
+            Some(version) if version >= PROTOCOL_VERSION_IIP8 => commission_rate.max(voting_power),
+            _ => commission_rate,
+        });
         IotaValidatorSummary {
             iota_address,
             authority_pubkey_bytes,
@@ -392,6 +434,7 @@ impl ValidatorV1 {
             pending_total_iota_withdraw,
             pending_pool_token_withdraw,
             commission_rate,
+            effective_commission_rate,
             next_epoch_stake,
             next_epoch_gas_price,
             next_epoch_commission_rate,
@@ -402,7 +445,7 @@ impl ValidatorV1 {
 /// Rust version of the Move iota_system::staking_pool::StakingPoolV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakingPoolV1 {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub activation_epoch: Option<u64>,
     pub deactivation_epoch: Option<u64>,
     pub iota_balance: u64,
@@ -425,7 +468,7 @@ pub struct ValidatorSetV1 {
     pub staking_pool_mappings: Table,
     pub inactive_validators: Table,
     pub validator_candidates: Table,
-    pub at_risk_validators: VecMap<IotaAddress, u64>,
+    pub at_risk_validators: VecMap<Address, u64>,
     pub extra_fields: Bag,
 }
 
@@ -448,7 +491,7 @@ pub struct IotaSystemStateV1 {
     pub parameters: SystemParametersV1,
     pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
-    pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
+    pub validator_report_records: VecMap<Address, VecSet<Address>>,
     pub safe_mode: bool,
     pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
@@ -535,10 +578,11 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(Some(self.protocol_version)))
             .collect())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState {
         let committee_validators: Vec<EpochStartValidatorInfoV1> = self
             .validators
@@ -646,7 +690,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             total_stake,
             active_validators: active_validators
                 .into_iter()
-                .map(|v| v.into_iota_validator_summary())
+                .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
             pending_active_validators_id,
             pending_active_validators_size,
@@ -679,6 +723,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
 /// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectID,
-    pub authorizer_validator_address: IotaAddress,
+    pub id: ObjectId,
+    pub authorizer_validator_address: Address,
 }

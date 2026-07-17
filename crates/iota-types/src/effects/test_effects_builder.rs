@@ -4,15 +4,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use iota_sdk_types::{
+    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionEventsDigest,
+    Version, gas::GasCostSummary,
+};
+
 use crate::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::{ObjectDigest, TransactionEventsDigest},
-    effects::{EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects},
+    effects::{
+        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+        TransactionEffectsExt,
+    },
     execution::SharedInput,
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
     message_envelope::Message,
-    object::Owner,
     transaction::{InputObjectKind, SenderSignedData, TransactionDataAPI},
 };
 
@@ -21,19 +24,19 @@ pub struct TestEffectsBuilder {
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
-    shared_input_versions: BTreeMap<ObjectID, SequenceNumber>,
+    shared_input_versions: BTreeMap<ObjectId, Version>,
     events_digest: Option<TransactionEventsDigest>,
-    created_objects: Vec<(ObjectID, Owner)>,
+    created_objects: Vec<(ObjectId, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
-    mutated_objects: Vec<(ObjectID, SequenceNumber, Owner)>,
+    mutated_objects: Vec<(ObjectId, Version, Owner)>,
     /// Objects that are deleted: (ID, old version).
-    deleted_objects: Vec<(ObjectID, SequenceNumber)>,
+    deleted_objects: Vec<(ObjectId, Version)>,
     /// Objects that are wrapped: (ID, old version).
-    wrapped_objects: Vec<(ObjectID, SequenceNumber)>,
+    wrapped_objects: Vec<(ObjectId, Version)>,
     /// Objects that are unwrapped: (ID, new owner).
-    unwrapped_objects: Vec<(ObjectID, Owner)>,
+    unwrapped_objects: Vec<(ObjectId, Owner)>,
     /// Immutable objects that are read.
-    frozen_objects: BTreeSet<ObjectID>,
+    frozen_objects: BTreeSet<ObjectId>,
 }
 
 impl TestEffectsBuilder {
@@ -57,10 +60,7 @@ impl TestEffectsBuilder {
         self
     }
 
-    pub fn with_shared_input_versions(
-        mut self,
-        versions: BTreeMap<ObjectID, SequenceNumber>,
-    ) -> Self {
+    pub fn with_shared_input_versions(mut self, versions: BTreeMap<ObjectId, Version>) -> Self {
         assert!(self.shared_input_versions.is_empty());
         self.shared_input_versions = versions;
         self
@@ -73,7 +73,7 @@ impl TestEffectsBuilder {
 
     pub fn with_created_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Owner)>,
     ) -> Self {
         self.created_objects.extend(objects);
         self
@@ -82,7 +82,7 @@ impl TestEffectsBuilder {
     pub fn with_mutated_objects(
         mut self,
         // Object ID, old version, and new owner.
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version, Owner)>,
     ) -> Self {
         self.mutated_objects.extend(objects);
         self
@@ -90,7 +90,7 @@ impl TestEffectsBuilder {
 
     pub fn with_wrapped_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version)>,
     ) -> Self {
         self.wrapped_objects.extend(objects);
         self
@@ -98,7 +98,7 @@ impl TestEffectsBuilder {
 
     pub fn with_unwrapped_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Owner)>,
     ) -> Self {
         self.unwrapped_objects.extend(objects);
         self
@@ -106,13 +106,13 @@ impl TestEffectsBuilder {
 
     pub fn with_deleted_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, Version)>,
     ) -> Self {
         self.deleted_objects.extend(objects);
         self
     }
 
-    pub fn with_frozen_objects(mut self, objects: impl IntoIterator<Item = ObjectID>) -> Self {
+    pub fn with_frozen_objects(mut self, objects: impl IntoIterator<Item = ObjectId>) -> Self {
         self.frozen_objects.extend(objects);
         self
     }
@@ -124,9 +124,11 @@ impl TestEffectsBuilder {
         let shared_objects = self
             .shared_input_versions
             .iter()
-            .map(|(id, version)| SharedInput::Existing((*id, *version, ObjectDigest::MIN)))
+            .map(|(id, version)| {
+                SharedInput::Existing(ObjectReference::new(*id, *version, ObjectDigest::MIN))
+            })
             .collect();
-        let executed_epoch = 0;
+        let epoch = 0;
         let sender = self.transaction.transaction_data().sender();
         // TODO: Include receiving objects in the object changes as well.
         let changed_objects = self
@@ -136,24 +138,26 @@ impl TestEffectsBuilder {
             .unwrap()
             .iter()
             .filter_map(|kind| match kind {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _))
-                    if self.frozen_objects.contains(id) =>
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref)
+                    if self.frozen_objects.contains(&object_ref.object_id) =>
                 {
                     None
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(oref) => {
                     Some((
-                        oref.0,
+                        oref.object_id,
                         EffectsObjectChange {
-                            input_state: ObjectIn::Exist((
-                                (oref.1, oref.2),
-                                Owner::AddressOwner(sender),
-                            )),
-                            output_state: ObjectOut::ObjectWrite((
+                            object_id: oref.object_id,
+                            input_state: ObjectIn::Data {
+                                version: oref.version,
+                                digest: oref.digest,
+                                owner: Owner::Address(sender),
+                            },
+                            output_state: ObjectOut::ObjectWrite {
                                 // Digest must change with a mutation.
-                                ObjectDigest::MAX,
-                                Owner::AddressOwner(sender),
-                            )),
+                                digest: ObjectDigest::MAX,
+                                owner: Owner::Address(sender),
+                            },
                             id_operation: IDOperation::None,
                         },
                     ))
@@ -166,25 +170,20 @@ impl TestEffectsBuilder {
                 } => mutable.then_some((
                     *id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (
-                                *self
-                                    .shared_input_versions
-                                    .get(id)
-                                    .unwrap_or(initial_shared_version),
-                                ObjectDigest::MIN,
-                            ),
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
-                        )),
-                        output_state: ObjectOut::ObjectWrite((
+                        object_id: *id,
+                        input_state: ObjectIn::Data {
+                            version: *self
+                                .shared_input_versions
+                                .get(id)
+                                .unwrap_or(initial_shared_version),
+                            digest: ObjectDigest::MIN,
+                            owner: Owner::Shared(*initial_shared_version),
+                        },
+                        output_state: ObjectOut::ObjectWrite {
                             // Digest must change with a mutation.
-                            ObjectDigest::MAX,
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
-                        )),
+                            digest: ObjectDigest::MAX,
+                            owner: Owner::Shared(*initial_shared_version),
+                        },
                         id_operation: IDOperation::None,
                     },
                 )),
@@ -193,8 +192,12 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::NotExist,
-                        output_state: ObjectOut::ObjectWrite((ObjectDigest::random(), owner)),
+                        object_id: id,
+                        input_state: ObjectIn::Missing,
+                        output_state: ObjectOut::ObjectWrite {
+                            digest: ObjectDigest::random(),
+                            owner,
+                        },
                         id_operation: IDOperation::Created,
                     },
                 )
@@ -206,14 +209,16 @@ impl TestEffectsBuilder {
                         (
                             id,
                             EffectsObjectChange {
-                                input_state: ObjectIn::Exist((
-                                    (version, ObjectDigest::random()),
-                                    Owner::AddressOwner(sender),
-                                )),
-                                output_state: ObjectOut::ObjectWrite((
-                                    ObjectDigest::random(),
+                                object_id: id,
+                                input_state: ObjectIn::Data {
+                                    version,
+                                    digest: ObjectDigest::random(),
+                                    owner: Owner::Address(sender),
+                                },
+                                output_state: ObjectOut::ObjectWrite {
+                                    digest: ObjectDigest::random(),
                                     owner,
-                                )),
+                                },
                                 id_operation: IDOperation::None,
                             },
                         )
@@ -223,11 +228,13 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (version, ObjectDigest::random()),
-                            Owner::AddressOwner(sender),
-                        )),
-                        output_state: ObjectOut::NotExist,
+                        object_id: id,
+                        input_state: ObjectIn::Data {
+                            version,
+                            digest: ObjectDigest::random(),
+                            owner: Owner::Address(sender),
+                        },
+                        output_state: ObjectOut::Missing,
                         id_operation: IDOperation::Deleted,
                     },
                 )
@@ -236,11 +243,13 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (version, ObjectDigest::random()),
-                            Owner::AddressOwner(sender),
-                        )),
-                        output_state: ObjectOut::NotExist,
+                        object_id: id,
+                        input_state: ObjectIn::Data {
+                            version,
+                            digest: ObjectDigest::random(),
+                            owner: Owner::Address(sender),
+                        },
+                        output_state: ObjectOut::Missing,
                         id_operation: IDOperation::None,
                     },
                 )
@@ -249,19 +258,24 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::NotExist,
-                        output_state: ObjectOut::ObjectWrite((ObjectDigest::random(), owner)),
+                        object_id: id,
+                        input_state: ObjectIn::Missing,
+                        output_state: ObjectOut::ObjectWrite {
+                            digest: ObjectDigest::random(),
+                            owner,
+                        },
                         id_operation: IDOperation::None,
                     },
                 )
             }))
             .collect();
-        let gas_object_id = self.transaction.transaction_data().gas()[0].0;
+        let gas_object_id = self.transaction.transaction_data().gas()[0].object_id;
         let event_digest = self.events_digest;
         let dependencies = vec![];
+
         TransactionEffects::new_from_execution_v1(
             status,
-            executed_epoch,
+            epoch,
             GasCostSummary::default(),
             shared_objects,
             BTreeSet::new(),
@@ -274,8 +288,8 @@ impl TestEffectsBuilder {
         )
     }
 
-    fn get_lamport_version(&self) -> SequenceNumber {
-        SequenceNumber::lamport_increment(
+    fn get_lamport_version(&self) -> Version {
+        Version::lamport_increment(
             self.transaction
                 .transaction_data()
                 .input_objects()
@@ -287,12 +301,13 @@ impl TestEffectsBuilder {
                         .transaction_data()
                         .receiving_objects()
                         .iter()
-                        .map(|oref| oref.1),
+                        .map(|oref| oref.version),
                 )
                 .chain(self.shared_input_versions.values().copied())
                 .chain(self.mutated_objects.iter().map(|(_, v, _)| *v))
                 .chain(self.deleted_objects.iter().map(|(_, v)| *v))
                 .chain(self.wrapped_objects.iter().map(|(_, v)| *v)),
         )
+        .unwrap()
     }
 }

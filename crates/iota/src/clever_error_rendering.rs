@@ -17,7 +17,7 @@
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_sdk::apis::ReadApi;
-use iota_types::{Identifier, base_types::ObjectID};
+use iota_sdk_types::{Identifier, ObjectId};
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
@@ -69,7 +69,7 @@ pub(crate) async fn render_clever_error_opt(
 
         let IotaRawData::Package(package) = read_api
             .get_object_with_options(
-                ObjectID::from_address(address),
+                ObjectId::new(address.into_bytes()),
                 IotaObjectDataOptions::bcs_lossless(),
             )
             .await
@@ -156,10 +156,7 @@ fn parse_abort_status_string(
     use regex::Regex;
     let re = Regex::new(r#"MoveAbort.*address:\s*(.*?),.* name:.*Identifier\((.*?)\).*instruction:\s+(\d+),.*function_name:.*Some\((.*?)\).*},\s*(\d+).*in command\s*(\d+)"#).unwrap();
     let Some(captures) = re.captures(s) else {
-        anyhow::bail!(
-            "Cannot parse abort status string: {} as a move abort string",
-            s
-        );
+        anyhow::bail!("Cannot parse abort status string: {s} as a move abort string");
     };
 
     // Remove any escape characters from the string if present.

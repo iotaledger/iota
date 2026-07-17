@@ -9,18 +9,17 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
+use iota_sdk_types::{
+    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TypeTag, Version,
+};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
     coin::Coin,
-    digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    execution_status::ExecutionStatus,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
-    object::{Object, Owner},
+    object::Object,
     storage::WriteKind,
     transaction::InputObjectKind,
 };
-use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
 use tracing::instrument;
 
@@ -28,7 +27,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
     effects: &TransactionEffects,
     input_objs: Vec<InputObjectKind>,
-    mocked_coin: Option<ObjectID>,
+    mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<BalanceChange>, E> {
     let (_, gas_owner) = effects.gas_object();
 
@@ -44,25 +43,29 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     let all_mutated = effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|((id, version, digest), _, _)| {
-            if matches!(mocked_coin, Some(coin) if id == coin) {
+        .filter_map(|(object_ref, _, _)| {
+            if matches!(mocked_coin, Some(coin) if object_ref.object_id == coin) {
                 return None;
             }
-            Some((id, version, Some(digest)))
+            Some((
+                object_ref.object_id,
+                object_ref.version,
+                Some(object_ref.digest),
+            ))
         })
         .collect::<Vec<_>>();
 
     let input_objs_to_digest = input_objs
         .iter()
         .filter_map(|k| match k {
-            InputObjectKind::ImmOrOwnedMoveObject(o) => Some((o.0, o.2)),
+            InputObjectKind::ImmOrOwnedMoveObject(o) => Some((o.object_id, o.digest)),
             InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
         })
-        .collect::<HashMap<ObjectID, ObjectDigest>>();
+        .collect::<HashMap<ObjectId, ObjectDigest>>();
     let unwrapped_then_deleted = effects
         .unwrapped_then_deleted()
         .iter()
-        .map(|e| e.0)
+        .map(|e| e.object_id)
         .collect::<HashSet<_>>();
     get_balance_changes(
         object_provider,
@@ -87,8 +90,8 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
 
 pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    modified_at_version: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
-    all_mutated: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
+    modified_at_version: &[(ObjectId, Version, Option<ObjectDigest>)],
+    all_mutated: &[(ObjectId, Version, Option<ObjectDigest>)],
 ) -> Result<Vec<BalanceChange>, E> {
     // 1. subtract all input coins
     let balances = fetch_coins(object_provider, modified_at_version)
@@ -127,14 +130,14 @@ pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
 
 async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    objects: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
+    objects: &[(ObjectId, Version, Option<ObjectDigest>)],
 ) -> Result<Vec<(Owner, TypeTag, u64)>, E> {
     let mut all_mutated_coins = vec![];
     for (id, version, digest_opt) in objects {
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
-        if let Some(type_) = o.type_() {
-            if type_.is_coin() {
+        if let Some(struct_tag) = o.type_() {
+            if struct_tag.is_coin() {
                 if let Some(digest) = digest_opt {
                     // TODO: can we return Err here instead?
                     assert_eq!(
@@ -143,8 +146,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let [coin_type]: [TypeTag; 1] =
-                    type_.clone().into_type_params().try_into().unwrap();
+                let coin_type = struct_tag.type_params()[0].clone();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,
@@ -160,21 +162,17 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
 #[async_trait]
 pub trait ObjectProvider {
     type Error;
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error>;
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error>;
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error>;
 }
 
 pub struct ObjectProviderCache<P> {
-    object_cache: RwLock<BTreeMap<(ObjectID, SequenceNumber), Object>>,
-    last_version_cache: RwLock<BTreeMap<(ObjectID, SequenceNumber), SequenceNumber>>,
+    object_cache: RwLock<BTreeMap<(ObjectId, Version), Object>>,
+    last_version_cache: RwLock<BTreeMap<(ObjectId, Version), Version>>,
     provider: P,
 }
 
@@ -187,42 +185,12 @@ impl<P> ObjectProviderCache<P> {
         }
     }
 
-    pub fn new_with_cache(
-        provider: P,
-        written_objects: BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
-    ) -> Self {
-        let mut object_cache = BTreeMap::new();
-        let mut last_version_cache = BTreeMap::new();
-
-        for (object_id, (object_ref, object, _)) in written_objects {
-            let key = (object_id, object_ref.1);
-            object_cache.insert(key, object.clone());
-
-            match last_version_cache.get_mut(&key) {
-                Some(existing_seq_number) => {
-                    if object_ref.1 > *existing_seq_number {
-                        *existing_seq_number = object_ref.1
-                    }
-                }
-                None => {
-                    last_version_cache.insert(key, object_ref.1);
-                }
-            }
-        }
-
-        Self {
-            object_cache: RwLock::new(object_cache),
-            last_version_cache: RwLock::new(last_version_cache),
-            provider,
-        }
-    }
-
     #[instrument(level = "trace", skip_all)]
-    pub fn new_with_output_objects(provider: P, output_objects: Vec<Object>) -> Self {
-        let mut object_cache = BTreeMap::new();
-        let mut last_version_cache = BTreeMap::new();
+    pub fn insert_objects_into_cache(&mut self, objects: Vec<Object>) {
+        let object_cache = self.object_cache.get_mut();
+        let last_version_cache = self.last_version_cache.get_mut();
 
-        for object in output_objects {
+        for object in objects {
             let object_id = object.id();
             let version = object.version();
 
@@ -237,6 +205,30 @@ impl<P> ObjectProviderCache<P> {
                 }
                 None => {
                     last_version_cache.insert(key, version);
+                }
+            }
+        }
+    }
+
+    pub fn new_with_cache(
+        provider: P,
+        written_objects: BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
+    ) -> Self {
+        let mut object_cache = BTreeMap::new();
+        let mut last_version_cache = BTreeMap::new();
+
+        for (object_id, (object_ref, object, _)) in written_objects {
+            let key = (object_id, object_ref.version);
+            object_cache.insert(key, object.clone());
+
+            match last_version_cache.get_mut(&key) {
+                Some(existing_seq_number) => {
+                    if object_ref.version > *existing_seq_number {
+                        *existing_seq_number = object_ref.version
+                    }
+                }
+                None => {
+                    last_version_cache.insert(key, object_ref.version);
                 }
             }
         }
@@ -257,11 +249,7 @@ where
 {
     type Error = P::Error;
 
-    async fn get_object(
-        &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         if let Some(o) = self.object_cache.read().await.get(&(*id, *version)) {
             return Ok(o.clone());
         }
@@ -275,8 +263,8 @@ where
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
-        version: &SequenceNumber,
+        id: &ObjectId,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         if let Some(version) = self.last_version_cache.read().await.get(&(*id, *version)) {
             return Ok(self.get_object(id, version).await.ok());

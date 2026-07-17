@@ -22,7 +22,6 @@ RUN mkdir -p ~/.cargo && \
 RUN apt install -y ca-certificates
 
 COPY .git/ .git/
-COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY external-crates external-crates

@@ -194,7 +194,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 })
                 .collect::<Result<_, _>>()?;
 
-            let (method_name, returns, is_pubsub, deprecated) = if let Some(attr) =
+            let (method_name, mut returns, is_pubsub, deprecated) = if let Some(attr) =
                 find_attr(&mut method.attrs, "method")
             {
                 let token: TokenStream = attr.tokens.clone().into();
@@ -242,8 +242,23 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 attr.tokens = remove_iota_rpc_attributes(attributes);
                 (name, Some(type_), true, deprecated)
             } else {
-                panic!("Unknown method name")
+                continue;
             };
+
+            // Allow overriding the return type via #[schemars(with = "X")] on
+            // the method, matching the parameter-level override in `get_type`.
+            if let Some((pos, schemars_attr)) = method
+                .attrs
+                .iter()
+                .find_position(|a| a.path.is_ident("schemars"))
+            {
+                let attribute = parse::<NamedAttribute>(schemars_attr.tokens.clone().into())?;
+                let stream: TokenStream2 = syn::parse_str(&attribute.value.value())?;
+                let tokens = respan_token_stream(stream, attribute.value.span());
+                let ty: Type = syn::parse2(tokens)?;
+                method.attrs.remove(pos);
+                returns = Some(ty);
+            }
 
             methods.push(Method {
                 name: method_name,

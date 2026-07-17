@@ -6,7 +6,7 @@ core library primitives and are designed for multi-minute stress runs.
 
 All commands below assume:
 
-- the private network is running (e.g. `./run.sh -n 10 -p mysticeti`)
+- the private network is running (e.g. `./run.sh -n 10`)
 - a virtual environment is active (`source .venv/bin/activate`)
 - the `PYTHON` environment variable is set to the current interpreter: `export PYTHON=$(python -c 'import sys; print(sys.executable)')`
 - `net_fuzz` is installed (`pip install -e fuzzer`)
@@ -99,17 +99,15 @@ Run:
 sudo -E "$PYTHON" -m net_fuzz.experiments.sync_stress
 ```
 
-## Protocol comparison runners
+## Experiment runners
 
-The `run_*_stress.py` scripts orchestrate full end-to-end runs for both
-consensus protocols (Mysticeti and Starfish) under the same conditions. Each
-runner:
+The `run_*_stress.py` scripts orchestrate full end-to-end runs of each
+scenario. Each runner:
 
 - cleans up any existing network
 - bootstraps a fresh validator set
-- starts the network for a specific protocol
+- starts the network
 - runs the corresponding experiment
-- repeats for the second protocol
 - auto-detects the current validator count from running containers (falls back
   to 10 if none are running)
 

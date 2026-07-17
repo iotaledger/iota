@@ -106,11 +106,8 @@ docs/generated-docs/**
 .yalc
 yalc.lock
 
-# iota-aws-orchestrator
-crates/iota-aws-orchestrator/venv/
-crates/iota-aws-orchestrator/assets/plots/
-crates/iota-aws-orchestrator/assets/results/
-crates/iota-aws-orchestrator/assets/logs/
-
 # ignore explorer files
 apps/explorer/public/*.wasm
+
+# iota-vm-sdk authenticator_gas_profile example output
+authenticator_gas_profile.speedscope.json

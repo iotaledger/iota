@@ -8,36 +8,24 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::crypto::HashingIntentScope;
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveValue},
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
-use schemars::JsonSchema;
+use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
+use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, ObjectID, SequenceNumber,
-    base_types::{IotaAddress, ObjectDigest},
+    MoveTypeTagTrait, ObjectId, Version,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
 };
 
 pub mod visitor;
-
-const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
-const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
-
-const DYNAMIC_OBJECT_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_object_field");
-const DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("Wrapper");
 
 /// Rust version of the Move iota::dynamic_field::Field type
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -73,22 +61,20 @@ pub struct DynamicFieldInfo {
     pub bcs_name: Vec<u8>,
     pub type_: DynamicFieldType,
     pub object_type: String,
-    pub object_id: ObjectID,
-    pub version: SequenceNumber,
+    pub object_id: ObjectId,
+    pub version: Version,
     pub digest: ObjectDigest,
 }
 
 #[serde_as]
-#[derive(Clone, Serialize, Deserialize, JsonSchema, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
-    #[schemars(with = "String")]
     #[serde_as(as = "Readable<IotaTypeTag, _>")]
     pub type_: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
-    #[schemars(with = "Value")]
     #[serde_as(as = "Readable<_, DisplayFromStr>")]
     pub value: Value,
 }
@@ -99,9 +85,7 @@ impl Display for DynamicFieldName {
     }
 }
 
-#[derive(
-    Copy, Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug,
-)]
+#[derive(Copy, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum DynamicFieldType {
     #[serde(rename_all = "camelCase")]
     DynamicField,
@@ -119,43 +103,29 @@ impl Display for DynamicFieldType {
 
 impl DynamicFieldInfo {
     pub fn is_dynamic_field(tag: &StructTag) -> bool {
-        tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == DYNAMIC_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_FIELD_FIELD_STRUCT_NAME
+        tag.is_dynamic_field()
     }
 
     pub fn is_dynamic_object_field_wrapper(tag: &StructTag) -> bool {
-        tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == DYNAMIC_OBJECT_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME
+        tag.is_dynamic_object_field_wrapper()
     }
 
     pub fn dynamic_field_type(key: TypeTag, value: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: DYNAMIC_FIELD_FIELD_STRUCT_NAME.to_owned(),
-            module: DYNAMIC_FIELD_MODULE_NAME.to_owned(),
-            type_params: vec![key, value],
-        }
+        StructTag::new_dynamic_field(key, value)
     }
 
     pub fn dynamic_object_field_wrapper(key: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DYNAMIC_OBJECT_FIELD_MODULE_NAME.to_owned(),
-            name: DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME.to_owned(),
-            type_params: vec![key],
-        }
+        StructTag::new_dynamic_object_field_wrapper(key)
     }
 
     pub fn try_extract_field_name(
         tag: &StructTag,
         type_: &DynamicFieldType,
     ) -> IotaResult<TypeTag> {
-        match (type_, tag.type_params.first()) {
+        match (type_, tag.type_params().first()) {
             (DynamicFieldType::DynamicField, Some(name_type)) => Ok(name_type.clone()),
             (DynamicFieldType::DynamicObject, Some(TypeTag::Struct(s))) => Ok(s
-                .type_params
+                .type_params()
                 .first()
                 .ok_or_else(|| IotaError::ObjectDeserialization {
                     error: format!("Error extracting dynamic object name from object: {tag}"),
@@ -168,7 +138,7 @@ impl DynamicFieldInfo {
     }
 
     pub fn try_extract_field_value(tag: &StructTag) -> IotaResult<TypeTag> {
-        match tag.type_params.last() {
+        match tag.type_params().last() {
             Some(value_type) => Ok(value_type.clone()),
             None => Err(IotaError::ObjectDeserialization {
                 error: format!("Error extracting dynamic object value from object: {tag}"),
@@ -178,7 +148,7 @@ impl DynamicFieldInfo {
 
     pub fn parse_move_object(
         move_struct: &MoveStruct,
-    ) -> IotaResult<(MoveValue, DynamicFieldType, ObjectID)> {
+    ) -> IotaResult<(MoveValue, DynamicFieldType, ObjectId)> {
         let name = extract_field_from_move_struct(move_struct, "name").ok_or_else(|| {
             IotaError::ObjectDeserialization {
                 error: "Cannot extract [name] field from iota::dynamic_field::Field".to_string(),
@@ -238,7 +208,7 @@ pub fn extract_field_from_move_struct<'a>(
     })
 }
 
-fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
+fn extract_object_id(value: &MoveStruct) -> Option<ObjectId> {
     // id:UID is the first value in an object
     let uid_value = &value.fields.first()?.1;
 
@@ -250,7 +220,7 @@ fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
     extract_id_value(id_value)
 }
 
-pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
+pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectId> {
     // the id struct has a single bytes field
     let id_bytes_value = match id_value {
         MoveValue::Struct(MoveStruct { fields, .. }) => &fields.first()?.1,
@@ -258,14 +228,14 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
     };
     // the bytes field should be an address
     match id_bytes_value {
-        MoveValue::Address(addr) => Some(ObjectID::from(*addr)),
+        MoveValue::Address(addr) => Some(ObjectId::new(addr.into_bytes())),
         _ => None,
     }
 }
 
 pub fn is_dynamic_object(move_struct: &MoveStruct) -> bool {
     matches!(
-        &move_struct.type_.type_params[0],
+        &type_tag_core_to_sdk(&move_struct.type_.type_params[0]),
         TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
     )
 }
@@ -274,11 +244,11 @@ pub fn derive_dynamic_field_id<T>(
     parent: T,
     key_type_tag: &TypeTag,
     key_bytes: &[u8],
-) -> Result<ObjectID, bcs::Error>
+) -> Result<ObjectId, bcs::Error>
 where
-    T: Into<IotaAddress>,
+    T: Into<Address>,
 {
-    let parent: IotaAddress = parent.into();
+    let parent: Address = parent.into();
     let k_tag_bytes = bcs::to_bytes(key_type_tag)?;
     tracing::trace!(
         "Deriving dynamic field ID for parent={:?}, key={:?}, key_type_tag={:?}",
@@ -291,15 +261,18 @@ where
     let mut hasher = DefaultHash::default();
     hasher.update([HashingIntentScope::ChildObjectId as u8]);
     hasher.update(parent);
-    hasher.update(key_bytes.len().to_le_bytes());
+    // `usize::to_le_bytes()` is platform-dependent (4 bytes on wasm32, 8 on
+    // x86_64); cast to u64 so the hash matches the on-chain Move VM derivation
+    // on every target.
+    hasher.update((key_bytes.len() as u64).to_le_bytes());
     hasher.update(key_bytes);
     hasher.update(k_tag_bytes);
     let hash = hasher.finalize();
 
-    // truncate into an ObjectID and return
+    // truncate into an ObjectId and return
     // OK to access slice because digest should never be shorter than
-    // ObjectID::LENGTH.
-    let id = ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap();
+    // ObjectId::LENGTH.
+    let id = ObjectId::from_bytes(&hash.as_ref()[0..ObjectId::LENGTH]).unwrap();
     tracing::trace!("derive_dynamic_field_id result: {:?}", id);
     Ok(id)
 }
@@ -311,7 +284,7 @@ where
 /// itself, not the value in the field.
 pub fn get_dynamic_field_object_from_store<K>(
     object_store: &dyn ObjectStore,
-    parent_id: ObjectID,
+    parent_id: ObjectId,
     key: &K,
 ) -> Result<Object, IotaError>
 where
@@ -321,7 +294,7 @@ where
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
     let object = object_store.try_get_object(&id)?.ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
-            "Dynamic field with key={key:?} and ID={id:?} not found on parent {parent_id:?}"
+            "Dynamic field with key={key:?} and ID={id} not found on parent {parent_id}"
         ))
     })?;
     Ok(object)
@@ -331,7 +304,7 @@ where
 /// the field instead of the Field object itself.
 pub fn get_dynamic_field_from_store<K, V>(
     object_store: &dyn ObjectStore,
-    parent_id: ObjectID,
+    parent_id: ObjectId,
     key: &K,
 ) -> Result<V, IotaError>
 where
@@ -339,7 +312,7 @@ where
     V: Serialize + DeserializeOwned,
 {
     let object = get_dynamic_field_object_from_store(object_store, parent_id, key)?;
-    let move_object = object.data.try_as_move().ok_or_else(|| {
+    let move_object = object.data.as_opt_struct().ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
             "Dynamic field {:?} is not a Move object",
             object.id()

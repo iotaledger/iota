@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 futures.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 
 # internal dependencies

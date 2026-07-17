@@ -1,0 +1,194 @@
+---
+title: GraphQL
+description: The GraphQL reader service backed by the IOTA Indexer database — its scope, dependencies, system requirements, configuration, and how to run it.
+tags:
+  - reference
+  - extended-data-services
+teams:
+  - iotaledger/infrastructure
+---
+
+The `iota-graphql-rpc` binary serves a GraphQL endpoint backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview.mdx) for how it fits together with the indexer and the JSON-RPC service.
+
+## Scope
+
+The GraphQL service answers GraphQL queries by reading data from the IOTA Indexer database.
+It exposes reads of checkpoints, transactions, events, objects (including past versions within the retained window), Move packages and types, balances, dynamic fields, and the on-chain name registry.
+GraphQL is ideal for applications that require rich query patterns over structured data.
+
+Two operations are not served from the database: `executeTransactionBlock` and `dryRunTransactionBlock`. Both are forwarded to a fullnode over gRPC.
+
+The GraphQL service holds no state of its own. Multiple instances can run in parallel against the same database.
+
+## Dependencies
+
+- An indexer Postgres database. The schema version in the database must match the one compiled into the GraphQL binary; otherwise the GraphQL service refuses to start. For the `executeTransactionBlock` operation to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer.mdx) for details on running the indexer writer.
+- A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--node-rpc-url` is not set, even when no client issues a mutation or a dry run.
+- Note that currently fallback service cannot be configured for GraphQL, so data pruned by indexer writer is not accessible through GraphQL. See [Pruning](./iota-indexer.mdx#pruning) for the indexer-side retention model.
+
+## Hardware requirements
+
+- CPU: 2 cores per instance
+- Memory: 4 GB per instance
+
+Scale up the number of instances when client request load grows.
+
+## Running the GraphQL service
+
+A minimal start command:
+
+```sh
+iota-graphql-rpc start-server \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  --node-rpc-url http://<fullnode>:<grpc-port> \
+  --config service.toml
+```
+
+Other subcommands:
+
+- `iota-graphql-rpc generate-config <PATH>` writes a fully-populated TOML with the current defaults.
+- `iota-graphql-rpc generate-schema --file <PATH>` writes the active GraphQL schema in SDL format. Useful when generating client code.
+
+## Configuration
+
+Settings come from two places:
+
+- CLI flags on the `start-server` subcommand.
+- A TOML file passed with `--config <PATH>`. If no file is passed, the defaults apply.
+
+A starting TOML with every field set to its default can be generated with:
+
+```sh
+iota-graphql-rpc generate-config <PATH>
+```
+
+The most important settings are covered in subsections below. All settings are listed in the [reference table](#all-settings) at the bottom of the page.
+
+### Database connection
+
+`--db-url` sets the Postgres connection URL (e.g. `postgres://<user>:<password>@<host>:5432/<db>`); see the [Postgres docs](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) for the full URI syntax. `--db-pool-size` sets the connection pool size — raise it for higher concurrency, but stay within the Postgres `max_connections` setting and account for other clients of the same database.
+
+### Fullnode endpoint
+
+`--node-rpc-url` is the gRPC URL of a fullnode that the GraphQL service forwards `executeTransactionBlock` and `dryRunTransactionBlock` to. It is required at start-up.
+
+### HTTP server
+
+`--host` and `--port` set the address the GraphQL endpoint binds to (default `127.0.0.1:8000`). The interactive GraphiQL IDE is served on the same address; its page title comes from `--ide-title`.
+
+### Prometheus metrics
+
+The Prometheus endpoint exposes histograms and counters covering request rate, latency, errors, database pool utilisation, and watermark lag.
+
+`--prom-host` and `--prom-port` set the address the Prometheus metrics are exposed on (default `0.0.0.0:9184`).
+
+### Disabled features
+
+Operators can disable selected groups of queries using the `disabled-features` TOML parameter. The available groups are:
+
+| Name             | Paths                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coins`          | `Query.coinMetadata`; `Address.balance`/`balances`/`coins`; `Object.balance`/`balances`/`coins`; `Owner.balance`/`balances`/`coins`                                    |
+| `dynamic-fields` | `Object.dynamicField`/`dynamicFields`/`dynamicObjectField`; `Owner.dynamicField`/`dynamicFields`/`dynamicObjectField`                                                  |
+| `subscriptions`  | `Subscription.events`; `Subscription.transactions`                                                                                                                     |
+| `system-state`   | `Query.protocolConfig`; `Epoch.protocolConfigs`/`referenceGasPrice`/`validatorSet`; `SystemStateSummary.safeMode`/`storageFund`/`systemParameters`/`systemStateVersion` |
+
+For instance, with `coins` disabled, the following query is rejected because `Query.coinMetadata` and `Address.balance` are both part of the `coins` group:
+
+```graphql
+{
+  coinMetadata(coinType: "0x2::iota::IOTA") {
+    decimals
+    symbol
+  }
+  address(address: "0x...") {
+    balance(type: "0x2::iota::IOTA") {
+      totalBalance
+    }
+  }
+}
+```
+
+Multiple values allowed, example:
+
+```toml
+disabled-features = ["subscriptions", "coins"]
+```
+
+### Watermark task
+
+The service maintains an in-process watermark that tracks the maximum checkpoint and epoch readable from the database. The `background-tasks.watermark-update-ms` TOML key sets how often the watermark is refreshed (default `500` ms).
+This controls how fresh data is served through GraphQL queries as data above the watermark is filtered out from the responses.
+
+### Max available range
+
+A *consistent view* fixes the database state at a single checkpoint for the duration of a paginated query. Without it, paginating through objects could mix state from different checkpoints — page 2 might miss objects that were deleted after page 1 was returned, or include objects that were created in the meantime. GraphQL keeps a window of recent checkpoints over which it can reconstruct historical object state from the indexer's `objects_backward_history` table.
+
+`--max-available-range` (also settable via the `MAX_AVAILABLE_RANGE` environment variable) sets the size of that window, in checkpoints. Larger values let pagination cursors on objects stay valid longer, at a cost that older cursors introduce more database load.
+
+The value must not exceed the retention of the historical tables on the indexer side (`objects_backward_history`). If it does, GraphQL may return incorrect results for data already pruned by indexer writer.
+
+Default value of 9000 allows pagination cursors on objects to stay alive for ≈ 30 minutes.
+
+### IOTA Names resolution
+
+The `[iota-names]` TOML table configures the on-chain name registry the service resolves names against. The defaults match mainnet. Override the package address and registry IDs when running against a different network:
+
+```toml
+[iota-names]
+package-address = "0x..."
+object-id = "0x..."
+payments-package-address = "0x..."
+registry-id = "0x..."
+reverse-registry-id = "0x..."
+```
+
+## All settings
+
+### CLI flags
+
+| Flag                                  | Default                                                  | Description                                                                                       |
+| ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `--host`                              | `127.0.0.1`                                              | Host the GraphQL endpoint binds to.                                                               |
+| `--port`, `-p`                        | `8000`                                                   | Port the GraphQL endpoint binds to.                                                               |
+| `--db-url`, `-d`                      | `postgres://postgres:postgrespw@localhost:5432/iota_indexer` | Postgres connection URL.                                                                       |
+| `--db-pool-size`                      | `10`                                                     | Number of Postgres connections held in the pool.                                                  |
+| `--prom-host`                         | `0.0.0.0`                                                | Host the Prometheus metrics endpoint binds to.                                                    |
+| `--prom-port`                         | `9184`                                                   | Port the Prometheus metrics endpoint binds to.                                                    |
+| `--skip-migration-consistency-check`  | `false`                                                  | Skip the start-up check that local migrations match the database.                                 |
+| `--max-available-range`               | `9000`                                                   | Maximum window (in checkpoints) in which consistent view on objects can be served. Also `MAX_AVAILABLE_RANGE` env var. |
+| `--node-rpc-url`                      | _(required)_                                             | Fullnode gRPC URL used for `executeTransactionBlock` and `dryRunTransactionBlock`.                |
+| `--ide-title`, `-i`                   | `IOTA GraphQL IDE`                                       | Title displayed at the top of the GraphiQL IDE.                                                   |
+| `--config`, `-c`                      | _(none)_                                                 | Path to a TOML file with service configuration; see below.                                        |
+
+### TOML `[limits]`
+
+The `[limits]` table controls how heavy a single query can be.
+
+| Key                          | Default     | Description                                                                                                                                              |
+| ---------------------------- | ----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max-query-depth`            | `20`        | Maximum depth of nodes in a request.                                                                                                                     |
+| `max-query-nodes`            | `300`       | Maximum number of nodes in a request.                                                                                                                    |
+| `max-output-nodes`           | `100000`    | Maximum number of output nodes allowed in the response.                                                                                                  |
+| `max-tx-payload-size`        | `174763`    | Maximum size in bytes for `txBytes` and `signatures` in `executeTransactionBlock`, and `txBytes` in `dryRunTransactionBlock`.                            |
+| `max-query-payload-size`     | `5000`      | Maximum size in bytes of the JSON payload of a read request (excluding `max-tx-payload-size`).                                                           |
+| `max-db-query-cost`          | `20000`     | Queries whose `EXPLAIN` cost exceeds this are logged. Units are Postgres planner units (≈ one sequential page access).                                   |
+| `default-page-size`          | `20`        | Page size used when a paginated query does not specify one.                                                                                              |
+| `max-page-size`              | `50`        | Maximum page size a paginated query may request.                                                                                                         |
+| `mutation-timeout-ms`        | `74000`     | Server-side timeout for mutation requests, in milliseconds. The underlying transaction may continue to execute on the fullnode after the timeout fires. |
+| `request-timeout-ms`         | `40000`     | Server-side timeout for read requests, in milliseconds.                                                                                                  |
+| `max-type-argument-depth`    | `16`        | Maximum nesting of generic type arguments.                                                                                                               |
+| `max-type-argument-width`    | `32`        | Maximum number of type parameters a type can have.                                                                                                       |
+| `max-type-nodes`             | `256`       | Maximum size of a fully qualified type.                                                                                                                  |
+| `max-move-value-depth`       | `128`       | Maximum depth of a Move value.                                                                                                                           |
+| `max-transaction-ids`        | `1000`      | Maximum number of transaction ids accepted by `TransactionBlockFilter` and `transactionBlocksByDigests`.                                                 |
+| `max-scan-limit`             | `100000000` | Maximum number of candidate rows the database scans when assembling a page.                                                                              |
+
+### TOML — other tables
+
+| Key                                  | Default                  | Description                                                                                |
+| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------ |
+| `disabled-features`                  | `[]`                     | List of functional groups removed from the schema. See [Disabled features](#disabled-features). |
+| `background-tasks.watermark-update-ms` | `500`                  | How often the watermark task refreshes the maximum readable checkpoint and epoch, in milliseconds. |
+| `iota-names.*`                       | mainnet IDs              | On-chain name registry the service resolves names against. See [IOTA Names resolution](#iota-names-resolution). |
+| `versions`                           | crate `major.minor`      | GraphQL schema versions advertised through `serviceConfig.availableVersions`.              |

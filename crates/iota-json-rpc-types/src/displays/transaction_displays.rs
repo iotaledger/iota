@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use iota_types::transaction::write_sep;
+use iota_types::sdk_types::utils::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -92,7 +92,7 @@ impl Display for Pretty<'_, IotaCommand> {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;
-                write_sep(f, elems.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, elems.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
 
@@ -104,7 +104,7 @@ impl Display for Pretty<'_, IotaCommand> {
                     "MergeCoins:\n ┌\n │ Target: {}\n │ Coins: \n │   ",
                     Pretty(target)
                 )?;
-                write_sep(f, coins.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, coins.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
 
@@ -114,25 +114,25 @@ impl Display for Pretty<'_, IotaCommand> {
                     "SplitCoins:\n ┌\n │ Coin: {}\n │ Amounts: \n │   ",
                     Pretty(coin)
                 )?;
-                write_sep(f, amounts.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, amounts.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
 
             IotaCommand::Publish(deps) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
+                write_sep(f, deps, None, "\n │   ")?;
                 write!(f, "\n └")
             }
 
             IotaCommand::TransferObjects(objs, addr) => {
                 write!(f, "TransferObjects:\n ┌\n │ Arguments: \n │   ")?;
-                write_sep(f, objs.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, objs.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n │ Address: {}\n └", Pretty(addr))
             }
 
             IotaCommand::Upgrade(deps, current_package_id, ticket) => {
                 write!(f, "Upgrade:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
+                write_sep(f, deps, None, "\n │   ")?;
                 write!(f, "\n │ Current Package ID: {current_package_id}")?;
                 write!(f, "\n │ Ticket: {}", Pretty(ticket))?;
                 write!(f, "\n └")
@@ -159,11 +159,11 @@ impl Display for Pretty<'_, IotaProgrammableMoveCall> {
 
         if !type_arguments.is_empty() {
             write!(f, "\n │ Type Arguments: \n │   ")?;
-            write_sep(f, type_arguments, "\n │   ")?;
+            write_sep(f, type_arguments, None, "\n │   ")?;
         }
         if !arguments.is_empty() {
             write!(f, "\n │ Arguments: \n │   ")?;
-            write_sep(f, arguments.iter().map(Pretty), "\n │   ")?;
+            write_sep(f, arguments.iter().map(Pretty), None, "\n │   ")?;
         }
 
         write!(f, "\n └")

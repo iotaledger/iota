@@ -25,7 +25,7 @@ pub enum IngestionError {
     #[error("grpc error: `{0}`")]
     Grpc(String),
 
-    #[error("Register at least one worker pool")]
+    #[error("register at least one worker pool")]
     EmptyWorkerPool,
 
     #[error("{component} shutdown error: `{msg}`")]
@@ -55,6 +55,12 @@ pub enum IngestionError {
     #[error("reading historical data failed: `{0}`")]
     HistoryRead(String),
 
+    #[error("invalid epoch boundary update: `{0}`")]
+    EpochBoundary(String),
+
+    #[error("checkpoint verification failed: `{0}`")]
+    Verification(String),
+
     #[error("max downloaded checkpoints limit reached")]
     MaxCheckpointsCapacityReached,
 
@@ -63,6 +69,9 @@ pub enum IngestionError {
 
     #[error(transparent)]
     Sdk(#[from] iota_types::iota_sdk_types_conversions::SdkTypeConversionError),
+
+    #[error("unsupported operation: `{0}`")]
+    Unsupported(String),
 }
 
 impl From<iota_grpc_types::proto::TryFromProtoError> for IngestionError {

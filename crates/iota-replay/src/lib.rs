@@ -11,11 +11,8 @@ use fuzz::{ReplayFuzzer, ReplayFuzzerConfig};
 use fuzz_mutations::base_fuzzers;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_protocol_config::Chain;
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::{TransactionDigest, get_mainnet_chain_identifier, get_testnet_chain_identifier},
-    message_envelope::Message,
-};
+use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
 use move_vm_config::runtime::get_default_output_filepath;
 use tracing::{error, info, warn};
 use transaction_provider::{FuzzStartPoint, TransactionSource};
@@ -241,7 +238,7 @@ pub async fn execute_replay_command(
             )
             .await?;
 
-            let out = serde_json::to_string(&sandbox_state).unwrap();
+            let out = serde_json::to_string_pretty(&sandbox_state).unwrap();
             let path = base_path.join(format!("{tx_digest}.json"));
             std::fs::write(path, out)?;
             None
@@ -590,7 +587,7 @@ pub(crate) fn chain_from_chain_id(chain: &str) -> Chain {
 
 fn parse_configs_versions(
     configs_and_versions: Option<Vec<String>>,
-) -> Option<Vec<(ObjectID, SequenceNumber)>> {
+) -> Option<Vec<(ObjectId, Version)>> {
     let configs_and_versions = configs_and_versions?;
 
     assert!(
@@ -602,8 +599,8 @@ fn parse_configs_versions(
             .chunks_exact(2)
             .map(|chunk| {
                 let object_id =
-                    ObjectID::from_str(&chunk[0]).expect("Invalid object id for config");
-                let object_version = SequenceNumber::from_u64(
+                    ObjectId::from_str(&chunk[0]).expect("Invalid object id for config");
+                let object_version = Version::from_u64(
                     chunk[1]
                         .parse::<u64>()
                         .expect("Invalid object version for config"),

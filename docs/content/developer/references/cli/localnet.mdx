@@ -70,9 +70,24 @@ When built with the `indexer` feature, additional options are available:
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
 | `--pg-user <USER>` | Postgres username (default: `postgres`). |
 | `--pg-password <PASS>` | Postgres password (default: `postgrespw`). |
+| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer (see [Indexer pruning config file](#indexer-pruning-config-file) below). Without it the indexer keeps all data and its database grows without bound. |
 | `--data-ingestion-dir <DIR>` | Directory for dumping executed checkpoints. Defaults to a temp dir when `--with-indexer` is set. |
 
 :::
+
+#### Indexer pruning config file
+
+Controls retention of the **indexer** database only (not node/object pruning). A TOML file with a required `epochs_to_keep` default and optional per-table `[overrides]`:
+
+```toml
+epochs_to_keep = 10
+
+[overrides]
+transactions = 5
+```
+
+See [Pruning](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/README.md#pruning) in the `iota-indexer` crate for the prunable tables, defaults, and timing.
+
 
 ### Examples
 

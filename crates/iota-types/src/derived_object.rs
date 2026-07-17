@@ -2,20 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 
-use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, ObjectID},
-    dynamic_field,
-};
+use crate::dynamic_field;
 
-pub const DERIVED_OBJECT_MODULE_NAME: &IdentStr = ident_str!("derived_object");
-pub const DERIVED_OBJECT_STRUCT_NAME: &IdentStr = ident_str!("DerivedObjectKey");
+pub const DERIVED_OBJECT_MODULE_NAME: Identifier = Identifier::from_static("derived_object");
+pub const DERIVED_OBJECT_STRUCT_NAME: Identifier = Identifier::from_static("DerivedObjectKey");
 
 /// Using a parent object, a type tag and the bcs bytes of the key,
 /// compute the derived object address.
@@ -25,19 +17,19 @@ pub fn derive_object_id<T>(
     parent: T,
     key_type_tag: &TypeTag,
     key_bytes: &[u8],
-) -> Result<ObjectID, bcs::Error>
+) -> Result<ObjectId, bcs::Error>
 where
-    T: Into<IotaAddress>,
+    T: Into<Address>,
 {
     let parent_address = parent.into();
 
     // Wrap `T` into `DerivedObjectKey<T>` type (to preserve on-chain namespacing)
-    let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag {
-        address: IOTA_FRAMEWORK_ADDRESS,
-        module: DERIVED_OBJECT_MODULE_NAME.into(),
-        name: DERIVED_OBJECT_STRUCT_NAME.into(),
-        type_params: vec![key_type_tag.clone()],
-    }));
+    let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+        Address::FRAMEWORK,
+        DERIVED_OBJECT_MODULE_NAME,
+        DERIVED_OBJECT_STRUCT_NAME,
+        vec![key_type_tag.clone()],
+    )));
 
     dynamic_field::derive_dynamic_field_id(parent_address, &wrapper_type_tag, key_bytes)
 }
@@ -46,7 +38,6 @@ where
 mod tests {
     use std::str::FromStr;
 
-    use move_core_types::identifier::Identifier;
     use serde::Serialize;
 
     use super::*;
@@ -70,7 +61,7 @@ mod tests {
         let key_type_tag = TypeTag::Vector(Box::new(TypeTag::U8));
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
+            ObjectId::from_str("0x2").unwrap(),
             &key_type_tag,
             &key_bytes,
         )
@@ -78,7 +69,7 @@ mod tests {
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0xa2b411aa9588c398d8e3bc97dddbdd430b5ded7f81545d05e33916c3ca0f30c3"
             )
             .unwrap()
@@ -91,20 +82,20 @@ mod tests {
         let key_value = bcs::to_bytes(&key).unwrap();
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
-            &TypeTag::Struct(Box::new(StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                module: Identifier::new("derived_object_tests").unwrap(),
-                name: Identifier::new("DemoStruct").unwrap(),
-                type_params: vec![],
-            })),
+            ObjectId::from_str("0x2").unwrap(),
+            &TypeTag::Struct(Box::new(StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("derived_object_tests"),
+                Identifier::from_static("DemoStruct"),
+                vec![],
+            ))),
             &key_value,
         )
         .unwrap();
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x20c58d8790a5d2214c159c23f18a5fdc347211e511186353e785ad543abcea6b"
             )
             .unwrap()
@@ -117,20 +108,20 @@ mod tests {
         let key_value = bcs::to_bytes(&key).unwrap();
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
-            &TypeTag::Struct(Box::new(StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                module: Identifier::new("derived_object_tests").unwrap(),
-                name: Identifier::new("GenericStruct").unwrap(),
-                type_params: vec![TypeTag::U64],
-            })),
+            ObjectId::from_str("0x2").unwrap(),
+            &TypeTag::Struct(Box::new(StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("derived_object_tests"),
+                Identifier::from_static("GenericStruct"),
+                vec![TypeTag::U64],
+            ))),
             &key_value,
         )
         .unwrap();
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0xb497b8dcf1e297ae5fa69c040e4a08ef8240d5373bbc9d6b686ffbd7dfe04cbe"
             )
             .unwrap()

@@ -20,8 +20,8 @@ use iota_macros::fail_point;
 use iota_metrics::{
     GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, spawn_monitored_task,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     error::{IotaError, IotaResult},
     messages_grpc::HandleCertificateRequestV1,
@@ -604,7 +604,7 @@ where
                     newly_formed,
                 }) => {
                     debug!(?tx_digest, "Transaction processing succeeded");
-                    (certificate, newly_formed)
+                    (*certificate, newly_formed)
                 }
                 Ok(ProcessTransactionResult::Executed(effects_cert, events)) => {
                     debug!(
@@ -612,7 +612,7 @@ where
                         "Transaction processing succeeded with effects directly"
                     );
                     let response = QuorumDriverResponse {
-                        effects_cert,
+                        effects_cert: *effects_cert,
                         events: Some(events),
                         input_objects: None,
                         output_objects: None,

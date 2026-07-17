@@ -10,9 +10,11 @@ use std::{
 
 use anyhow::Result;
 use capitalize::Capitalize;
-use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_move_build::{BuildConfig, IotaPackageHooks, ProtocolBuildConfig};
+use iota_types::supported_protocol_versions::ProtocolConfig;
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
+use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
@@ -23,7 +25,7 @@ const PUBLISHED_API_FILE: &str = "published_api.txt";
 #[test]
 fn build_system_packages() {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let tempdir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let out_dir = if std::env::var_os("UPDATE").is_some() {
         let crate_root = Path::new(CRATE_ROOT);
         let _ = std::fs::remove_dir_all(crate_root.join(COMPILED_PACKAGES_DIR));
@@ -31,7 +33,7 @@ fn build_system_packages() {
         let _ = std::fs::remove_file(crate_root.join(PUBLISHED_API_FILE));
         crate_root
     } else {
-        tempdir.path()
+        tmp_dir.path()
     };
 
     std::fs::create_dir_all(out_dir.join(COMPILED_PACKAGES_DIR)).unwrap();
@@ -87,6 +89,13 @@ fn build_packages(
 ) {
     let config = MoveBuildConfig {
         generate_docs: true,
+        // The rendered framework docs live in a Docusaurus site that builds
+        // its own heading-based sidebar, so the in-page module TOC just
+        // duplicates that navigation.
+        docgen_flags: DocgenFlags {
+            include_module_toc: false,
+            ..DocgenFlags::default()
+        },
         warnings_are_errors: true,
         install_dir: Some(PathBuf::from(".")),
         lint_flag: LintFlag::LEVEL_NONE,
@@ -105,6 +114,7 @@ fn build_packages(
         "move-stdlib",
         "stardust",
         config,
+        None,
     );
 }
 
@@ -119,12 +129,14 @@ fn build_packages_with_move_config(
     stdlib_dir: &str,
     stardust_dir: &str,
     config: MoveBuildConfig,
+    protocol_config: Option<&ProtocolConfig>,
 ) {
     let stdlib_pkg = BuildConfig {
         config: config.clone(),
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(stdlib_path)
     .unwrap();
@@ -133,6 +145,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(iota_framework_path)
     .unwrap();
@@ -141,6 +154,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(iota_system_path)
     .unwrap();
@@ -149,6 +163,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(stardust_path)
     .unwrap();
@@ -283,14 +298,31 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
         // Escape `{` in multi-line <code> and add new lines as this is a requirement
-        // from mdx
+        // from mdx. MDX also strips leading whitespace inside `<code>` blocks
+        // (it parses the content as a paragraph), which silently drops indentation
+        // from Move implementations — encode leading spaces as `&nbsp;` so the
+        // browser still renders them as regular spaces.
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
             let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
             if match_content.lines().count() == 1 {
                 return match_content.to_string();
             }
-            format!("\n<code>\n{}</code>\n", code_content.replace('{', "\\{"))
+            let escaped = code_content
+                .replace('{', "\\{")
+                .split('\n')
+                .map(|line| {
+                    let stripped = line.trim_start_matches(' ');
+                    let indent = line.len() - stripped.len();
+                    if indent == 0 {
+                        stripped.to_string()
+                    } else {
+                        format!("{}{}", "&nbsp;".repeat(indent), stripped)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("\n<code>\n{escaped}</code>\n")
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as

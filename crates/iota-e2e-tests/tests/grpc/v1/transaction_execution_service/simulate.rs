@@ -17,9 +17,10 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_sdk_types::{Address, Command};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use prost_types::FieldMask;
 
@@ -127,15 +128,77 @@ async fn assert_simulate_transaction_request(
 }
 
 #[sim_test]
+async fn simulate_transaction_derived_changes() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let gas_object = gas.last().unwrap();
+    let coin_to_split = gas.first().unwrap();
+
+    let recipient = Address::random();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .pay(vec![*coin_to_split], vec![recipient], vec![1000])
+        .unwrap();
+    let transaction_data = TransactionData::new_programmable(
+        sender,
+        vec![*gas_object],
+        builder.finish(),
+        10_000_000,
+        1000,
+    );
+    let proto_transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&transaction_data).unwrap()));
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from
+    let simulated = assert_simulate_transaction_request(
+        &mut exec_client,
+        proto_transaction,
+        Some(FieldMask::from_paths([
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ])),
+        &[
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ],
+        &[],
+        &[],
+        &[],
+        "derived changes only",
+    )
+    .await;
+
+    let executed_transaction = simulated
+        .executed_transaction
+        .as_ref()
+        .expect("executed_transaction should be present");
+
+    crate::utils::assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        1000,
+        "simulate_transactions derived changes",
+    );
+}
+
+#[sim_test]
 async fn simulate_transaction_zero_gas_budget_uses_max() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let obj_to_send = gas.first().unwrap();
     let gas_obj = gas.last().unwrap();
 
@@ -192,10 +255,10 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let obj_to_send = gas.first().unwrap();
     let gas_obj = gas.last().unwrap();
 
@@ -243,7 +306,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let mut exec_client = client.execution_service_client();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let gas_obj = gas.last().unwrap();
     let obj_to_split = gas.first().unwrap();
 
@@ -252,13 +315,10 @@ async fn simulate_transaction_readmask_scenarios() {
     // command-results readmask scenarios below can verify deeply.
     let mut builder = ProgrammableTransactionBuilder::new();
     let gas_coin_arg = builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
-    let split_result = builder.command(iota_types::transaction::Command::SplitCoins(
-        gas_coin_arg,
-        vec![amount],
-    ));
+    let split_result = builder.command(Command::new_split_coins(gas_coin_arg, vec![amount]));
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
@@ -283,10 +343,10 @@ async fn simulate_transaction_readmask_scenarios() {
     // command_index=0).
     let mut failing_builder = ProgrammableTransactionBuilder::new();
     let failing_coin_arg = failing_builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let huge_amount = failing_builder.pure(u64::MAX).unwrap();
-    failing_builder.command(iota_types::transaction::Command::SplitCoins(
+    failing_builder.command(Command::new_split_coins(
         failing_coin_arg,
         vec![huge_amount],
     ));
@@ -633,27 +693,15 @@ async fn simulate_transaction_batch() {
     let mut exec_client = client.execution_service_client();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let gas_obj = gas.last().unwrap();
     let obj = gas.first().unwrap();
 
     // Build two distinct simulation transactions
-    let tx_data1 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
-    let tx_data2 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data1 =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+    let tx_data2 =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
 
     let items = vec![
         build_simulate_item(
@@ -695,19 +743,13 @@ async fn simulate_transaction_batch_partial_failure() {
     let mut exec_client = client.execution_service_client();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let gas_obj = gas.last().unwrap();
     let obj = gas.first().unwrap();
 
     // First item: valid transaction
-    let tx_data = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
     let valid_item = build_simulate_item(
         ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),

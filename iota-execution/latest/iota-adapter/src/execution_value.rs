@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner, Version};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    execution_status::CommandArgumentError,
-    object::Owner,
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
@@ -53,14 +51,14 @@ where
 #[derive(Clone, Debug)]
 pub enum InputObjectMetadata {
     Receiving {
-        id: ObjectID,
-        version: SequenceNumber,
+        id: ObjectId,
+        version: Version,
     },
     InputObject {
-        id: ObjectID,
+        id: ObjectId,
         is_mutable_input: bool,
         owner: Owner,
-        version: SequenceNumber,
+        version: Version,
     },
 }
 
@@ -74,7 +72,7 @@ pub enum UsageKind {
 #[derive(Clone, Copy)]
 pub enum CommandKind<'a> {
     MoveCall {
-        package: ObjectID,
+        package: ObjectId,
         module: &'a IdentStr,
         function: &'a IdentStr,
     },
@@ -106,7 +104,7 @@ pub struct ResultValue {
 pub enum Value {
     Object(ObjectValue),
     Raw(RawValueType, Vec<u8>),
-    Receiving(ObjectID, SequenceNumber, Option<Type>),
+    Receiving(ObjectId, Version, Option<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -137,14 +135,14 @@ pub enum RawValueType {
 }
 
 impl InputObjectMetadata {
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         match self {
             InputObjectMetadata::Receiving { id, .. } => *id,
             InputObjectMetadata::InputObject { id, .. } => *id,
         }
     }
 
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         match self {
             InputObjectMetadata::Receiving { version, .. } => *version,
             InputObjectMetadata::InputObject { version, .. } => *version,
@@ -167,7 +165,7 @@ impl InputValue {
         }
     }
 
-    pub fn new_receiving_object(id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn new_receiving_object(id: ObjectId, version: Version) -> Self {
         InputValue {
             object_metadata: Some(InputObjectMetadata::Receiving { id, version }),
             inner: ResultValue::new(Value::Receiving(id, version, None)),
@@ -271,7 +269,7 @@ impl ObjectValue {
 
 pub fn ensure_serialized_size(size: u64, bound: u64) -> Result<(), ExecutionError> {
     if size > bound {
-        let e = ExecutionErrorKind::MoveObjectTooBig {
+        let e = ExecutionErrorKind::ObjectTooBig {
             object_size: size,
             max_object_size: bound,
         };
@@ -302,7 +300,7 @@ impl TryFromValue for ObjectValue {
     }
 }
 
-impl TryFromValue for IotaAddress {
+impl TryFromValue for Address {
     fn try_from_value(value: Value) -> Result<Self, CommandArgumentError> {
         try_from_value_prim(&value, Type::Address)
     }
@@ -322,13 +320,13 @@ fn try_from_value_prim<'a, T: Deserialize<'a>>(
         Value::Object(_) => Err(CommandArgumentError::TypeMismatch),
         Value::Receiving(_, _, _) => Err(CommandArgumentError::TypeMismatch),
         Value::Raw(RawValueType::Any, bytes) => {
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
         Value::Raw(RawValueType::Loaded { ty, .. }, bytes) => {
             if ty != &expected_ty {
                 return Err(CommandArgumentError::TypeMismatch);
             }
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
     }
 }

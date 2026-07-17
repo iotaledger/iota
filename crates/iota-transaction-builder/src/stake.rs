@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
+use iota_sdk_types::{Address, Command, Identifier, ObjectId};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectType},
+    base_types::ObjectType,
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::timelocked_staking::{
-        ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
-        WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+        ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
-    transaction::{CallArg, Command, ObjectArg, TransactionData},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 
 use crate::TransactionBuilder;
@@ -22,11 +20,11 @@ impl TransactionBuilder {
     /// Add stake to a validator's staking pool using multiple IOTA coins.
     pub async fn request_add_stake(
         &self,
-        signer: IotaAddress,
-        mut coins: Vec<ObjectID>,
+        signer: Address,
+        mut coins: Vec<ObjectId>,
         amount: impl Into<Option<u64>>,
-        validator: IotaAddress,
-        gas: impl Into<Option<ObjectID>>,
+        validator: Address,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -54,26 +52,22 @@ impl TransactionBuilder {
                 type_ == coin_type,
                 "All coins should be the same type, expecting {coin_type}, got {type_}."
             );
-            obj_vec.push(ObjectArg::ImmOrOwnedObject(oref))
+            obj_vec.push(CallArg::ImmutableOrOwned(oref))
         }
-        obj_vec.push(ObjectArg::ImmOrOwnedObject(oref));
+        obj_vec.push(CallArg::ImmutableOrOwned(oref));
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
-                builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap(),
+                builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap(),
                 builder.make_obj_vec(obj_vec)?,
-                builder
-                    .input(CallArg::Pure(bcs::to_bytes(&amount.into())?))
-                    .unwrap(),
-                builder
-                    .input(CallArg::Pure(bcs::to_bytes(&validator)?))
-                    .unwrap(),
+                builder.pure(amount.into()).unwrap(),
+                builder.pure(validator).unwrap(),
             ];
-            builder.command(Command::move_call(
-                IOTA_SYSTEM_PACKAGE_ID,
-                IOTA_SYSTEM_MODULE_NAME.to_owned(),
-                ADD_STAKE_MUL_COIN_FUN_NAME.to_owned(),
+            builder.command(Command::new_move_call(
+                ObjectId::SYSTEM,
+                Identifier::IOTA_SYSTEM_MODULE,
+                ADD_STAKE_MUL_COIN_FUN_NAME,
                 vec![],
                 arguments,
             ));
@@ -91,9 +85,9 @@ impl TransactionBuilder {
     /// Withdraw stake from a validator's staking pool.
     pub async fn request_withdraw_stake(
         &self,
-        signer: IotaAddress,
-        staked_iota: ObjectID,
-        gas: impl Into<Option<ObjectID>>,
+        signer: Address,
+        staked_iota: ObjectId,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let staked_iota = self.get_object_ref(staked_iota).await?;
@@ -103,14 +97,14 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            WITHDRAW_STAKE_FUN_NAME.to_owned(),
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE,
+            WITHDRAW_STAKE_FUN_NAME,
             vec![],
             gas,
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(staked_iota)),
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::ImmutableOrOwned(staked_iota),
             ],
             gas_budget,
             gas_price,
@@ -120,10 +114,10 @@ impl TransactionBuilder {
     /// Add stake to a validator's staking pool using a timelocked IOTA coin.
     pub async fn request_add_timelocked_stake(
         &self,
-        signer: IotaAddress,
-        locked_balance: ObjectID,
-        validator: IotaAddress,
-        gas: ObjectID,
+        signer: Address,
+        locked_balance: ObjectId,
+        validator: Address,
+        gas: ObjectId,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -144,14 +138,14 @@ impl TransactionBuilder {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
-                builder.input(CallArg::IOTA_SYSTEM_MUT)?,
-                builder.input(CallArg::Object(ObjectArg::ImmOrOwnedObject(oref)))?,
-                builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
+                builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?,
+                builder.input(CallArg::ImmutableOrOwned(oref))?,
+                builder.pure(validator)?,
             ];
-            builder.command(Command::move_call(
-                IOTA_SYSTEM_PACKAGE_ID,
-                TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
-                ADD_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
+            builder.command(Command::new_move_call(
+                ObjectId::SYSTEM,
+                Identifier::TIMELOCKED_STAKING_MODULE,
+                ADD_TIMELOCKED_STAKE_FUN_NAME,
                 vec![],
                 arguments,
             ));
@@ -169,9 +163,9 @@ impl TransactionBuilder {
     /// Withdraw timelocked stake from a validator's staking pool.
     pub async fn request_withdraw_timelocked_stake(
         &self,
-        signer: IotaAddress,
-        timelocked_staked_iota: ObjectID,
-        gas: ObjectID,
+        signer: Address,
+        timelocked_staked_iota: ObjectId,
+        gas: ObjectId,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let timelocked_staked_iota = self.get_object_ref(timelocked_staked_iota).await?;
@@ -181,14 +175,14 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            IOTA_SYSTEM_PACKAGE_ID,
-            TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
-            WITHDRAW_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
+            ObjectId::SYSTEM,
+            Identifier::TIMELOCKED_STAKING_MODULE,
+            WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
             vec![],
             gas,
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(timelocked_staked_iota)),
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::ImmutableOrOwned(timelocked_staked_iota),
             ],
             gas_budget,
             gas_price,

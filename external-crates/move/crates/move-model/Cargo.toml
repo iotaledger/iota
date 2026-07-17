@@ -15,7 +15,6 @@ itertools.workspace = true
 log.workspace = true
 num.workspace = true
 once_cell.workspace = true
-regex.workspace = true
 serde.workspace = true
 
 # internal dependencies

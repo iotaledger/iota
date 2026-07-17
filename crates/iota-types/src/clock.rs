@@ -2,24 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::Identifier;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
-};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
 
-pub const CLOCK_MODULE_NAME: &IdentStr = ident_str!("clock");
-pub const CLOCK_STRUCT_NAME: &IdentStr = ident_str!("Clock");
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    CLOCK_MODULE_NAME,
-    CLOCK_STRUCT_NAME,
+    ident_str!("clock"),
+    ident_str!("Clock"),
 );
-pub const CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME: &IdentStr =
-    ident_str!("consensus_commit_prologue");
+pub const CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("consensus_commit_prologue");
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Clock {
@@ -30,15 +27,6 @@ pub struct Clock {
 impl Clock {
     pub fn timestamp_ms(&self) -> u64 {
         self.timestamp_ms
-    }
-
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: CLOCK_MODULE_NAME.to_owned(),
-            name: CLOCK_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
     }
 
     /// Detects a `&mut iota::clock::Clock` or `iota::clock::Clock` in the

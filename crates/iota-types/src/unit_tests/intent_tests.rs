@@ -3,19 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_types::crypto::{
-    Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
 };
 
 use crate::{
-    base_types::{ObjectID, dbg_addr},
+    base_types::dbg_addr,
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         IotaSignature, Signature, SignatureScheme, get_key_pair,
     },
     object::Object,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+    },
 };
 
 #[test]
@@ -61,14 +64,14 @@ fn test_authority_signature_intent() {
     // Create a signed user transaction.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
     let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
-        object.compute_object_reference(),
+        object.object_ref(),
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
@@ -79,7 +82,7 @@ fn test_authority_signature_intent() {
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
-        tx.try_into_verified_for_testing(epoch, &Default::default())
+        tx.try_into_verified_for_testing(&Default::default())
             .is_ok()
     );
 

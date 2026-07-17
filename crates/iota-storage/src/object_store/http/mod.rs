@@ -96,6 +96,24 @@ async fn get(
     })
 }
 
+async fn exists(url: &str, store: &'static str, location: &Path, client: &Client) -> Result<bool> {
+    let request = client.request(Method::HEAD, url);
+    let response = request
+        .send()
+        .await
+        .with_context(|| format!("failed to send HEAD request for {location} to {store}"))?;
+    let status = response.status();
+    if status.is_success() {
+        Ok(true)
+    } else if status == reqwest::StatusCode::NOT_FOUND {
+        Ok(false)
+    } else {
+        Err(anyhow!(
+            "{store} returned unexpected status {status} for {location}"
+        ))
+    }
+}
+
 fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {
     let last_modified = headers
         .get(LAST_MODIFIED)
@@ -133,7 +151,7 @@ mod tests {
     use object_store::path::Path;
     use tempfile::TempDir;
 
-    use crate::object_store::http::HttpDownloaderBuilder;
+    use crate::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder};
 
     #[tokio::test]
     pub async fn test_local_download() -> anyhow::Result<()> {
@@ -157,6 +175,24 @@ mod tests {
 
         let downloaded = input_store.get_bytes(&Path::from("child/file1")).await?;
         assert_eq!(downloaded.to_vec(), b"Lorem ipsum");
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_local_exists() -> anyhow::Result<()> {
+        let input = TempDir::new()?;
+        let input_path = input.path();
+        fs::write(input_path.join("file1"), b"Lorem ipsum")?;
+
+        let input_store = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(input_path.to_path_buf()),
+            ..Default::default()
+        }
+        .make_http()?;
+
+        assert!(input_store.exists(&Path::from("file1")).await?);
+        assert!(!input_store.exists(&Path::from("missing")).await?);
         Ok(())
     }
 }

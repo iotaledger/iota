@@ -4,10 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::{
-    TypeTag,
-    object::{Data, MoveObject as NativeMoveObject},
-};
+use iota_sdk_types::ObjectData;
+use iota_types::object::MoveObject as NativeMoveObject;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -50,7 +48,6 @@ pub(crate) struct MoveObject {
 pub(crate) struct MoveObjectImpl<'o>(pub &'o MoveObject);
 
 pub(crate) enum MoveObjectDowncastError {
-    WrappedOrDeleted,
     NotAMoveObject,
 }
 
@@ -233,8 +230,6 @@ impl MoveObject {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -438,11 +433,11 @@ impl MoveObject {
 
 impl MoveObjectImpl<'_> {
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
-        let type_ = TypeTag::from(self.0.native.type_().clone());
+        let type_ = self.0.native.type_tag();
         Some(MoveValue::new(type_, self.0.native.contents().into()))
     }
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
-        let type_: MoveType = self.0.native.type_().clone().into();
+        let type_: MoveType = self.0.native.struct_tag().clone().into();
         let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
         Ok(set.is_some_and(|s| s.has_key() && s.has_store()))
     }
@@ -460,7 +455,6 @@ impl MoveObject {
 
         match MoveObject::try_from(&object) {
             Ok(object) => Ok(Some(object)),
-            Err(MoveObjectDowncastError::WrappedOrDeleted) => Ok(None),
             Err(MoveObjectDowncastError::NotAMoveObject) => {
                 Err(Error::Internal(format!("{address} is not a Move object")))?
             }
@@ -502,11 +496,9 @@ impl TryFrom<&Object> for MoveObject {
     type Error = MoveObjectDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        let Some(native) = object.native_impl() else {
-            return Err(MoveObjectDowncastError::WrappedOrDeleted);
-        };
+        let native = object.native_impl();
 
-        if let Data::Move(move_object) = &native.data {
+        if let ObjectData::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

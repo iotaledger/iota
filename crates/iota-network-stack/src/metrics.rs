@@ -35,6 +35,14 @@ pub trait MetricsCallbackProvider: Send + Sync + Clone + 'static {
     /// `grpc_status_code`: the grpc status code (see <https://github.com/grpc/grpc/blob/master/doc/statuscodes.md#status-codes-and-their-use-in-grpc>)
     fn on_response(&self, path: String, latency: Duration, status: u16, grpc_status_code: Code);
 
+    /// Called when a gRPC request fails at the transport/middleware level
+    /// (e.g. service panic, connection drop, timeout). gRPC application
+    /// errors (non-OK status codes) are NOT reported here — they are
+    /// already captured by [`on_response`](Self::on_response).
+    /// The method path is not available at this layer (tower-http's
+    /// `on_failure` callback does not receive the response object).
+    fn on_error(&self, _latency: Duration, _grpc_status_code: Code) {}
+
     /// Called when request call is started
     fn on_start(&self, _path: &str) {}
 
@@ -100,10 +108,15 @@ impl<B, M: MetricsCallbackProvider> OnRequest<B> for MetricsHandler<M> {
 impl<M: MetricsCallbackProvider> OnFailure<GrpcFailureClass> for MetricsHandler<M> {
     fn on_failure(
         &mut self,
-        _failure_classification: GrpcFailureClass,
-        _latency: Duration,
+        failure_classification: GrpcFailureClass,
+        latency: Duration,
         _span: &Span,
     ) {
-        // just do nothing for now so we avoid printing unnecessary logs
+        // Only count transport/middleware errors (GrpcFailureClass::Error).
+        // GrpcFailureClass::Code variants are gRPC application errors that
+        // on_response already records with full method-path context.
+        if let GrpcFailureClass::Error(_) = failure_classification {
+            self.metrics_provider.on_error(latency, Code::Internal);
+        }
     }
 }

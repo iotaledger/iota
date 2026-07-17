@@ -6,15 +6,15 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, Version, VersionAssignment,
+};
 use iota_types::{
-    authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
-    crypto::RandomnessRound,
+    base_types::AuthorityName,
     error::IotaResult,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::{TimestampMs, VersionedDkgConfirmation},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_consensus::VersionedDkgConfirmation,
     signature::GenericSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -25,6 +25,9 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
+        authority_per_epoch_store::{
+            LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
+        },
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -49,13 +52,13 @@ pub(crate) struct ConsensusCommitOutput {
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
     // transaction scheduling state
-    next_shared_object_versions: Option<HashMap<ObjectID, SequenceNumber>>,
+    next_shared_object_versions: Option<HashMap<ObjectId, Version>>,
 
     // congestion control state
     // debts for shared objects with no randomness
-    congestion_control_object_debts: Vec<(ObjectID, u64)>,
+    congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
-    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
+    congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -71,11 +74,27 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+    // DKG state, the inner Option value persisted to `dkg_output_v2`:
+    // - `Some(Some(out))` -- DKG success
+    // - `Some(None)` -- terminal DKG failure
+    // - `None` -- DKG pending (default value)
+    dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
-    // jwk state
-    pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
-    active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
+    // misbehavior report state — per-authority post-merge snapshot captured
+    // at `process_report` time. The on-disk row for commit N is exactly the
+    // state produced by commit N's processing of that authority's reports;
+    // last-writer-wins handles multiple reports from the same authority
+    // within one commit.
+    report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
+
+    // P-COOL owned object locks acquired in this commit
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
+
+    // Latest overload-shed percentage advertised by each authority via
+    // OverloadNotificationV1 during this commit. Flushed to
+    // `authority_overload_notifications` atomically with `last_consensus_stats`
+    // so a partial pre-flush state can never be observed on disk.
+    overload_notifications: BTreeMap<AuthorityName, u8>,
 }
 
 impl ConsensusCommitOutput {
@@ -90,7 +109,7 @@ impl ConsensusCommitOutput {
         self.deleted_deferred_txns.iter().cloned()
     }
 
-    fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.next_randomness_round.as_ref().map(|(_, ts)| *ts)
     }
 
@@ -117,12 +136,6 @@ impl ConsensusCommitOutput {
             .any(|cp| cp.height() == *index)
     }
 
-    fn get_round(&self) -> Option<u64> {
-        self.consensus_commit_stats
-            .as_ref()
-            .map(|stats| stats.index.last_committed_round)
-    }
-
     pub fn insert_end_of_publish(&mut self, authority: AuthorityName) {
         self.end_of_publish.insert(authority);
     }
@@ -145,10 +158,25 @@ impl ConsensusCommitOutput {
         self.consensus_messages_processed.insert(key);
     }
 
-    pub fn set_next_shared_object_versions(
+    pub(crate) fn record_report_state_snapshot(
         &mut self,
-        next_versions: HashMap<ObjectID, SequenceNumber>,
+        authority_index: crate::consensus_types::AuthorityIndex,
+        snapshot: DBReceivedReportsStatePerAuthority,
     ) {
+        // Truncate to `u8` at the storage boundary; committees are bounded at
+        // 256 by Starfish.
+        self.report_state_snapshots
+            .insert(authority_index as u8, snapshot);
+    }
+
+    /// Returns `true` if at least one `process_report` ran during this commit.
+    /// Used by the consensus handler to skip `Scoreboard::update_scores` on
+    /// commits that can't change the score vector.
+    pub(crate) fn has_report_state_changes(&self) -> bool {
+        !self.report_state_snapshots.is_empty()
+    }
+
+    pub fn set_next_shared_object_versions(&mut self, next_versions: HashMap<ObjectId, Version>) {
         assert!(self.next_shared_object_versions.is_none());
         self.next_shared_object_versions = Some(next_versions);
     }
@@ -188,27 +216,27 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: Option<dkg_v1::Output<PkG, EncG>>) {
         self.dkg_output = Some(output);
     }
 
-    pub fn insert_pending_jwk(&mut self, authority: AuthorityName, id: JwkId, jwk: JWK) {
-        self.pending_jwks.insert((authority, id, jwk));
-    }
-
-    pub fn insert_active_jwk(&mut self, round: u64, key: (JwkId, JWK)) {
-        self.active_jwks.insert((round, key));
-    }
-
-    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
+    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectId, u64)>) {
         self.congestion_control_object_debts = object_debts;
     }
 
     pub fn set_congestion_control_randomness_object_debts(
         &mut self,
-        object_debts: Vec<(ObjectID, u64)>,
+        object_debts: Vec<(ObjectId, u64)>,
     ) {
         self.congestion_control_randomness_object_debts = object_debts;
+    }
+
+    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
+        self.owned_object_locks = locks;
+    }
+
+    pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
+        self.overload_notifications.insert(authority, percentage);
     }
 
     pub fn write_to_batch(
@@ -239,7 +267,6 @@ impl ConsensusCommitOutput {
         let consensus_commit_stats = self
             .consensus_commit_stats
             .expect("consensus_commit_stats must be set");
-        let round = consensus_commit_stats.index.last_committed_round;
 
         batch.insert_batch(
             &tables.last_consensus_stats,
@@ -247,10 +274,7 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(next_versions) = self.next_shared_object_versions {
-            batch.insert_batch(
-                &tables.next_shared_object_versions,
-                next_versions.into_iter(),
-            )?;
+            batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
         }
 
         if epoch_store
@@ -297,21 +321,9 @@ impl ConsensusCommitOutput {
                 .map(|used_msgs| (SINGLETON_KEY, used_msgs)),
         )?;
         if let Some(output) = self.dkg_output {
-            batch.insert_batch(&tables.dkg_output, [(SINGLETON_KEY, output)])?;
+            batch.insert_batch(&tables.dkg_output_v2, [(SINGLETON_KEY, output)])?;
         }
 
-        batch.insert_batch(
-            &tables.pending_jwks,
-            self.pending_jwks.into_iter().map(|j| (j, ())),
-        )?;
-        batch.insert_batch(
-            &tables.active_jwks,
-            self.active_jwks.into_iter().map(|j| {
-                // TODO: we don't need to store the round in this map if it is invariant
-                assert_eq!(j.0, round);
-                (j, ())
-            }),
-        )?;
         batch.insert_batch(
             &tables.congestion_control_object_debts,
             self.congestion_control_object_debts
@@ -335,6 +347,27 @@ impl ConsensusCommitOutput {
                 }),
         )?;
 
+        if !self.report_state_snapshots.is_empty() {
+            batch.insert_batch(
+                &tables.received_reports_state,
+                self.report_state_snapshots.iter(),
+            )?;
+        }
+
+        if !self.owned_object_locks.is_empty() {
+            batch.insert_batch(
+                &tables.owned_object_locked_transactions,
+                self.owned_object_locks
+                    .into_iter()
+                    .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
+            )?;
+        }
+
+        batch.insert_batch(
+            &tables.authority_overload_notifications,
+            self.overload_notifications,
+        )?;
+
         Ok(())
     }
 }
@@ -347,7 +380,7 @@ impl ConsensusCommitOutput {
 pub(crate) struct ConsensusOutputCache {
     // shared version assignments is a DashMap because it is read from execution so we don't
     // want contention.
-    shared_version_assignments: DashMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+    shared_version_assignments: DashMap<TransactionKey, Vec<VersionAssignment>>,
 
     // deferred transactions is only used by consensus handler so there should never be lock
     // contention
@@ -408,7 +441,7 @@ impl ConsensusOutputCache {
     pub fn get_assigned_shared_object_versions(
         &self,
         key: &TransactionKey,
-    ) -> Option<Vec<(ObjectID, SequenceNumber)>> {
+    ) -> Option<Vec<VersionAssignment>> {
         self.shared_version_assignments
             .get(key)
             .map(|locks| locks.clone())
@@ -434,7 +467,7 @@ impl ConsensusOutputCache {
     pub fn set_shared_object_versions_for_testing(
         &self,
         tx_digest: &TransactionDigest,
-        assigned_versions: &[(ObjectID, SequenceNumber)],
+        assigned_versions: &[VersionAssignment],
     ) {
         self.shared_version_assignments.insert(
             TransactionKey::Digest(*tx_digest),
@@ -442,13 +475,10 @@ impl ConsensusOutputCache {
         );
     }
 
-    pub fn remove_shared_object_assignments<'a>(
-        &self,
-        keys: impl IntoIterator<Item = &'a TransactionKey>,
-    ) {
+    pub fn remove_shared_object_assignments(&self, keys: impl IntoIterator<Item = TransactionKey>) {
         let mut removed_count = 0;
         for tx_key in keys {
-            if self.shared_version_assignments.remove(tx_key).is_some() {
+            if self.shared_version_assignments.remove(&tx_key).is_some() {
                 removed_count += 1;
             }
         }
@@ -520,17 +550,30 @@ pub(crate) struct ConsensusOutputQuarantine {
     builder_digest_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // Any un-committed next versions are stored here.
-    shared_object_next_versions: RefCountedHashMap<ObjectID, SequenceNumber>,
+    shared_object_next_versions: RefCountedHashMap<ObjectId, Version>,
 
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
     // These debts will be moved to the epoch store when the corresponding consensus commit
     // is included in a checkpoint.
-    congestion_control_object_debts: RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_object_debts: RefCountedHashMap<ObjectId, CongestionPerObjectDebt>,
     congestion_control_randomness_object_debts:
-        RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+        RefCountedHashMap<ObjectId, CongestionPerObjectDebt>,
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
+
+    // P-COOL owned object locks (aggregate across all quarantined commits)
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
+
+    // In-memory cache of the `authority_overload_notifications` table: the most
+    // recent load-shedding percentage each authority has broadcast, for the
+    // commits that have already been flushed to disk. Loaded once from the
+    // table when the epoch store is constructed and updated as commits are
+    // flushed, so the per-commit read path never has to iterate RocksDB. The
+    // disk table only exists for persistence across restarts. Notifications
+    // from commits still in `output_queue` are layered on top by
+    // `current_overload_notifications`.
+    cached_overload_notifications: HashMap<AuthorityName, u8>,
 
     metrics: Arc<EpochMetrics>,
 }
@@ -538,6 +581,7 @@ pub(crate) struct ConsensusOutputQuarantine {
 impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
+        cached_overload_notifications: HashMap<AuthorityName, u8>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -550,6 +594,8 @@ impl ConsensusOutputQuarantine {
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
+            owned_object_locks: HashMap::new(),
+            cached_overload_notifications,
             metrics: authority_metrics,
         }
     }
@@ -567,6 +613,7 @@ impl ConsensusOutputQuarantine {
         self.insert_shared_object_next_versions(&output);
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
+        self.insert_owned_object_locks(&output);
         self.output_queue.push_back(output);
 
         self.metrics
@@ -646,9 +693,7 @@ impl ConsensusOutputQuarantine {
                     self.builder_digest_to_checkpoint
                         .remove(digest)
                         .unwrap_or_else(|| {
-                            panic!(
-                                "transaction {digest:?} not found in builder_digest_to_checkpoint"
-                            )
+                            panic!("transaction {digest} not found in builder_digest_to_checkpoint")
                         }),
                     seq
                 );
@@ -706,11 +751,18 @@ impl ConsensusOutputQuarantine {
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
+                self.remove_owned_object_locks(&output);
+                // Advance the in-memory cache in lockstep with the table write
+                // below, so it stays equal to the persisted state once this
+                // commit leaves the queue.
+                self.cached_overload_notifications
+                    .extend(&output.overload_notifications);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
                         .iter()
-                        .flat_map(|c| c.roots().iter()),
+                        .flat_map(|c| c.roots().iter())
+                        .copied(),
                 );
                 output.write_to_batch(epoch_store, batch)?;
             } else {
@@ -793,6 +845,22 @@ impl ConsensusOutputQuarantine {
         }
     }
 
+    fn insert_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for (obj_ref, lock_details) in &output.owned_object_locks {
+            self.owned_object_locks.insert(*obj_ref, *lock_details);
+        }
+    }
+
+    fn remove_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for obj_ref in output.owned_object_locks.keys() {
+            self.owned_object_locks.remove(obj_ref);
+        }
+    }
+
+    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
+        self.owned_object_locks.get(obj_ref).copied()
+    }
+
     // Read methods - all methods in this block return data from the quarantine
     // which would otherwise be found in the database.
 
@@ -830,8 +898,8 @@ impl ConsensusOutputQuarantine {
     pub(super) fn get_next_shared_object_versions(
         &self,
         tables: &AuthorityEpochTables,
-        objects_to_init: &[(ObjectID, SequenceNumber)],
-    ) -> IotaResult<Vec<Option<SequenceNumber>>> {
+        objects_to_init: &[(ObjectId, Version)],
+    ) -> IotaResult<Vec<Option<Version>>> {
         Ok(do_fallback_lookup(
             objects_to_init,
             |(object_id, _)| {
@@ -886,55 +954,33 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
-    pub(super) fn get_new_jwks(
-        &self,
-        epoch_store: &AuthorityPerEpochStore,
-        round: u64,
-    ) -> IotaResult<Vec<ActiveJwk>> {
-        let epoch = epoch_store.epoch();
-
-        // Check if the requested round is in memory
-        for output in self.output_queue.iter().rev() {
-            // unwrap safe because output will always have last consensus stats set before
-            // being added to the quarantine
-            let output_round = output.get_round().unwrap();
-            if round == output_round {
-                return Ok(output
-                    .active_jwks
-                    .iter()
-                    .map(|(_, (jwk_id, jwk))| ActiveJwk {
-                        jwk_id: jwk_id.clone(),
-                        jwk: jwk.clone(),
-                        epoch,
-                    })
-                    .collect());
+    /// Returns the current overload notifications keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's notifications layered on top,
+    /// in commit (queue) order. Later commits overwrite earlier ones. This
+    /// reflects the logical state across the disk/queue split without
+    /// iterating the persisted state.
+    pub(super) fn current_overload_notifications(&self) -> HashMap<AuthorityName, u8> {
+        let mut notifications = self.cached_overload_notifications.clone();
+        for output in &self.output_queue {
+            for (authority, percentage) in &output.overload_notifications {
+                notifications.insert(*authority, *percentage);
             }
         }
-
-        // Fall back to reading from database
-        let empty_jwk_id = JwkId::new(String::new(), String::new());
-        let empty_jwk = JWK {
-            kty: String::new(),
-            e: String::new(),
-            n: String::new(),
-            alg: String::new(),
-        };
-
-        let start = (round, (empty_jwk_id.clone(), empty_jwk.clone()));
-        let end = (round + 1, (empty_jwk_id, empty_jwk));
-
-        Ok(epoch_store
-            .tables()?
-            .active_jwks
-            .safe_iter_with_bounds(Some(start), Some(end))
-            .map_ok(|((r, (jwk_id, jwk)), _)| {
-                debug_assert!(round == r);
-                ActiveJwk { jwk_id, jwk, epoch }
-            })
-            .collect::<Result<Vec<_>, _>>()?)
+        notifications
     }
 
-    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    #[cfg(test)]
+    pub(super) fn apply_cached_overload_notification_for_test(
+        &mut self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.cached_overload_notifications
+            .insert(authority, percentage);
+    }
+
+    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.output_queue
             .iter()
             .rev()
@@ -948,7 +994,7 @@ impl ConsensusOutputQuarantine {
         current_round: CommitRound,
         for_randomness: bool,
         transactions: &[VerifiedSequencedConsensusTransaction],
-    ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {
+    ) -> IotaResult<impl IntoIterator<Item = (ObjectId, u64)>> {
         let protocol_config = epoch_store.protocol_config();
         let tables = epoch_store.tables()?;
         let default_per_commit_limit = protocol_config
@@ -969,16 +1015,26 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
-            .filter_map(|tx| {
-                if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            .filter_map(|tx| match &tx.0.transaction {
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
                     kind: ConsensusTransactionKind::CertifiedTransaction(tx),
                     ..
-                }) = &tx.0.transaction
-                {
-                    Some(tx.shared_input_objects().into_iter().map(|obj| obj.id))
-                } else {
-                    None
-                }
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
+                    ..
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
             })
             .flatten()
             .collect();
@@ -1028,7 +1084,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
         let hash_table = if for_randomness {
             &self.congestion_control_randomness_object_debts

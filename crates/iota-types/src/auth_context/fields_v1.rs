@@ -1,15 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Argument, Command, ObjectId, ObjectReference, TypeTag, Version};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
-use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectDigest, ObjectID, SequenceNumber},
-    transaction::{Argument, CallArg, Command, ObjectArg},
-    type_input::TypeName,
-};
+use crate::{IOTA_FRAMEWORK_ADDRESS, iota_serde::TypeName, transaction::CallArg};
 
 // ---------------------------------------------------------------------------
 // Module / struct name constants
@@ -35,16 +32,18 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 // MoveProgrammableMoveCall
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
-/// [`MoveCommand`], substituting [`TypeName`] for
-/// [`crate::type_input::TypeInput`] so that the type can derive
-/// [`Serialize`]/[`Deserialize`] without a custom implementation.
+/// Mirrors [`iota_sdk_types::MoveCall`] for use in
+/// [`MoveCommand`], substituting [`TypeTag`] for a string in the type arguments
+/// so that the type matches the BCS layout expected by the Move-side
+/// `ptb_command::ProgrammableMoveCall`.
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveProgrammableMoveCall {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
-    pub type_arguments: Vec<TypeName>,
+    #[serde_as(as = "Vec<TypeName>")]
+    pub type_arguments: Vec<TypeTag>,
     pub arguments: Vec<Argument>,
 }
 
@@ -52,52 +51,55 @@ pub struct MoveProgrammableMoveCall {
 // MoveCommand
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::Command`], substituting [`TypeName`] for
-/// [`crate::type_input::TypeInput`] in `MoveCall` and `MakeMoveVec` so that
+/// Mirrors [`iota_sdk_types::Command`], substituting [`TypeTag`] for
+/// a string in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveCommand {
     MoveCall(Box<MoveProgrammableMoveCall>),
     TransferObjects(Vec<Argument>, Argument),
     SplitCoins(Argument, Vec<Argument>),
     MergeCoins(Argument, Vec<Argument>),
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
-    MakeMoveVec(Option<TypeName>, Vec<Argument>),
-    Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
+    Publish(Vec<Vec<u8>>, Vec<ObjectId>),
+    MakeMoveVec(
+        #[serde_as(as = "Option<TypeName>")] Option<TypeTag>,
+        Vec<Argument>,
+    ),
+    Upgrade(Vec<Vec<u8>>, Vec<ObjectId>, ObjectId, Argument),
 }
 
 impl From<&Command> for MoveCommand {
     fn from(cmd: &Command) -> Self {
         match cmd {
-            Command::MoveCall(m) => MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
-                package: m.package,
-                module: m.module.clone(),
-                function: m.function.clone(),
-                type_arguments: m.type_arguments.iter().map(TypeName::from).collect(),
-                arguments: m.arguments.clone(),
+            Command::MoveCall(cmd) => MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
+                package: cmd.package,
+                module: cmd.module.to_string(),
+                function: cmd.function.to_string(),
+                type_arguments: cmd.type_arguments.clone(),
+                arguments: cmd.arguments.clone(),
             })),
-            Command::TransferObjects(objects, recipient) => {
-                MoveCommand::TransferObjects(objects.clone(), *recipient)
+            Command::TransferObjects(cmd) => {
+                MoveCommand::TransferObjects(cmd.objects.clone(), cmd.address)
             }
-            Command::SplitCoins(coin, amounts) => MoveCommand::SplitCoins(*coin, amounts.clone()),
-            Command::MergeCoins(target_coin, source_coins) => {
-                MoveCommand::MergeCoins(*target_coin, source_coins.clone())
+            Command::SplitCoins(cmd) => MoveCommand::SplitCoins(cmd.coin, cmd.amounts.clone()),
+            Command::MergeCoins(cmd) => {
+                MoveCommand::MergeCoins(cmd.coin, cmd.coins_to_merge.clone())
             }
-            Command::Publish(modules, dependencies) => {
-                MoveCommand::Publish(modules.clone(), dependencies.clone())
+            Command::Publish(cmd) => {
+                MoveCommand::Publish(cmd.modules.clone(), cmd.dependencies.clone())
             }
-            Command::MakeMoveVec(type_arg, elements) => {
-                MoveCommand::MakeMoveVec(type_arg.as_ref().map(TypeName::from), elements.clone())
+            Command::MakeMoveVector(cmd) => {
+                MoveCommand::MakeMoveVec(cmd.type_.clone(), cmd.elements.clone())
             }
-            Command::Upgrade(modules, dependencies, package, upgrade_ticket) => {
-                MoveCommand::Upgrade(
-                    modules.clone(),
-                    dependencies.clone(),
-                    *package,
-                    *upgrade_ticket,
-                )
-            }
+            Command::Upgrade(cmd) => MoveCommand::Upgrade(
+                cmd.modules.clone(),
+                cmd.dependencies.clone(),
+                cmd.package,
+                cmd.ticket,
+            ),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
@@ -117,35 +119,17 @@ impl MoveCommand {
 // MoveCallArg
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ObjectArg`], matching the BCS layout expected
+/// Mirrors `ObjectArg`, matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::ObjectArg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveObjectArg {
-    ImmOrOwnedObject((ObjectID, SequenceNumber, ObjectDigest)),
+    ImmOrOwnedObject(ObjectReference),
     SharedObject {
-        id: ObjectID,
-        initial_shared_version: SequenceNumber,
+        id: ObjectId,
+        initial_shared_version: Version,
         mutable: bool,
     },
-    Receiving((ObjectID, SequenceNumber, ObjectDigest)),
-}
-
-impl From<&ObjectArg> for MoveObjectArg {
-    fn from(obj: &ObjectArg) -> Self {
-        match obj {
-            ObjectArg::ImmOrOwnedObject(r) => MoveObjectArg::ImmOrOwnedObject(*r),
-            ObjectArg::SharedObject {
-                id,
-                initial_shared_version,
-                mutable,
-            } => MoveObjectArg::SharedObject {
-                id: *id,
-                initial_shared_version: *initial_shared_version,
-                mutable: *mutable,
-            },
-            ObjectArg::Receiving(r) => MoveObjectArg::Receiving(*r),
-        }
-    }
+    Receiving(ObjectReference),
 }
 
 impl MoveObjectArg {
@@ -171,7 +155,16 @@ impl From<&CallArg> for MoveCallArg {
     fn from(arg: &CallArg) -> Self {
         match arg {
             CallArg::Pure(bytes) => MoveCallArg::Pure(bytes.clone()),
-            CallArg::Object(obj_arg) => MoveCallArg::Object(MoveObjectArg::from(obj_arg)),
+            CallArg::ImmutableOrOwned(obj_arg) => {
+                MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(*obj_arg))
+            }
+            CallArg::Shared(obj_arg) => MoveCallArg::Object(MoveObjectArg::SharedObject {
+                id: obj_arg.object_id,
+                initial_shared_version: obj_arg.initial_shared_version,
+                mutable: obj_arg.mutable,
+            }),
+            CallArg::Receiving(obj_arg) => MoveCallArg::Object(MoveObjectArg::Receiving(*obj_arg)),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 }
@@ -189,27 +182,28 @@ impl MoveCallArg {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::account_address::AccountAddress;
+    use std::str::FromStr;
+
+    use iota_sdk_types::{
+        Address, Identifier, ObjectDigest, ObjectReference, SharedObjectReference, StructTag,
+        TypeTag,
+    };
 
     use super::*;
-    use crate::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall},
-        type_input::{StructInput, TypeInput},
-    };
+    use crate::transaction::CallArg;
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    fn obj_id() -> ObjectID {
-        ObjectID::from_hex_literal("0x0000000000000000000000000000000000000001").unwrap()
+    fn obj_id() -> ObjectId {
+        ObjectId::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
-    fn obj_ref() -> (ObjectID, SequenceNumber, ObjectDigest) {
-        (
-            obj_id(),
-            SequenceNumber::from(1),
-            ObjectDigest::new([1u8; 32]),
-        )
+    fn obj_ref() -> ObjectReference {
+        ObjectReference {
+            object_id: obj_id(),
+            version: Version::from(1),
+            digest: ObjectDigest::new([1u8; 32]),
+        }
     }
 
     /// BCS round-trip helper.
@@ -239,7 +233,7 @@ mod tests {
     fn call_arg_shared_object_round_trip() {
         let arg = MoveCallArg::Object(MoveObjectArg::SharedObject {
             id: obj_id(),
-            initial_shared_version: SequenceNumber::from(5),
+            initial_shared_version: Version::from(5),
             mutable: true,
         });
         assert_eq!(round_trip(&arg), arg);
@@ -262,8 +256,7 @@ mod tests {
 
     #[test]
     fn call_arg_from_object() {
-        let obj_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
-        let converted = MoveCallArg::from(&CallArg::Object(obj_arg));
+        let converted = MoveCallArg::from(&CallArg::ImmutableOrOwned(obj_ref()));
         assert_eq!(
             converted,
             MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(obj_ref()))
@@ -277,12 +270,12 @@ mod tests {
         assert!(matches!(converted, MoveCallArg::Pure(_)));
     }
 
-    // ── BCS compatibility: MoveObjectArg ↔ ObjectArg ─────────────────
+    // ── BCS compatibility: MoveCallArg ↔ CallArg ─────────────────────
 
     #[test]
-    fn object_arg_bcs_compatible_imm_or_owned() {
-        let tx_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
-        let ctx_arg = MoveObjectArg::from(&tx_arg);
+    fn call_arg_bcs_compatible_imm_or_owned() {
+        let tx_arg = CallArg::ImmutableOrOwned(obj_ref());
+        let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),
             bcs::to_bytes(&ctx_arg).unwrap()
@@ -290,13 +283,9 @@ mod tests {
     }
 
     #[test]
-    fn object_arg_bcs_compatible_shared() {
-        let tx_arg = ObjectArg::SharedObject {
-            id: obj_id(),
-            initial_shared_version: SequenceNumber::from(5),
-            mutable: true,
-        };
-        let ctx_arg = MoveObjectArg::from(&tx_arg);
+    fn call_arg_bcs_compatible_shared() {
+        let tx_arg = CallArg::Shared(SharedObjectReference::new(obj_id(), Version::from(5), true));
+        let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),
             bcs::to_bytes(&ctx_arg).unwrap()
@@ -304,9 +293,9 @@ mod tests {
     }
 
     #[test]
-    fn object_arg_bcs_compatible_receiving() {
-        let tx_arg = ObjectArg::Receiving(obj_ref());
-        let ctx_arg = MoveObjectArg::from(&tx_arg);
+    fn call_arg_bcs_compatible_receiving() {
+        let tx_arg = CallArg::Receiving(obj_ref());
+        let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),
             bcs::to_bytes(&ctx_arg).unwrap()
@@ -320,10 +309,8 @@ mod tests {
             package: obj_id(),
             module: "my_module".to_string(),
             function: "my_func".to_string(),
-            type_arguments: vec![TypeName {
-                name: "u64".to_string(),
-            }],
-            arguments: vec![Argument::GasCoin, Argument::Input(0)],
+            type_arguments: vec![TypeTag::U64],
+            arguments: vec![Argument::Gas, Argument::Input(0)],
         }))
     }
 
@@ -343,16 +330,14 @@ mod tests {
 
     #[test]
     fn command_split_coins_round_trip() {
-        let cmd = MoveCommand::SplitCoins(Argument::GasCoin, vec![Argument::Input(0)]);
+        let cmd = MoveCommand::SplitCoins(Argument::Gas, vec![Argument::Input(0)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
     #[test]
     fn command_merge_coins_round_trip() {
-        let cmd = MoveCommand::MergeCoins(
-            Argument::GasCoin,
-            vec![Argument::Input(0), Argument::Input(1)],
-        );
+        let cmd =
+            MoveCommand::MergeCoins(Argument::Gas, vec![Argument::Input(0), Argument::Input(1)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
@@ -365,9 +350,7 @@ mod tests {
     #[test]
     fn command_make_move_vec_with_type_round_trip() {
         let cmd = MoveCommand::MakeMoveVec(
-            Some(TypeName {
-                name: "0x2::coin::Coin<u64>".to_string(),
-            }),
+            Some(TypeTag::from_str("0x2::coin::Coin<u64>").unwrap()),
             vec![Argument::Input(0)],
         );
         assert_eq!(round_trip(&cmd), cmd);
@@ -392,59 +375,56 @@ mod tests {
 
     // ── From<&Command> for MoveCommand ────────────────────────────────
 
-    /// Primitive TypeInput variants (Bool, U8, …) must be converted to their
-    /// canonical string representation as TypeName.
+    /// Primitive TypeTag variants (Bool, U8, …) must be converted to their
+    /// canonical string representation as TypeTag.
     #[test]
-    fn command_from_move_call_primitive_type_input() {
+    fn command_from_move_call_primitive_type_tag() {
         let cases = [
-            (TypeInput::Bool, "bool"),
-            (TypeInput::U8, "u8"),
-            (TypeInput::U64, "u64"),
-            (TypeInput::U128, "u128"),
-            (TypeInput::U16, "u16"),
-            (TypeInput::U32, "u32"),
-            (TypeInput::U256, "u256"),
-            (TypeInput::Address, "address"),
+            (TypeTag::Bool, "bool"),
+            (TypeTag::U8, "u8"),
+            (TypeTag::U64, "u64"),
+            (TypeTag::U128, "u128"),
+            (TypeTag::U16, "u16"),
+            (TypeTag::U32, "u32"),
+            (TypeTag::U256, "u256"),
+            (TypeTag::Address, "address"),
         ];
-        for (type_input, expected_name) in cases {
-            let cmd = Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: obj_id(),
-                module: "m".to_string(),
-                function: "f".to_string(),
-                type_arguments: vec![type_input],
-                arguments: vec![],
-            }));
+        for (type_tag, expected_name) in cases {
+            let cmd = Command::new_move_call(
+                obj_id(),
+                Identifier::new_unchecked("m"),
+                Identifier::new_unchecked("f"),
+                vec![type_tag],
+                vec![],
+            );
             let MoveCommand::MoveCall(call) = MoveCommand::from(&cmd) else {
                 panic!("expected MoveCall");
             };
             assert_eq!(
                 call.type_arguments,
-                vec![TypeName {
-                    name: expected_name.to_string()
-                }],
+                vec![TypeTag::from_str(expected_name).unwrap()],
                 "failed for {expected_name}"
             );
         }
     }
 
-    /// Struct TypeInput must be converted to its canonical qualified name.
+    /// Struct TypeTag must be converted to its canonical qualified name.
     #[test]
-    fn command_from_move_call_struct_type_input() {
-        let type_input = TypeInput::Struct(Box::new(StructInput {
-            address: AccountAddress::from_hex_literal("0x2").unwrap(),
-            module: "coin".to_string(),
-            name: "Coin".to_string(),
-            type_params: vec![TypeInput::U64],
-        }));
-        let expected = TypeName::from(&type_input);
+    fn command_from_move_call_struct_type_tag() {
+        let expected = TypeTag::Struct(Box::new(StructTag::new(
+            Address::FRAMEWORK,
+            "coin",
+            "Coin",
+            vec![TypeTag::U64],
+        )));
 
-        let cmd = Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package: obj_id(),
-            module: "m".to_string(),
-            function: "f".to_string(),
-            type_arguments: vec![type_input],
-            arguments: vec![],
-        }));
+        let cmd = Command::new_move_call(
+            obj_id(),
+            Identifier::new_unchecked("m"),
+            Identifier::new_unchecked("f"),
+            vec![expected.clone()],
+            vec![],
+        );
         let MoveCommand::MoveCall(call) = MoveCommand::from(&cmd) else {
             panic!("expected MoveCall");
         };
@@ -452,10 +432,9 @@ mod tests {
     }
 
     #[test]
-    fn command_from_make_move_vec_type_input_becomes_type_name() {
-        let type_input = TypeInput::Bool;
-        let expected = TypeName::from(&type_input);
-        let cmd = Command::MakeMoveVec(Some(type_input), vec![Argument::Input(0)]);
+    fn command_from_make_move_vec_type_tag_becomes_type_name() {
+        let expected = TypeTag::Bool;
+        let cmd = Command::new_make_move_vector(Some(expected.clone()), vec![Argument::Input(0)]);
         let MoveCommand::MakeMoveVec(name, _) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
@@ -464,7 +443,7 @@ mod tests {
 
     #[test]
     fn command_from_make_move_vec_none_type() {
-        let cmd = Command::MakeMoveVec(None, vec![]);
+        let cmd = Command::new_make_move_vector(None, vec![]);
         let MoveCommand::MakeMoveVec(name, elements) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
@@ -474,13 +453,13 @@ mod tests {
 
     #[test]
     fn command_from_command() {
-        let cmd = Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package: obj_id(),
-            module: "m".to_string(),
-            function: "f".to_string(),
-            type_arguments: vec![TypeInput::U8],
-            arguments: vec![],
-        }));
+        let cmd = Command::new_move_call(
+            obj_id(),
+            Identifier::new_unchecked("m"),
+            Identifier::new_unchecked("f"),
+            vec![TypeTag::U8],
+            vec![],
+        );
         let converted = MoveCommand::from(&cmd);
         assert!(matches!(converted, MoveCommand::MoveCall(_)));
     }

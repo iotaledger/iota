@@ -109,7 +109,7 @@ impl<S: Serialize + ParquetSchema> AnalyticsWriter<S> for ParquetWriter {
                 ParquetValue::U64 => UInt64Array, ParquetValue::Str => StringArray, ParquetValue::OptionU64 => UInt64Array, ParquetValue::OptionStr => StringArray, ParquetValue::Bool => BooleanArray, ParquetValue::I64 => Int64Array
             );
         }
-        let batch = RecordBatch::try_from_iter(S::schema().iter().zip(batch_data.into_iter()))?;
+        let batch = RecordBatch::try_from_iter(S::schema().iter().zip(batch_data))?;
 
         let properties = WriterProperties::builder()
             .set_compression(Compression::SNAPPY)

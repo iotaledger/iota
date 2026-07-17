@@ -9,14 +9,13 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
-use iota_types::{
-    base_types::{TransactionDigest, TransactionEffectsDigest},
-    message_envelope::Message,
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint},
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
+use iota_types::messages_checkpoint::{
+    CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
 };
 use strum::VariantNames;
 use tokio::sync::watch;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 use super::metrics::CheckpointExecutorMetrics;
 use crate::{checkpoints::CheckpointStore, execution_cache::TransactionCacheRead};
@@ -60,7 +59,7 @@ pub(super) fn stream_synced_checkpoints(
                     state.panic_timeout,
                 )
                 .await;
-                info!(
+                debug!(
                     "received synced checkpoint: {:?}",
                     checkpoint.sequence_number
                 );
@@ -582,7 +581,7 @@ mod test {
         let output_by_stage = output_by_stage.lock();
         let output_by_order = output_by_order.lock();
         // for each stage, assert that the sequences were done in order
-        for (_, seqs) in output_by_stage.iter() {
+        for seqs in output_by_stage.values() {
             assert_eq!(seqs, &((0..30).collect::<Vec<_>>()));
         }
 

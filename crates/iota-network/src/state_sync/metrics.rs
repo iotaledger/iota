@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::{
-    Histogram, IntGauge, Registry, register_histogram_with_registry,
+use prometheus_filtered::{
+    Histogram, IntGauge, MetricLevel, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,
 };
 use tap::Pipe;
@@ -70,21 +70,24 @@ impl Inner {
             highest_known_checkpoint: register_int_gauge_with_registry!(
                 "highest_known_checkpoint",
                 "Highest known checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
             highest_verified_checkpoint: register_int_gauge_with_registry!(
                 "highest_verified_checkpoint",
                 "Highest verified checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
             highest_synced_checkpoint: register_int_gauge_with_registry!(
                 "highest_synced_checkpoint",
                 "Highest synced checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
@@ -92,7 +95,8 @@ impl Inner {
                 "checkpoint_summary_age",
                 "Age of checkpoints summaries when they arrive and are verified.",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }

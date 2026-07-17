@@ -27,9 +27,8 @@ enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
 futures.workspace = true
-im.workspace = true
+http.workspace = true
 itertools.workspace = true
 lru.workspace = true
 mockall.workspace = true
@@ -39,10 +38,9 @@ num_cpus.workspace = true
 object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-prometheus.workspace = true
-quinn-proto = "0.11.14"
+pin-project-lite.workspace = true
+quinn-proto = "0.11.15"
 rand.workspace = true
-rayon = "1.5.3"
 reqwest.workspace = true
 roaring.workspace = true
 scopeguard.workspace = true
@@ -54,14 +52,14 @@ strum_macros.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net", "tracing"] }
 tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
 
 # internal dependencies
-consensus-config.workspace = true
-consensus-core.workspace = true
 iota-archival.workspace = true
 iota-authority-aggregation.workspace = true
 iota-common.workspace = true
@@ -88,10 +86,14 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
+prometheus-filtered.workspace = true
 starfish-config.workspace = true
 starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+
+[features]
+dag-visualizer = ["starfish-core/dag-visualizer"]
 
 [dev-dependencies]
 # external dependencies
@@ -100,16 +102,18 @@ criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
 more-asserts.workspace = true
-num-bigint.workspace = true
+num-bigint = "0.4.4"
 pretty_assertions.workspace = true
 rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 tower.workspace = true
 
 # internal dependencies
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]

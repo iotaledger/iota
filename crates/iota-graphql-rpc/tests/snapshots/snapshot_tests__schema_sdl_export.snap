@@ -1,69 +1,7 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
-snapshot_kind: text
 ---
-type ActiveJwk {
-	"""
-	The string (Issuing Authority) that identifies the OIDC provider.
-	"""
-	iss: String!
-	"""
-	The string (Key ID) that identifies the JWK among a set of JWKs, (RFC
-	7517, Section 4.5).
-	"""
-	kid: String!
-	"""
-	The JWK key type parameter, (RFC 7517, Section 4.1).
-	"""
-	kty: String!
-	"""
-	The JWK RSA public exponent, (RFC 7517, Section 9.3).
-	"""
-	e: String!
-	"""
-	The JWK RSA modulus, (RFC 7517, Section 9.3).
-	"""
-	n: String!
-	"""
-	The JWK algorithm parameter, (RFC 7517, Section 4.4).
-	"""
-	alg: String!
-	"""
-	The most recent epoch in which the JWK was validated.
-	"""
-	epoch: Epoch
-}
-
-type ActiveJwkConnection {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ActiveJwkEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [ActiveJwk!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ActiveJwkEdge {
-	"""
-	The item at the end of the edge
-	"""
-	node: ActiveJwk!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
 """
 The 32-byte address that is an account address (corresponding to a public
 key).
@@ -180,15 +118,6 @@ The possible relationship types for a transaction block: sent or received.
 """
 enum AddressTransactionBlockRelationship {
 	"""
-	Transactions this address has sent. NOTE: this input filter has been
-	deprecated in favor of `SENT` which behaves identically but is named
-	more clearly. Both filters restrict transactions by their sender,
-	only, not signers in general.
-	
-	This filter will be removed after 6 months with the 1.24.0 release.
-	"""
-	SIGN @deprecated(reason: "Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release.")
-	"""
 	Transactions this address has sent.
 	"""
 	SENT
@@ -196,49 +125,6 @@ enum AddressTransactionBlockRelationship {
 	Transactions that sent objects to this address.
 	"""
 	RECV
-}
-
-"""
-System transaction for creating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
-type AuthenticatorStateExpireTransaction {
-	"""
-	Expire JWKs that have a lower epoch than this.
-	"""
-	minEpoch: Epoch
-	"""
-	The initial version that the AuthenticatorStateUpdateV1 was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
-}
-
-"""
-System transaction for updating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateUpdateTransaction {
-	"""
-	Epoch of the authenticator state update transaction.
-	"""
-	epoch: Epoch
-	"""
-	Consensus round of the authenticator state update.
-	"""
-	round: UInt53!
-	"""
-	Newly active JWKs (JSON Web Keys).
-	"""
-	newActiveJwks(first: Int, after: String, last: Int, before: String): ActiveJwkConnection!
-	"""
-	The initial version of the authenticator object that it was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
 }
 
 """
@@ -625,8 +511,6 @@ type Coin implements IMoveObject & IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -801,8 +685,6 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -1122,7 +1004,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2 | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -1651,8 +1533,6 @@ interface IObject {
 	            contents of a genesis or system package upgrade transaction.
 	            - INDEXED: The object is retrieved from the off-chain index and
 	            represents the most recent or historical state of the object.
-	            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	            information can be loaded.
 	        
 	"""
 	status: ObjectKind!
@@ -2226,8 +2106,6 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -2432,8 +2310,6 @@ type MovePackage implements IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -2884,8 +2760,6 @@ type NameRegistration implements IMoveObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -3070,8 +2944,6 @@ type Object implements IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -3302,11 +3174,6 @@ enum ObjectKind {
 	The object is fetched from the index.
 	"""
 	INDEXED
-	"""
-	The object is deleted or wrapped and only partial information can be
-	loaded from the indexer.
-	"""
-	WRAPPED_OR_DELETED
 }
 
 """
@@ -3826,23 +3693,6 @@ type Query {
 	The coin metadata associated with the given coin type.
 	"""
 	coinMetadata(coinType: String!): CoinMetadata
-	"""
-	Verify a zkLogin signature based on the provided transaction or personal
-	message based on current epoch, chain id, and latest JWKs fetched
-	on-chain. If the signature is valid, the function returns a
-	`ZkLoginVerifyResult` with success as true and an empty list of
-	errors. If the signature is invalid, the function returns
-	a `ZkLoginVerifyResult` with success as false with a list of errors.
-	
-	- `bytes` is either the personal message in raw bytes or transaction
-	data bytes in BCS-encoded and then Base64-encoded.
-	- `signature` is a serialized zkLogin signature that is Base64-encoded.
-	- `intentScope` is an enum that specifies the intent scope to be used to
-	parse bytes.
-	- `author` is the address of the signer of the transaction or personal
-	msg.
-	"""
-	verifyZkloginSignature(bytes: Base64!, signature: Base64!, intentScope: ZkLoginIntentScope!, author: IotaAddress!): ZkLoginVerifyResult!
 }
 
 """
@@ -4212,8 +4062,6 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	contents of a genesis or system package upgrade transaction.
 	- INDEXED: The object is retrieved from the off-chain index and
 	represents the most recent or historical state of the object.
-	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -4395,14 +4243,40 @@ type Subscription {
 	Subscribe to incoming transactions from the IOTA network.
 	
 	If no filter is provided, all transactions will be returned.
+	
+	# Stream recovery
+	
+	When `start_after` is provided with the digest of the last transaction
+	the client received, the stream resumes from the transaction
+	immediately after it. The identified transaction itself is not
+	emitted.
 	"""
-	transactions(filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
+	transactions(startAfter: String, filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
 	"""
 	Subscribe to incoming events from the IOTA network.
 	
 	If no filter is provided, all events will be returned.
+	
+	# Stream recovery
+	
+	Events are streamed in transaction order, all events from a single
+	transaction arrive contiguously before any events from the next one.
+	
+	When `start_after` is provided with a transaction digest, the stream
+	resumes from the transaction immediately after it.
+	
+	Because a single transaction can emit multiple events, a disconnection
+	may leave the client with only a partial set of events from the
+	transaction it was last receiving. A transaction is considered fully
+	received only once the client has seen an event from the following
+	transaction (a digest change signals the previous transaction is
+	complete).
+	
+	On reconnect, clients should pass the digest of the last fully
+	received transaction as `start_after`. The stream resumes from the
+	next transaction, so no partial transaction is ever observed.
 	"""
-	events(filter: SubscriptionEventFilter): EventSubscriptionPayload!
+	events(startAfter: String, filter: SubscriptionEventFilter): EventSubscriptionPayload!
 }
 
 """
@@ -4678,15 +4552,6 @@ input TransactionBlockFilter {
 	"""
 	beforeCheckpoint: UInt53
 	"""
-	Limit to transactions that were sent by the given address. NOTE: this
-	input filter has been deprecated in favor of `sentAddress` which has
-	clearer semantics. Both filters restrict transactions by their sender,
-	only, not signers in general.
-	
-	This filter will be removed after 6 months with the 1.24.0 release.
-	"""
-	signAddress: IotaAddress @deprecated(reason: "Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release.")
-	"""
 	Limit to transactions that were sent by the given address.
 	"""
 	sentAddress: IotaAddress
@@ -4716,7 +4581,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | AuthenticatorStateUpdateTransaction | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
 
 """
 An input filter selecting for either system or programmable transactions.
@@ -4739,10 +4604,6 @@ enum TransactionBlockKindInput {
 	The consensus commit prologue transaction block.
 	"""
 	CONSENSUS_COMMIT_PROLOGUE_V1
-	"""
-	The authenticator state update transaction block.
-	"""
-	AUTHENTICATOR_STATE_UPDATE_V1
 	"""
 	The randomness state update transaction block.
 	"""
@@ -5013,9 +4874,16 @@ type Validator {
 	"""
 	gasPrice: BigInt
 	"""
-	The fee charged by the validator for staking services.
+	The fee set by the validator for providing staking services.
 	"""
 	commissionRate: Int
+	"""
+	The effective fee charged by the validator for staking services.
+	
+	This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+	for epochs with protocol version >= 20.
+	"""
+	effectiveCommissionRate: Int
 	"""
 	The total number of IOTA tokens in this pool plus
 	the pending stake amount for this epoch.
@@ -5145,35 +5013,6 @@ type ValidatorSet {
 	The current set of committee members.
 	"""
 	committeeMembers(first: Int, before: String, last: Int, after: String): ValidatorConnection!
-}
-
-"""
-An enum that specifies the intent scope to be used to parse the bytes for
-signature verification.
-"""
-enum ZkLoginIntentScope {
-	"""
-	Indicates that the bytes are to be parsed as transaction data bytes.
-	"""
-	TRANSACTION_DATA
-	"""
-	Indicates that the bytes are to be parsed as a personal message.
-	"""
-	PERSONAL_MESSAGE
-}
-
-"""
-The result of the zkLogin signature verification.
-"""
-type ZkLoginVerifyResult {
-	"""
-	The boolean result of the verification. If true, errors should be empty.
-	"""
-	success: Boolean!
-	"""
-	The errors field captures any verification error
-	"""
-	errors: [String!]!
 }
 
 """

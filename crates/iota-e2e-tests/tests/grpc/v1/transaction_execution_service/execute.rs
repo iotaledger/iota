@@ -17,11 +17,15 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 
 use super::build_item;
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{
+    assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test,
+    setup_grpc_test_with_builder,
+};
 
 /// Extract the `ExecutedTransaction` from the first result in the response.
 fn first_executed_transaction(response: &ExecuteTransactionsResponse) -> &ExecutedTransaction {
@@ -32,7 +36,7 @@ fn first_executed_transaction(response: &ExecuteTransactionsResponse) -> &Execut
     match &result.result {
         Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => tx,
         Some(execute_transaction_result::Result::Error(e)) => {
-            panic!("expected executed transaction, got error: {:?}", e)
+            panic!("expected executed transaction, got error: {e:?}")
         }
         _ => panic!("expected executed transaction, got None"),
     }
@@ -70,7 +74,7 @@ async fn execute_transaction_readmask_scenarios() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     // Read mask paths are relative to ExecutedTransaction
@@ -133,6 +137,44 @@ async fn execute_transaction_readmask_scenarios() {
 }
 
 #[sim_test]
+async fn execute_transaction_derived_changes() {
+    use iota_types::transaction::TransactionDataAPI as _;
+
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = Address::random();
+    let txn = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    let sender = txn.transaction_data().sender();
+    let item = build_item(&txn);
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from
+    let response = assert_execute_transaction_request(
+        &mut exec_client,
+        item,
+        Some(FieldMask::from_paths([
+            "balance_changes",
+            "object_changes",
+            "effects",
+        ])),
+        &["balance_changes", "object_changes", "effects"],
+        "derived changes only",
+    )
+    .await;
+
+    let executed_transaction = first_executed_transaction(&response);
+    crate::utils::assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        9,
+        "execute_transactions derived changes",
+    );
+}
+
+#[sim_test]
 async fn execute_transaction_invalid_bcs() {
     let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
@@ -174,7 +216,7 @@ async fn execute_transaction_invalid_signatures() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -265,7 +307,7 @@ async fn execute_transaction_batch() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     // Create two valid transactions
@@ -321,7 +363,7 @@ async fn execute_transaction_batch_partial_failure() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     // First item: valid transaction
@@ -406,7 +448,7 @@ async fn execute_transaction_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -462,7 +504,7 @@ async fn execute_transaction_without_checkpoint_timeout_has_no_checkpoint() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -505,7 +547,7 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     // Create two valid transactions
@@ -555,5 +597,181 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
             executed.timestamp.is_some(),
             "transaction {i}: timestamp should be populated"
         );
+    }
+}
+
+/// Drop-guard that restores the P-COOL env vars on scope exit so the
+/// process-wide flag does not leak into sibling tests sharing this process.
+#[must_use = "bind the guard for the lifetime of the test"]
+struct PcoolEnvGuard;
+
+impl Drop for PcoolEnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: paired with `enable_pcool_env`; both run on the test
+        // thread before/after the cluster is alive.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+        }
+    }
+}
+
+fn enable_pcool_env() -> PcoolEnvGuard {
+    // SAFETY: must be set before the test cluster starts spawning validator
+    // tasks; thread-local protocol-config overrides do not propagate across
+    // spawned tasks outside msim.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            "true",
+        );
+    }
+    PcoolEnvGuard
+}
+
+/// Skip-effect-certification path through the gRPC handler. With the P-COOL
+/// flow enabled and `checkpoint_inclusion_timeout_ms` set, the handler must
+/// (1) drive the TD without a 2f+1 broadcast, (2) wait for local checkpoint
+/// inclusion, and (3) rebuild the response from the local cache so the client
+/// never sees uncertified single-validator data.
+///
+/// Pinpoint signal that the rebuild ran: `checkpoint` is populated (only set
+/// by the post-checkpoint reconcile branch) and the effects payload is
+/// internally consistent. A safety-guard fire or a leak of UncertifiedSingle-
+/// Validator finality would surface as a `tonic::Code::Internal` error from
+/// the handler rather than a successful response.
+#[sim_test]
+async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
+    let _env_guard = enable_pcool_env();
+    let _proto_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = Address::random();
+    let txn = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    let item = build_item(&txn);
+
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![item])
+                .with_read_mask(FieldMask::from_paths([
+                    "transaction.digest",
+                    "effects",
+                    "events",
+                    "input_objects",
+                    "output_objects",
+                    "checkpoint",
+                    "timestamp",
+                ]))
+                .with_checkpoint_inclusion_timeout_ms(30_000),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed = first_executed_transaction(&response);
+    assert!(
+        executed.checkpoint.is_some_and(|cp| cp > 0),
+        "skip-cert reconcile must populate a non-zero checkpoint sequence"
+    );
+    assert!(
+        executed.timestamp.as_ref().is_some_and(|ts| ts.seconds > 0),
+        "skip-cert reconcile must populate a non-zero checkpoint timestamp"
+    );
+    assert!(
+        executed.effects.is_some(),
+        "effects must be present after the cache rebuild"
+    );
+    assert!(
+        executed.transaction.is_some(),
+        "transaction (digest) must be present"
+    );
+}
+
+/// Skip-cert via gRPC with no consensus quorum: with two of four validators
+/// stopped, the tx either executes on a single validator but is never included
+/// in a checkpoint within the timeout, or the driver itself times out before
+/// getting any response. The gRPC handler must surface a per-item error rather
+/// than a success with uncertified data. Acceptable codes: `DeadlineExceeded`
+/// when the driver succeeds but checkpoint wait times out, `Internal` when the
+/// checkpoint wait itself fails, or `Unavailable` when the driver cannot reach
+/// enough validators before its own timeout fires. The contract checked here is
+/// "no successful response with uncertified data and no whole-RPC failure."
+#[sim_test]
+async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
+    let _env_guard = enable_pcool_env();
+    let _proto_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
+    let (test_cluster, client) =
+        setup_grpc_test_with_builder(|b| b.with_num_validators(4), None, None).await;
+    let mut exec_client = client.execution_service_client();
+
+    // Baseline: prove the skip-cert path works before we break quorum so a
+    // later failure is attributable to the deliberate validator loss.
+    let recipient = Address::random();
+    let baseline_txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![build_item(&baseline_txn)])
+                .with_read_mask(FieldMask::from_paths(["transaction.digest", "checkpoint"]))
+                .with_checkpoint_inclusion_timeout_ms(30_000),
+        )
+        .await
+        .expect("baseline skip-cert tx should succeed with full quorum");
+
+    let validators = test_cluster.get_validator_pubkeys();
+    assert_eq!(validators.len(), 4);
+    test_cluster.stop_node(&validators[0]);
+    test_cluster.stop_node(&validators[1]);
+
+    let stuck_txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![build_item(&stuck_txn)])
+                .with_read_mask(FieldMask::from_paths(["transaction.digest", "checkpoint"]))
+                .with_checkpoint_inclusion_timeout_ms(5_000),
+        )
+        .await
+        .expect("RPC itself should not fail; per-item error surfaces inside the response")
+        .into_inner();
+
+    let result = response
+        .transaction_results
+        .first()
+        .expect("response should carry one per-item result");
+    match &result.result {
+        Some(execute_transaction_result::Result::Error(e)) => {
+            let code = tonic::Code::from_i32(e.code);
+            assert!(
+                matches!(
+                    code,
+                    tonic::Code::DeadlineExceeded
+                        | tonic::Code::Internal
+                        | tonic::Code::Unavailable
+                ),
+                "skip-cert under quorum loss should yield DeadlineExceeded, Internal, or \
+                 Unavailable, got {code:?}: {e:?}"
+            );
+        }
+        Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => panic!(
+            "skip-cert under quorum loss must not return a successful executed transaction; got {tx:?}"
+        ),
+        None => panic!("per-item result must be populated"),
+        other => panic!("unexpected per-item result variant: {other:?}"),
     }
 }

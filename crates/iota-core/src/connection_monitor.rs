@@ -270,7 +270,7 @@ mod tests {
     use anemo::{Network, Request, Response};
     use bytes::Bytes;
     use iota_metrics::metrics_network::NetworkConnectionMetrics;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use tokio::{
         sync::{broadcast, broadcast::error::SendError},
         time::{sleep, timeout},

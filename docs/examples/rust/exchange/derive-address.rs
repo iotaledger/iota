@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::hash::HashFunction;
-use hex;
 
 fn main() {
     // Example of deriving an Ed25519 address from a public key

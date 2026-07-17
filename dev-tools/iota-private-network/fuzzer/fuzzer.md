@@ -180,4 +180,4 @@ Because the topology, timing, and logging are controlled from Python,
 these runs are suitable as future simtests: we can attach thresholds
 like “median resync time must be below X seconds” or “block stress must
 complete without safety violations” and use them as quantitative
-regression tests when we evolve Mysticeti, Starfish, or other protocols.
+regression tests when we evolve Starfish or other consensus protocols.

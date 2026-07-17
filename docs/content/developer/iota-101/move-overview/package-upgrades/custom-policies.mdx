@@ -372,7 +372,7 @@ Successfully verified dependencies on-chain against source.
 ----- Transaction Digest ----
 CAFFD2HHnULQMCycL9xgad5JJpjFu2nuftf2xyugQu4t
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 251, 96, 164, 70, 48, 195, 251, 181, 82, 206, 254, 167, 84, 165, 40, 29, 254, 102, 165, 152, 81, 244, 203, 199, 97, 33, 107, 29, 95, 120, 212, 34, 19, 233, 109, 179, 72, 246, 219, 23, 254, 108, 222, 210, 250, 166, 172, 208, 133, 108, 252, 36, 165, 71, 97, 210, 206, 144, 138, 237, 169, 15, 218, 13, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("+2CkRjDD+7VSzv6nVKUoHf5mpZhR9MvHYSFrHV941CIT6W2zSPbbF/5s3tL6pqzQhWz8JKVHYdLOkIrtqQ/aDQ=="), public_key: Ed25519PublicKey("XOFVzOY9LZNqwQ3DdOZjPaH7+0SaLqyPemXUeFCk1jY=") })]
 Transaction Kind : Programmable
 Inputs: [Pure(IotaPureValue { value_type: Some(Address), value: "<SENDER>" })]
 Commands: [
@@ -446,7 +446,7 @@ Array [
 </details>
 
 
-You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#function-make_immutable) on the
+You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#iota_package_make_immutable) on the
 `UpgradeCap` to make the policy immutable.
 
 ```bash
@@ -468,7 +468,7 @@ A successful call returns the following:
 ----- Transaction Digest ----
 FqTdsEgFnyVqc3sFeu5EnBUziEDYbxhLUAaLv4FDjN6d
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 123, 97, 9, 252, 127, 238, 10, 88, 175, 157, 155, 98, 11, 23, 234, 52, 167, 230, 45, 218, 171, 31, 174, 87, 107, 174, 117, 236, 65, 117, 18, 42, 74, 56, 149, 82, 107, 216, 199, 223, 142, 135, 165, 200, 80, 151, 32, 110, 75, 133, 128, 150, 66, 13, 40, 173, 228, 211, 94, 222, 201, 248, 221, 10, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("e2EJ/H/uClivnZtiCxfqNKfmLdqrH65Xa6517EF1EipKOJVSa9jH346HpchQlyBuS4WAlkINKK3k017eyfjdCg=="), public_key: Ed25519PublicKey("XOFVzOY9LZNqwQ3DdOZjPaH7+0SaLqyPemXUeFCk1jY=") })]
 Transaction Kind : Programmable
 Inputs: [Object(ImmOrOwnedObject { object_id: <POLICY-UPGRADE-CAP>, version: SequenceNumber(6), digest: o#DG1CABxqdHNhjBDzt7K4VKiJdLfnrW9qnCx8yr4jVP4 })]
 Commands: [
@@ -880,7 +880,7 @@ A successful call responds with the following:
 ----- Transaction Digest ----
 Bx1GA8EsBjoLKvXV2GG92DC5Jt58dbytf6jFcLg18dDR
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 92, 22, 253, 150, 35, 134, 140, 185, 239, 72, 194, 25, 250, 153, 98, 134, 26, 219, 232, 199, 122, 56, 189, 186, 56, 126, 184, 147, 148, 184, 4, 17, 177, 156, 231, 198, 74, 118, 28, 187, 132, 94, 141, 44, 55, 70, 207, 157, 143, 182, 83, 59, 156, 116, 226, 22, 65, 211, 179, 187, 18, 76, 245, 4, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("XBb9liOGjLnvSMIZ+plihhrb6Md6OL26OH64k5S4BBGxnOfGSnYcu4RejSw3Rs+dj7ZTO5x04hZB07O7Ekz1BA=="), public_key: Ed25519PublicKey("XOFVzOY9LZNqwQ3DdOZjPaH7+0SaLqyPemXUeFCk1jY=") })]
 Transaction Kind : Programmable
 Inputs: []
 Commands: [
@@ -1143,7 +1143,7 @@ If successful, the console prints the following response:
 ----- Transaction Digest ----
 EF2rQzWHmtjPvkqzFGyFvANA8e4ETULSBqDMkzqVoshi
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 88, 98, 118, 173, 218, 55, 4, 48, 166, 42, 106, 193, 210, 159, 75, 233, 95, 77, 201, 38, 0, 234, 183, 77, 252, 178, 22, 221, 106, 202, 42, 166, 29, 130, 164, 97, 110, 201, 153, 91, 149, 50, 72, 6, 213, 183, 70, 83, 55, 5, 190, 182, 5, 98, 212, 134, 103, 181, 204, 247, 90, 28, 125, 14, 92, 225, 85, 204, 230, 61, 45, 147, 106, 193, 13, 195, 116, 230, 99, 61, 161, 251, 251, 68, 154, 46, 172, 143, 122, 101, 212, 120, 80, 164, 214, 54])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("WGJ2rdo3BDCmKmrB0p9L6V9NySYA6rdN/LIW3WrKKqYdgqRhbsmZW5UySAbVt0ZTNwW+tgVi1IZntcz3Whx9Dg=="), public_key: Ed25519PublicKey("XOFVzOY9LZNqwQ3DdOZjPaH7+0SaLqyPemXUeFCk1jY=") })]
 Transaction Kind : Programmable
 Inputs: []
 Commands: [

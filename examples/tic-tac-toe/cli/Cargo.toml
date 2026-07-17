@@ -10,13 +10,27 @@ anyhow = "1.0"
 bcs = "0.1"
 clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
 dirs = "6.0"
-fastcrypto = "0.1"
+fastcrypto = "=0.1.11"
 serde = { version = "1.0", features = ["derive"] }
+# Pinned: time 0.3.48 introduces a coherence conflict with rcgen 0.13.2 that
+# fails to compile. Declared directly (it is otherwise a transitive dep via
+# rcgen) so the constraint holds without a checked-in Cargo.lock.
+time = "=0.3.47"
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e19c78a1bee17e0bf85fcd5b16a2f080cef26274" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ef099ee58da63dda6e3d86de01d096ddd2e7aa89" }
 iota-types = { path = "../../../crates/iota-types" }
-move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }
+
+[package.metadata.cargo-machete]
+ignored = [
+  "time", # declared only to pin the version of a transitive dep (see above)
+]
+
+# fastcrypto-tbls/-vdf/-zkp (pulled transitively via the monorepo crates) fetch
+# fastcrypto through an in-repo path dep. Redirect it to the crates.io release
+# so this workspace shares a single fastcrypto instead of two conflicting copies.
+[patch."https://github.com/MystenLabs/fastcrypto"]
+fastcrypto = "=0.1.11"

@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::sync::Arc;
+use std::collections::BTreeMap;
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -17,16 +17,16 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
-    commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
-    context::Context,
+    commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()>;
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
@@ -102,19 +102,12 @@ pub(crate) trait Store: Send + Sync {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let refs = if context.protocol_config.consensus_fast_commit_sync() {
-            self.scan_transaction_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        } else {
-            self.scan_block_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        };
+        let refs = self
+            .scan_transaction_references_by_author(author, start_round)?
+            .into_iter()
+            .map(GenericTransactionRef::from)
+            .collect::<Vec<_>>();
         Ok(self
             .read_verified_transactions(&refs)?
             .into_iter()
@@ -129,7 +122,7 @@ pub(crate) trait Store: Send + Sync {
         let refs = self.scan_block_references_by_author(author, start_round)?;
         let results = self.read_verified_block_headers(refs.as_slice())?;
         let mut block_headers = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             block_headers.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
@@ -137,14 +130,27 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage
+    fn scan_misbehavior_counts(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
     /// Reads all commits from start (inclusive) until end (inclusive).
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>>;
 
-    /// Reads all blocks voting on a particular commit.
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
+    /// Reads all blocks voting on a particular commit, identified by both
+    /// index and digest. Votes for other digests at the same index (possible
+    /// with Byzantine voters, since vote digests are not validated against
+    /// stored commits) are excluded.
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>>;
 
     /// Finds the highest commit index that has at least one vote, up to (and
     /// including) the given index. Returns None if no votes exist for any
@@ -173,8 +179,8 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
     /// Returns true if fast commit sync was ongoing when the node last shut
-    /// down.
-    fn read_fast_sync_ongoing(&self) -> bool;
+    /// down. Errors if the flag cannot be read from storage.
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool>;
 }
 
 /// Represents data to be written to the store together atomically.
@@ -186,27 +192,10 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
+    pub(crate) misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl WriteBatch {
-    pub(crate) fn new(
-        transactions: Vec<VerifiedTransactions>,
-        block_headers: Vec<VerifiedBlockHeader>,
-        commits: Vec<TrustedCommit>,
-        commit_info: Vec<(CommitRef, CommitInfo)>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: Option<bool>,
-    ) -> Self {
-        WriteBatch {
-            transactions,
-            block_headers,
-            commits,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-        }
-    }
-
     // Test setters.
 
     #[cfg(test)]
@@ -241,22 +230,21 @@ impl WriteBatch {
         self.voting_block_headers = voting_block_headers;
         self
     }
+
+    #[cfg(test)]
+    pub(crate) fn misbehavior_counts(
+        mut self,
+        misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
+    ) -> Self {
+        self.misbehavior_counts = misbehavior_counts;
+        self
+    }
 }
 
 /// Simulation-test-only helper that deletes all transactions from the consensus
 /// RocksDB store while preserving other data.
 #[cfg(msim)]
-pub fn delete_all_transactions_from_store(
-    db_path: &std::path::Path,
-    authority_index: starfish_config::AuthorityIndex,
-    committee: starfish_config::Committee,
-    protocol_config: iota_protocol_config::ProtocolConfig,
-) -> Result<(), String> {
-    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(
-        db_path,
-        authority_index,
-        committee,
-        protocol_config,
-    )
-    .map_err(|e| format!("failed to delete transactions: {}", e))
+pub fn delete_all_transactions_from_store(db_path: &std::path::Path) -> Result<(), String> {
+    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(db_path)
+        .map_err(|e| format!("failed to delete transactions: {e}"))
 }

@@ -20,13 +20,12 @@ use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
 use iota_protocol_config::MAX_PROTOCOL_VERSION;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     committee::ProtocolVersion,
     crypto::{
         AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
     },
-    message_envelope::Message,
     multiaddr::Multiaddr,
 };
 
@@ -209,7 +208,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                     name,
                     authority_key: authority_keypair.public().into(),
                     protocol_key: protocol_keypair.public().clone(),
-                    account_address: IotaAddress::from(&account_keypair.public()),
+                    account_address: Address::from(&account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
@@ -372,8 +371,9 @@ mod test {
     use iota_genesis_builder::validator_info::ValidatorInfo;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
-    use iota_types::crypto::{
-        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
+    use iota_types::{
+        base_types::address_from_iota_pub_key,
+        crypto::{AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng},
     };
 
     use super::*;
@@ -397,7 +397,7 @@ mod test {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),
                     protocol_key: protocol_keypair.public().clone(),
-                    account_address: IotaAddress::from(account_keypair.public()),
+                    account_address: address_from_iota_pub_key(account_keypair.public()),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,

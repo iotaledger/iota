@@ -20,7 +20,9 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Condvar, Mutex},
     thread,
+    time::Duration,
 };
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use vfs::VfsPath;
 
 use move_compiler::linters::LintLevel;
@@ -32,6 +34,9 @@ pub enum RunnerState {
     Wait,
     Quit,
 }
+
+/// Interval for checking if the parent (client) process is still alive.
+const PARENT_LIVENESS_MONITORING_INTERVAL_SECS: u64 = 10;
 
 /// Data used during symbolication running and symbolication info updating
 pub struct SymbolicatorRunner {
@@ -53,6 +58,7 @@ impl SymbolicatorRunner {
         sender: Sender<Result<BTreeMap<PathBuf, Vec<Diagnostic>>>>,
         lint: LintLevel,
         implicit_deps: Dependencies,
+        parent_process_id: Option<u32>,
     ) -> Self {
         let mtx_cvar = Arc::new((Mutex::new(RunnerState::Wait), Condvar::new()));
         let thread_mtx_cvar = mtx_cvar.clone();
@@ -63,6 +69,18 @@ impl SymbolicatorRunner {
                 let (mtx, cvar) = &*thread_mtx_cvar;
                 // Locations opened in the IDE (files or directories) for which manifest file is missing
                 let mut missing_manifests = BTreeSet::new();
+                let mut system = match parent_process_id {
+                    Some(pid) => {
+                        eprintln!("parent process monitoring enabled for PID: {pid}");
+                        Some(System::new())
+                    }
+                    None => {
+                        eprintln!("parent process monitoring disabled (no PID provided)");
+                        None
+                    }
+                };
+                let parent_check_interval =
+                    Duration::from_secs(PARENT_LIVENESS_MONITORING_INTERVAL_SECS);
                 // infinite loop to wait for symbolication requests
                 eprintln!("starting symbolicator runner loop");
                 loop {
@@ -77,9 +95,28 @@ impl SymbolicatorRunner {
                                 Some(starting_paths)
                             }
                             RunnerState::Wait => {
-                                // wait for next request
-                                symbolicate = cvar.wait(symbolicate).unwrap();
-                                match symbolicate.clone() {
+                                let next_state = if let Some(parent_pid) = parent_process_id {
+                                    // Wait with timeout to periodically check if the parent is alive.
+                                    let (guard, timeout_result) =
+                                        cvar.wait_timeout(symbolicate, parent_check_interval).unwrap();
+                                    symbolicate = guard;
+                                    if timeout_result.timed_out() {
+                                        let sys = system.as_mut().unwrap();
+                                        let pid = Pid::from_u32(parent_pid);
+                                        sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+                                        if sys.process(pid).is_none() {
+                                            eprintln!(
+                                                "parent process (PID: {parent_pid}) is no longer alive, shutting down"
+                                            );
+                                            *symbolicate = RunnerState::Quit;
+                                        }
+                                    }
+                                    symbolicate.clone()
+                                } else {
+                                    symbolicate = cvar.wait(symbolicate).unwrap();
+                                    symbolicate.clone()
+                                };
+                                match next_state {
                                     RunnerState::Quit => break,
                                     RunnerState::Run(starting_paths) => {
                                         *symbolicate = RunnerState::Wait;

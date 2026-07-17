@@ -1,13 +1,13 @@
 ---
-title: Workshop IOTA Notarization with TrueDoc
+title: Workshop IOTA Single Notarization with TrueDoc
 description: Complete tutorial for building on-chain notarization on IOTA
 ---
 
-# Implementing Proof of Integrity and Auditability with IOTA Notarization
+# Implementing Proof of Integrity and Auditability with IOTA Single Notarization
 
 ## Overview
 
-This workshop tutorial guides you through implementing blockchain-based document notarization using IOTA's Notarization framework. You'll learn how to create immutable proof of document existence, build audit trails for regulatory compliance, and verify document integrity using both dynamic (mutable) and locked (immutable) notarization strategies.
+This workshop tutorial guides you through implementing blockchain-based document notarization using IOTA's Single Notarization framework. You'll learn how to create immutable proof of document existence, build audit trails for regulatory compliance, and verify document integrity using both dynamic (mutable) and locked (immutable) notarization strategies.
 
 Objective: Apply notarization patterns for audit trails, document authenticity, and state verification using dynamic/locked and static strategies on the IOTA ledger.
 
@@ -26,7 +26,7 @@ To complete this workshop, ensure you have the following prerequisites:
 
 ## Architecture Overview
 
-The IOTA Notarization system provides two main types of notarizations:
+The IOTA Single Notarization system provides two main types of notarizations:
 
 **Dynamic Notarizations:**
 
@@ -50,7 +50,7 @@ The IOTA Notarization system provides two main types of notarizations:
 
 Both types store SHA-256 hashes of your content on-chain, providing cryptographic proof of existence and integrity.
 
-## Set up Development Environment and Publish the IOTA Notarization Package
+## Set up Development Environment and Publish the IOTA Single Notarization Package
 
 ### Step 1: Set Up the IOTA Network
 
@@ -86,13 +86,13 @@ You will be publishing notarizations package from this address, so ensure you ha
 iota client faucet
 ```
 
-### Step 2: Publish the IOTA Notarization Package
+### Step 2: Publish the IOTA Single Notarization Package
 
-Now we'll deploy the Notarization smart contract package to the testnet.
+Now we'll deploy the Single Notarization smart contract package to the testnet.
 
 :::note 
 
-For your reference do visit the [notarization documentation](https://docs.iota.org/developer/iota-notarization/getting-started/local-network-setup) for more details and set up.
+For your reference do visit the [single notarization documentation](https://docs.iota.org/developer/iota-notarization/single-notarization/getting-started/local-network-setup) for more details and set up.
 
 :::
 
@@ -321,9 +321,9 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 
 ## Notarization Service - Core Business Logic
 
-### Notarization Client Initialization
+### Single Notarization Client Initialization
 
-**What We're Building:** Connection to IOTA Notarization smart contract.
+**What We're Building:** Connection to IOTA Single Notarization smart contract.
 
 **Why We Need This:**
 
@@ -457,7 +457,7 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 -  Immutability protection for locked notarizations
 -  Complete audit trail of changes
 
-### Notarization Ownership Transfer
+### Single Notarization Ownership Transfer
 
 **What We're Building:** Transfer dynamic notarizations between wallets.
 
@@ -470,7 +470,7 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 
 **Postman collection for testing the API endpoints**
 
-**Testing Notarization Ownership Transfer Endpoint**
+**Testing Single Notarization Ownership Transfer Endpoint**
 
 Successful transfer of a dynamic notarization to another wallet address — confirming that ownership changes are properly recorded on the blockchain with transaction verification.
 
@@ -496,7 +496,7 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 -  Blockchain-verified ownership changes
 -  Support for business process workflows
 
-### Notarization Destruction
+### Single Notarization Destruction
 
 **What We're Building:** Safe deletion of notarizations with lock checks.
 
@@ -509,7 +509,7 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 
 **Postman collection for testing the API endpoints**
 
-**Testing Notarization Destruction Endpoint**
+**Testing Single Notarization Destruction Endpoint**
 
 Successful deletion of a notarization that has no active locks — demonstrating proper cleanup and storage recovery when documents are no longer required.
 
@@ -548,9 +548,9 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 
 **Postman collection for testing the API endpoints**
 
-**Testing Notarization Query and Verification Endpoint**
+**Testing Single Notarization Query and Verification Endpoint**
 
-**Notarization Details Retrieval**
+**Single Notarization Details Retrieval**
 
 Retrieving complete details of a dynamic notarization — showing version history, current content hash, metadata, and lock status information for comprehensive document auditing.
 
@@ -887,7 +887,7 @@ sequenceDiagram
 
 ### Complete System Overview
 
-**What We've Built:** A complete IOTA Notarization backend service with:
+**What We've Built:** A complete IOTA Single Notarization backend service with:
 
 **Core Features:**
 -  Dynamic Notarizations - Mutable records for evolving documents

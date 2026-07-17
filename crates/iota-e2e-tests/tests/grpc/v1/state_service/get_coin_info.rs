@@ -1,10 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v1::state_service::GetCoinInfoRequest;
+use iota_grpc_types::v1::{
+    coin::{coin_treasury::SupplyState, regulated_coin_metadata::CoinRegulatedState},
+    state_service::GetCoinInfoRequest,
+};
 use iota_macros::sim_test;
 
-use crate::utils::{assert_tonic_error, setup_grpc_test};
+use crate::utils::{assert_field_presence, assert_tonic_error, setup_grpc_test};
 
 #[sim_test]
 async fn get_coin_info_iota() {
@@ -19,42 +22,54 @@ async fn get_coin_info_iota() {
         .unwrap()
         .into_inner();
 
-    // IOTA coin should have a coin_type set
-    assert_eq!(
-        response.coin_type.as_deref(),
-        Some("0x2::iota::IOTA"),
-        "coin_type should be 0x2::iota::IOTA"
+    // GetCoinInfoRequest has no `read_mask`; the server populates every field
+    // that exists for this coin. For the native IOTA coin (no on-chain
+    // RegulatedCoinMetadata object), `regulated_metadata` is populated with
+    // ONLY `coin_regulated_state = Unregulated` — the other 5 fields stay None.
+    assert_field_presence(
+        &response,
+        &[
+            "coin_type",
+            "metadata.id",
+            "metadata.decimals",
+            "metadata.name",
+            "metadata.symbol",
+            "metadata.description",
+            "metadata.icon_url",
+            "treasury.id",
+            "treasury.total_supply",
+            "treasury.supply_state",
+            "regulated_metadata.coin_regulated_state",
+        ],
+        &[],
+        "get_coin_info iota",
     );
 
-    // IOTA coin should have metadata with correct content
-    let metadata = response
-        .metadata
-        .as_ref()
-        .expect("IOTA coin should have metadata");
-    assert!(metadata.id.is_some(), "metadata should have an id");
+    // Spot-check stable values for the native coin.
+    assert_eq!(response.coin_type.as_deref(), Some("0x2::iota::IOTA"));
+    let metadata = response.metadata.as_ref().unwrap();
     assert_eq!(metadata.name.as_deref(), Some("IOTA"));
     assert_eq!(metadata.symbol.as_deref(), Some("IOTA"));
-    assert!(
-        metadata.description.is_some(),
-        "metadata should have a description"
-    );
     assert_eq!(metadata.decimals, Some(9), "IOTA has 9 decimal places");
-
-    // IOTA coin should have treasury with correct content
-    let treasury = response
-        .treasury
-        .as_ref()
-        .expect("IOTA coin should have treasury info");
-    assert!(treasury.id.is_some(), "treasury should have an id");
-    assert!(
-        treasury.total_supply.is_some(),
-        "treasury should have total_supply"
+    assert_eq!(
+        metadata.icon_url.as_deref(),
+        Some("https://iota.org/logo.png"),
+        "IOTA icon_url is set deterministically in genesis (see iota.move)"
     );
-    // IOTA native gas coin has fixed supply
+    let treasury = response.treasury.as_ref().unwrap();
     assert_eq!(
         treasury.supply_state,
-        Some(1),
-        "IOTA supply should be FIXED (1)"
+        Some(SupplyState::Fixed as i32),
+        "IOTA supply should be FIXED"
+    );
+    assert_eq!(
+        response
+            .regulated_metadata
+            .as_ref()
+            .unwrap()
+            .coin_regulated_state,
+        Some(CoinRegulatedState::Unregulated as i32),
+        "native IOTA coin has no RegulatedCoinMetadata object → state is Unregulated"
     );
 }
 

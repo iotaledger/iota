@@ -2,16 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::ObjectID,
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
     layout_resolver::LayoutResolver,
     storage::{BackingPackageStore, PackageObject},
 };
 use move_core_types::{
-    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
-    resolver::ResourceResolver,
+    account_address::AccountAddress, annotated_value as A, resolver::ResourceResolver,
 };
 use move_vm_runtime::move_vm::MoveVM;
 
@@ -59,7 +58,7 @@ impl LayoutResolver for TypeLayoutResolver<'_, '_> {
 }
 
 impl BackingPackageStore for NullIotaResolver<'_> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
     }
 }
@@ -70,7 +69,7 @@ impl ResourceResolver for NullIotaResolver<'_> {
     fn get_resource(
         &self,
         _address: &AccountAddress,
-        _type: &StructTag,
+        _type: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(None)
     }

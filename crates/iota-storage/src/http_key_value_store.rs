@@ -8,9 +8,8 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
+use iota_sdk_types::{Address, CheckpointDigest, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
     messages_checkpoint::{
@@ -58,9 +57,8 @@ pub fn encoded_tagged_key(key: &TaggedKey) -> String {
     base64_url::encode(&bytes)
 }
 
-pub fn encode_object_key(object_id: &ObjectID, version: &VersionNumber) -> String {
-    let bytes =
-        bcs::to_bytes(&ObjectKey(*object_id, *version)).expect("failed to serialize object key");
+pub fn encode_object_key(object_key: &ObjectKey) -> String {
+    let bytes = bcs::to_bytes(object_key).expect("failed to serialize object key");
     base64_url::encode(&bytes)
 }
 
@@ -114,6 +112,9 @@ pub enum ItemType {
     #[strum(serialize = "evtx")]
     #[serde(rename = "evtx")]
     EventTransactionDigest,
+    #[strum(serialize = "txa")]
+    #[serde(rename = "txa")]
+    TransactionDigestsByAddress,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -124,8 +125,9 @@ pub enum Key {
     CheckpointSummary(CheckpointSequenceNumber),
     CheckpointSummaryByDigest(CheckpointDigest),
     TransactionToCheckpoint(TransactionDigest),
-    ObjectKey(ObjectID, VersionNumber),
+    ObjectKey(ObjectKey),
     EventsByTransactionDigest(TransactionDigest),
+    TransactionDigestsByAddress(Address),
 }
 
 impl Key {
@@ -137,8 +139,8 @@ impl Key {
     /// ```rust
     /// use std::str::FromStr;
     ///
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::Key;
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let key = Key::new("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o").unwrap();
     /// assert_eq!(
@@ -155,11 +157,11 @@ impl Key {
             .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
 
         match item_type {
-            ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::try_from(
+            ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::from_bytes(
                 decoded_key.as_slice(),
             )?)),
             ItemType::TransactionEffects => Ok(Key::TransactionEffects(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::CheckpointContents => {
                 let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
@@ -171,7 +173,7 @@ impl Key {
             }
             ItemType::CheckpointSummary => {
                 // first try to decode as digest, otherwise try to decode as tagged key
-                match CheckpointDigest::try_from(decoded_key.clone()) {
+                match CheckpointDigest::from_bytes(decoded_key.clone()) {
                     Err(_) => {
                         let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
                             anyhow::anyhow!(
@@ -188,16 +190,19 @@ impl Key {
                 }
             }
             ItemType::TransactionToCheckpoint => Ok(Key::TransactionToCheckpoint(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::Object => {
                 let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
                     .map_err(|err| anyhow::anyhow!("failed to deserialize object key: {err}"))?;
 
-                Ok(Key::ObjectKey(object_key.0, object_key.1))
+                Ok(Key::ObjectKey(ObjectKey(object_key.0, object_key.1)))
             }
             ItemType::EventTransactionDigest => Ok(Key::EventsByTransactionDigest(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
+            )),
+            ItemType::TransactionDigestsByAddress => Ok(Key::TransactionDigestsByAddress(
+                Address::from_bytes(decoded_key.as_slice())?,
             )),
         }
     }
@@ -212,8 +217,8 @@ impl Key {
     ///
     /// # Example
     /// ```rust
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{ItemType, Key};
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let item_type = Key::CheckpointContents(1).item_type();
     /// assert_eq!(item_type, ItemType::CheckpointContents);
@@ -229,8 +234,9 @@ impl Key {
                 ItemType::CheckpointSummary
             }
             Key::TransactionToCheckpoint(_) => ItemType::TransactionToCheckpoint,
-            Key::ObjectKey(_, _) => ItemType::Object,
+            Key::ObjectKey(_) => ItemType::Object,
             Key::EventsByTransactionDigest(_) => ItemType::EventTransactionDigest,
+            Key::TransactionDigestsByAddress(_) => ItemType::TransactionDigestsByAddress,
         }
     }
 
@@ -242,10 +248,10 @@ impl Key {
     /// # Examples
     ///
     /// ```rust
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{
     ///     ItemType, Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
     /// };
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let tx_digest = TransactionDigest::random();
     /// // encode the tx_digest as base64 url
@@ -276,8 +282,11 @@ impl Key {
             }
             Key::CheckpointSummaryByDigest(digest) => encode_digest(digest),
             Key::TransactionToCheckpoint(digest) => encode_digest(digest),
-            Key::ObjectKey(object_id, version) => encode_object_key(object_id, version),
+            Key::ObjectKey(object_key) => encode_object_key(object_key),
             Key::EventsByTransactionDigest(digest) => encode_digest(digest),
+            // TODO: `encode_digest` could be renamed to `encode` to fit more use cases.
+            // tracking issue: https://github.com/iotaledger/iota/issues/11754
+            Key::TransactionDigestsByAddress(address) => encode_digest(address),
         };
 
         (self.item_type(), encoded_key_digest)
@@ -591,13 +600,35 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn get_object(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
-        let key = Key::ObjectKey(object_id, version);
+        let key = Key::ObjectKey(ObjectKey(object_id, version));
         self.fetch(key)
             .await
             .map(|maybe| maybe.and_then(|bytes| deser::<_, Object>(&key, bytes.as_ref())))
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        let keys = object_keys
+            .iter()
+            .map(|key| Key::ObjectKey(*key))
+            .collect::<Vec<_>>();
+
+        let fetches = self.multi_fetch(keys).await;
+
+        let results = fetches
+            .iter()
+            .zip(object_keys.iter())
+            .map(map_fetch)
+            .map(|maybe_bytes| maybe_bytes.and_then(|(bytes, key)| deser::<_, Object>(&key, bytes)))
+            .collect::<Vec<_>>();
+
+        Ok(results)
     }
 
     #[instrument(level = "trace", skip_all)]

@@ -1,0 +1,173 @@
+---
+title: Update Metadata
+sidebar_label: Update Metadata
+description: How to update and clear the mutable metadata on an Audit Trail while preserving immutable metadata.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Update Metadata
+
+This guide shows how to manage the two-tier metadata system on an `AuditTrail` object: **immutable metadata** (set once at creation) and **updatable metadata** (can be changed or cleared at any time by an authorized role).
+
+## Prerequisites
+
+- An existing `AuditTrail` object on the IOTA network
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a metadata-admin wallet that will be delegated metadata-update rights.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs#L25-L26
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L27-L28
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Trail with Both Metadata Types
+
+Set immutable metadata (name and description) and initial updatable metadata when creating the trail.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs#L28-L45
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L30-L37
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Delegate Metadata Updates to a Role
+
+Create a `MetadataAdmin` role and issue a capability for it. This separates metadata management from full administrative control.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs#L50-L69
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L42-L50
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Update the Mutable Metadata
+
+Change the updatable metadata value. The immutable metadata remains unchanged.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs#L77-L81
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L58-L62
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Clear the Mutable Metadata
+
+Set the updatable metadata to `None` / `undefined` to remove it entirely.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs#L92-L96
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L73-L77
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- **Immutable metadata** (name and description) never changes after trail creation.
+- **Updatable metadata** can be freely changed or cleared by a holder of a `MetadataAdmin` capability.
+- Typical use: store a status summary (e.g., `"Status: Active"`) that evolves as the trail progresses.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/03_update_metadata.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts
+```
+
+</TabItem>
+</Tabs>

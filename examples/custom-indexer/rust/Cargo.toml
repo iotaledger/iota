@@ -8,13 +8,12 @@ license = "Apache-2.0"
 # external dependencies
 anyhow = "1.0"
 async-trait = "0.1"
-prometheus = "0.14"
 tokio = "1.49.0"
-tokio-util = "0.7"
 
 # internal dependencies
-iota-data-ingestion-core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
-iota-types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
+iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
+iota-types = { path = "../../../crates/iota-types" }
+prometheus-filtered = { path = "../../../crates/prometheus-filtered" }
 
 [[bin]]
 name = "local_reader"
@@ -27,3 +26,13 @@ path = "remote_reader.rs"
 [[bin]]
 name = "hybrid_reader"
 path = "hybrid_reader.rs"
+
+[[bin]]
+name = "remote_reader_with_filters"
+path = "remote_reader_with_filters.rs"
+
+# fastcrypto-tbls/-vdf/-zkp (pulled transitively via the monorepo crates) fetch
+# fastcrypto through an in-repo path dep. Redirect it to the crates.io release
+# so this workspace shares a single fastcrypto instead of two conflicting copies.
+[patch."https://github.com/MystenLabs/fastcrypto"]
+fastcrypto = "=0.1.11"

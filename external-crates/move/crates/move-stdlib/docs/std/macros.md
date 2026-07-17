@@ -6,42 +6,48 @@
 This module holds shared implementation of macros used in <code>std</code>
 
 
--  [Macro function `num_max`](#std_macros_num_max)
--  [Macro function `num_min`](#std_macros_num_min)
--  [Macro function `num_diff`](#std_macros_num_diff)
--  [Macro function `num_divide_and_round_up`](#std_macros_num_divide_and_round_up)
--  [Macro function `num_pow`](#std_macros_num_pow)
--  [Macro function `num_sqrt`](#std_macros_num_sqrt)
--  [Macro function `num_to_string`](#std_macros_num_to_string)
--  [Macro function `range_do`](#std_macros_range_do)
--  [Macro function `range_do_eq`](#std_macros_range_do_eq)
--  [Macro function `do`](#std_macros_do)
--  [Macro function `do_eq`](#std_macros_do_eq)
--  [Macro function `try_as_u8`](#std_macros_try_as_u8)
--  [Macro function `try_as_u16`](#std_macros_try_as_u16)
--  [Macro function `try_as_u32`](#std_macros_try_as_u32)
--  [Macro function `try_as_u64`](#std_macros_try_as_u64)
--  [Macro function `try_as_u128`](#std_macros_try_as_u128)
--  [Macro function `uq_from_quotient`](#std_macros_uq_from_quotient)
--  [Macro function `uq_from_int`](#std_macros_uq_from_int)
--  [Macro function `uq_add`](#std_macros_uq_add)
--  [Macro function `uq_sub`](#std_macros_uq_sub)
--  [Macro function `uq_to_int`](#std_macros_uq_to_int)
--  [Macro function `uq_int_mul`](#std_macros_uq_int_mul)
--  [Macro function `uq_int_div`](#std_macros_uq_int_div)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `do` (macro)](#std_macros_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `do_eq` (macro)](#std_macros_do_eq)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_diff` (macro)](#std_macros_num_diff)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_divide_and_round_up` (macro)](#std_macros_num_divide_and_round_up)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_max` (macro)](#std_macros_num_max)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_min` (macro)](#std_macros_num_min)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_pow` (macro)](#std_macros_num_pow)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_sqrt` (macro)](#std_macros_num_sqrt)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_to_string` (macro)](#std_macros_num_to_string)
+    -  [<span class="move-vis move-vis-public">pub</span> `range_do` (macro)](#std_macros_range_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `range_do_eq` (macro)](#std_macros_range_do_eq)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u128` (macro)](#std_macros_try_as_u128)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u16` (macro)](#std_macros_try_as_u16)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u32` (macro)](#std_macros_try_as_u32)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u64` (macro)](#std_macros_try_as_u64)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u8` (macro)](#std_macros_try_as_u8)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_add` (macro)](#std_macros_uq_add)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_from_int` (macro)](#std_macros_uq_from_int)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_from_quotient` (macro)](#std_macros_uq_from_quotient)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_int_div` (macro)](#std_macros_uq_int_div)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_int_mul` (macro)](#std_macros_uq_int_mul)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_sub` (macro)](#std_macros_uq_sub)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_to_int` (macro)](#std_macros_uq_to_int)
 
 
 <pre><code></code></pre>
 
 
 
-<a name="std_macros_num_max"></a>
+<a name="@Module_Functions_0"></a>
 
-## Macro function `num_max`
+## Module Functions
+
+
+<a name="std_macros_do"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `do` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_max">num_max</a>&lt;$T&gt;($x: $T, $y: $T): $T
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do">do</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R)
 </code></pre>
 
 
@@ -50,11 +56,8 @@ This module holds shared implementation of macros used in <code>std</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_max">num_max</a>&lt;$T&gt;($x: $T, $y: $T): $T {
-    <b>let</b> x = $x;
-    <b>let</b> y = $y;
-    <b>if</b> (x &gt; y) x
-    <b>else</b> y
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do">do</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R) {
+    <a href="../std/macros.md#std_macros_range_do">range_do</a>!(0, $stop, $f)
 }
 </code></pre>
 
@@ -62,13 +65,13 @@ This module holds shared implementation of macros used in <code>std</code>
 
 </details>
 
-<a name="std_macros_num_min"></a>
+<a name="std_macros_do_eq"></a>
 
-## Macro function `num_min`
+### <span class="move-vis move-vis-public">pub</span> `do_eq` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_min">num_min</a>&lt;$T&gt;($x: $T, $y: $T): $T
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do_eq">do_eq</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R)
 </code></pre>
 
 
@@ -77,11 +80,8 @@ This module holds shared implementation of macros used in <code>std</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_min">num_min</a>&lt;$T&gt;($x: $T, $y: $T): $T {
-    <b>let</b> x = $x;
-    <b>let</b> y = $y;
-    <b>if</b> (x &lt; y) x
-    <b>else</b> y
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do_eq">do_eq</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R) {
+    <a href="../std/macros.md#std_macros_range_do_eq">range_do_eq</a>!(0, $stop, $f)
 }
 </code></pre>
 
@@ -91,7 +91,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_diff"></a>
 
-## Macro function `num_diff`
+### <span class="move-vis move-vis-public">pub</span> `num_diff` (macro)
 
 
 
@@ -118,7 +118,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_divide_and_round_up"></a>
 
-## Macro function `num_divide_and_round_up`
+### <span class="move-vis move-vis-public">pub</span> `num_divide_and_round_up` (macro)
 
 
 
@@ -143,9 +143,63 @@ This module holds shared implementation of macros used in <code>std</code>
 
 </details>
 
+<a name="std_macros_num_max"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `num_max` (macro)
+
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_max">num_max</a>&lt;$T&gt;($x: $T, $y: $T): $T
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_max">num_max</a>&lt;$T&gt;($x: $T, $y: $T): $T {
+    <b>let</b> x = $x;
+    <b>let</b> y = $y;
+    <b>if</b> (x &gt; y) x
+    <b>else</b> y
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_macros_num_min"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `num_min` (macro)
+
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_min">num_min</a>&lt;$T&gt;($x: $T, $y: $T): $T
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_num_min">num_min</a>&lt;$T&gt;($x: $T, $y: $T): $T {
+    <b>let</b> x = $x;
+    <b>let</b> y = $y;
+    <b>if</b> (x &lt; y) x
+    <b>else</b> y
+}
+</code></pre>
+
+
+
+</details>
+
 <a name="std_macros_num_pow"></a>
 
-## Macro function `num_pow`
+### <span class="move-vis move-vis-public">pub</span> `num_pow` (macro)
 
 
 
@@ -181,7 +235,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_sqrt"></a>
 
-## Macro function `num_sqrt`
+### <span class="move-vis move-vis-public">pub</span> `num_sqrt` (macro)
 
 
 
@@ -218,7 +272,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_to_string"></a>
 
-## Macro function `num_to_string`
+### <span class="move-vis move-vis-public">pub</span> `num_to_string` (macro)
 
 
 
@@ -252,7 +306,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_range_do"></a>
 
-## Macro function `range_do`
+### <span class="move-vis move-vis-public">pub</span> `range_do` (macro)
 
 
 
@@ -281,7 +335,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_range_do_eq"></a>
 
-## Macro function `range_do_eq`
+### <span class="move-vis move-vis-public">pub</span> `range_do_eq` (macro)
 
 
 
@@ -314,13 +368,13 @@ This module holds shared implementation of macros used in <code>std</code>
 
 </details>
 
-<a name="std_macros_do"></a>
+<a name="std_macros_try_as_u128"></a>
 
-## Macro function `do`
+### <span class="move-vis move-vis-public">pub</span> `try_as_u128` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do">do</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R)
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u128">try_as_u128</a>($x: _): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u128.md#std_u128">u128</a>&gt;
 </code></pre>
 
 
@@ -329,58 +383,10 @@ This module holds shared implementation of macros used in <code>std</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do">do</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R) {
-    <a href="../std/macros.md#std_macros_range_do">range_do</a>!(0, $stop, $f)
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_macros_do_eq"></a>
-
-## Macro function `do_eq`
-
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do_eq">do_eq</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_do_eq">do_eq</a>&lt;$T, $R: drop&gt;($stop: $T, $f: |$T| -&gt; $R) {
-    <a href="../std/macros.md#std_macros_range_do_eq">range_do_eq</a>!(0, $stop, $f)
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_macros_try_as_u8"></a>
-
-## Macro function `try_as_u8`
-
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u8">try_as_u8</a>($x: _): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u8">try_as_u8</a>($x: _): Option&lt;<a href="../std/u8.md#std_u8">u8</a>&gt; {
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u128">try_as_u128</a>($x: _): Option&lt;<a href="../std/u128.md#std_u128">u128</a>&gt; {
     <b>let</b> x = $x;
-    <b>if</b> (x &gt; 0xFF) <a href="../std/option.md#std_option_none">option::none</a>()
-    <b>else</b> <a href="../std/option.md#std_option_some">option::some</a>(x <b>as</b> <a href="../std/u8.md#std_u8">u8</a>)
+    <b>if</b> (x &gt; 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF) <a href="../std/option.md#std_option_none">option::none</a>()
+    <b>else</b> <a href="../std/option.md#std_option_some">option::some</a>(x <b>as</b> <a href="../std/u128.md#std_u128">u128</a>)
 }
 </code></pre>
 
@@ -390,7 +396,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u16"></a>
 
-## Macro function `try_as_u16`
+### <span class="move-vis move-vis-public">pub</span> `try_as_u16` (macro)
 
 
 
@@ -416,7 +422,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u32"></a>
 
-## Macro function `try_as_u32`
+### <span class="move-vis move-vis-public">pub</span> `try_as_u32` (macro)
 
 
 
@@ -442,7 +448,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u64"></a>
 
-## Macro function `try_as_u64`
+### <span class="move-vis move-vis-public">pub</span> `try_as_u64` (macro)
 
 
 
@@ -466,13 +472,13 @@ This module holds shared implementation of macros used in <code>std</code>
 
 </details>
 
-<a name="std_macros_try_as_u128"></a>
+<a name="std_macros_try_as_u8"></a>
 
-## Macro function `try_as_u128`
+### <span class="move-vis move-vis-public">pub</span> `try_as_u8` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u128">try_as_u128</a>($x: _): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u128.md#std_u128">u128</a>&gt;
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u8">try_as_u8</a>($x: _): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;
 </code></pre>
 
 
@@ -481,10 +487,60 @@ This module holds shared implementation of macros used in <code>std</code>
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u128">try_as_u128</a>($x: _): Option&lt;<a href="../std/u128.md#std_u128">u128</a>&gt; {
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_try_as_u8">try_as_u8</a>($x: _): Option&lt;<a href="../std/u8.md#std_u8">u8</a>&gt; {
     <b>let</b> x = $x;
-    <b>if</b> (x &gt; 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF) <a href="../std/option.md#std_option_none">option::none</a>()
-    <b>else</b> <a href="../std/option.md#std_option_some">option::some</a>(x <b>as</b> <a href="../std/u128.md#std_u128">u128</a>)
+    <b>if</b> (x &gt; 0xFF) <a href="../std/option.md#std_option_none">option::none</a>()
+    <b>else</b> <a href="../std/option.md#std_option_some">option::some</a>(x <b>as</b> <a href="../std/u8.md#std_u8">u8</a>)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_macros_uq_add"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `uq_add` (macro)
+
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_add">uq_add</a>&lt;$T, $U&gt;($a: $T, $b: $T, $max_t: $T, $abort_overflow: _): $T
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_add">uq_add</a>&lt;$T, $U&gt;($a: $T, $b: $T, $max_t: $T, $abort_overflow: _): $T {
+    <b>let</b> sum = $a <b>as</b> $U + ($b <b>as</b> $U);
+    <b>if</b> (sum &gt; $max_t <b>as</b> $U) $abort_overflow;
+    sum <b>as</b> $T
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_macros_uq_from_int"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `uq_from_int` (macro)
+
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_from_int">uq_from_int</a>&lt;$T, $U&gt;($integer: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $U
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_from_int">uq_from_int</a>&lt;$T, $U&gt;($integer: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $U {
+    ($integer <b>as</b> $U) &lt;&lt; $fractional_bits
 }
 </code></pre>
 
@@ -494,7 +550,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_uq_from_quotient"></a>
 
-## Macro function `uq_from_quotient`
+### <span class="move-vis move-vis-public">pub</span> `uq_from_quotient` (macro)
 
 Creates a fixed-point value from a quotient specified by its numerator and denominator.
 <code>$T</code> is the underlying integer type for the fixed-point value, where <code>$T</code> has <code>$t_bits</code> bits.
@@ -546,13 +602,13 @@ plus fractional).
 
 </details>
 
-<a name="std_macros_uq_from_int"></a>
+<a name="std_macros_uq_int_div"></a>
 
-## Macro function `uq_from_int`
+### <span class="move-vis move-vis-public">pub</span> `uq_int_div` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_from_int">uq_from_int</a>&lt;$T, $U&gt;($integer: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $U
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_int_div">uq_int_div</a>&lt;$T, $U&gt;($val: $T, $divisor: $T, $max_t: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>, $abort_division_by_zero: _, $abort_overflow: _): $T
 </code></pre>
 
 
@@ -561,85 +617,25 @@ plus fractional).
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_from_int">uq_from_int</a>&lt;$T, $U&gt;($integer: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $U {
-    ($integer <b>as</b> $U) &lt;&lt; $fractional_bits
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_macros_uq_add"></a>
-
-## Macro function `uq_add`
-
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_add">uq_add</a>&lt;$T, $U&gt;($a: $T, $b: $T, $max_t: $T, $abort_overflow: _): $T
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_add">uq_add</a>&lt;$T, $U&gt;($a: $T, $b: $T, $max_t: $T, $abort_overflow: _): $T {
-    <b>let</b> sum = $a <b>as</b> $U + ($b <b>as</b> $U);
-    <b>if</b> (sum &gt; $max_t <b>as</b> $U) $abort_overflow;
-    sum <b>as</b> $T
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_macros_uq_sub"></a>
-
-## Macro function `uq_sub`
-
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_sub">uq_sub</a>&lt;$T&gt;($a: $T, $b: $T, $abort_overflow: _): $T
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_sub">uq_sub</a>&lt;$T&gt;($a: $T, $b: $T, $abort_overflow: _): $T {
-    <b>let</b> a = $a;
-    <b>let</b> b = $b;
-    <b>if</b> (a &lt; b) $abort_overflow;
-    a - b
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_macros_uq_to_int"></a>
-
-## Macro function `uq_to_int`
-
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_to_int">uq_to_int</a>&lt;$T, $U&gt;($a: $U, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $T
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_to_int">uq_to_int</a>&lt;$T, $U&gt;($a: $U, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $T {
-    ($a &gt;&gt; $fractional_bits) <b>as</b> $T
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_int_div">uq_int_div</a>&lt;$T, $U&gt;(
+    $val: $T,
+    $divisor: $T,
+    $max_t: $T,
+    $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>,
+    $abort_division_by_zero: _,
+    $abort_overflow: _,
+): $T {
+    <b>let</b> val = $val;
+    <b>let</b> divisor = $divisor;
+    // Check <b>for</b> division by zero.
+    <b>if</b> (divisor == 0) $abort_division_by_zero;
+    // First convert to $U to increase the number of bits to the next integer size
+    // and then shift left to add `$fractional_bits` fractional zero bits to the dividend.
+    <b>let</b> scaled_value = val <b>as</b> $U &lt;&lt; $fractional_bits;
+    <b>let</b> quotient = scaled_value / (divisor <b>as</b> $U);
+    // Check whether the value is too large.
+    <b>if</b> (quotient &gt; $max_t <b>as</b> $U) $abort_overflow;
+    quotient <b>as</b> $T
 }
 </code></pre>
 
@@ -649,7 +645,7 @@ plus fractional).
 
 <a name="std_macros_uq_int_mul"></a>
 
-## Macro function `uq_int_mul`
+### <span class="move-vis move-vis-public">pub</span> `uq_int_mul` (macro)
 
 
 
@@ -686,13 +682,13 @@ plus fractional).
 
 </details>
 
-<a name="std_macros_uq_int_div"></a>
+<a name="std_macros_uq_sub"></a>
 
-## Macro function `uq_int_div`
+### <span class="move-vis move-vis-public">pub</span> `uq_sub` (macro)
 
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_int_div">uq_int_div</a>&lt;$T, $U&gt;($val: $T, $divisor: $T, $max_t: $T, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>, $abort_division_by_zero: _, $abort_overflow: _): $T
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_sub">uq_sub</a>&lt;$T&gt;($a: $T, $b: $T, $abort_overflow: _): $T
 </code></pre>
 
 
@@ -701,25 +697,35 @@ plus fractional).
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_int_div">uq_int_div</a>&lt;$T, $U&gt;(
-    $val: $T,
-    $divisor: $T,
-    $max_t: $T,
-    $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>,
-    $abort_division_by_zero: _,
-    $abort_overflow: _,
-): $T {
-    <b>let</b> val = $val;
-    <b>let</b> divisor = $divisor;
-    // Check <b>for</b> division by zero.
-    <b>if</b> (divisor == 0) $abort_division_by_zero;
-    // First convert to $U to increase the number of bits to the next integer size
-    // and then shift left to add `$fractional_bits` fractional zero bits to the dividend.
-    <b>let</b> scaled_value = val <b>as</b> $U &lt;&lt; $fractional_bits;
-    <b>let</b> quotient = scaled_value / (divisor <b>as</b> $U);
-    // Check whether the value is too large.
-    <b>if</b> (quotient &gt; $max_t <b>as</b> $U) $abort_overflow;
-    quotient <b>as</b> $T
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_sub">uq_sub</a>&lt;$T&gt;($a: $T, $b: $T, $abort_overflow: _): $T {
+    <b>let</b> a = $a;
+    <b>let</b> b = $b;
+    <b>if</b> (a &lt; b) $abort_overflow;
+    a - b
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_macros_uq_to_int"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `uq_to_int` (macro)
+
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_to_int">uq_to_int</a>&lt;$T, $U&gt;($a: $U, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $T
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/macros.md#std_macros_uq_to_int">uq_to_int</a>&lt;$T, $U&gt;($a: $U, $fractional_bits: <a href="../std/u8.md#std_u8">u8</a>): $T {
+    ($a &gt;&gt; $fractional_bits) <b>as</b> $T
 }
 </code></pre>
 

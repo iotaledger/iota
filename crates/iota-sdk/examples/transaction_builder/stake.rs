@@ -39,7 +39,9 @@ async fn main() -> Result<(), anyhow::Error> {
     {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].clone(),
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].clone(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     }
     .iota_address;
 

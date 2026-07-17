@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::encoding::Base64;
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactionOrchestrator,
@@ -13,33 +13,33 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType as ExecuteTransactionRequestTypeSchema, IotaExecutionStatus,
+    IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use iota_protocol_config::Chain;
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
+};
+use iota_sdk_types::{
+    Address, ObjectId, TransactionDigest, TransactionKind,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::default_hash,
-    digests::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     signature::GenericSignature,
     storage::PostExecutionPackageResolver,
-    transaction::{
-        InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_core_types::account_address::AccountAddress;
 use tracing::{Instrument, instrument};
 
 use crate::{
@@ -92,7 +92,7 @@ impl TransactionExecutionApi {
         (
             ExecuteTransactionRequestV1,
             IotaTransactionBlockResponseOptions,
-            IotaAddress,
+            Address,
             Vec<InputObjectKind>,
             Transaction,
             Option<IotaTransactionBlock>,
@@ -200,7 +200,7 @@ impl TransactionExecutionApi {
         input_objs: Vec<InputObjectKind>,
         transaction: Option<IotaTransactionBlock>,
         raw_transaction: Vec<u8>,
-        sender: IotaAddress,
+        sender: Address,
     ) -> Result<IotaTransactionBlockResponse, Error> {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
@@ -224,10 +224,23 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = {
-            response.output_objects.map(|output_objects| {
-                ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
-            })
+        // Skip cache (and downstream balance/object_changes) when the validator
+        // returned no input/output objects — e.g. the already-executed early-return.
+        // Without this guard, cache misses fall through to a provider lookup that
+        // races with local state and returns "version higher than latest".
+        let object_cache = if (opts.show_balance_changes || opts.show_object_changes)
+            && (response.input_objects.is_some() || response.output_objects.is_some())
+        {
+            let mut object_cache = ObjectProviderCache::new(self.state.clone());
+            if let Some(input_objects) = response.input_objects {
+                object_cache.insert_objects_into_cache(input_objects);
+            }
+            if let Some(output_objects) = response.output_objects {
+                object_cache.insert_objects_into_cache(output_objects);
+            }
+            Some(object_cache)
+        } else {
+            None
         };
 
         let balance_changes = match &object_cache {
@@ -264,21 +277,37 @@ impl TransactionExecutionApi {
         } else {
             vec![]
         };
+        let resolver = Resolver::new(self.clone());
+
+        let effects = if opts.show_effects {
+            Some(
+                IotaTransactionBlockEffects::from_native_with_clever_error(
+                    response.effects.effects,
+                    &resolver,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+
+        let errors = match effects.as_ref().map(|e| e.status()) {
+            Some(IotaExecutionStatus::Failure { error }) => vec![error.clone()],
+            _ => vec![],
+        };
 
         Ok(IotaTransactionBlockResponse {
             digest,
             transaction,
             raw_transaction,
-            effects: opts
-                .show_effects
-                .then_some(response.effects.effects.try_into()?),
+            effects,
             events,
             object_changes,
             balance_changes,
             timestamp_ms: None,
             confirmed_local_execution: Some(is_executed_locally),
             checkpoint: None,
-            errors: vec![],
+            errors,
             raw_effects,
         })
     }
@@ -297,7 +326,7 @@ impl TransactionExecutionApi {
             },
             tx_data,
         );
-        let txn_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         Ok((intent_msg.value, txn_digest, input_objs))
     }
 
@@ -336,8 +365,15 @@ impl TransactionExecutionApi {
         )
         .await?;
 
+        let resolver = Resolver::new(self.clone());
+        let effects = IotaTransactionBlockEffects::from_native_with_clever_error(
+            transaction_effects,
+            &resolver,
+        )
+        .await;
+
         Ok(DryRunTransactionBlockResponse {
-            effects: resp.effects,
+            effects,
             events: resp.events,
             object_changes,
             balance_changes,
@@ -356,9 +392,9 @@ impl WriteApiServer for TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
+        request_type: Option<ExecuteTransactionRequestTypeSchema>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
+        self.execute_transaction_block(tx_bytes, signatures, opts, request_type.map(Into::into))
             .trace_timeout(Duration::from_secs(10))
             .await
     }
@@ -371,24 +407,12 @@ impl WriteApiServer for TransactionExecutionApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let chain = self
-            .state
-            .get_chain_identifier()
-            .map_err(Error::from)?
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(Error::UnsupportedFeature(format!(
-                "View function calls not supported yet on {}",
-                chain.as_str()
-            ))
-            .into());
-        }
         let MoveFunctionName {
             package,
             module,
             function,
         } = function_name.as_str().parse().map_err(Error::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -411,10 +435,10 @@ impl WriteApiServer for TransactionExecutionApi {
         )
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -434,7 +458,7 @@ impl WriteApiServer for TransactionExecutionApi {
                     sender_address,
                     tx_kind,
                     gas_price.map(|i| *i),
-                    gas_budget.map(|i| *i),
+                    gas_budget,
                     gas_sponsor,
                     gas_objects,
                     show_raw_txn_data_and_effects,
@@ -468,9 +492,9 @@ impl IotaRpcModule for TransactionExecutionApi {
 
 #[async_trait]
 impl PackageStore for TransactionExecutionApi {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

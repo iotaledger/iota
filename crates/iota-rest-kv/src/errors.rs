@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use iota_storage::http_key_value_store::ItemType;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -52,4 +53,16 @@ impl IntoResponse for ApiError {
 pub(crate) struct ErrorResponse {
     error_code: String,
     error_message: String,
+}
+
+#[derive(Error, Debug)]
+pub enum RangeKeyBoundError {
+    #[error("expected `{expected}` item type: {detail}")]
+    UnexpectedItemType { expected: ItemType, detail: String },
+}
+
+impl From<RangeKeyBoundError> for ApiError {
+    fn from(err: RangeKeyBoundError) -> Self {
+        ApiError::BadRequest(err.to_string())
+    }
 }

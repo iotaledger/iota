@@ -183,7 +183,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_log_file(&log_filename)
         .init();
 
-    println!("Logging to {}", &log_filename);
+    println!("Logging to {log_filename}");
     info!("Running Load Gen with following urls {:?}", opts.urls);
 
     let (command, common, need_keystore) = match opts.command {

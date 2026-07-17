@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Version};
 
 use super::{super::utils::setup_grpc_test, common::assert_server_not_found};
 
@@ -106,7 +106,7 @@ async fn get_objects_scenarios() {
     // Test: invalid version returns error
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let result = client
-        .get_objects(&[(object_id, Some(999_999_999))], None)
+        .get_objects(&[(object_id, Some(Version::from_u64(999_999_999)))], None)
         .await;
     assert!(
         result.is_err(),

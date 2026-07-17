@@ -59,7 +59,7 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await?;
 
@@ -134,7 +134,7 @@ async fn test_get_raw_transaction() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 

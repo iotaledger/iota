@@ -29,7 +29,7 @@ You can send further transactions directly to `iota::coin::Coin` using the `Trea
 ## Extending the Coin Module
 
 To extend the coin module, add a `mint` function.
-This function utilizes the [`mint`](../../references/framework/iota/coin.mdx#function-mint) method from the `Coin` module
+This function utilizes the [`mint`](../../references/framework/iota/coin.mdx#iota_coin_mint) method from the `Coin` module
 to create a coin and transfer it to a specified address.
 
 ## IOTA CLI
@@ -63,7 +63,7 @@ If you need to restrict specific addresses from accessing your coin, consider im
 ## Creating a Regulated Coin
 
 To deny specific addresses from holding your coin,
-use the [`create_regulated_currency`](../../references/framework/iota/coin.mdx#function-create_regulated_currency_v1) function instead of [`create_currency`](../../references/framework/iota/coin.mdx#function-create_currency).
+use the [`create_regulated_currency`](../../references/framework/iota/coin.mdx#iota_coin_create_regulated_currency_v1) function instead of [`create_currency`](../../references/framework/iota/coin.mdx#iota_coin_create_currency).
 
 Internally, `create_regulated_currency` calls `create_currency` to create the coin
 and also produces a [`DenyCap`](../../references/framework/iota/coin.mdx#struct-denycapv1) object.
@@ -78,8 +78,8 @@ The `coin::create_currency` function ensures the uniqueness of the `TreasuryCap`
 
 You can mint and burn tokens using functions similar to those for coins, both requiring the `TreasuryCap`:
 
-- [`token::mint`](../../references/framework/iota/token.mdx#function-mint) — Mint a token.
-- [`token::burn`](../../references/framework/iota/token.mdx#function-burn) — Burn a token.
+- [`token::mint`](../../references/framework/iota/token.mdx#iota_token_mint) — Mint a token.
+- [`token::burn`](../../references/framework/iota/token.mdx#iota_token_burn) — Burn a token.
 
 For complete details on working with tokens, refer to the [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard.
 

@@ -8,42 +8,49 @@ use std::{
     rc::Rc,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, TransactionDigest,
+    Version, gas::GasCostSummary,
+};
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     auth_context::AuthContext,
-    base_types::{
-        IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
-    },
+    base_types::VersionDigest,
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
-    effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
+    effects::{
+        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+        TransactionEffectsExt, TransactionEvents,
+    },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
     },
     execution_config_utils::to_binary_config,
-    execution_status::ExecutionStatus,
     fp_bail,
-    gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
-    is_system_package,
     layout_resolver::LayoutResolver,
-    object::{Data, Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
         Storage,
     },
     transaction::InputObjects,
 };
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
+use move_core_types::{account_address::AccountAddress, resolver::ResourceResolver};
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
+
+// `iota-metrics` isn't available on wasm32; no-op the scope guard.
+#[cfg(target_arch = "wasm32")]
+fn monitored_scope(_name: &'static str) -> Option<()> {
+    None
+}
 
 pub struct TemporaryStore<'backing> {
     // The backing store for retrieving Move packages onchain.
@@ -53,27 +60,27 @@ pub struct TemporaryStore<'backing> {
     // objects
     store: &'backing dyn BackingStore,
     tx_digest: TransactionDigest,
-    input_objects: BTreeMap<ObjectID, Object>,
+    input_objects: BTreeMap<ObjectId, Object>,
     /// The version to assign to all objects written by the transaction using
     /// this store.
-    lamport_timestamp: SequenceNumber,
-    mutable_input_refs: BTreeMap<ObjectID, (VersionDigest, Owner)>, // Inputs that are mutable
+    lamport_timestamp: Version,
+    mutable_input_refs: BTreeMap<ObjectId, (VersionDigest, Owner)>, // Inputs that are mutable
     execution_results: ExecutionResultsV1,
     /// Objects that were loaded during execution (dynamic fields + received
     /// objects).
-    loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+    loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     /// A map from wrapped object to its container. Used during expensive
     /// invariant checks.
-    wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+    wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
     protocol_config: &'backing ProtocolConfig,
 
     /// Every package that was loaded from DB store during execution.
     /// These packages were not previously loaded into the temporary store.
-    runtime_packages_loaded_from_db: RwLock<BTreeMap<ObjectID, PackageObject>>,
+    runtime_packages_loaded_from_db: RwLock<BTreeMap<ObjectId, PackageObject>>,
 
     /// The set of objects that we may receive during execution. Not guaranteed
     /// to receive all, or any of the objects referenced in this set.
-    receiving_objects: Vec<ObjectRef>,
+    receiving_objects: Vec<ObjectReference>,
 
     // TODO: Now that we track epoch here, there are a few places we don't need to pass it around.
     /// The current epoch.
@@ -82,7 +89,7 @@ pub struct TemporaryStore<'backing> {
     /// The set of per-epoch config objects that were loaded during execution,
     /// and are not in the input objects. This allows us to commit them to
     /// the effects.
-    loaded_per_epoch_config_objects: RwLock<BTreeSet<ObjectID>>,
+    loaded_per_epoch_config_objects: RwLock<BTreeSet<ObjectId>>,
 
     /// The auth context used to verify the transaction.
     auth_context: Option<Rc<RefCell<AuthContext>>>,
@@ -94,7 +101,7 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn new(
         store: &'backing dyn BackingStore,
         input_objects: InputObjects,
-        receiving_objects: Vec<ObjectRef>,
+        receiving_objects: Vec<ObjectReference>,
         tx_digest: TransactionDigest,
         protocol_config: &'backing ProtocolConfig,
         cur_epoch: EpochId,
@@ -112,7 +119,7 @@ impl<'backing> TemporaryStore<'backing> {
                     .intersection(
                         &receiving_objects
                             .iter()
-                            .map(|oref| &oref.0)
+                            .map(|oref| &oref.object_id)
                             .collect::<HashSet<_>>()
                     )
                     .next()
@@ -138,7 +145,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     // Helpers to access private fields
-    pub fn objects(&self) -> &BTreeMap<ObjectID, Object> {
+    pub fn objects(&self) -> &BTreeMap<ObjectId, Object> {
         &self.input_objects
     }
 
@@ -163,9 +170,7 @@ impl<'backing> TemporaryStore<'backing> {
             input_objects: self.input_objects,
             mutable_inputs: self.mutable_input_refs,
             written: results.written_objects,
-            events: TransactionEvents {
-                data: results.user_events,
-            },
+            events: TransactionEvents(results.user_events),
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
@@ -193,7 +198,7 @@ impl<'backing> TemporaryStore<'backing> {
         }
     }
 
-    fn get_object_changes(&self) -> BTreeMap<ObjectID, EffectsObjectChange> {
+    fn get_object_changes(&self) -> BTreeMap<ObjectId, EffectsObjectChange> {
         let results = &self.execution_results;
         let all_ids = results
             .created_object_ids
@@ -204,19 +209,58 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| {
-                (
-                    *id,
-                    EffectsObjectChange::new(
-                        self.get_object_modified_at(id)
-                            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner)),
-                        results.written_objects.get(id),
-                        results.created_object_ids.contains(id),
-                        results.deleted_object_ids.contains(id),
-                    ),
-                )
-            })
+            .map(|id| (*id, self.object_change_for_id(id)))
             .collect()
+    }
+
+    /// Returns the [`EffectsObjectChange`] for `id`, gathered from the
+    /// execution results.
+    fn object_change_for_id(&self, id: &ObjectId) -> EffectsObjectChange {
+        let results = &self.execution_results;
+        let id_created = results.created_object_ids.contains(id);
+        let id_deleted = results.deleted_object_ids.contains(id);
+        debug_assert!(
+            !id_created || !id_deleted,
+            "Object ID can't be created and deleted at the same time."
+        );
+
+        let input_state = self
+            .get_object_modified_at(id)
+            .map_or(ObjectIn::Missing, |m| ObjectIn::Data {
+                version: m.version,
+                digest: m.digest,
+                owner: m.owner,
+            });
+        let output_state = results
+            .written_objects
+            .get(id)
+            .map_or(ObjectOut::Missing, |o| {
+                if o.is_package() {
+                    ObjectOut::PackageWrite {
+                        version: o.version(),
+                        digest: o.digest(),
+                    }
+                } else {
+                    ObjectOut::ObjectWrite {
+                        digest: o.digest(),
+                        owner: o.owner,
+                    }
+                }
+            });
+        let id_operation = if id_created {
+            IDOperation::Created
+        } else if id_deleted {
+            IDOperation::Deleted
+        } else {
+            IDOperation::None
+        };
+
+        EffectsObjectChange {
+            object_id: *id,
+            input_state,
+            output_state,
+            id_operation,
+        }
     }
 
     pub fn into_effects(
@@ -234,18 +278,18 @@ impl<'backing> TemporaryStore<'backing> {
         // Regardless of execution status (including aborts), we insert the previous
         // transaction for any successfully received objects during the
         // transaction.
-        for (id, expected_version, expected_digest) in &self.receiving_objects {
+        for receiving_object in &self.receiving_objects {
             // If the receiving object is in the loaded runtime objects, then that means
             // that it was actually successfully loaded (so existed, and there
             // was authenticated mutable access to it). So we insert the
             // previous transaction as a dependency.
-            if let Some(obj_meta) = self.loaded_runtime_objects.get(id) {
+            if let Some(obj_meta) = self.loaded_runtime_objects.get(&receiving_object.object_id) {
                 // Check that the expected version, digest, and owner match the loaded version,
                 // digest, and owner. If they don't then don't register a dependency.
                 // This is because this could be "spoofed" by loading a dynamic object field.
-                let loaded_via_receive = obj_meta.version == *expected_version
-                    && obj_meta.digest == *expected_digest
-                    && obj_meta.owner.is_address_owned();
+                let loaded_via_receive = obj_meta.version == receiving_object.version
+                    && obj_meta.digest == receiving_object.digest
+                    && obj_meta.owner.is_address();
                 if loaded_via_receive {
                     transaction_dependencies.insert(obj_meta.previous_transaction);
                 }
@@ -277,7 +321,7 @@ impl<'backing> TemporaryStore<'backing> {
             lamport_version,
             object_changes,
             gas_coin,
-            if inner.events.data.is_empty() {
+            if inner.events.is_empty() {
                 None
             } else {
                 Some(inner.events.digest())
@@ -339,13 +383,13 @@ impl<'backing> TemporaryStore<'backing> {
     /// otherwise.
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
-        let old_ref = old_object.compute_object_reference();
-        debug_assert_eq!(old_ref.0, id);
+        let old_ref = old_object.object_ref();
+        debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,
             DynamicallyLoadedObjectMetadata {
-                version: old_ref.1,
-                digest: old_ref.2,
+                version: old_ref.version,
+                digest: old_ref.digest,
                 owner: old_object.owner,
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
@@ -362,7 +406,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// input objects. We could probably fix above to make it less special.
     pub fn upgrade_system_package(&mut self, package: Object) {
         let id = package.id();
-        assert!(package.is_package() && is_system_package(id));
+        assert!(package.is_package() && id.is_system_package());
         self.execution_results.modified_objects.insert(id);
         self.execution_results.written_objects.insert(id, package);
     }
@@ -376,7 +420,7 @@ impl<'backing> TemporaryStore<'backing> {
         // transaction's lamport timestamp is strictly greater than all versions
         // witnessed by the transaction).
         debug_assert!(
-            object.is_immutable() || object.version() == SequenceNumber::MIN_VALID_INCL,
+            object.is_immutable() || object.version() == Version::MIN_VALID_INCL,
             "Created mutable objects should not have a version set",
         );
         let id = object.id();
@@ -386,7 +430,7 @@ impl<'backing> TemporaryStore<'backing> {
 
     /// Delete a mutable input object. This is used to delete input objects
     /// outside of PT execution.
-    pub fn delete_input_object(&mut self, id: &ObjectID) {
+    pub fn delete_input_object(&mut self, id: &ObjectId) {
         // there should be no deletion after write
         debug_assert!(!self.execution_results.written_objects.contains_key(id));
         debug_assert!(self.input_objects.contains_key(id));
@@ -398,7 +442,7 @@ impl<'backing> TemporaryStore<'backing> {
         self.execution_results.drop_writes();
     }
 
-    pub fn read_object(&self, id: &ObjectID) -> Option<&Object> {
+    pub fn read_object(&self, id: &ObjectId) -> Option<&Object> {
         // there should be no read after delete
         debug_assert!(!self.execution_results.deleted_object_ids.contains(id));
         self.execution_results
@@ -409,7 +453,7 @@ impl<'backing> TemporaryStore<'backing> {
 
     pub fn save_loaded_runtime_objects(
         &mut self,
-        loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+        loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     ) {
         #[cfg(debug_assertions)]
         {
@@ -432,7 +476,7 @@ impl<'backing> TemporaryStore<'backing> {
 
     pub fn save_wrapped_object_containers(
         &mut self,
-        wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+        wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
     ) {
         #[cfg(debug_assertions)]
         {
@@ -455,7 +499,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        TransactionEffects::estimate_effects_size_upperbound_v1(
+        TransactionEffects::estimate_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),
@@ -486,7 +530,7 @@ impl<'backing> TemporaryStore<'backing> {
             unmetered_storage_rebate
         );
         let mut system_state_wrapper = self
-            .read_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .read_object(&ObjectId::SYSTEM_STATE)
             .expect("0x5 object must be mutated in system tx with unmetered storage rebate")
             .clone();
         // In unmetered execution, storage_rebate field of mutated object must be 0.
@@ -504,7 +548,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// input, but are modified.
     fn get_object_modified_at(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Option<DynamicallyLoadedObjectMetadata> {
         if self.execution_results.modified_objects.contains(object_id) {
             Some(
@@ -523,7 +567,7 @@ impl<'backing> TemporaryStore<'backing> {
                     )
                     .or_else(|| self.loaded_runtime_objects.get(object_id).cloned())
                     .unwrap_or_else(|| {
-                        debug_assert!(is_system_package(*object_id));
+                        debug_assert!(object_id.is_system_package());
                         let package_obj =
                             self.store.get_package_object(object_id).unwrap().unwrap();
                         let obj = package_obj.object();
@@ -547,12 +591,16 @@ impl TemporaryStore<'_> {
     // sponsor, or a shared object input
     pub fn check_ownership_invariants(
         &self,
-        sender: &IotaAddress,
+        sender: &Address,
         gas_charger: &mut GasCharger,
-        mutable_inputs: &HashSet<ObjectID>,
+        mutable_inputs: &HashSet<ObjectId>,
         is_epoch_change: bool,
     ) -> IotaResult<()> {
-        let gas_objs: HashSet<&ObjectID> = gas_charger.gas_coins().iter().map(|g| &g.0).collect();
+        let gas_objs: HashSet<&ObjectId> = gas_charger
+            .gas_coins()
+            .iter()
+            .map(|g| &g.object_id)
+            .collect();
         // mark input objects as authenticated
         let mut authenticated_for_mutation: HashSet<_> = self
             .input_objects
@@ -566,11 +614,11 @@ impl TemporaryStore<'_> {
                     return None;
                 }
                 match &obj.owner {
-                    Owner::AddressOwner(a) => {
+                    Owner::Address(a) => {
                         assert!(sender == a, "Input object not owned by sender");
                         Some(id)
                     }
-                    Owner::Shared { .. } => Some(id),
+                    Owner::Shared(_) => Some(id),
                     Owner::Immutable => {
                         // object is authenticated, but it cannot own other objects,
                         // so we should not add it to `authenticated_objs`
@@ -584,8 +632,11 @@ impl TemporaryStore<'_> {
                         // us from catching this.
                         None
                     }
-                    Owner::ObjectOwner(_parent) => {
+                    Owner::Object(_parent) => {
                         unreachable!("Input objects must be address owned, shared, or immutable")
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             })
@@ -605,7 +656,7 @@ impl TemporaryStore<'_> {
             .filter(|id| !gas_objs.contains(id))
             .copied()
             .collect::<Vec<_>>();
-        // Map from an ObjectID to the ObjectID that covers it.
+        // Map from an ObjectId to the ObjectId that covers it.
         while let Some(to_authenticate) = objects_to_authenticate.pop() {
             if authenticated_for_mutation.contains(&to_authenticate) {
                 // object has been authenticated
@@ -623,18 +674,18 @@ impl TemporaryStore<'_> {
                         Failed to load object {to_authenticate:?}. \n\
                         If it cannot be loaded, \
                         we would expect it to be in the wrapped object map: {:?}",
-                        &self.wrapped_object_containers
+                        self.wrapped_object_containers
                     )
                 };
                 match &old_obj.owner {
-                    Owner::ObjectOwner(parent) => ObjectID::from(*parent),
-                    Owner::AddressOwner(parent) => {
+                    Owner::Object(parent) => *parent,
+                    Owner::Address(parent) => {
                         // For Receiving<_> objects, the address owner is actually an object.
                         // If it was actually an address, we should have caught it as an input and
                         // it would already have been in authenticated_for_mutation
-                        ObjectID::from(*parent)
+                        ObjectId::from(*parent)
                     }
-                    owner @ Owner::Shared { .. } => panic!(
+                    owner @ Owner::Shared(_) => panic!(
                         "Unauthenticated root at {to_authenticate:?} with owner {owner:?}\n\
                         Potentially covering objects in: {authenticated_for_mutation:#?}",
                     ),
@@ -648,10 +699,13 @@ impl TemporaryStore<'_> {
                         // tx can update are system packages,
                         // but in principle we could allow others.
                         assert!(
-                            is_system_package(to_authenticate),
+                            to_authenticate.is_system_package(),
                             "Only system packages can be upgraded"
                         );
                         continue;
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             };
@@ -663,7 +717,6 @@ impl TemporaryStore<'_> {
     }
 
     pub fn store_auth_context(&mut self, auth_context: Rc<RefCell<AuthContext>>) {
-        debug_assert!(self.auth_context.is_none());
         self.auth_context = Some(auth_context);
     }
 }
@@ -741,7 +794,7 @@ impl TemporaryStore<'_> {
             self.execution_results.modified_objects.iter().all(|id| {
                 self.mutable_input_refs.contains_key(id)
                     || self.loaded_runtime_objects.contains_key(id)
-                    || is_system_package(*id)
+                    || id.is_system_package()
             }),
             "A modified object must be either a mutable input, a loaded child object, or a system package"
         );
@@ -787,7 +840,7 @@ impl TemporaryStore<'_> {
 }
 
 type ModifiedObjectInfo<'a> = (
-    ObjectID,
+    ObjectId,
     // old object metadata, including version, digest, owner, and storage rebate.
     Option<DynamicallyLoadedObjectMetadata>,
     Option<&'a Object>,
@@ -796,8 +849,8 @@ type ModifiedObjectInfo<'a> = (
 impl TemporaryStore<'_> {
     fn get_input_iota(
         &self,
-        id: &ObjectID,
-        expected_version: SequenceNumber,
+        id: &ObjectId,
+        expected_version: Version,
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<u64, ExecutionError> {
         if let Some(obj) = self.input_objects.get(id) {
@@ -1005,9 +1058,9 @@ impl TemporaryStore<'_> {
 impl ChildObjectResolver for TemporaryStore<'_> {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let obj_opt = self.execution_results.written_objects.get(child);
         if obj_opt.is_some() {
@@ -1021,9 +1074,9 @@ impl ChildObjectResolver for TemporaryStore<'_> {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         // You should never be able to try and receive an object after deleting it or
@@ -1055,7 +1108,7 @@ impl Storage for TemporaryStore<'_> {
         self.drop_writes();
     }
 
-    fn read_object(&self, id: &ObjectID) -> Option<&Object> {
+    fn read_object(&self, id: &ObjectId) -> Option<&Object> {
         TemporaryStore::read_object(self, id)
     }
 
@@ -1070,19 +1123,19 @@ impl Storage for TemporaryStore<'_> {
 
     fn save_loaded_runtime_objects(
         &mut self,
-        loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+        loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     ) {
         TemporaryStore::save_loaded_runtime_objects(self, loaded_runtime_objects)
     }
 
     fn save_wrapped_object_containers(
         &mut self,
-        wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+        wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
     ) {
         TemporaryStore::save_wrapped_object_containers(self, wrapped_object_containers)
     }
 
-    fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult {
+    fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectId, Object>) -> DenyListResult {
         let result = check_coin_deny_list_v1_during_execution(
             written_objects,
             self.cur_epoch,
@@ -1092,11 +1145,11 @@ impl Storage for TemporaryStore<'_> {
         // And also if we already have it in the input there is no need to commit it
         // again in the effects.
         if result.num_non_gas_coin_owners > 0
-            && !self.input_objects.contains_key(&IOTA_DENY_LIST_OBJECT_ID)
+            && !self.input_objects.contains_key(&ObjectId::DENY_LIST)
         {
             self.loaded_per_epoch_config_objects
                 .write()
-                .insert(IOTA_DENY_LIST_OBJECT_ID);
+                .insert(ObjectId::DENY_LIST);
         }
         result
     }
@@ -1107,7 +1160,7 @@ impl Storage for TemporaryStore<'_> {
 }
 
 impl BackingPackageStore for TemporaryStore<'_> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         // We first check the objects in the temporary store because in non-production
         // code path, it is possible to read packages that are just written in
         // the same transaction. This can happen for example when we run the
@@ -1146,11 +1199,11 @@ impl ResourceResolver for TemporaryStore<'_> {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        struct_tag: &StructTag,
+        struct_tag: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
-        let object = match self.read_object(&ObjectID::from(*address)) {
+        let object = match self.read_object(&ObjectId::new(address.into_bytes())) {
             Some(x) => x,
-            None => match self.read_object(&ObjectID::from(*address)) {
+            None => match self.read_object(&ObjectId::new(address.into_bytes())) {
                 None => return Ok(None),
                 Some(x) => {
                     if !x.is_immutable() {
@@ -1162,9 +1215,9 @@ impl ResourceResolver for TemporaryStore<'_> {
         };
 
         match &object.data {
-            Data::Move(m) => {
+            ObjectData::Struct(m) => {
                 assert!(
-                    m.is_type(struct_tag),
+                    m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \
                     or bad object request from caller"
                 );

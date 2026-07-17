@@ -16,13 +16,16 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, Version, move_package::MovePackage,
+};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
-    AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIteratorItem, DynamicFieldKey,
-    EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
+    EpochInfoV1Entry, EpochInfoV2, OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo,
     PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
@@ -32,12 +35,12 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
-    move_package::MovePackage,
+    iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -46,24 +49,19 @@ use crate::{
 /// A potential input to a transaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKey {
-    VersionedObject {
-        id: ObjectID,
-        version: SequenceNumber,
-    },
-    Package {
-        id: ObjectID,
-    },
+    VersionedObject { id: ObjectId, version: Version },
+    Package { id: ObjectId },
 }
 
 impl InputKey {
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         match self {
             InputKey::VersionedObject { id, .. } => *id,
             InputKey::Package { id } => *id,
         }
     }
 
-    pub fn version(&self) -> Option<SequenceNumber> {
+    pub fn version(&self) -> Option<Version> {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
             InputKey::Package { .. } => None,
@@ -135,13 +133,13 @@ pub enum MarkerValue {
 /// and hence won't have the old sequence number.
 #[derive(Debug)]
 pub enum DeleteKindWithOldVersion {
-    Normal(SequenceNumber),
+    Normal(Version),
     UnwrapThenDelete,
-    Wrap(SequenceNumber),
+    Wrap(Version),
 }
 
 impl DeleteKindWithOldVersion {
-    pub fn old_version(&self) -> Option<SequenceNumber> {
+    pub fn old_version(&self) -> Option<Version> {
         match self {
             DeleteKindWithOldVersion::Normal(version) | DeleteKindWithOldVersion::Wrap(version) => {
                 Some(*version)
@@ -172,15 +170,15 @@ impl<T: Storage + ChildObjectResolver> StorageView for T {}
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
 pub trait ChildObjectResolver {
-    /// `child` must have an `ObjectOwner` ownership equal to `owner`.
+    /// `child` must have an `Object` ownership equal to `parent`.
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>>;
 
-    /// `receiving_object_id` must have an `AddressOwner` ownership equal to
+    /// `receiving_object_id` must have an `Address` ownership equal to
     /// `owner`. `get_object_received_at_version` must be the exact version
     /// at which the object will be received, and it cannot have been
     /// previously received at that version. NB: An object not existing at
@@ -188,9 +186,9 @@ pub trait ChildObjectResolver {
     /// exactly the same and `Ok(None)` must be returned.
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>>;
 }
@@ -209,28 +207,28 @@ pub struct DenyListResult {
 pub trait Storage {
     fn reset(&mut self);
 
-    fn read_object(&self, id: &ObjectID) -> Option<&Object>;
+    fn read_object(&self, id: &ObjectId) -> Option<&Object>;
 
     fn record_execution_results(&mut self, results: ExecutionResults);
 
     fn save_loaded_runtime_objects(
         &mut self,
-        loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+        loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     );
 
     fn save_wrapped_object_containers(
         &mut self,
-        wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+        wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
     );
 
     /// Check coin denylist during execution,
     /// and the number of non-gas-coin owners.
-    fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
+    fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectId, Object>) -> DenyListResult;
 
     fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
 }
 
-pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;
+pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectId>>;
 
 #[derive(Clone, Debug)]
 pub struct PackageObject {
@@ -248,7 +246,7 @@ impl PackageObject {
     }
 
     pub fn move_package(&self) -> &MovePackage {
-        self.package_object.data.try_as_package().unwrap()
+        self.package_object.data.as_opt_package().unwrap()
     }
 }
 
@@ -259,36 +257,36 @@ impl From<PackageObject> for Object {
 }
 
 pub trait BackingPackageStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>>;
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>>;
 }
 
 impl<S: ?Sized + BackingPackageStore> BackingPackageStore for Box<S> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         BackingPackageStore::get_package_object(self.as_ref(), package_id)
     }
 }
 
 impl<S: ?Sized + BackingPackageStore> BackingPackageStore for Arc<S> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         BackingPackageStore::get_package_object(self.as_ref(), package_id)
     }
 }
 
 impl<S: ?Sized + BackingPackageStore> BackingPackageStore for &S {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         BackingPackageStore::get_package_object(*self, package_id)
     }
 }
 
 impl<S: ?Sized + BackingPackageStore> BackingPackageStore for &mut S {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         BackingPackageStore::get_package_object(*self, package_id)
     }
 }
 
 pub fn load_package_object_from_object_store(
     store: &impl ObjectStore,
-    package_id: &ObjectID,
+    package_id: &ObjectId,
 ) -> IotaResult<Option<PackageObject>> {
     let package = store.try_get_object(package_id)?;
     if let Some(obj) = &package {
@@ -308,7 +306,7 @@ pub fn load_package_object_from_object_store(
 /// found>).
 pub fn get_package_objects<'a>(
     store: &impl BackingPackageStore,
-    package_ids: impl IntoIterator<Item = &'a ObjectID>,
+    package_ids: impl IntoIterator<Item = &'a ObjectId>,
 ) -> IotaResult<PackageFetchResults<PackageObject>> {
     let packages: Vec<Result<_, _>> = package_ids
         .into_iter()
@@ -332,12 +330,12 @@ pub fn get_module(
     module_id: &ModuleId,
 ) -> Result<Option<Vec<u8>>, IotaError> {
     Ok(store
-        .get_package_object(&ObjectID::from(*module_id.address()))?
+        .get_package_object(&ObjectId::new(module_id.address().into_bytes()))?
         .and_then(|package| {
             package
                 .move_package()
                 .serialized_module_map()
-                .get(module_id.name().as_str())
+                .get(&identifier_core_to_sdk(module_id.name()))
                 .cloned()
         }))
 }
@@ -357,7 +355,7 @@ pub fn get_module_by_id<S: BackingPackageStore>(
 /// backing store on a fullnode.
 pub struct PostExecutionPackageResolver {
     backing_store: Arc<dyn BackingPackageStore>,
-    new_packages: BTreeMap<ObjectID, PackageObject>,
+    new_packages: BTreeMap<ObjectId, PackageObject>,
 }
 
 impl PostExecutionPackageResolver {
@@ -384,7 +382,7 @@ impl PostExecutionPackageResolver {
 }
 
 impl BackingPackageStore for PostExecutionPackageResolver {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         if let Some(package) = self.new_packages.get(package_id) {
             Ok(Some(package.clone()))
         } else {
@@ -396,9 +394,9 @@ impl BackingPackageStore for PostExecutionPackageResolver {
 impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(
             self.as_ref(),
@@ -409,9 +407,9 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
     }
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -427,17 +425,17 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
 impl<S: ChildObjectResolver> ChildObjectResolver for &S {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -453,17 +451,17 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &S {
 impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
-        child_version_upper_bound: SequenceNumber,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
-        receive_object_at_version: SequenceNumber,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -479,42 +477,42 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
 // The primary key type for object storage.
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
-pub struct ObjectKey(pub ObjectID, pub VersionNumber);
+pub struct ObjectKey(pub ObjectId, pub VersionNumber);
 
 impl ObjectKey {
-    pub const ZERO: ObjectKey = ObjectKey(ObjectID::ZERO, VersionNumber::MIN_VALID_INCL);
+    pub const ZERO: ObjectKey = ObjectKey(ObjectId::ZERO, VersionNumber::MIN_VALID_INCL);
 
-    pub fn max_for_id(id: &ObjectID) -> Self {
+    pub fn max_for_id(id: &ObjectId) -> Self {
         Self(*id, VersionNumber::MAX_VALID_EXCL)
     }
 
-    pub fn min_for_id(id: &ObjectID) -> Self {
+    pub fn min_for_id(id: &ObjectId) -> Self {
         Self(*id, VersionNumber::MIN_VALID_INCL)
     }
 }
 
-impl From<ObjectRef> for ObjectKey {
-    fn from(object_ref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectKey {
+    fn from(object_ref: ObjectReference) -> Self {
         ObjectKey::from(&object_ref)
     }
 }
 
-impl From<&ObjectRef> for ObjectKey {
-    fn from(object_ref: &ObjectRef) -> Self {
-        Self(object_ref.0, object_ref.1)
+impl From<&ObjectReference> for ObjectKey {
+    fn from(object_ref: &ObjectReference) -> Self {
+        Self(object_ref.object_id, object_ref.version)
     }
 }
 
 #[derive(Clone)]
 pub enum ObjectOrTombstone {
     Object(Object),
-    Tombstone(ObjectRef),
+    Tombstone(ObjectReference),
 }
 
 impl ObjectOrTombstone {
-    pub fn as_objref(&self) -> ObjectRef {
+    pub fn as_objref(&self) -> ObjectReference {
         match self {
-            ObjectOrTombstone::Object(obj) => obj.compute_object_reference(),
+            ObjectOrTombstone::Object(obj) => obj.object_ref(),
             ObjectOrTombstone::Tombstone(obref) => *obref,
         }
     }
@@ -593,7 +591,7 @@ pub fn get_transaction_input_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing input object key {:?} from tx {}",
                     input_object_keys[idx],
                     effects.transaction_digest()
@@ -620,7 +618,7 @@ pub fn get_transaction_output_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing output object key {:?} from tx {}",
                     output_object_keys[idx],
                     effects.transaction_digest()

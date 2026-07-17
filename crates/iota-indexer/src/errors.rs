@@ -5,10 +5,12 @@
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
+use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
+use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
-    base_types::{ObjectID, ObjectIDParseError, SequenceNumber},
-    error::{IotaError, IotaObjectResponseError, UserInputError},
+    base_types::ObjectIdParseError,
+    error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
@@ -108,7 +110,7 @@ pub enum IndexerError {
     Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParse(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIdParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
     InvalidTransactionDigest(String),
@@ -157,11 +159,14 @@ pub enum IndexerError {
 
     #[error("historical fallback object not found: id {object_id}, version {version}")]
     HistoricalFallbackObjectNotFound {
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     },
     #[error("historical fallback storage error: {0}")]
     HistoricalFallbackStorageError(String),
+
+    #[error("historical fallback input error: {0}")]
+    HistoricalFallbackInput(String),
 
     #[error("Missing data due to pruning: `{0}`")]
     DataPruned(String),
@@ -171,6 +176,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     SdkTypeConversion(#[from] SdkTypeConversionError),
+
+    #[error(transparent)]
+    IdentifierParse(#[from] iota_sdk_types::move_core::TypeParseError),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;
@@ -211,7 +219,7 @@ impl From<reqwest::Error> for IndexerError {
 
 impl From<url::ParseError> for IndexerError {
     fn from(err: url::ParseError) -> Self {
-        IndexerError::Generic(format!("URL parse error: {}", err))
+        IndexerError::Generic(format!("URL parse error: {err}"))
     }
 }
 

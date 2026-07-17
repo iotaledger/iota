@@ -99,6 +99,13 @@ use crate::{
 ///         of the output object contents
 ///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded
 ///       object
+///   - `executed_transaction.balance_changes` - per-owner, per-coin-type
+///     balance deltas derived from the simulated effects and input/output
+///     objects; a mocked gas coin is excluded. For a failed transaction this
+///     contains only the gas charge.
+///   - `executed_transaction.object_changes` - structured object changes
+///     (created, mutated, deleted, wrapped, unwrapped, published) derived from
+///     the simulated effects and input/output objects.
 ///
 /// ## Gas Fields
 /// - `suggested_gas_price` - the suggested gas price for the transaction,
@@ -177,7 +184,7 @@ async fn simulate_single_transaction(
     item: &SimulateTransactionItem,
     read_mask: &FieldMaskTree,
 ) -> Result<SimulatedTransaction, RpcError> {
-    let sdk_transaction = super::parse_transaction_proto(item.transaction.as_ref())?;
+    let mut transaction_data = super::parse_transaction_proto(item.transaction.as_ref())?;
 
     // Determine VM checks from request
     let vm_checks = if item
@@ -188,14 +195,6 @@ async fn simulate_single_transaction(
     } else {
         VmChecks::Enabled
     };
-
-    let mut transaction_data = iota_types::transaction::TransactionData::try_from(sdk_transaction)
-        .map_err(|e| {
-            RpcError::new(
-                tonic::Code::InvalidArgument,
-                format!("failed to convert transaction to internal type: {e}"),
-            )
-        })?;
 
     // If the transaction has a zero gas budget and VM checks are disabled, we'll
     // set the gas budget in the result to the actual cost from the simulation.
@@ -243,7 +242,7 @@ async fn simulate_single_transaction(
         input_objects,
         output_objects,
         execution_result,
-        mock_gas_id: _,
+        mock_gas_id,
         suggested_gas_price,
     } = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
@@ -264,13 +263,11 @@ async fn simulate_single_transaction(
             transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 
-        let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
-
         // Create a source for the merge
         let source = TransactionReadSource {
             reader: reader.clone(),
             config,
-            transaction: Some(transaction),
+            transaction: Some(transaction_data),
             signatures: None,
             effects: Some(effects),
             events,
@@ -278,6 +275,7 @@ async fn simulate_single_transaction(
             timestamp_ms: None,
             input_objects: Some(input_objects.into_values().collect()),
             output_objects: Some(output_objects.into_values().collect()),
+            mocked_coin: mock_gas_id,
         };
 
         response.executed_transaction = Some(
@@ -347,7 +345,7 @@ async fn simulate_single_transaction(
                     // Set the command index if available
                     if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
                         if let Some(command_idx) = execution_error.command() {
-                            exec_error.command_index = Some(command_idx as u64);
+                            exec_error.command_index = Some(command_idx);
                         }
                     }
 

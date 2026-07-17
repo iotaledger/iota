@@ -1,0 +1,60 @@
+---
+title: Getting Started with Rust
+sidebar_label: Rust
+description: Getting started with the IOTA Audit Trails Rust Library.
+tags:
+  - notarization
+  - audit-trails
+  - rust
+  - setup
+  - install
+  - getting-started
+---
+# Getting Started with Rust
+
+## Requirements
+
+- [Rust](https://www.rust-lang.org/) (latest)
+- [Cargo](https://doc.rust-lang.org/cargo/) (latest)
+- For running examples: a local network node with the IOTA Audit Trails package deployed as described [here](./local-network-setup.mdx)
+
+## Include the Library
+
+To include IOTA Audit Trails in your project, add it as a dependency in your `Cargo.toml`:
+
+```toml
+[dependencies]
+audit_trails = { git = "https://github.com/iotaledger/notarization", tag = "trails-v0.1"}
+```
+
+## Examples
+
+To try out the [Audit Trails examples](https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail), you should:
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/iotaledger/notarization
+```
+
+2. Build the repository:
+
+```bash
+cargo build
+```
+
+3. Run your first example:
+
+```bash
+cargo run --example 01_create_audit_trail
+```
+
+## API Reference
+
+You can find the API reference for the Rust library [here](https://iotaledger.github.io/notarization/audit_trails/index.html).
+
+If you would like to build the documentation locally, you can do so with the following command:
+
+```
+RUSTDOCFLAGS='--cfg docsrs' cargo +nightly doc -p audit_trails --all-features --no-deps --open
+```

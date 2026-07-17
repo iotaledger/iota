@@ -14,19 +14,17 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
-        base_types::ObjectID,
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
-use move_core_types::{ident_str, language_storage::StructTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -59,9 +57,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // contains a CoinManagerTreasuryCap (i.e., a Foundry representation).
-    let alias_output_object_id = ObjectID::from_hex_literal(
-        "0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da",
-    )?;
+    let alias_output_object_id =
+        ObjectId::from_hex("0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da")?;
     let alias_output_object = iota_client
         .read_api()
         .get_object_with_options(
@@ -93,7 +90,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let alias_owned_objects_page = iota_client
         .read_api()
         .get_owned_objects(
-            alias_object_ref.0.into(),
+            alias_object_ref.object_id.into(),
             Some(IotaObjectResponseQuery::new_with_options(
                 IotaObjectDataOptions::new().with_bcs().with_type(),
             )),
@@ -137,7 +134,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .expect("should contain the type")
         .try_into()?;
     let foundry_token_type = foundry_token_type_struct_tag
-        .type_params
+        .type_params()
         .first()
         .expect("should contain the type param");
 
@@ -151,12 +148,12 @@ async fn main() -> Result<(), anyhow::Error> {
         // IOTA token or the Gas type tag.
         let type_arguments = vec![GAS::type_tag()];
         // Then pass the AliasOutput object as an input.
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            STARDUST_ADDRESS.into(),
-            ident_str!("alias_output").to_owned(),
-            ident_str!("extract_assets").to_owned(),
+            ObjectId::STARDUST,
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -171,9 +168,9 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("coin").to_owned(),
-                ident_str!("from_balance").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::COIN_MODULE,
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -184,9 +181,9 @@ async fn main() -> Result<(), anyhow::Error> {
             // In this example the native tokens bag is empty, so it can be destroyed.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("bag").to_owned(),
-                ident_str!("destroy_empty").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::BAG_MODULE,
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -195,12 +192,12 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![foundry_token_type.clone()];
             let arguments = vec![
                 extracted_alias,
-                builder.obj(ObjectArg::Receiving(coin_manager_treasury_cap_object_ref))?,
+                builder.obj(CallArg::Receiving(coin_manager_treasury_cap_object_ref))?,
             ];
             let coin_manager_treasury_cap = builder.programmable_move_call(
-                STARDUST_ADDRESS.into(),
-                ident_str!("address_unlock_condition").to_owned(),
-                ident_str!("unlock_alias_address_owned_coinmanager_treasury").to_owned(),
+                ObjectId::STARDUST,
+                Identifier::from_static("address_unlock_condition"),
+                Identifier::from_static("unlock_alias_address_owned_coinmanager_treasury"),
                 type_arguments,
                 arguments,
             );

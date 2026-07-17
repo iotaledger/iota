@@ -8,7 +8,7 @@ info:
   no_collapsed_sections: false
   include_dep_diagrams: false
   include_call_diagrams: false
-input_file: crates/move-docgen-tests/tests/move/code_block/Move.toml
+  include_module_toc: true
 ---
 <a name="a_m"></a>
 
@@ -16,22 +16,28 @@ input_file: crates/move-docgen-tests/tests/move/code_block/Move.toml
 
 
 
--  [Function `main`](#a_m_main)
-    -  [Explanation of the algorithm](#@Explanation_of_the_algorithm_0)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-entry">entry</span> `main`](#a_m_main)
+        -  [Explanation of the algorithm](#@Explanation_of_the_algorithm_1)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
 <a name="a_m_main"></a>
 
-## Function `main`
+### <span class="move-vis move-vis-entry">entry</span> `main`
 
 
-<a name="@Explanation_of_the_algorithm_0"></a>
+<a name="@Explanation_of_the_algorithm_1"></a>
 
-### Explanation of the algorithm
+#### Explanation of the algorithm
 
 ```
 code block

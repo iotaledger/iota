@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
 use iota_types::{
     error::{ExecutionError, IotaError},
-    execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
+    iota_sdk_types_conversions::identifier_core_to_sdk,
 };
 use move_binary_format::{
     errors::{Location, VMError},
@@ -25,12 +26,12 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
         (StatusCode::EXECUTED, _, _) => {
             // If we have an error the status probably shouldn't ever be Executed
             debug_assert!(false, "VmError shouldn't ever report successful execution");
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, None, _) => {
             debug_assert!(false, "No abort code");
             // this is a Move VM invariant violation, the code should always be there
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, Some(code), Location::Module(id)) => {
             let abort_location_id = state_view.relocate(id).unwrap_or_else(|_| id.clone());
@@ -40,17 +41,18 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
             let function_name = vm.load_module(id, state_view).ok().map(|module| {
                 let fdef = module.function_def_at(FunctionDefinitionIndex(function));
                 let fhandle = module.function_handle_at(fdef.function);
-                module.identifier_at(fhandle.name).to_string()
+                identifier_core_to_sdk(module.identifier_at(fhandle.name))
             });
-            ExecutionFailureStatus::MoveAbort(
-                MoveLocation {
-                    module: abort_location_id,
+            ExecutionFailureStatus::MoveAbort {
+                location: MoveLocation {
+                    package: ObjectId::new(abort_location_id.address().into_bytes()),
+                    module: identifier_core_to_sdk(abort_location_id.name()),
                     function,
                     instruction,
                     function_name,
                 },
                 code,
-            )
+            }
         }
         (StatusCode::OUT_OF_GAS, _, _) => ExecutionFailureStatus::InsufficientGas,
         (_, _, location) => match error.major_status().status_type() {
@@ -67,10 +69,11 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                         let function_name = vm.load_module(id, state_view).ok().map(|module| {
                             let fdef = module.function_def_at(FunctionDefinitionIndex(function));
                             let fhandle = module.function_handle_at(fdef.function);
-                            module.identifier_at(fhandle.name).to_string()
+                            identifier_core_to_sdk(module.identifier_at(fhandle.name))
                         });
                         Some(MoveLocation {
-                            module: id.clone(),
+                            package: ObjectId::new(id.address().into_bytes()),
+                            module: identifier_core_to_sdk(id.name()),
                             function,
                             instruction,
                             function_name,
@@ -78,13 +81,13 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                     }
                     _ => None,
                 };
-                ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(location))
+                ExecutionFailureStatus::MovePrimitiveRuntimeError { location }
             }
             StatusType::Validation
             | StatusType::Verification
             | StatusType::Deserialization
-            | StatusType::Unknown => ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            StatusType::InvariantViolation => ExecutionFailureStatus::VMInvariantViolation,
+            | StatusType::Unknown => ExecutionFailureStatus::VmVerificationOrDeserializationError,
+            StatusType::InvariantViolation => ExecutionFailureStatus::VmInvariantViolation,
         },
     };
     ExecutionError::new_with_source(kind, error)

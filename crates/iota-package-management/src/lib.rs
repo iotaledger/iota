@@ -12,8 +12,7 @@ use std::{
 use anyhow::{Context, bail};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::ObjectID;
-use move_core_types::account_address::AccountAddress;
+use iota_sdk_types::{Address, ObjectId};
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
@@ -43,8 +42,8 @@ pub enum PublishedAtError {
          Move.lock -- {id_lock}"
     )]
     Conflict {
-        id_lock: ObjectID,
-        id_manifest: ObjectID,
+        id_lock: ObjectId,
+        id_manifest: ObjectId,
     },
 }
 
@@ -61,7 +60,7 @@ pub async fn update_lock_file(
     lock_file: Option<PathBuf>,
     response: &IotaTransactionBlockResponse,
 ) -> Result<(), anyhow::Error> {
-    let (original_id, version, _) = get_new_package_obj_from_response(response).context(
+    let object_ref = get_new_package_obj_from_response(response).context(
         "Expected a valid published package response but didn't see \
          one when attempting to update the `Move.lock`.",
     )?;
@@ -70,8 +69,8 @@ pub async fn update_lock_file(
         command,
         install_dir,
         lock_file,
-        original_id,
-        version.into(),
+        object_ref.object_id,
+        object_ref.version.as_u64(),
     )
     .await
 }
@@ -89,7 +88,7 @@ pub async fn update_lock_file_with_package_id(
     command: LockCommand,
     install_dir: Option<PathBuf>,
     lock_file: Option<PathBuf>,
-    original_id: ObjectID,
+    original_id: ObjectId,
     version: u64,
 ) -> Result<(), anyhow::Error> {
     let chain_identifier = context
@@ -148,8 +147,8 @@ pub fn set_package_id(
     package_path: &Path,
     install_dir: Option<PathBuf>,
     chain_id: &String,
-    id: AccountAddress,
-) -> Result<Option<AccountAddress>, anyhow::Error> {
+    id: Address,
+) -> Result<Option<Address>, anyhow::Error> {
     let lock_file_path = package_path.join(SourcePackageLayout::Lock.path());
     let Ok(mut lock_file) = File::open(lock_file_path.clone()) else {
         return Ok(None);
@@ -167,7 +166,7 @@ pub fn set_package_id(
     };
     lock_file::schema::set_original_id(&mut lock_for_update, &env, &id.to_canonical_string(true))?;
     lock_for_update.commit(lock_file_path)?;
-    let id = AccountAddress::from_str(&v.original_published_id)?;
+    let id = Address::from_str(&v.original_published_id)?;
     Ok(Some(id))
 }
 
@@ -180,7 +179,7 @@ pub fn set_package_id(
 pub fn resolve_published_id(
     package: &Package,
     chain_id: Option<String>,
-) -> Result<ObjectID, PublishedAtError> {
+) -> Result<ObjectId, PublishedAtError> {
     // Look up a valid `published-at` in the `Move.toml` first, which we'll
     // return if the Move.lock does not manage addresses.
     let published_id_in_manifest = manifest_published_at(package);
@@ -218,7 +217,7 @@ pub fn resolve_published_id(
     }
 }
 
-fn manifest_published_at(package: &Package) -> Result<ObjectID, PublishedAtError> {
+fn manifest_published_at(package: &Package) -> Result<ObjectId, PublishedAtError> {
     let Some(value) = package
         .source_package
         .package
@@ -229,9 +228,9 @@ fn manifest_published_at(package: &Package) -> Result<ObjectID, PublishedAtError
     };
 
     let id =
-        ObjectID::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.clone()))?;
+        ObjectId::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.clone()))?;
 
-    if id == ObjectID::ZERO {
+    if id == ObjectId::ZERO {
         Err(PublishedAtError::NotPresent)
     } else {
         Ok(id)
@@ -241,7 +240,7 @@ fn manifest_published_at(package: &Package) -> Result<ObjectID, PublishedAtError
 fn lock_published_at(
     lock: Option<HashMap<String, ManagedPackage>>,
     chain_id: Option<&String>,
-) -> Result<ObjectID, PublishedAtError> {
+) -> Result<ObjectId, PublishedAtError> {
     let (Some(lock), Some(chain_id)) = (lock, chain_id) else {
         return Err(PublishedAtError::NotPresent);
     };
@@ -251,10 +250,10 @@ fn lock_published_at(
         .find(|v| v.chain_id == *chain_id)
         .ok_or(PublishedAtError::NotPresent)?;
 
-    let id = ObjectID::from_str(managed_package.latest_published_id.as_str())
+    let id = ObjectId::from_str(managed_package.latest_published_id.as_str())
         .map_err(|_| PublishedAtError::Invalid(managed_package.latest_published_id.clone()))?;
 
-    if id == ObjectID::ZERO {
+    if id == ObjectId::ZERO {
         Err(PublishedAtError::NotPresent)
     } else {
         Ok(id)

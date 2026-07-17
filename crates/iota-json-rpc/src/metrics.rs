@@ -9,8 +9,8 @@ use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER, TRANSIENT_ERROR_CODE,
 };
 use jsonrpsee::{MethodKind, server::HttpRequest, types::Params};
-use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, register_histogram_vec_with_registry,
+use prometheus_filtered::{
+    HistogramVec, IntCounterVec, IntGaugeVec, MetricLevel, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 use tokio::time::Instant;
@@ -61,20 +61,22 @@ impl MetricsLogger {
         }
     }
 
-    pub fn new(registry: &prometheus::Registry, method_whitelist: &[&str]) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry, method_whitelist: &[&str]) -> Self {
         let metrics = Metrics {
             requests_by_route: register_int_counter_vec_with_registry!(
                 "rpc_requests_by_route",
                 "Number of requests by route",
                 &["route"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_requests_by_route: register_int_gauge_vec_with_registry!(
                 "inflight_rpc_requests_by_route",
                 "Number of inflight requests by route",
                 &["route"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             req_latency_by_route: register_histogram_vec_with_registry!(
@@ -82,7 +84,8 @@ impl MetricsLogger {
                 "Latency of a request by route",
                 &["route"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             client_errors_by_route: register_int_counter_vec_with_registry!(
@@ -110,7 +113,8 @@ impl MetricsLogger {
                 "errors_by_route",
                 "Number of client and server errors by route",
                 &["route"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             client: register_int_counter_vec_with_registry!(
@@ -124,14 +128,15 @@ impl MetricsLogger {
                 "rpc_inflight_connection",
                 "Number of inflight RPC connection by protocol",
                 &["protocol"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             rpc_request_size: register_histogram_vec_with_registry!(
                 "rpc_request_size",
                 "Request size of rpc requests",
                 &["protocol"],
-                prometheus::exponential_buckets(32.0, 2.0, 19)
+                prometheus_filtered::exponential_buckets(32.0, 2.0, 19)
                     .unwrap()
                     .to_vec(),
                 registry,
@@ -141,7 +146,7 @@ impl MetricsLogger {
                 "rpc_response_size",
                 "Response size of rpc requests",
                 &["protocol"],
-                prometheus::exponential_buckets(1024.0, 2.0, 20)
+                prometheus_filtered::exponential_buckets(1024.0, 2.0, 20)
                     .unwrap()
                     .to_vec(),
                 registry,

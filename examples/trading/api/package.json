@@ -25,7 +25,7 @@
 		"typescript": "^5.5.3"
 	},
 	"dependencies": {
-		"@iota/iota-sdk": "workspace:*",
+		"@iota/iota-sdk": "^1.12.0",
 		"@prisma/client": "^5.16.2",
 		"cors": "^2.8.5",
 		"express": "^4.19.2"

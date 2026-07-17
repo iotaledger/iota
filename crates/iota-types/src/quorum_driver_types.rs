@@ -5,13 +5,14 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, EpochId},
     committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
     effects::{
@@ -40,11 +41,14 @@ pub enum QuorumDriverError {
     QuorumDriverInternal(IotaError),
     #[error("Invalid user signature: {0}.")]
     InvalidUserSignature(IotaError),
+    #[error("Invalid transaction: {0}.")]
+    InvalidTransaction(IotaError),
     #[error(
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
-        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        conflicting_txes:
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -78,6 +82,9 @@ impl QuorumDriverError {
         match self {
             QuorumDriverError::InvalidUserSignature(err) => {
                 format!("Invalid user signature: {err}")
+            }
+            QuorumDriverError::InvalidTransaction(err) => {
+                format!("Invalid transaction: {err}")
             }
             QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
                 "The transaction is already finalized but with different user signatures"
@@ -168,7 +175,7 @@ impl QuorumDriverError {
 
 pub type GroupedErrors = Vec<(IotaError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;
 
-#[derive(Serialize, Deserialize, Clone, Debug, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ExecuteTransactionRequestType {
     WaitForEffectsCert,
     WaitForLocalExecution,
@@ -178,6 +185,14 @@ pub enum ExecuteTransactionRequestType {
 pub enum EffectsFinalityInfo {
     Certified(AuthorityStrongQuorumSignInfo),
     Checkpointed(EpochId, CheckpointSequenceNumber),
+    /// A quorum of validators have acknowledged effects (used in
+    /// TransactionDriver flow).
+    QuorumExecuted(EpochId),
+
+    /// Effects from a single validator without quorum certification.
+    /// The caller MUST wait for local checkpoint execution before returning
+    /// these to the client, as they have not been certified by a quorum.
+    UncertifiedSingleValidator(EpochId),
 }
 
 /// When requested to execute a transaction with WaitForLocalExecution,
@@ -250,7 +265,9 @@ impl FinalizedEffects {
     pub fn epoch(&self) -> EpochId {
         match &self.finality_info {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
-            EffectsFinalityInfo::Checkpointed(epoch, _) => *epoch,
+            EffectsFinalityInfo::Checkpointed(epoch, _)
+            | EffectsFinalityInfo::QuorumExecuted(epoch)
+            | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
     }
 }

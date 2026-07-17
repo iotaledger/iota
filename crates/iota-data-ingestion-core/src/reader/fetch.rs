@@ -10,7 +10,6 @@ use std::{
     sync::Arc,
 };
 
-use iota_grpc_client::Client as GrpcClient;
 use iota_storage::blob::Blob;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -202,24 +201,4 @@ pub async fn fetch_from_object_store(
             .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
         bytes.len(),
     ))
-}
-
-/// Fetches and deserializes a checkpoint from a full node via gRPC API.
-pub async fn fetch_from_full_node(
-    client: &GrpcClient,
-    checkpoint_number: CheckpointSequenceNumber,
-) -> CheckpointResult {
-    let checkpoint: CheckpointData = client
-        .get_checkpoint_by_sequence_number(
-            checkpoint_number,
-            Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
-            None,
-            None,
-        )
-        .await?
-        .into_inner()
-        .checkpoint_data()?
-        .try_into()?;
-    let size = bcs::serialized_size(&checkpoint)?;
-    Ok((Arc::new(checkpoint), size))
 }

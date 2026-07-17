@@ -8,12 +8,14 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
 };
 use tracing::info;
@@ -43,7 +45,7 @@ pub fn extract_verified_effects_and_events(
         // Note that we get the digest of the effects to ensure this is
         // indeed the correct effects that are authenticated in the contents.
         .find(|(tx, digest)| {
-            tx.effects.execution_digests() == **digest && digest.transaction == transaction_digest
+            tx.effects.execution_digests() == *digest && digest.transaction == transaction_digest
         })
         .ok_or_else(|| anyhow!("Transaction not found in checkpoint contents"))?;
 
@@ -58,7 +60,7 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -83,7 +85,7 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -145,17 +147,17 @@ pub async fn get_verified_effects_and_events(
         );
 
         // Get the committee from the previous checkpoint
-        let current_committee = prev_ckp
+        let next_epoch_committee = &prev_ckp
             .end_of_epoch_data
             .as_ref()
             .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
         // Make a committee object using this
-        Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
+        Committee::from_committee_members(
+            prev_ckp.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        )
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
@@ -177,7 +179,7 @@ pub async fn get_verified_effects_and_events(
 /// which is signed by the previous committee.
 pub async fn get_verified_checkpoint(
     config: &Config,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
@@ -207,7 +209,7 @@ pub async fn get_verified_checkpoint(
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -243,17 +245,17 @@ pub async fn get_verified_checkpoint(
         );
 
         // Get the committee from the previous checkpoint
-        let current_committee = prev_ckp
+        let next_epoch_committee = &prev_ckp
             .end_of_epoch_data
             .as_ref()
             .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
         // Make a committee object using this
-        Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
+        Committee::from_committee_members(
+            prev_ckp.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        )
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
@@ -281,12 +283,25 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_types::{
-        event::Event,
-        messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
-    };
+    use iota_sdk_types::{Address, Event, Identifier, StructTag};
+    use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents};
 
     use super::*;
+
+    fn random_event() -> Event {
+        Event {
+            package_id: ObjectId::random(),
+            module: Identifier::from_static("test"),
+            sender: Address::random(),
+            type_: StructTag::new(
+                Address::random(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
+            contents: vec![],
+        }
+    }
 
     const FIXTURES_DIR: &str = "tests/fixtures";
 
@@ -316,16 +331,16 @@ mod tests {
         let summary = read_checkpoint_summary(&checkpoint_summary_path)
             .await
             .unwrap();
-        let prev_committee = summary
+        let prev_committee = &summary
             .end_of_epoch_data
             .as_ref()
             .expect("Expected all checkpoints to be end-of-epoch checkpoints")
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
-        let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
+        let committee = Committee::from_committee_members(
+            summary.epoch().checked_add(1).unwrap(),
+            prev_committee,
+        );
 
         let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join(FIXTURES_DIR)
@@ -413,12 +428,10 @@ mod tests {
         let tx_digest_0 = *tx0.transaction.digest();
 
         if let Some(events) = tx0.events.as_mut() {
-            events.data.push(Event::random_for_testing());
+            events.push(random_event());
         } else {
             // if there are no events yet, add them
-            tx0.events = Some(TransactionEvents {
-                data: vec![Event::random_for_testing()],
-            });
+            tx0.events = Some(TransactionEvents(vec![random_event()]));
         }
 
         assert!(

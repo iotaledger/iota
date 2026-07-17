@@ -6,15 +6,25 @@
 Functionality for converting Move types into values. Use with care!
 
 
--  [Struct `TypeName`](#std_type_name_TypeName)
--  [Constants](#@Constants_0)
--  [Function `get`](#std_type_name_get)
--  [Function `get_with_original_ids`](#std_type_name_get_with_original_ids)
--  [Function `is_primitive`](#std_type_name_is_primitive)
--  [Function `borrow_string`](#std_type_name_borrow_string)
--  [Function `get_address`](#std_type_name_get_address)
--  [Function `get_module`](#std_type_name_get_module)
--  [Function `into_string`](#std_type_name_into_string)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `get`](#std_type_name_get)
+    -  [<span class="move-vis move-vis-public">pub</span> `get_with_original_ids`](#std_type_name_get_with_original_ids)
+-  [Structs](#@Structs_1)
+    -  [<span class="move-vis move-vis-struct">struct</span> `TypeName`](#std_type_name_TypeName)
+        -  [<span class="move-vis move-vis-public">pub</span> `borrow_string`](#std_type_name_borrow_string)
+        -  [<span class="move-vis move-vis-public">pub</span> `get_address`](#std_type_name_get_address)
+        -  [<span class="move-vis move-vis-public">pub</span> `get_module`](#std_type_name_get_module)
+        -  [<span class="move-vis move-vis-public">pub</span> `into_string`](#std_type_name_into_string)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_primitive`](#std_type_name_is_primitive)
+-  [Constants](#@Constants_2)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_COLON`](#std_type_name_ASCII_COLON)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_V`](#std_type_name_ASCII_V)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_E`](#std_type_name_ASCII_E)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_C`](#std_type_name_ASCII_C)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_T`](#std_type_name_ASCII_T)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_O`](#std_type_name_ASCII_O)
+    -  [<span class="move-vis move-vis-const">const</span> `ASCII_R`](#std_type_name_ASCII_R)
+    -  [<span class="move-vis move-vis-error">err</span> `ENonModuleType`](#std_type_name_ENonModuleType)
 
 
 <pre><code><b>use</b> <a href="../std/address.md#std_address">std::address</a>;
@@ -25,9 +35,72 @@ Functionality for converting Move types into values. Use with care!
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
+<a name="std_type_name_get"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `get`
+
+Return a value representation of the type <code>T</code>.  Package IDs
+that appear in fully qualified type names in the output from
+this function are defining IDs (the ID of the package in
+storage that first introduced the type).
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get">get</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get">get</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_type_name_get_with_original_ids"></a>
+
+### <span class="move-vis move-vis-public">pub</span> `get_with_original_ids`
+
+Return a value representation of the type <code>T</code>.  Package IDs
+that appear in fully qualified type names in the output from
+this function are original IDs (the ID of the first version of
+the package, even if the type in question was introduced in a
+later upgrade).
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>;
+</code></pre>
+
+
+
+</details>
+
+<a name="@Structs_1"></a>
+
+## Structs
+
+
 <a name="std_type_name_TypeName"></a>
 
-## Struct `TypeName`
+### <span class="move-vis move-vis-struct">struct</span> `TypeName`
 
 
 
@@ -58,190 +131,9 @@ Functionality for converting Move types into values. Use with care!
 
 </details>
 
-<a name="@Constants_0"></a>
-
-## Constants
-
-
-<a name="std_type_name_ASCII_COLON"></a>
-
-ASCII Character code for the <code>:</code> (colon) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_COLON">ASCII_COLON</a>: <a href="../std/u8.md#std_u8">u8</a> = 58;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_V"></a>
-
-ASCII Character code for the <code>v</code> (lowercase v) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a>: <a href="../std/u8.md#std_u8">u8</a> = 118;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_E"></a>
-
-ASCII Character code for the <code>e</code> (lowercase e) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a>: <a href="../std/u8.md#std_u8">u8</a> = 101;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_C"></a>
-
-ASCII Character code for the <code>c</code> (lowercase c) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a>: <a href="../std/u8.md#std_u8">u8</a> = 99;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_T"></a>
-
-ASCII Character code for the <code>t</code> (lowercase t) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a>: <a href="../std/u8.md#std_u8">u8</a> = 116;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_O"></a>
-
-ASCII Character code for the <code>o</code> (lowercase o) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a>: <a href="../std/u8.md#std_u8">u8</a> = 111;
-</code></pre>
-
-
-
-<a name="std_type_name_ASCII_R"></a>
-
-ASCII Character code for the <code>r</code> (lowercase r) symbol.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>: <a href="../std/u8.md#std_u8">u8</a> = 114;
-</code></pre>
-
-
-
-<a name="std_type_name_ENonModuleType"></a>
-
-The type is not from a package/module. It is a primitive type.
-
-
-<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>: <a href="../std/u64.md#std_u64">u64</a> = 0;
-</code></pre>
-
-
-
-<a name="std_type_name_get"></a>
-
-## Function `get`
-
-Return a value representation of the type <code>T</code>.  Package IDs
-that appear in fully qualified type names in the output from
-this function are defining IDs (the ID of the package in
-storage that first introduced the type).
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get">get</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get">get</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_get_with_original_ids"></a>
-
-## Function `get_with_original_ids`
-
-Return a value representation of the type <code>T</code>.  Package IDs
-that appear in fully qualified type names in the output from
-this function are original IDs (the ID of the first version of
-the package, even if the type in question was introduced in a
-later upgrade).
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_is_primitive"></a>
-
-## Function `is_primitive`
-
-Returns true iff the TypeName represents a primitive type, i.e. one of
-u8, u16, u32, u64, u128, u256, bool, address, vector.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): bool {
-    <b>let</b> bytes = self.name.as_bytes();
-    bytes == &b"bool" ||
-        bytes == &b"<a href="../std/u8.md#std_u8">u8</a>" ||
-        bytes == &b"<a href="../std/u16.md#std_u16">u16</a>" ||
-        bytes == &b"<a href="../std/u32.md#std_u32">u32</a>" ||
-        bytes == &b"<a href="../std/u64.md#std_u64">u64</a>" ||
-        bytes == &b"<a href="../std/u128.md#std_u128">u128</a>" ||
-        bytes == &b"<a href="../std/u256.md#std_u256">u256</a>" ||
-        bytes == &b"<b>address</b>" ||
-        (
-            bytes.length() &gt;= 6 &&
-            bytes[0] == <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a> &&
-            bytes[1] == <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a> &&
-            bytes[2] == <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a> &&
-            bytes[3] == <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a> &&
-            bytes[4] == <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a> &&
-            bytes[5] == <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>,
-        )
-}
-</code></pre>
-
-
-
-</details>
-
 <a name="std_type_name_borrow_string"></a>
 
-## Function `borrow_string`
+#### <span class="move-vis move-vis-public">pub</span> `borrow_string`
 
 Get the String representation of <code>self</code>
 
@@ -266,7 +158,7 @@ Get the String representation of <code>self</code>
 
 <a name="std_type_name_get_address"></a>
 
-## Function `get_address`
+#### <span class="move-vis move-vis-public">pub</span> `get_address`
 
 Get Address string (Base16 encoded), first part of the TypeName.
 Aborts if given a primitive type.
@@ -303,7 +195,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_get_module"></a>
 
-## Function `get_module`
+#### <span class="move-vis move-vis-public">pub</span> `get_module`
 
 Get name of the module.
 Aborts if given a primitive type.
@@ -344,7 +236,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_into_string"></a>
 
-## Function `into_string`
+#### <span class="move-vis move-vis-public">pub</span> `into_string`
 
 Convert <code>self</code> into its inner String
 
@@ -366,6 +258,148 @@ Convert <code>self</code> into its inner String
 
 
 </details>
+
+<a name="std_type_name_is_primitive"></a>
+
+#### <span class="move-vis move-vis-public">pub</span> `is_primitive`
+
+Returns true iff the TypeName represents a primitive type, i.e. one of
+u8, u16, u32, u64, u128, u256, bool, address, vector.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): bool {
+    <b>let</b> bytes = self.name.as_bytes();
+    bytes == &b"bool" ||
+        bytes == &b"<a href="../std/u8.md#std_u8">u8</a>" ||
+        bytes == &b"<a href="../std/u16.md#std_u16">u16</a>" ||
+        bytes == &b"<a href="../std/u32.md#std_u32">u32</a>" ||
+        bytes == &b"<a href="../std/u64.md#std_u64">u64</a>" ||
+        bytes == &b"<a href="../std/u128.md#std_u128">u128</a>" ||
+        bytes == &b"<a href="../std/u256.md#std_u256">u256</a>" ||
+        bytes == &b"<b>address</b>" ||
+        (
+            bytes.length() &gt;= 6 &&
+            bytes[0] == <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a> &&
+            bytes[1] == <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a> &&
+            bytes[2] == <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a> &&
+            bytes[3] == <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a> &&
+            bytes[4] == <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a> &&
+            bytes[5] == <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>,
+        )
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Constants_2"></a>
+
+## Constants
+
+
+<a name="std_type_name_ASCII_COLON"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_COLON`
+
+ASCII Character code for the <code>:</code> (colon) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_COLON">ASCII_COLON</a>: <a href="../std/u8.md#std_u8">u8</a> = 58;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_V"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_V`
+
+ASCII Character code for the <code>v</code> (lowercase v) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a>: <a href="../std/u8.md#std_u8">u8</a> = 118;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_E"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_E`
+
+ASCII Character code for the <code>e</code> (lowercase e) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a>: <a href="../std/u8.md#std_u8">u8</a> = 101;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_C"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_C`
+
+ASCII Character code for the <code>c</code> (lowercase c) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a>: <a href="../std/u8.md#std_u8">u8</a> = 99;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_T"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_T`
+
+ASCII Character code for the <code>t</code> (lowercase t) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a>: <a href="../std/u8.md#std_u8">u8</a> = 116;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_O"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_O`
+
+ASCII Character code for the <code>o</code> (lowercase o) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a>: <a href="../std/u8.md#std_u8">u8</a> = 111;
+</code></pre>
+
+
+
+<a name="std_type_name_ASCII_R"></a>
+
+### <span class="move-vis move-vis-const">const</span> `ASCII_R`
+
+ASCII Character code for the <code>r</code> (lowercase r) symbol.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>: <a href="../std/u8.md#std_u8">u8</a> = 114;
+</code></pre>
+
+
+
+<a name="std_type_name_ENonModuleType"></a>
+
+### <span class="move-vis move-vis-error">err</span> `ENonModuleType`
+
+The type is not from a package/module. It is a primitive type.
+
+
+<pre><code><b>const</b> <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>: <a href="../std/u64.md#std_u64">u64</a> = 0;
+</code></pre>
 
 
 [//]: # ("File containing references which can be used from documentation")

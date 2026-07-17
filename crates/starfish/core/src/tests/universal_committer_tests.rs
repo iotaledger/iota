@@ -52,7 +52,7 @@ async fn direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
     // The decided leaders should be all from round 1 to round 5
     assert_eq!(sequence.len(), 5);
-    if let DecidedLeader::Commit(ref block) = sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
         assert_eq!(
             block.author(),
             test_setup
@@ -84,7 +84,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
     assert_eq!(first_sequence.len(), 1);
 
-    if let DecidedLeader::Commit(ref block) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -99,7 +99,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
 
     assert_eq!(first_sequence.len(), 1);
-    if let DecidedLeader::Commit(ref block) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -132,7 +132,7 @@ async fn idempotence() {
     // Expect that all leaders between round 2 and round 5 are committed.
     // The last one is a block of leader from round 5
     assert_eq!(second_sequence.len(), 4);
-    if let DecidedLeader::Commit(ref block) = second_sequence[3] {
+    if let DecidedLeader::Commit(ref block, _, _) = second_sequence[3] {
         assert_eq!(block.round(), round_5);
         assert_eq!(block.author(), committer.get_leaders(round_5)[0]);
     } else {
@@ -164,7 +164,7 @@ async fn multiple_direct_commit() {
         let sequence = committer.try_decide(last_decided);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert_eq!(sequence.len(), 3);
-        if let DecidedLeader::Commit(ref block) = sequence[2] {
+        if let DecidedLeader::Commit(ref block, _, _) = sequence[2] {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -198,7 +198,7 @@ async fn direct_commit_late_call() {
     assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
     for (i, leader_block) in sequence.iter().enumerate() {
         let leader_round = committer.committers[(i + 1) % 3].leader_round((i as u32 + 1) / 3);
-        if let DecidedLeader::Commit(ref block) = leader_block {
+        if let DecidedLeader::Commit(ref block, _, _) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -250,7 +250,7 @@ async fn direct_skip_no_leader_votes() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(dag_builder.context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -366,7 +366,7 @@ async fn indirect_commit() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(dag_builder.context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -394,7 +394,7 @@ async fn indirect_commit() {
         let leader_round =
             committer.committers[(idx + 1) % 3].leader_round(((idx + 1) / 3) as WaveNumber);
         let expected_leader = committer.get_leaders(leader_round)[0];
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
         } else {
@@ -444,7 +444,7 @@ async fn indirect_skip() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(dag_builder.context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -469,7 +469,7 @@ async fn indirect_skip() {
     assert_eq!(sequence.len(), 7);
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), (idx + 1) as Round);
             assert_eq!(
                 block.author(),
@@ -526,7 +526,7 @@ async fn undecided() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(dag_builder.context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -699,7 +699,7 @@ async fn test_byzantine_direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 12);
-    if let DecidedLeader::Commit(ref block) = sequence[11] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[11] {
         assert_eq!(block.author(), committer.get_leaders(round_12)[0])
     } else {
         panic!("Expected a committed leader")
@@ -716,10 +716,15 @@ fn basic_test_setup() -> (
 ) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
-    let context = Arc::new(Context::new_for_test(4).0);
+    // Test blocks carry no strong votes; run with StarfishSpeed off.
+    let mut context = Context::new_for_test(4).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(false);
+    let context = Arc::new(context);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
@@ -746,12 +751,17 @@ struct TestSetup {
 // TODO: Make this the basic_test_setup()
 fn basic_dag_builder_test_setup() -> TestSetup {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_builder = DagBuilder::new(context.clone());
+    // Test blocks carry no strong votes; run with StarfishSpeed off.
+    let mut context = Context::new_for_test(4).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(false);
+    let context = Arc::new(context);
+    let dag_builder = DagBuilder::new(context);
 
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(context)),
+        Arc::new(MemStore::new()),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),

@@ -5,7 +5,6 @@
 /// Test CTURD object basics (create, transfer, update, read, delete)
 module examples::object_basics {
     use iota::clock::Clock;
-    use iota::authenticator_state::AuthenticatorState;
     use iota::random::Random;
     use iota::dynamic_object_field as ofield;
     use iota::event;
@@ -142,8 +141,6 @@ module examples::object_basics {
     public entry fun generic_test<T>() {}
 
     public entry fun use_clock(_clock: &Clock) {}
-
-    public entry fun use_auth_state(_auth_state: &AuthenticatorState) {}
 
     public entry fun use_random(_random: &Random) {}
 }

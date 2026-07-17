@@ -7,16 +7,22 @@ Provides a way to get address length since it's a
 platform-specific parameter.
 
 
--  [Function `length`](#std_address_length)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `length`](#std_address_length)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
 <a name="std_address_length"></a>
 
-## Function `length`
+### <span class="move-vis move-vis-public">pub</span> `length`
 
 Should be converted to a native function.
 Current implementation only works for IOTA.

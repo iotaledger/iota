@@ -6,15 +6,16 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, Version};
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::TxContext,
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{
@@ -33,27 +34,27 @@ use super::{
 
 /// Creates a genesis coin object.
 pub fn create_coin(
-    object_id: ObjectID,
-    owner: IotaAddress,
+    object_id: ObjectId,
+    owner: Address,
     amount: u64,
     tx_context: &TxContext,
-    version: SequenceNumber,
+    version: Version,
     protocol_config: &ProtocolConfig,
     coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
+            StructTag::new_coin(coin_type.to_type_tag()),
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,
         )?
     };
     // Resolve ownership
-    let owner = Owner::AddressOwner(owner);
+    let owner = Owner::Address(owner);
     Ok(Object::new_from_genesis(
-        Data::Move(move_object),
+        ObjectData::Struct(move_object),
         owner,
         tx_context.digest(),
     ))
@@ -65,27 +66,27 @@ pub trait BasicOutputExt {
     /// Output Header ID and Stardust
     /// [`BasicOutput`][iota_stardust_types::block::output::BasicOutput].
     fn new_from_stardust(
-        header_object_id: ObjectID,
+        header_object_id: ObjectId,
         output: &iota_stardust_types::block::output::BasicOutput,
     ) -> Result<BasicOutput>;
 
     /// Creates a genesis object from this basic output.
     fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object>;
 
     /// Converts this basic output into a genesis coin object.
     fn into_genesis_coin_object(
         self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object>;
 
@@ -99,7 +100,7 @@ pub trait BasicOutputExt {
 
 impl BasicOutputExt for BasicOutput {
     fn new_from_stardust(
-        header_object_id: ObjectID,
+        header_object_id: ObjectId,
         output: &iota_stardust_types::block::output::BasicOutput,
     ) -> Result<BasicOutput> {
         let id = UID::new(header_object_id);
@@ -146,15 +147,15 @@ impl BasicOutputExt for BasicOutput {
 
     fn to_genesis_object(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = {
             MoveObject::new_from_execution(
-                BasicOutput::tag(coin_type.to_type_tag()).into(),
+                BasicOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
@@ -162,14 +163,12 @@ impl BasicOutputExt for BasicOutput {
         };
         // Resolve ownership
         let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
+            Owner::Shared(version)
         } else {
-            Owner::AddressOwner(owner)
+            Owner::Address(owner)
         };
         Ok(Object::new_from_genesis(
-            Data::Move(move_object),
+            ObjectData::Struct(move_object),
             owner,
             tx_context.digest(),
         ))
@@ -177,10 +176,10 @@ impl BasicOutputExt for BasicOutput {
 
     fn into_genesis_coin_object(
         self,
-        owner: IotaAddress,
+        owner: Address,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(

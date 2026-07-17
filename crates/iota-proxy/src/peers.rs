@@ -12,9 +12,9 @@ use anyhow::Result;
 use bcs;
 use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+use iota_sdk_types::ObjectId;
 use iota_tls::Allower;
 use iota_types::{
-    base_types::ObjectID,
     dynamic_field::Field,
     iota_system_state::{
         iota_system_state_inner_v1::ValidatorV1,
@@ -139,10 +139,14 @@ impl IotaNodeProvider {
         );
     }
 
-    fn update_pending_validator_set(&self, pending_validators: Vec<ValidatorV1>) {
+    fn update_pending_validator_set(
+        &self,
+        pending_validators: Vec<ValidatorV1>,
+        protocol_version: Option<u64>,
+    ) {
         let summaries = pending_validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(protocol_version))
             .collect_vec();
         let validators = extract_validators_from_summaries(&summaries);
         let mut allow = self.pending_validator_nodes.write().unwrap();
@@ -156,7 +160,7 @@ impl IotaNodeProvider {
 
     async fn get_pending_validators(
         iota_client: &IotaClient,
-        pending_active_validators_id: ObjectID,
+        pending_active_validators_id: ObjectId,
     ) -> Result<Vec<ValidatorV1>> {
         let pending_validators_ids = iota_client
             .read_api()
@@ -225,7 +229,9 @@ impl IotaNodeProvider {
                                     IotaSystemStateSummary::V2(system_state) => {
                                         system_state.pending_active_validators_id
                                     }
-                                    _ => panic!("unsupported IotaSystemStateSummary"),
+                                    _ => unimplemented!(
+                                        "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                                    ),
                                 };
 
                                 match Self::get_pending_validators(
@@ -235,8 +241,10 @@ impl IotaNodeProvider {
                                 .await
                                 {
                                     Ok(pending_validators) => {
-                                        cloned_self
-                                            .update_pending_validator_set(pending_validators);
+                                        cloned_self.update_pending_validator_set(
+                                            pending_validators,
+                                            Some(system_state.protocol_version().as_u64()),
+                                        );
                                         info!("Successfully updated pending validators");
                                     }
                                     Err(e) => {

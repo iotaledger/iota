@@ -12,8 +12,9 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::transaction::TransactionData;
+use iota_types::transaction::{TransactionData, TransactionDataAPI};
 
 use super::build_item;
 use crate::{
@@ -28,7 +29,7 @@ async fn test_response_headers() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = Address::random();
     let amount = 9;
 
     // Test execute_transactions
@@ -61,7 +62,7 @@ async fn test_response_headers() {
         test_cluster.wait_for_epoch(Some(3)).await;
 
         let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-        gas.sort_by_key(|object_ref| object_ref.0);
+        gas.sort_by_key(|object_ref| object_ref.object_id);
         let obj_to_send = gas.first().unwrap();
         let gas_obj = gas.last().unwrap();
 

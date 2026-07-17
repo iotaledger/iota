@@ -4,18 +4,23 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
+    TransactionDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
+    base_types::{EpochId, ObjectType},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
@@ -63,7 +68,7 @@ pub trait ReadStore: ObjectStore {
     /// sequence number of the latest executed checkpoint.
     fn try_get_latest_checkpoint_sequence_number(&self) -> Result<CheckpointSequenceNumber> {
         let latest_checkpoint = self.try_get_latest_checkpoint()?;
-        Ok(*latest_checkpoint.sequence_number())
+        Ok(latest_checkpoint.sequence_number())
     }
 
     /// Non-fallible version of `try_get_latest_checkpoint_sequence_number`.
@@ -810,7 +815,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct TransactionInfo {
     pub checkpoint: u64,
-    pub object_types: HashMap<ObjectID, ObjectType>,
+    pub object_types: HashMap<ObjectId, ObjectType>,
 }
 
 impl TransactionInfo {
@@ -845,40 +850,116 @@ pub struct EpochInfo {
     pub start_checkpoint: u64,
     pub end_checkpoint: Option<u64>,
     pub reference_gas_price: u64,
-    /// System State as of the start of the epoch
+    /// `IotaSystemState` of object `0x5` right after the AdvanceEpoch tx of
+    /// the previous epoch (or the genesis tx for epoch 0).
     pub system_state: crate::iota_system_state::IotaSystemState,
+}
+
+/// Epoch information structure for indexing.
+///
+/// Stores only the start-of-epoch identity (`epoch`, `start_checkpoint`,
+/// `start_timestamp_ms`, `system_state`) plus the close-of-epoch
+/// `epoch_close_proof`. Everything derivable from those — `protocol_version`,
+/// `reference_gas_price`, `end_timestamp_ms`, `end_checkpoint` — is a method,
+/// not a stored field.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV2 {
+    pub epoch: u64,
+    pub start_checkpoint: CheckpointSequenceNumber,
+    pub start_timestamp_ms: u64,
+    /// `IotaSystemState` of object `0x5` at this epoch's start.
+    pub system_state: IotaSystemState,
+    /// Close-of-epoch proof bundle; `None` until this epoch's boundary is
+    /// indexed. The row is finalized exactly when this is `Some`.
+    pub epoch_close_proof: Option<EpochInfoV1Entry>,
+}
+
+impl EpochInfoV2 {
+    /// Whether this epoch's boundary has been indexed.
+    pub fn is_finalized(&self) -> bool {
+        self.epoch_close_proof.is_some()
+    }
+
+    /// Protocol version in effect this epoch (from the start system state).
+    pub fn protocol_version(&self) -> u64 {
+        self.system_state.protocol_version()
+    }
+
+    /// Reference gas price for this epoch (from the start system state).
+    pub fn reference_gas_price(&self) -> u64 {
+        self.system_state.reference_gas_price()
+    }
+
+    /// Timestamp of this epoch's last checkpoint; `None` until finalized.
+    pub fn end_timestamp_ms(&self) -> Option<u64> {
+        self.epoch_close_proof
+            .as_ref()
+            .map(|entry| entry.last_checkpoint_summary.data().timestamp_ms)
+    }
+
+    /// This epoch's last checkpoint sequence number; `None` until finalized.
+    pub fn end_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
+        self.epoch_close_proof
+            .as_ref()
+            .map(|entry| entry.last_checkpoint_summary.data().sequence_number())
+    }
+}
+
+/// Per-epoch entry of the snapshot `EPOCH_INFO` file. Every field is anchored
+/// to the certified `last_checkpoint_summary`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1Entry {
+    /// Certified summary of this epoch's closing checkpoint — the signed
+    /// anchor every other field is proven against.
+    pub last_checkpoint_summary: CertifiedCheckpointSummary,
+    /// Contents of that closing checkpoint; `hash == last_checkpoint_summary`'s
+    /// `content_digest`.
+    pub last_checkpoint_contents: CheckpointContents,
+    /// Effects of the epoch-change tx (the last tx of the closing checkpoint);
+    /// its `(transaction, effects)` digest pair is the last entry of
+    /// `last_checkpoint_contents`.
+    pub end_of_epoch_tx_effects: TransactionEffects,
+    /// Events from the epoch-change tx (carries `SystemEpochInfoEvent`); `hash
+    /// == end_of_epoch_tx_effects.events_digest`, or empty on safe-mode
+    /// boundaries where that digest is `None`.
+    pub end_of_epoch_tx_events: TransactionEvents,
+    /// Raw serialized bytes of system-state wrapper object and its inner
+    /// system-state object as written by this boundary — the next epoch's
+    /// start state. Each object's digest matches a written-object entry in
+    /// `end_of_epoch_tx_effects`.
+    pub next_epoch_start_system_state_objects: Vec<Vec<u8>>,
 }
 
 #[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
-    pub owner: IotaAddress,
-    pub object_id: ObjectID,
-    pub version: SequenceNumber,
+    pub owner: Address,
+    pub object_id: ObjectId,
+    pub version: Version,
     pub type_: MoveObjectType,
 }
 
-/// Opaque cursor for seeking in the `owner_v2` index.
+/// Opaque cursor for seeking in the `owner` index.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OwnedObjectV2Cursor {
+pub struct OwnedObjectCursor {
     pub object_type_identifier: u64,
     pub object_type_params: u64,
     pub inverted_balance: Option<u64>,
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
 }
 
-pub type OwnedObjectV2IteratorItem =
-    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
+pub type OwnedObjectIteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectCursor), TypedStoreError>;
 
 pub type DynamicFieldIteratorItem = Result<DynamicFieldKey, TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
-    pub parent: ObjectID,
-    pub field_id: ObjectID,
+    pub parent: ObjectId,
+    pub field_id: ObjectId,
 }
 
 impl DynamicFieldKey {
-    pub fn new<P: Into<ObjectID>>(parent: P, field_id: ObjectID) -> Self {
+    pub fn new<P: Into<ObjectId>>(parent: P, field_id: ObjectId) -> Self {
         Self {
             parent: parent.into(),
             field_id,
@@ -886,29 +967,23 @@ impl DynamicFieldKey {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-}
-
 /// Coin info including optional regulated coin metadata.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinInfoV2 {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+pub struct CoinInfo {
+    pub coin_metadata_object_id: Option<ObjectId>,
+    pub treasury_object_id: Option<ObjectId>,
+    pub regulated_coin_metadata_object_id: Option<ObjectId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PackageVersionKey {
-    pub original_package_id: ObjectID,
+    pub original_package_id: ObjectId,
     pub version: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct PackageVersionInfo {
-    pub storage_id: ObjectID,
+    pub storage_id: ObjectId,
 }
 
 pub type PackageVersionIteratorItem =

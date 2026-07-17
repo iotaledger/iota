@@ -34,7 +34,7 @@ public fun new<K: copy + drop + store, V: store>(
 
 A [`Table<K, V>`](../../../../developer/references/framework/iota/table.mdx) is a homogeneous map where all keys
 (`K`) and values (`V`) share the same type.
-These tables are created using [`iota::table::new`](../../../../developer/references/framework/iota/table.mdx#function-new),
+These tables are created using [`iota::table::new`](../../../../developer/references/framework/iota/table.mdx#iota_table_new),
 which requires a mutable transaction context (`&mut TxContext`).
 Because `Table` itself is an object, it can be transferred, shared, or wrapped like any other object.
 

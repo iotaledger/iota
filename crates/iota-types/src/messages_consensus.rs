@@ -13,63 +13,23 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use iota_sdk_types::crypto::IntentScope;
+use iota_sdk_types::{
+    Digest, MisbehaviorReportDigest, ObjectReference, TransactionDigest, crypto::IntentScope,
+};
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{
-    base_types::{
-        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-    },
+    base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
-    digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::CertifiedTransaction,
+    transaction::{CertifiedTransaction, Transaction},
 };
-
-/// Non-decreasing timestamp produced by consensus in ms.
-pub type TimestampMs = u64;
-
-/// Uses an enum to allow for future expansion of the
-/// ConsensusDeterminedVersionAssignments.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
-pub enum ConsensusDeterminedVersionAssignments {
-    // Cancelled transaction version assignment.
-    CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV1 {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// The sub DAG index of the consensus commit. This field will be populated
-    /// if there are multiple consensus commits per round.
-    pub sub_dag_index: Option<u64>,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: TimestampMs,
-    /// Digest of consensus output
-    pub consensus_commit_digest: ConsensusCommitDigest,
-    /// Stores consensus handler determined shared object version assignments.
-    pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
-}
-
-// In practice, JWKs are about 500 bytes of json each, plus a bit more for the
-// ID. 4096 should give us plenty of space for any imaginable JWK while
-// preventing DoSes.
-static MAX_TOTAL_JWK_SIZE: usize = 4096;
-
-pub fn check_total_jwk_size(id: &JwkId, jwk: &JWK) -> bool {
-    id.iss.len() + id.kid.len() + jwk.kty.len() + jwk.alg.len() + jwk.e.len() + jwk.n.len()
-        <= MAX_TOTAL_JWK_SIZE
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusTransaction {
@@ -86,9 +46,8 @@ pub enum ConsensusTransactionKey {
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
-    // Key must include both id and jwk, because honest validators could be given multiple jwks
-    // for the same id by malfunctioning providers.
-    NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
+    NewJWKFetchedDeprecated,
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
     MisbehaviorReport(
@@ -96,6 +55,9 @@ pub enum ConsensusTransactionKey {
         MisbehaviorReportDigest,
         CheckpointSequenceNumber,
     ),
+    /// P-COOL user transaction key (by transaction digest).
+    UserTransaction(TransactionDigest),
+    OverloadNotificationV1(AuthorityName, u64 /* generation */),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -103,7 +65,7 @@ pub enum ConsensusTransactionKey {
 impl Debug for ConsensusTransactionKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Certificate(digest) => write!(f, "Certificate({digest:?})"),
+            Self::Certificate(digest) => write!(f, "Certificate({digest})"),
             Self::CheckpointSignature(name, seq) => {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
@@ -114,14 +76,11 @@ impl Debug for ConsensusTransactionKey {
                 name.concise(),
                 generation
             ),
-            Self::NewJWKFetched(key) => {
-                let (authority, id, jwk) = &**key;
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => {
                 write!(
                     f,
-                    "NewJWKFetched({:?}, {:?}, {:?})",
-                    authority.concise(),
-                    id,
-                    jwk
+                    "NewJWKFetched(deprecated: Authenticator state (JWK) is deprecated and was never enabled on IOTA)"
                 )
             }
             Self::RandomnessDkgMessage(name) => {
@@ -137,6 +96,14 @@ impl Debug for ConsensusTransactionKey {
                     name.concise(),
                     digest,
                     checkpoint_seq
+                )
+            }
+            Self::UserTransaction(digest) => write!(f, "UserTransaction({digest:?})"),
+            Self::OverloadNotificationV1(name, generation) => {
+                write!(
+                    f,
+                    "OverloadNotificationV1({:?}, gen={generation:?})",
+                    name.concise()
                 )
             }
         }
@@ -187,7 +154,7 @@ pub struct AuthorityCapabilitiesV1 {
     /// The ObjectRefs of all versions of system packages that the validator
     /// possesses. Used to determine whether to do a framework/movestdlib
     /// upgrade.
-    pub available_system_packages: Vec<ObjectRef>,
+    pub available_system_packages: Vec<ObjectReference>,
 }
 
 impl Message for AuthorityCapabilitiesV1 {
@@ -222,7 +189,7 @@ impl AuthorityCapabilitiesV1 {
         authority: AuthorityName,
         chain: Chain,
         supported_protocol_versions: SupportedProtocolVersions,
-        available_system_packages: Vec<ObjectRef>,
+        available_system_packages: Vec<ObjectReference>,
     ) -> Self {
         let generation = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -265,7 +232,8 @@ pub enum ConsensusTransactionKind {
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
     SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
-    NewJWKFetched(AuthorityName, JwkId, JWK),
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
+    NewJWKFetchedDeprecated,
 
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
@@ -275,10 +243,15 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
-    MisbehaviorReport(
+    MisbehaviorReport(VersionedMisbehaviorReport),
+    /// P-COOL user transaction. Raw, uncertified transaction submitted
+    /// directly to consensus without pre-consensus object locking.
+    /// Conflicts are resolved post-consensus.
+    UserTransactionV1(Box<Transaction>),
+    OverloadNotificationV1(
         AuthorityName,
-        VersionedMisbehaviorReport,
-        CheckpointSequenceNumber,
+        u64, // generation
+        u8,  // percentage
     ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
@@ -292,110 +265,118 @@ impl ConsensusTransactionKind {
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
         )
     }
+
+    pub fn is_user_transaction(&self) -> bool {
+        matches!(self, ConsensusTransactionKind::UserTransactionV1(_))
+    }
 }
 
+/// A misbehavior report carrying a versioned payload plus a memoized digest.
+///
+/// Wire format is BCS over the `Serialize`-derived fields in declaration order:
+/// `authority || payload || generation`. This exactly matches the pre-refactor
+/// `ConsensusTransactionKind::MisbehaviorReport(AuthorityName,
+/// VersionedMisbehaviorReport { payload }, CheckpointSequenceNumber)` 3-tuple
+/// — see `tests::misbehavior_report_wire_format_unchanged` which pins the
+/// equivalence. Reordering or inserting any non-`skip` field here would change
+/// the consensus wire format and halt a running testnet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum VersionedMisbehaviorReport {
-    V1(
-        MisbehaviorsV1<Vec<u64>>,
-        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
-    ),
+pub struct VersionedMisbehaviorReport {
+    /// Originating authority — must match the transaction source authority
+    /// from consensus. Verified at the consensus boundary.
+    pub authority: AuthorityName,
+    /// Versioned payload of the misbehavior report.
+    pub payload: MisbehaviorObservations,
+    /// Generation number set by the sending authority. Used to identify the
+    /// most recent report from each authority. Currently set to the
+    /// checkpoint sequence number at which the report was generated.
+    pub generation: u64,
+    #[serde(skip)]
+    digest: OnceCell<MisbehaviorReportDigest>,
+}
+
+/// Versioned per-authority misbehavior observations. New variants get their
+/// own named-field payload type (`MisbehaviorObservationsV2`,
+/// `MisbehaviorObservationsV3`, ...) so the wire schema stays compile-time
+/// checked. Also serves as the in-memory representation in
+/// `MisbehaviorMonitor` / `ReportAggregator`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MisbehaviorObservations {
+    V1(MisbehaviorObservationsV1),
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
-        VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
+    pub fn new_v1(
+        authority: AuthorityName,
+        generation: u64,
+        observations: MisbehaviorObservationsV1,
+    ) -> Self {
+        Self {
+            authority,
+            payload: MisbehaviorObservations::V1(observations),
+            generation,
+            digest: OnceCell::new(),
+        }
     }
 
-    pub fn verify(&self, committee_size: usize) -> bool {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
-        }
-    }
-    /// Returns an iterator over references to some of the fields in the report.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.iter(),
-        }
-    }
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
-        match self {
-            VersionedMisbehaviorReport::V1(_, digest) => {
-                digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
-            }
+        self.digest
+            .get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
+    }
+
+    /// Returns the summary of the misbehavior report, defined as the sum of all
+    /// metrics for all authorities.
+    pub fn summary(&self) -> u64 {
+        let summary = match &self.payload {
+            MisbehaviorObservations::V1(report) => [
+                &report.faulty_blocks_provable,
+                &report.faulty_blocks_unprovable,
+                &report.missing_proposals,
+                &report.equivocations,
+            ]
+            .into_iter()
+            .flatten()
+            .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
+        };
+        if summary == u64::MAX {
+            warn!("MisbehaviorReport summary reached its maximum value.");
         }
+        summary
     }
 }
 
-// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbeheaviors) include,
-// faulty blocks, equivocation and missing proposal counts for each authority.
-// This first version does not include any type of proof.
+/// V1 misbehavior observations: per-authority counts for each tracked
+/// misbehavior category (faulty blocks, equivocations, missing proposals).
+/// Field order is part of the wire format — BCS serializes named struct
+/// fields in declaration order. This first version does not include any
+/// type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MisbehaviorsV1<T> {
-    pub faulty_blocks_provable: T,
-    pub faulty_blocks_unprovable: T,
-    pub missing_proposals: T,
-    pub equivocations: T,
+pub struct MisbehaviorObservationsV1 {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+    pub equivocations: Vec<u64>,
 }
 
-impl MisbehaviorsV1<Vec<u64>> {
+impl MisbehaviorObservationsV1 {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
         // authorities. Future versions may contain proofs that need verification.
         // However, since the validity of a proof is deeply coupled with the protocol
         // version and the consensus mechanism being used, we cannot verify it here. In
         // the future, reports should be unwrapped (or translated) to a type verifiable
-        // by the consensus crate, which means that the verification logic will probably
+        // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
         if (self.faulty_blocks_provable.len() != committee_size)
-            | (self.faulty_blocks_unprovable.len() != committee_size)
-            | (self.equivocations.len() != committee_size)
-            | (self.missing_proposals.len() != committee_size)
+            || (self.faulty_blocks_unprovable.len() != committee_size)
+            || (self.equivocations.len() != committee_size)
+            || (self.missing_proposals.len() != committee_size)
         {
             return false;
         }
         true
-    }
-}
-impl<T> MisbehaviorsV1<T> {
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        ]
-        .into_iter()
-    }
-    // Returns an iterator over references to major misbehavior fields in the
-    // report. Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![&self.equivocations].into_iter()
-    }
-    // Returns an iterator over references to minor misbehavior fields in the
-    // report. Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-        ]
-        .into_iter()
-    }
-}
-
-impl<T> FromIterator<T> for MisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
-        Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
-        }
     }
 }
 
@@ -533,33 +514,6 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_mysticeti_certificate(
-        round: u64,
-        offset: u64,
-        certificate: CertifiedTransaction,
-    ) -> Self {
-        let mut hasher = DefaultHasher::new();
-        let tx_digest = certificate.digest();
-        tx_digest.hash(&mut hasher);
-        round.hash(&mut hasher);
-        offset.hash(&mut hasher);
-        let tracking_id = hasher.finish().to_le_bytes();
-        Self {
-            tracking_id,
-            kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
-        }
-    }
-
-    pub fn new_jwk_fetched(authority: AuthorityName, id: JwkId, jwk: JWK) -> Self {
-        let mut hasher = DefaultHasher::new();
-        id.hash(&mut hasher);
-        let tracking_id = hasher.finish().to_le_bytes();
-        Self {
-            tracking_id,
-            kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
-        }
-    }
-
     pub fn new_randomness_dkg_message(
         authority: AuthorityName,
         versioned_message: &VersionedDkgMessage,
@@ -589,22 +543,56 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_misbehavior_report(
-        authority: AuthorityName,
-        report: &VersionedMisbehaviorReport,
-        checkpoint_seq: CheckpointSequenceNumber,
-    ) -> Self {
+    pub fn new_misbehavior_report(report: VersionedMisbehaviorReport) -> Self {
         let serialized_report =
-            bcs::to_bytes(report).expect("report serialization should not fail");
+            bcs::to_bytes(&report).expect("report serialization should not fail");
         let mut hasher = DefaultHasher::new();
         serialized_report.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::MisbehaviorReport(
+            kind: ConsensusTransactionKind::MisbehaviorReport(report),
+        }
+    }
+
+    pub fn new_user_transaction(transaction: Transaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        let tx_digest = transaction.digest();
+        tx_digest.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+        }
+    }
+
+    pub fn new_overload_notification_v1(
+        authority: AuthorityName,
+        load_shedding_percentage: u8,
+    ) -> Self {
+        // Wall-clock millis-since-epoch is used purely as a unique-per-submission
+        // disambiguator in the consensus transaction key, mirroring
+        // `AuthorityCapabilitiesV1::new`, because `consensus_message_processed`
+        // dedups by key for the full epoch.
+        // The receive side uses the percentage value directly; the generation is only
+        // for key uniqueness, not for ordering (consensus already orders deliveries).
+        let generation: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        let mut hasher = DefaultHasher::new();
+        authority.hash(&mut hasher);
+        generation.hash(&mut hasher);
+        load_shedding_percentage.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::OverloadNotificationV1(
                 authority,
-                report.clone(),
-                checkpoint_seq,
+                generation,
+                load_shedding_percentage,
             ),
         }
     }
@@ -639,12 +627,9 @@ impl ConsensusTransaction {
                 )
             }
 
-            ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
-                ConsensusTransactionKey::NewJWKFetched(Box::new((
-                    *authority,
-                    id.clone(),
-                    key.clone(),
-                )))
+            #[allow(deprecated)]
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                ConsensusTransactionKey::NewJWKFetchedDeprecated
             }
             ConsensusTransactionKind::RandomnessDkgMessage(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgMessage(*authority)
@@ -652,12 +637,18 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(authority, report, checkpoint_seq) => {
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
                 ConsensusTransactionKey::MisbehaviorReport(
-                    *authority,
+                    report.authority,
                     *report.digest(),
-                    *checkpoint_seq,
+                    report.generation,
                 )
+            }
+            ConsensusTransactionKind::UserTransactionV1(tx) => {
+                ConsensusTransactionKey::UserTransaction(*tx.digest())
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, generation, _) => {
+                ConsensusTransactionKey::OverloadNotificationV1(*authority, *generation)
             }
         }
     }
@@ -671,29 +662,96 @@ impl ConsensusTransaction {
     }
 }
 
-#[test]
-fn test_jwk_compatibility() {
-    // Ensure that the JWK and JwkId structs in fastcrypto do not change formats.
-    // If this test breaks DO NOT JUST UPDATE THE EXPECTED BYTES. Instead, add a
-    // local JWK or JwkId struct that mirrors the fastcrypto struct, use it in
-    // AuthenticatorStateUpdate, and add Into/From as necessary.
-    let jwk = JWK {
-        kty: "a".to_string(),
-        e: "b".to_string(),
-        n: "c".to_string(),
-        alg: "d".to_string(),
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let expected_jwk_bytes = vec![1, 97, 1, 98, 1, 99, 1, 100];
-    let jwk_bcs = bcs::to_bytes(&jwk).unwrap();
-    assert_eq!(jwk_bcs, expected_jwk_bytes);
+    /// Pre-refactor wire shape of `VersionedMisbehaviorReport` — only `payload`
+    /// crossed the wire (the digest cache was `#[serde(skip)]`). Used to pin
+    /// post-refactor bytes against the legacy encoding.
+    #[derive(Serialize)]
+    struct LegacyVersionedMisbehaviorReport<'a> {
+        payload: &'a MisbehaviorObservations,
+    }
 
-    let id = JwkId {
-        iss: "abc".to_string(),
-        kid: "def".to_string(),
-    };
+    fn sample_payload() -> MisbehaviorObservations {
+        MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
+            faulty_blocks_provable: vec![1, 2, 3],
+            faulty_blocks_unprovable: vec![4, 5, 6],
+            missing_proposals: vec![7, 8, 9],
+            equivocations: vec![10, 11, 12],
+        })
+    }
 
-    let expected_id_bytes = vec![3, 97, 98, 99, 3, 100, 101, 102];
-    let id_bcs = bcs::to_bytes(&id).unwrap();
-    assert_eq!(id_bcs, expected_id_bytes);
+    /// Pins the BCS encoding of `VersionedMisbehaviorReport` against the
+    /// pre-refactor 3-tuple layout `(AuthorityName, { payload }, u64)`. Testnet
+    /// is running the legacy format; if the bytes ever drift, validators on
+    /// the new build will reject reports from validators on the old build (or
+    /// vice versa) and consensus halts. Reordering struct fields, adding a
+    /// non-`skip` field, or renaming a field's serde tag will all trip this
+    /// test.
+    #[test]
+    fn misbehavior_report_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 42;
+        let payload = sample_payload();
+
+        let legacy_bytes = bcs::to_bytes(&(
+            authority,
+            LegacyVersionedMisbehaviorReport { payload: &payload },
+            generation,
+        ))
+        .unwrap();
+
+        let new = VersionedMisbehaviorReport {
+            authority,
+            payload,
+            generation,
+            digest: OnceCell::new(),
+        };
+        let new_bytes = bcs::to_bytes(&new).unwrap();
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "VersionedMisbehaviorReport wire format must not change — testnet is live"
+        );
+    }
+
+    /// `ConsensusTransactionKind::MisbehaviorReport`'s variant tag is its
+    /// position in the enum (BCS encodes enum variants as ULEB128 of the
+    /// declaration index). Reordering variants — even if the new wrapping
+    /// layout is byte-identical otherwise — would shift the tag and break
+    /// every node still on the old build. This test catches that and also
+    /// confirms the post-tag bytes equal the legacy 3-tuple encoding.
+    #[test]
+    fn misbehavior_report_consensus_kind_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 7;
+        let payload = sample_payload();
+
+        let new_kind = ConsensusTransactionKind::MisbehaviorReport(VersionedMisbehaviorReport {
+            authority,
+            payload: payload.clone(),
+            generation,
+            digest: OnceCell::new(),
+        });
+        let new_bytes = bcs::to_bytes(&new_kind).unwrap();
+
+        // Legacy encoding: variant tag (8 = position of MisbehaviorReport in
+        // the enum, ULEB128 single byte) followed by the 3-tuple body.
+        let mut legacy_bytes = vec![8u8];
+        legacy_bytes.extend(
+            bcs::to_bytes(&(
+                authority,
+                LegacyVersionedMisbehaviorReport { payload: &payload },
+                generation,
+            ))
+            .unwrap(),
+        );
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "ConsensusTransactionKind::MisbehaviorReport wire format must not change — testnet is live"
+        );
+    }
 }

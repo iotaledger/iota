@@ -13,7 +13,6 @@ from pathlib import Path
 # Configuration
 # ---------------------------------------------------------------------
 NUM_VALIDATORS = 10
-PAUSE_BETWEEN_PROTOCOLS = 60  # seconds
 
 # ---------------------------------------------------------------------
 # Paths
@@ -36,7 +35,7 @@ def run_command(cmd, cwd=None, check=True, shell=False):
 def build_images():
     """Builds the necessary Docker images."""
     print(">>> Building Docker images...")
-    
+
     images = [
         ("iota-node", DOCKER_ROOT / "iota-node"),
         ("iota-tools", DOCKER_ROOT / "iota-tools"),
@@ -48,10 +47,10 @@ def build_images():
         # Using sudo because the build scripts often require it or docker requires it
         run_command(["sudo", "./build.sh", "-t", name], cwd=path)
 
-def run_experiment(protocol):
-    """Runs the mirage stress test for a specific protocol."""
+def run_experiment():
+    """Runs the mirage stress test."""
     print(f"\n{'='*60}")
-    print(f"=== Starting Mirage Stress Test for {protocol.upper()} ===")
+    print("=== Starting Mirage Stress Test ===")
     print(f"{'='*60}\n")
 
     # 1. Cleanup existing network
@@ -59,14 +58,13 @@ def run_experiment(protocol):
     run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
 
     # 2. Bootstrap network
-    print(f">>> Bootstrapping network for {protocol}...")
+    print(">>> Bootstrapping network...")
     # bootstrap.sh generates the configuration
     run_command(["sudo", "./bootstrap.sh", "-n", str(NUM_VALIDATORS)], cwd=PRIVNET_DIR)
 
     # 3. Start network
-    print(f">>> Starting network with {protocol}...")
-    # run.sh starts the containers and sets the protocol
-    run_command(["sudo", "./run.sh", "-n", str(NUM_VALIDATORS), "-p", protocol], cwd=PRIVNET_DIR)
+    print(">>> Starting network...")
+    run_command(["sudo", "./run.sh", "-n", str(NUM_VALIDATORS)], cwd=PRIVNET_DIR)
 
     # Wait for network to stabilize
     print(">>> Waiting for network to stabilize (20s)...")
@@ -74,7 +72,7 @@ def run_experiment(protocol):
 
     # 4. Run Mirage Stress Test
     print(">>> Running Mirage Stress Test (Python)...")
-    
+
     # Ensure venv exists (simple check)
     venv_python = PRIVNET_DIR / ".venv" / "bin" / "python"
     pip_path = PRIVNET_DIR / ".venv" / "bin" / "pip"
@@ -90,7 +88,7 @@ def run_experiment(protocol):
     # We execute the module net_fuzz.experiments.mirage_stress
     env = os.environ.copy()
     env["PYTHONPATH"] = str(FUZZER_DIR / "src")
-    
+
     try:
         run_command(
             ["sudo", str(venv_python), "-m", "net_fuzz.experiments.mirage_stress"],
@@ -98,36 +96,29 @@ def run_experiment(protocol):
             check=True
         )
     except SystemExit:
-        print(f"Test failed for {protocol}")
+        print("Test failed")
         # We don't exit here, we might want to continue or cleanup
         pass
     except Exception as e:
         print(f"An error occurred during the test: {e}")
 
-    print(f"=== Finished Mirage Stress Test for {protocol} ===")
+    print("=== Finished Mirage Stress Test ===")
 
     # 5. Cleanup
     print(">>> Cleaning up...")
     run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Mirage Stress Test on Mysticeti and Starfish")
+    parser = argparse.ArgumentParser(description="Run Mirage Stress Test")
     parser.add_argument("--skip-build", action="store_true", help="Skip building docker images")
     args = parser.parse_args()
 
     if not args.skip_build:
         build_images()
 
-    # Run Mysticeti
-    run_experiment("mysticeti")
+    run_experiment()
 
-    print(f"Sleeping {PAUSE_BETWEEN_PROTOCOLS}s before next run...")
-    time.sleep(PAUSE_BETWEEN_PROTOCOLS)
-
-    # Run Starfish 
-    run_experiment("starfish")
-
-    print("\nAll mirage stress runs completed.")
+    print("\nMirage stress run completed.")
 
 if __name__ == "__main__":
     main()

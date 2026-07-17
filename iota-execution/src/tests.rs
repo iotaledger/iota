@@ -34,6 +34,7 @@ fn test_encapsulation() {
     // exclusively via `iota-execution`.
     exec_crates.remove("iota-protocol-config");
     exec_crates.remove("iota-types");
+    exec_crates.remove("iota-sdk-types");
     exec_crates.remove("move-binary-format");
     exec_crates.remove("move-bytecode-utils");
     exec_crates.remove("move-core-types");

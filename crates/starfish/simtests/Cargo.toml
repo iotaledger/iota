@@ -9,17 +9,17 @@ publish = false
 [lints]
 workspace = true
 
+# The crate's code is entirely `#[cfg(msim)]`-gated, so all dependencies are
+# only used under the simulator. Keeping them target-scoped means the non-msim
+# `cargo udeps` build sees no active deps and doesn't flag them as unused.
 [target.'cfg(msim)'.dependencies]
 # external dependencies
-anyhow.workspace = true
 arc-swap.workspace = true
+eyre.workspace = true
 parking_lot.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
-tokio-util.workspace = true
 tracing.workspace = true
 
 # internal dependencies
@@ -29,6 +29,7 @@ iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-simulator.workspace = true
+prometheus-filtered.workspace = true
 starfish-config.workspace = true
 starfish-core.workspace = true
 telemetry-subscribers.workspace = true

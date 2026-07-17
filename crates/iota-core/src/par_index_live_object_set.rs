@@ -4,16 +4,19 @@
 
 use std::time::Instant;
 
-use iota_types::{base_types::ObjectID, object::Object, storage::error::Error as StorageError};
+use iota_sdk_types::ObjectId;
+use iota_types::{object::Object, storage::error::Error as StorageError};
 use tracing::info;
 
-use crate::authority::{AuthorityStore, authority_store_tables::LiveObject};
+use crate::authority::AuthorityStore;
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
-    type ObjectIndexer: LiveObjectIndexer;
+    type ObjectIndexer<'a>: LiveObjectIndexer
+    where
+        Self: 'a;
 
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer;
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_>;
 }
 
 /// Represents an instance of a indexer that operates on a subset of the live
@@ -30,7 +33,7 @@ pub trait LiveObjectIndexer {
 
 /// Utility for iterating over, and indexing, the live object set in parallel
 ///
-/// This is done by dividing the addressable ObjectID space into smaller,
+/// This is done by dividing the addressable ObjectId space into smaller,
 /// disjoint sets and operating on each set in parallel in a separate thread.
 /// User's will need to implement the `ParMakeLiveObjectIndexer` trait which
 /// will be used to make N `LiveObjectIndexer`s which will then process one of
@@ -75,21 +78,21 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     authority_store: &AuthorityStore,
     mut object_indexer: T,
 ) -> Result<(), StorageError> {
-    let mut id_bytes = [0; ObjectID::LENGTH];
+    let mut id_bytes = [0; ObjectId::LENGTH];
     id_bytes[0] = task_id << (8 - bits);
-    let start_id = ObjectID::new(id_bytes);
+    let start_id = ObjectId::new(id_bytes);
 
     id_bytes[0] |= (1 << (8 - bits)) - 1;
     for element in id_bytes.iter_mut().skip(1) {
         *element = u8::MAX;
     }
-    let end_id = ObjectID::new(id_bytes);
+    let end_id = ObjectId::new(id_bytes);
 
     let mut object_scanned: u64 = 0;
     for object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .filter_map(LiveObject::to_normal)
+        .map(|o| o.object)
     {
         object_scanned += 1;
         if object_scanned.is_multiple_of(2_000_000) {

@@ -2,17 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    time::Instant,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use tracing::{info, warn};
 
 use crate::{
-    CommitConsumer, CommitConsumerMonitor,
+    CommitConsumer,
     authority_service::AuthorityService,
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
@@ -28,6 +31,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
+    misbehavior_store::MisbehaviorStore,
     network::tonic_network::{TonicClient, TonicManager},
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -42,7 +46,6 @@ pub struct ConsensusAuthority {
     transaction_client: Arc<TransactionClient>,
     header_synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
-    commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
     regular_commit_syncer_handle: CommitSyncerHandle,
@@ -56,6 +59,11 @@ pub struct ConsensusAuthority {
     dag_state: Arc<RwLock<DagState>>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_handle: Option<(
+        tokio::task::JoinHandle<()>,
+        tokio::sync::oneshot::Sender<()>,
+    )>,
 }
 
 impl ConsensusAuthority {
@@ -82,10 +90,17 @@ impl ConsensusAuthority {
             committee.is_valid_index(own_index),
             "Invalid own index {own_index}"
         );
+        parameters
+            .validate()
+            .unwrap_or_else(|e| panic!("Invalid consensus parameters: {e}"));
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {} {}, {:?}, boot counter {}, last processed commit index {}",
+            own_index,
+            own_hostname,
+            protocol_config.version,
+            boot_counter,
+            commit_consumer.last_processed_commit_index
         );
         info!(
             "Consensus authorities: {}",
@@ -95,6 +110,10 @@ impl ConsensusAuthority {
                 .join(", ")
         );
         info!("Consensus parameters: {:?}", parameters);
+        info!(
+            "Protocol consensus flags: starfish_speed={}",
+            protocol_config.consensus_starfish_speed(),
+        );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
@@ -120,8 +139,13 @@ impl ConsensusAuthority {
         let network_client = network_manager.client();
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-        let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let store = Arc::new(RocksDBStore::new(store_path));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let dag_state = Arc::new(RwLock::new(DagState::new_with_misbehavior_store(
+            context.clone(),
+            store.clone(),
+            misbehavior_store.clone(),
+        )));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -159,9 +183,25 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
+
+        // A node that was mid-fast-sync (fast_sync_ongoing persisted) cannot recover
+        // without the fast commit syncer: DagState recovery is skipped expecting the
+        // syncer to reinitialize, the core thread stays in fast-sync mode awaiting
+        // subdags that never arrive, and eviction keeps using the fast-sync strategy
+        // because nothing clears the flag. Refuse to start rather than hang in this
+        // unrecoverable partial state.
+        assert!(
+            !fast_sync_ongoing || context.parameters.enable_fast_commit_syncer,
+            "Consensus DB has fast_sync_ongoing set but enable_fast_commit_syncer is disabled: \
+             no fast commit syncer will run to finish recovery. Re-enable \
+             enable_fast_commit_syncer, or delete this epoch's consensus DB, before restarting."
+        );
+
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         let core = Core::new(
             context.clone(),
@@ -177,6 +217,7 @@ impl ConsensusAuthority {
             protocol_keypair,
             dag_state.clone(),
             sync_last_known_own_block,
+            commit_vote_monitor.clone(),
         );
 
         let (core_dispatcher, core_thread_handle) =
@@ -200,7 +241,23 @@ impl ConsensusAuthority {
         let shard_reconstructor =
             ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
 
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        // `fast_sync_active` is a shared flag used by the fast syncer to
+        // signal when it has any work in flight. The regular commit syncer
+        // and the header synchronizer both read it to pause their
+        // dispatch loops while fast sync is active, avoiding overlapping
+        // ancestor fetches. Only created when fast sync will actually run;
+        // `None` keeps the gate a no-op when an operator disables fast sync
+        // via the local `enable_fast_commit_syncer` config.
+        //
+        // Seeded from the durable `DagState::fast_sync_ongoing` flag so a
+        // restart mid-fast-sync starts in the paused state, without
+        // waiting for fast sync's first schedule-loop tick to set it.
+        // Afterwards fast sync owns the atomic; the durable flag is not
+        // reactive enough for runtime gating.
+        let fast_sync_active: Option<Arc<AtomicBool>> = context
+            .parameters
+            .enable_fast_commit_syncer
+            .then(|| Arc::new(AtomicBool::new(fast_sync_ongoing)));
 
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -211,10 +268,13 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             sync_last_known_own_block,
+            fast_sync_active.clone(),
+            misbehavior_store.clone(),
         );
 
         // Both commit syncers run, but only one actively fetches based on the gap.
         // CommitSyncer handles small gaps, FastCommitSyncer handles large gaps.
+
         let regular_commit_syncer_handle = RegularCommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
@@ -223,31 +283,29 @@ impl ConsensusAuthority {
             network_client.clone(),
             block_verifier.clone(),
             dag_state.clone(),
+            header_synchronizer.clone(),
+            misbehavior_store.clone(),
+            fast_sync_active.clone(),
         )
         .start();
 
-        // FastCommitSyncer is enabled when both the protocol-level flag and the local
-        // config flag are enabled. The protocol flag also controls gRPC endpoint
-        // availability, while the local flag allows operators to disable the
-        // syncer without a protocol upgrade.
-        let fast_commit_syncer_handle = if context.protocol_config.consensus_fast_commit_sync()
-            && context.parameters.enable_fast_commit_syncer
-        {
-            Some(
-                FastCommitSyncer::new(
-                    context.clone(),
-                    core_dispatcher.clone(),
-                    commit_vote_monitor.clone(),
-                    commit_consumer_monitor.clone(),
-                    network_client.clone(),
-                    block_verifier.clone(),
-                    dag_state.clone(),
-                )
-                .start(),
+        // FastCommitSyncer runs when the local `enable_fast_commit_syncer`
+        // config flag is enabled, letting operators disable the syncer.
+        let fast_commit_syncer_handle = fast_sync_active.as_ref().map(|flag| {
+            FastCommitSyncer::new(
+                context.clone(),
+                core_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                commit_consumer_monitor.clone(),
+                network_client.clone(),
+                block_verifier.clone(),
+                dag_state.clone(),
+                header_synchronizer.clone(),
+                misbehavior_store.clone(),
+                flag.clone(),
             )
-        } else {
-            None
-        };
+            .start()
+        });
 
         let network_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -259,6 +317,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store.clone(),
+            misbehavior_store.clone(),
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.clone(),
         ));
@@ -277,6 +336,27 @@ impl ConsensusAuthority {
 
         network_manager.install_service(network_service).await;
 
+        // Optionally start the DAG visualizer server.
+        #[cfg(feature = "dag-visualizer")]
+        let dag_visualizer_handle = if let Some(port) = context.parameters.dag_visualizer_port {
+            let (event_tx, _) = tokio::sync::broadcast::channel::<
+                crate::dag_visualizer::grpc_streamer::DagVisualizerEvent,
+            >(
+                crate::dag_visualizer::grpc_streamer::DAG_VISUALIZER_BROADCAST_CAPACITY,
+            );
+            dag_state
+                .write()
+                .set_dag_visualizer_sender(event_tx.clone());
+            Some(crate::dag_visualizer::grpc_streamer::start_grpc_server(
+                port,
+                context.clone(),
+                dag_state.clone(),
+                event_tx,
+            ))
+        } else {
+            None
+        };
+
         info!(
             "Consensus authority started, took {:?}",
             start_time.elapsed()
@@ -290,7 +370,6 @@ impl ConsensusAuthority {
             shard_reconstructor,
             cordial_knowledge,
             transactions_synchronizer,
-            commit_consumer_monitor,
             regular_commit_syncer_handle,
             fast_commit_syncer_handle,
             leader_timeout_handle,
@@ -302,6 +381,8 @@ impl ConsensusAuthority {
             dag_state: dag_state.clone(),
             #[cfg(test)]
             sync_last_known_own_block,
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_handle,
         }
     }
 
@@ -310,6 +391,13 @@ impl ConsensusAuthority {
             "Stopping authority. Total run time: {:?}",
             self.start_time.elapsed()
         );
+
+        // Gracefully stop DAG visualizer server if running.
+        #[cfg(feature = "dag-visualizer")]
+        if let Some((handle, shutdown_tx)) = self.dag_visualizer_handle.take() {
+            let _ = shutdown_tx.send(());
+            let _ = handle.await;
+        }
 
         // First shutdown components calling into Core.
         if let Err(e) = self.header_synchronizer.stop().await {
@@ -387,10 +475,6 @@ impl ConsensusAuthority {
         self.transaction_client.clone()
     }
 
-    pub async fn replay_complete(&self) {
-        self.commit_consumer_monitor.replay_complete().await;
-    }
-
     #[cfg(test)]
     pub(crate) fn context(&self) -> &Arc<Context> {
         &self.context
@@ -444,7 +528,7 @@ pub(crate) mod tests {
 
     use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use rstest::rstest;
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;
@@ -453,22 +537,21 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        CommittedSubDag, block_header::GENESIS_ROUND, commit::CommitIndex,
+        CommitConsumerMonitor, CommittedSubDag,
+        block_header::GENESIS_ROUND,
+        commit::CommitIndex,
+        storage::{Store, WriteBatch},
         transaction::NoopTransactionVerifier,
     };
 
-    #[rstest]
     #[tokio::test]
-    async fn test_authority_start_and_stop(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_authority_start_and_stop() {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
         let registry = Registry::new();
 
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
             db_path: temp_dir.keep(),
-            enable_fast_commit_syncer: consensus_fast_commit_sync,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -480,8 +563,7 @@ pub(crate) mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let authority = ConsensusAuthority::start(
             0,
@@ -506,22 +588,120 @@ pub(crate) mod tests {
         authority.stop().await;
     }
 
+    /// Disabling the fast commit syncer locally (protocol flag still on) is a
+    /// supported operator escape hatch: the node must start and run on the
+    /// regular commit syncer alone.
+    #[tokio::test]
+    async fn starts_with_fast_commit_syncer_disabled() {
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
+        let registry = Registry::new();
+
+        let temp_dir = TempDir::new().unwrap();
+        let parameters = Parameters {
+            db_path: temp_dir.keep(),
+            enable_fast_commit_syncer: false,
+            ..Default::default()
+        };
+        let txn_verifier = NoopTransactionVerifier {};
+
+        let own_index = committee.to_authority_index(0).unwrap();
+        let protocol_keypair = keypairs[own_index].1.clone();
+        let network_keypair = keypairs[own_index].0.clone();
+
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender, 0);
+
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let authority = ConsensusAuthority::start(
+            0,
+            own_index,
+            committee,
+            parameters,
+            protocol_config,
+            protocol_keypair,
+            network_keypair,
+            Arc::new(Clock::default()),
+            Arc::new(txn_verifier),
+            commit_consumer,
+            registry,
+            0,
+        )
+        .await;
+
+        assert_eq!(authority.context().own_index, own_index);
+        authority.stop().await;
+    }
+
+    /// A node interrupted mid-fast-sync (durable `fast_sync_ongoing` flag set)
+    /// that restarts with the fast commit syncer disabled has no way to finish
+    /// recovery, so startup must fail loudly instead of hanging silently.
+    #[tokio::test]
+    #[should_panic(expected = "fast_sync_ongoing set but enable_fast_commit_syncer is disabled")]
+    async fn refuses_to_start_when_fast_sync_interrupted_and_syncer_disabled() {
+        let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
+        let registry = Registry::new();
+
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.keep();
+
+        // Seed the durable flag as if the node had crashed mid-fast-sync.
+        {
+            let store = RocksDBStore::new(db_path.to_str().unwrap());
+            store
+                .write(WriteBatch {
+                    fast_commit_sync_flag: Some(true),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert!(store.read_fast_sync_ongoing().unwrap());
+        }
+
+        let parameters = Parameters {
+            db_path,
+            enable_fast_commit_syncer: false,
+            ..Default::default()
+        };
+        let txn_verifier = NoopTransactionVerifier {};
+
+        let own_index = committee.to_authority_index(0).unwrap();
+        let protocol_keypair = keypairs[own_index].1.clone();
+        let network_keypair = keypairs[own_index].0.clone();
+
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender, 0);
+
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let _authority = ConsensusAuthority::start(
+            0,
+            own_index,
+            committee,
+            parameters,
+            protocol_config,
+            protocol_keypair,
+            network_keypair,
+            Arc::new(Clock::default()),
+            Arc::new(txn_verifier),
+            commit_consumer,
+            registry,
+            0,
+        )
+        .await;
+    }
+
     /// This test checks that an authority can be restarted and still get synced
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(
-        #[values(4, 6)] num_of_authorities: usize,
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) =
             local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs = (0..num_of_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -540,7 +720,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             boot_counters[index] += 1;
@@ -635,7 +814,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[stopped_authority_index],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         boot_counters[stopped_authority_index] += 1;
@@ -721,16 +899,12 @@ pub(crate) mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_small_committee(
-        #[values(1, 2, 3)] num_authorities: usize,
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_small_committee(#[values(1, 2, 3)] num_authorities: usize) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; num_authorities]);
-        let mut protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs = (0..num_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -748,7 +922,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             boot_counters[index] += 1;
@@ -811,7 +984,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[index],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         boot_counters[index] += 1;
@@ -827,11 +999,8 @@ pub(crate) mod tests {
 
     /// This test checks that an authority can recover from amnesia
     /// successfully.
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_amnesia_recovery_success(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_amnesia_recovery_success() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -843,8 +1012,7 @@ pub(crate) mod tests {
         let mut temp_dirs = BTreeMap::new();
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
 
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();
@@ -855,7 +1023,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             assert!(
@@ -927,7 +1094,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[index_1],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         assert!(
@@ -967,7 +1133,6 @@ pub(crate) mod tests {
             keypairs,
             boot_counters[index_2],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         assert!(
@@ -1011,7 +1176,6 @@ pub(crate) mod tests {
         keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
         boot_counter: u64,
         protocol_config: ProtocolConfig,
-        consensus_fast_commit_sync: bool,
     ) -> (
         ConsensusAuthority,
         UnboundedReceiver<CommittedSubDag>,
@@ -1026,7 +1190,7 @@ pub(crate) mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-            enable_fast_commit_syncer: consensus_fast_commit_sync,
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -1121,8 +1285,7 @@ pub(crate) mod tests {
         let stable_work_duration_time = Duration::from_secs(30);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1570,8 +1733,7 @@ pub(crate) mod tests {
         let stable_work_duration_time = Duration::from_secs(30);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

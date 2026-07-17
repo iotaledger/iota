@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use iota_graphql_config::GraphQLConfig;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
@@ -55,6 +54,16 @@ pub struct ConnectionConfig {
     /// to connect to, on start-up.
     #[arg(long, default_value_t = ConnectionConfig::default().skip_migration_consistency_check)]
     pub skip_migration_consistency_check: bool,
+    /// Maximum number of checkpoints to look back for consistent view queries.
+    /// Directly influences the `availableRange` size. Larger values let
+    /// pagination cursors stay valid for longer, downside is that older cursors
+    /// have higher DB cost.
+    #[arg(
+        long,
+        default_value_t = ConnectionConfig::default().max_available_range,
+        env = "MAX_AVAILABLE_RANGE",
+    )]
+    pub max_available_range: u64,
 }
 
 /// Configuration on features supported by the GraphQL service, passed in a
@@ -69,7 +78,6 @@ pub struct ServiceConfig {
     pub experiments: Experiments,
     pub iota_names: IotaNamesConfig,
     pub background_tasks: BackgroundTasksConfig,
-    pub zklogin: ZkLoginConfig,
 }
 
 #[GraphQLConfig]
@@ -211,12 +219,6 @@ pub struct TxExecFullNodeConfig {
     /// RPC URL for the fullnode to send transactions to execute and dry-run.
     #[arg(long)]
     pub(crate) node_rpc_url: Option<String>,
-}
-
-#[GraphQLConfig]
-#[derive(Default)]
-pub struct ZkLoginConfig {
-    pub env: ZkLoginEnv,
 }
 
 /// The enabled features and service limits configured by the server.
@@ -367,6 +369,7 @@ impl ConnectionConfig {
         prom_host: Option<String>,
         prom_port: Option<u16>,
         skip_migration_consistency_check: Option<bool>,
+        max_available_range: Option<u64>,
     ) -> Self {
         let default = Self::default();
         Self {
@@ -378,6 +381,7 @@ impl ConnectionConfig {
             prom_port: prom_port.unwrap_or(default.prom_port),
             skip_migration_consistency_check: skip_migration_consistency_check
                 .unwrap_or(default.skip_migration_consistency_check),
+            max_available_range: max_available_range.unwrap_or(default.max_available_range),
         }
     }
 
@@ -427,9 +431,6 @@ impl ServiceConfig {
     pub fn test_defaults() -> Self {
         Self {
             background_tasks: BackgroundTasksConfig::test_defaults(),
-            zklogin: ZkLoginConfig {
-                env: ZkLoginEnv::Test,
-            },
             ..Default::default()
         }
     }
@@ -485,6 +486,7 @@ impl Default for ConnectionConfig {
             prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
             skip_migration_consistency_check: false,
+            max_available_range: 9_000,
         }
     }
 }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::{IotaAddress, TransactionDigest};
+use iota_sdk_types::{Address, TransactionDigest};
 use thiserror::Error;
 
 pub use crate::json_rpc_error::Error as JsonRpcError;
@@ -17,7 +17,7 @@ pub enum Error {
     BcsSerialization(#[from] bcs::Error),
     #[error("Subscription error: {0}")]
     Subscription(String),
-    #[error("Failed to confirm tx status for {0:?} within {1} seconds.")]
+    #[error("Failed to confirm tx status for {0} within {1} seconds.")]
     FailToConfirmTransactionStatus(TransactionDigest, u64),
     #[error("Data error: {0}")]
     Data(String),
@@ -29,7 +29,7 @@ pub enum Error {
         server_version: String,
     },
     #[error("Insufficient funds for address [{address}], requested amount: {amount}")]
-    InsufficientFunds { address: IotaAddress, amount: u128 },
+    InsufficientFunds { address: Address, amount: u128 },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error("Invalid Header key-value pair: {0}")]

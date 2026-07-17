@@ -13,6 +13,7 @@ use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
@@ -22,6 +23,7 @@ use starfish_config::{
 use tracing::instrument;
 
 use crate::{
+    authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
     encoder::ShardEncoder,
@@ -41,6 +43,58 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
+
+/// BCS-serialized size of a [`BlockRef`]: `round` (u32, 4) + `author`
+/// (`AuthorityIndex`, 1) + `digest` (32). Pinned by
+/// `max_signed_block_header_bytes_bounds_maximal_header`.
+pub(crate) const SERIALIZED_BLOCK_REF_BYTES: usize = 37;
+
+/// ULEB128 byte length of `value`, matching how BCS frames sequence and
+/// variant lengths.
+pub(crate) const fn uleb128_len(mut value: usize) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+/// Upper bound on the BCS-serialized size of a [`SignedBlockHeader`] for a
+/// committee of `committee_size` authorities.
+///
+/// `BlockHeaderV2` is the largest header variant; its size is dominated by two
+/// committee-sized vectors. Layout:
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
+///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
+///   plus the sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
+///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
+///   + `AuthoritySet` bitmask (32).
+///
+/// The [`SignedBlockHeader`] wrapper adds the `BlockHeader` enum tag (1), the
+/// signature length prefix (1), and the 64-byte signature.
+pub(crate) fn max_signed_block_header_bytes(committee_size: usize) -> usize {
+    const FIXED_HEADER_BYTES: usize = 55;
+    const STRONG_VOTE_BYTES: usize = 34;
+    const COMMIT_VOTE_BYTES: usize = 36;
+    // BlockHeader enum tag (1) + signature length prefix (1) + signature (64).
+    const SIGNATURE_FRAME_BYTES: usize = 1 + 1 + 64;
+
+    let max_refs = committee_size.saturating_mul(3);
+    let references =
+        uleb128_len(max_refs).saturating_add(max_refs.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let commit_votes = uleb128_len(committee_size)
+        .saturating_add(committee_size.saturating_mul(COMMIT_VOTE_BYTES));
+
+    FIXED_HEADER_BYTES
+        .saturating_add(references)
+        .saturating_add(commit_votes)
+        .saturating_add(STRONG_VOTE_BYTES)
+        .saturating_add(SIGNATURE_FRAME_BYTES)
+}
 
 /// IOTA transaction is considered as serialised bytes inside consensus
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
@@ -97,6 +151,7 @@ impl Transaction {
 #[derive(Clone, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub enum BlockHeader {
     V1(BlockHeaderV1),
+    V2(BlockHeaderV2),
 }
 
 pub trait BlockHeaderAPI {
@@ -109,6 +164,20 @@ pub trait BlockHeaderAPI {
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
     fn transactions_commitment(&self) -> TransactionsCommitment;
+    fn strong_vote(&self) -> Option<StrongVote>;
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex>;
+    fn is_strong_vote(&self) -> bool;
+    fn is_strong_blame(&self) -> bool;
+
+    /// True if this block is a strong vote pinned to `leader`.
+    fn is_strong_vote_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_vote() && self.strong_vote_leader() == Some(leader)
+    }
+
+    /// True if this block is a strong blame pinned to `leader`.
+    fn is_strong_blame_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_blame() && self.strong_vote_leader() == Some(leader)
+    }
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
@@ -142,7 +211,7 @@ impl BlockHeaderV1 {
         transactions_commitment: TransactionsCommitment,
     ) -> BlockHeaderV1 {
         let (references, overlap_start_index, overlap_end_index) =
-            Self::compress_references(ancestors, acknowledgments);
+            BlockHeader::compress_references(ancestors, acknowledgments);
         Self {
             epoch,
             round,
@@ -154,55 +223,6 @@ impl BlockHeaderV1 {
             transactions_commitment,
             commit_votes,
         }
-    }
-    /// Compresses ancestors and acknowledgments into a single references
-    /// vector, and returns the overlap indices. The first ancestor is
-    /// always the first reference (ref0). If it is also in acknowledgments,
-    /// it is appended to the end of references.
-    pub(crate) fn compress_references(
-        ancestors: Vec<BlockRef>,
-        acknowledgments: Vec<BlockRef>,
-    ) -> (Vec<BlockRef>, u8, u8) {
-        if ancestors.is_empty() {
-            return (acknowledgments, 0, 0);
-        }
-        // Sets for membership checks
-        let ancestor_set: HashSet<_> = ancestors.iter().cloned().collect();
-        let ack_set: HashSet<_> = acknowledgments.into_iter().collect();
-        // ref0 is the first ancestor, and is also always the first reference
-        let ref0 = ancestors[0];
-        // if it is also in acknowledgments, it is appended to the end of references
-        let append_ref0 = ack_set.contains(&ref0);
-
-        // partition ancestors into overlap and ancestors_only (excluding ref0)
-        let (overlap, mut ancestors_only): (Vec<_>, Vec<_>) = ancestors
-            .into_iter()
-            .skip(1)
-            .partition(|a| ack_set.contains(a));
-        // insert ref0 back to the front of ancestors_only
-        ancestors_only.insert(0, ref0);
-
-        // acknowledgments_only excludes any overlap with ancestors
-        let acknowledgments_only: Vec<_> = ack_set
-            .into_iter()
-            .filter(|a| !ancestor_set.contains(a))
-            .collect();
-
-        let overlap_start_index = ancestors_only.len();
-        let overlap_end_index = overlap_start_index + overlap.len();
-        // combine all parts into references
-        // |ancestors_only|overlap|acknowledgments_only|ref0?|
-        let mut references = ancestors_only;
-        references.extend(overlap);
-        references.extend(acknowledgments_only);
-        if append_ref0 {
-            references.push(ref0);
-        }
-        (
-            references,
-            overlap_start_index as u8,
-            overlap_end_index as u8,
-        )
     }
 
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
@@ -255,67 +275,349 @@ impl BlockHeaderAPI for BlockHeaderV1 {
     fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
     }
+
+    // V1 blocks do not carry a strong vote; always returns None.
+    fn strong_vote(&self) -> Option<StrongVote> {
+        None
+    }
+
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
+        None
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        false
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        false
+    }
+}
+
+/// Strong-vote payload pinned to a specific leader authority. The producer
+/// records which leader the vote/blame is *for*, so consumers can reject votes
+/// whose pinned leader doesn't match the canonical leader they're evaluating.
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq, Debug)]
+pub struct StrongVote {
+    /// Authority of the leader at round - 1, per the producer's swap table at
+    /// block-creation time.
+    pub leader_authority: AuthorityIndex,
+    /// Bitmask of authorities whose data the producer was missing relative to
+    /// the pinned leader's data set. Empty = strong vote; non-empty = strong
+    /// blame.
+    pub missing: AuthoritySet,
+}
+
+impl StrongVote {
+    pub fn is_strong_vote(&self) -> bool {
+        self.missing.is_empty()
+    }
+}
+
+#[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
+pub struct BlockHeaderV2 {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    timestamp_ms: BlockTimestampMs,
+    references: Vec<BlockRef>,
+    overlap_start_index: u8,
+    overlap_end_index: u8,
+    transactions_commitment: TransactionsCommitment,
+    commit_votes: Vec<CommitVote>,
+    // Strong-vote payload pinned to a specific leader. None = no vote;
+    // Some(StrongVote { missing: empty, .. }) = strong vote;
+    // Some(StrongVote { missing: nonempty, .. }) = strong blame.
+    strong_vote: Option<StrongVote>,
+}
+
+impl BlockHeaderV2 {
+    pub(crate) fn new(
+        epoch: Epoch,
+        round: Round,
+        author: AuthorityIndex,
+        timestamp_ms: BlockTimestampMs,
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+        commit_votes: Vec<CommitVote>,
+        transactions_commitment: TransactionsCommitment,
+        strong_vote: Option<StrongVote>,
+    ) -> BlockHeaderV2 {
+        let (references, overlap_start_index, overlap_end_index) =
+            BlockHeader::compress_references(ancestors, acknowledgments);
+        Self {
+            epoch,
+            round,
+            author,
+            timestamp_ms,
+            references,
+            overlap_start_index,
+            overlap_end_index,
+            transactions_commitment,
+            commit_votes,
+            strong_vote,
+        }
+    }
+
+    // Will be used when genesis block construction is gated on
+    // consensus_starfish_speed.
+    #[expect(dead_code)]
+    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
+        Self {
+            epoch: context.committee.epoch(),
+            round: GENESIS_ROUND,
+            author,
+            timestamp_ms: context.epoch_start_timestamp_ms,
+            references: vec![],
+            overlap_start_index: 0,
+            overlap_end_index: 0,
+            commit_votes: vec![],
+            transactions_commitment: TransactionsCommitment::default(),
+            strong_vote: None,
+        }
+    }
+}
+
+impl BlockHeaderAPI for BlockHeaderV2 {
+    fn epoch(&self) -> Epoch {
+        self.epoch
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        self.author
+    }
+
+    fn slot(&self) -> Slot {
+        Slot::new(self.round, self.author)
+    }
+
+    fn acknowledgments(&self) -> &[BlockRef] {
+        &self.references[self.overlap_start_index as usize..]
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn ancestors(&self) -> &[BlockRef] {
+        &self.references[..self.overlap_end_index as usize]
+    }
+
+    fn commit_votes(&self) -> &[CommitVote] {
+        &self.commit_votes
+    }
+
+    fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.transactions_commitment
+    }
+
+    fn strong_vote(&self) -> Option<StrongVote> {
+        self.strong_vote
+    }
+
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
+        self.strong_vote.map(|sv| sv.leader_authority)
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        self.strong_vote.is_some_and(|sv| sv.is_strong_vote())
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        self.strong_vote.is_some_and(|sv| !sv.is_strong_vote())
+    }
 }
 
 impl BlockHeaderAPI for BlockHeader {
     fn epoch(&self) -> Epoch {
         match self {
             BlockHeader::V1(header) => header.epoch(),
+            BlockHeader::V2(header) => header.epoch(),
         }
     }
 
     fn round(&self) -> Round {
         match self {
             BlockHeader::V1(header) => header.round(),
+            BlockHeader::V2(header) => header.round(),
         }
     }
 
     fn author(&self) -> AuthorityIndex {
         match self {
             BlockHeader::V1(header) => header.author(),
+            BlockHeader::V2(header) => header.author(),
         }
     }
 
     fn slot(&self) -> Slot {
         match self {
             BlockHeader::V1(header) => header.slot(),
+            BlockHeader::V2(header) => header.slot(),
         }
     }
 
     fn acknowledgments(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.acknowledgments(),
+            BlockHeader::V2(header) => header.acknowledgments(),
         }
     }
 
     fn timestamp_ms(&self) -> BlockTimestampMs {
         match self {
             BlockHeader::V1(header) => header.timestamp_ms(),
+            BlockHeader::V2(header) => header.timestamp_ms(),
         }
     }
 
     fn ancestors(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.ancestors(),
+            BlockHeader::V2(header) => header.ancestors(),
         }
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
         match self {
             BlockHeader::V1(header) => header.commit_votes(),
+            BlockHeader::V2(header) => header.commit_votes(),
         }
     }
 
     fn transactions_commitment(&self) -> TransactionsCommitment {
         match self {
             BlockHeader::V1(header) => header.transactions_commitment(),
+            BlockHeader::V2(header) => header.transactions_commitment(),
         }
+    }
+
+    fn strong_vote(&self) -> Option<StrongVote> {
+        match self {
+            BlockHeader::V1(header) => header.strong_vote(),
+            BlockHeader::V2(header) => header.strong_vote(),
+        }
+    }
+
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
+        match self {
+            BlockHeader::V1(header) => header.strong_vote_leader(),
+            BlockHeader::V2(header) => header.strong_vote_leader(),
+        }
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_vote(),
+            BlockHeader::V2(header) => header.is_strong_vote(),
+        }
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_blame(),
+            BlockHeader::V2(header) => header.is_strong_blame(),
+        }
+    }
+}
+
+impl BlockHeader {
+    /// Validates that overlap_start_index and overlap_end_index are within
+    /// bounds of the references vector. Must be called before accessing
+    /// ancestors() or acknowledgments() on deserialized headers to prevent
+    /// panics from adversarial index values.
+    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
+        let (references_len, overlap_start, overlap_end) = match self {
+            BlockHeader::V1(h) => (
+                h.references.len(),
+                h.overlap_start_index,
+                h.overlap_end_index,
+            ),
+            BlockHeader::V2(h) => (
+                h.references.len(),
+                h.overlap_start_index,
+                h.overlap_end_index,
+            ),
+        };
+        if overlap_end as usize > references_len
+            || overlap_start as usize > references_len
+            || overlap_start > overlap_end
+        {
+            return Err(ConsensusError::InvalidOverlapIndices {
+                overlap_start,
+                overlap_end,
+                references_len,
+            });
+        }
+        Ok(())
     }
 }
 
 impl From<BlockHeaderV1> for BlockHeader {
     fn from(header: BlockHeaderV1) -> Self {
         BlockHeader::V1(header)
+    }
+}
+
+impl From<BlockHeaderV2> for BlockHeader {
+    fn from(header: BlockHeaderV2) -> Self {
+        BlockHeader::V2(header)
+    }
+}
+
+impl BlockHeader {
+    /// Compresses ancestors and acknowledgments into a single references
+    /// vector, and returns the overlap indices. The first ancestor is
+    /// always the first reference (ref0). If it is also in acknowledgments,
+    /// it is appended to the end of references.
+    pub(crate) fn compress_references(
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+    ) -> (Vec<BlockRef>, u8, u8) {
+        if ancestors.is_empty() {
+            return (acknowledgments, 0, 0);
+        }
+        // Sets for membership checks
+        let ancestor_set: HashSet<_> = ancestors.iter().cloned().collect();
+        let ack_set: HashSet<_> = acknowledgments.into_iter().collect();
+        // ref0 is the first ancestor, and is also always the first reference
+        let ref0 = ancestors[0];
+        // if it is also in acknowledgments, it is appended to the end of references
+        let append_ref0 = ack_set.contains(&ref0);
+
+        // partition ancestors into overlap and ancestors_only (excluding ref0)
+        let (overlap, mut ancestors_only): (Vec<_>, Vec<_>) = ancestors
+            .into_iter()
+            .skip(1)
+            .partition(|a| ack_set.contains(a));
+        // insert ref0 back to the front of ancestors_only
+        ancestors_only.insert(0, ref0);
+
+        // acknowledgments_only excludes any overlap with ancestors
+        let acknowledgments_only: Vec<_> = ack_set
+            .into_iter()
+            .filter(|a| !ancestor_set.contains(a))
+            .collect();
+
+        let overlap_start_index = ancestors_only.len();
+        let overlap_end_index = overlap_start_index + overlap.len();
+        // combine all parts into references
+        // |ancestors_only|overlap|acknowledgments_only|ref0?|
+        let mut references = ancestors_only;
+        references.extend(overlap);
+        references.extend(acknowledgments_only);
+        if append_ref0 {
+            references.push(ref0);
+        }
+        (
+            references,
+            overlap_start_index as u8,
+            overlap_end_index as u8,
+        )
     }
 }
 
@@ -361,6 +663,12 @@ impl fmt::Debug for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         fmt::Display::fmt(self, f)
     }
+}
+
+/// Formats a slice of block references as a comma-separated list of their
+/// short `Display` form, for debug/log output.
+pub(crate) fn format_block_digests(blocks: &[BlockRef]) -> String {
+    blocks.iter().map(|b| b.to_string()).join(", ")
 }
 
 impl Hash for BlockRef {
@@ -437,8 +745,7 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is disabled.
-/// Contains block reference and separate transaction commitment field.
+/// Legacy shard format retained for deserialization and enum-tag stability.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV1 {
     pub(crate) shard: Shard,
@@ -447,8 +754,7 @@ pub(crate) struct ShardWithProofV1 {
     pub(crate) block_ref: BlockRef,
 }
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is enabled.
-/// Contains transaction reference which includes the transaction commitment.
+/// Current shard format using a transaction reference.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
     pub(crate) shard: Shard,
@@ -475,34 +781,22 @@ pub(crate) enum ShardWithProof {
 }
 
 impl ShardWithProof {
-    /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
-    /// V1.
+    /// Creates a new ShardWithProof.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if consensus_fast_commit_sync {
-            ShardWithProof::V2(ShardWithProofV2 {
-                shard,
-                proof,
-                transaction_ref: TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: transaction_commitment,
-                },
-            })
-        } else {
-            ShardWithProof::V1(ShardWithProofV1 {
-                shard,
-                transaction_commitment,
-                proof,
-                block_ref,
-            })
-        }
+        ShardWithProof::V2(ShardWithProofV2 {
+            shard,
+            proof,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: transaction_commitment,
+            },
+        })
     }
 }
 
@@ -595,15 +889,13 @@ impl TransactionsCommitment {
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        let encoded_shards = encoder
-            .encode_serialized_data(serialized_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
+        let encoded_shards =
+            encoder.encode_serialized_data(serialized_transactions, info_length, parity_length)?;
 
         let (transactions_commitment, _) = TransactionsCommitment::compute_merkle_root_and_proof(
             &encoded_shards,
             context.own_index,
-        )
-        .expect("We should expect correct computation of the Merkle root for encoded transactions");
+        )?;
         Ok(transactions_commitment)
     }
 
@@ -619,10 +911,7 @@ impl TransactionsCommitment {
             leaves.push(leaf);
         }
         let merkle_tree = MerkleTree::<DefaultHashFunctionWrapper>::from_leaves(&leaves);
-        let merkle_root = merkle_tree
-            .root()
-            .ok_or("couldn't get the merkle root")
-            .unwrap();
+        let merkle_root = merkle_tree.root().ok_or(ConsensusError::EmptyMerkleTree)?;
 
         let indices_to_prove = vec![own_index.value()];
         let merkle_proof = merkle_tree.proof(&indices_to_prove);
@@ -638,8 +927,11 @@ impl TransactionsCommitment {
         let mut hasher = DefaultHashFunction::new();
         hasher.update(shard.shard());
         let leaf = hasher.finalize().into();
-        let proof =
-            MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone()).unwrap();
+        let proof = match MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone())
+        {
+            Ok(proof) => proof,
+            Err(_) => return false,
+        };
         proof.verify(
             shard.transaction_commitment().0,
             &[leaf_index],
@@ -993,11 +1285,11 @@ impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}({}ms;{:?}r;{:?}a;{}c)",
+            "{:?}({}ms;[{}]r;[{}]a;{}c)",
             self.reference(),
             self.timestamp_ms(),
-            self.ancestors(),
-            self.acknowledgments(),
+            format_block_digests(self.ancestors()),
+            format_block_digests(self.acknowledgments()),
             self.commit_votes().len(),
         )
     }
@@ -1012,10 +1304,10 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// Present (`Some`) whenever the block header is available at
-    /// construction time, regardless of the `consensus_fast_commit_sync` flag.
-    /// `None` only when transactions were received without an accompanying
-    /// block header (e.g., fast sync or store loading via TransactionRef).
+    /// Present (`Some`) whenever the block header is available at construction
+    /// time. `None` only when transactions were received without an
+    /// accompanying block header (e.g., fast sync or store loading via
+    /// TransactionRef).
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
@@ -1039,6 +1331,23 @@ impl VerifiedTransactions {
             transactions,
             transaction_ref,
             block_digest,
+            serialized,
+        }
+    }
+
+    /// Test-only constructor. Wraps `transactions` against the slot of
+    /// `header` so the resulting `VerifiedTransactions` can be dropped into a
+    /// test-constructed `CommittedSubDag`. Used by downstream crates'
+    /// consensus-handler tests; production code must go through
+    /// `VerifiedTransactions::new` during block reception.
+    pub fn new_for_test(header: &VerifiedBlockHeader, transactions: Vec<Transaction>) -> Self {
+        let serialized: Bytes = bcs::to_bytes(&transactions)
+            .expect("Serialization should not fail")
+            .into();
+        Self {
+            transactions,
+            transaction_ref: header.transaction_ref(),
+            block_digest: Some(header.digest()),
             serialized,
         }
     }
@@ -1220,6 +1529,7 @@ pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
+    strong_vote: Option<StrongVote>,
 }
 
 impl TestBlockHeader {
@@ -1236,6 +1546,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1263,6 +1574,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1294,6 +1606,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1337,9 +1650,29 @@ impl TestBlockHeader {
         self
     }
 
+    /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
+    /// `BlockHeader::V2`; otherwise a V1.
+    pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
+        self.strong_vote = strong_vote;
+        self
+    }
+
     pub fn build(mut self) -> BlockHeader {
+        if let Some(strong_vote) = self.strong_vote {
+            return BlockHeader::V2(BlockHeaderV2::new(
+                self.block_header.epoch,
+                self.block_header.round,
+                self.block_header.author,
+                self.block_header.timestamp_ms,
+                self.ancestors,
+                self.acknowledgments,
+                self.block_header.commit_votes,
+                self.block_header.transactions_commitment,
+                Some(strong_vote),
+            ));
+        }
         let (references, overlap_start_index, overlap_end_index) =
-            BlockHeaderV1::compress_references(self.ancestors, self.acknowledgments);
+            BlockHeader::compress_references(self.ancestors, self.acknowledgments);
         self.block_header.references = references;
         self.block_header.overlap_start_index = overlap_start_index;
         self.block_header.overlap_end_index = overlap_end_index;
@@ -1356,15 +1689,42 @@ mod tests {
     use std::sync::Arc;
 
     use fastcrypto::error::FastCryptoError;
+    use rstest::rstest;
 
     use crate::{
         BlockHeaderAPI,
         block_header::{
-            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+            BlockHeader, BlockHeaderDigest, BlockHeaderV2, BlockRef, SignedBlockHeader, StrongVote,
+            TestBlockHeader, genesis_block_headers, max_signed_block_header_bytes,
         },
+        commit::{CommitDigest, CommitRef},
         context::Context,
         error::ConsensusError,
     };
+
+    /// Pins the `BlockHeaderV2` wire layout that
+    /// `max_signed_block_header_bytes` is derived from: a header carrying
+    /// the maximal `3 * committee_size` references, one commit vote per
+    /// authority, and a strong vote must serialize to exactly the computed
+    /// bound. Fails if the BCS framing or any of `BlockRef` / `CommitVote`
+    /// / `StrongVote` / `SignedBlockHeader` layout changes.
+    #[tokio::test]
+    async fn max_signed_block_header_bytes_bounds_maximal_header() {
+        let (context, key_pairs) = Context::new_for_test(4);
+        let n = context.committee.size();
+
+        let header = BlockHeader::V2(BlockHeaderV2 {
+            references: vec![BlockRef::MAX; 3 * n],
+            commit_votes: vec![CommitRef::new(u32::MAX, CommitDigest::MIN); n],
+            strong_vote: Some(StrongVote::default()),
+            ..Default::default()
+        });
+        let signed =
+            SignedBlockHeader::new(header, &key_pairs[0].1).expect("signing should succeed");
+        let serialized = bcs::to_bytes(&signed).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_signed_block_header_bytes(n));
+    }
 
     #[tokio::test]
     async fn test_sign_and_verify() {
@@ -1427,7 +1787,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1441,7 +1801,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b, ref_c];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1456,7 +1816,7 @@ mod tests {
         let acknowledgments = vec![ref_a, ref_c, ref_d, ref_e];
 
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
 
         let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
@@ -1473,7 +1833,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b, ref_c];
         let acknowledgments = vec![ref_a, ref_b, ref_c];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(
+            crate::block_header::BlockHeader::compress_references(
                 ancestors.clone(),
                 acknowledgments.clone(),
             );
@@ -1498,5 +1858,57 @@ mod tests {
         for ack in acknowledgments.iter() {
             assert!(compressed_acknowledgments.contains(ack));
         }
+    }
+
+    #[rstest]
+    #[test]
+    fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
+        use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
+        let rng = &mut rand::thread_rng();
+        let refs = vec![
+            BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 2.into(), BlockHeaderDigest::random(&mut *rng)),
+        ];
+        let build = |overlap_start: u8, overlap_end: u8| -> BlockHeader {
+            if use_v2 {
+                BlockHeader::V2(BlockHeaderV2 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            } else {
+                BlockHeader::V1(BlockHeaderV1 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            }
+        };
+
+        // Valid indices: 0 <= start <= end <= references.len().
+        build(1, 2).verify_references_indices().unwrap(); // overlap region
+        build(2, 2).verify_references_indices().unwrap(); // no overlap, interior split
+        build(3, 3).verify_references_indices().unwrap(); // no overlap, boundary at len
+
+        // overlap_end > references.len().
+        assert!(matches!(
+            build(0, 4).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > references.len().
+        assert!(matches!(
+            build(4, 3).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > overlap_end.
+        assert!(matches!(
+            build(2, 1).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
     }
 }

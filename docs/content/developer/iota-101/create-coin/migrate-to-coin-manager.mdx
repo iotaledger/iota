@@ -210,7 +210,7 @@ fun init(witness: MY_COIN_MANAGER, ctx: &mut TxContext) {
 
 ```
 
-However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../references/framework/iota/coin_manager.mdx#function-new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../references/framework/iota/coin_manager.mdx#function-new) if the metadata is mutable.
+However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../references/framework/iota/coin_manager.mdx#iota_coin_manager_new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../references/framework/iota/coin_manager.mdx#iota_coin_manager_new) if the metadata is mutable.
 
 In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../references/framework/iota/coin.mdx#struct-coinmetadata) object and the [`TreasuryCap`](../../references/framework/iota/coin.mdx#struct-treasurycap) object. IOTA's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
 

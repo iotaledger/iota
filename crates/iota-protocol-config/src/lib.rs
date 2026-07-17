@@ -19,8 +19,10 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 24;
+pub const MAX_PROTOCOL_VERSION: u64 = 31;
 
+/// Protocol version that IIP8 took effect.
+pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Record history of protocol version allocations here:
 //
 // Version 1:  Original version.
@@ -134,6 +136,52 @@ pub const MAX_PROTOCOL_VERSION: u64 = 24;
 //             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
 //             Move.
 // Version 24: Switch consensus protocol to Starfish in all networks.
+//             Enable Move-based sponsor account authentication in devnet.
+//             Add AuthContext native functions cost for reading tx_data_bytes.
+//             Enable additional borrow checks.
+// Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
+//             supported.
+// Version 26: Introduce a module to allow Move code to query protocol feature
+//             flags at runtime.
+// Version 27: Only sponsor Move authentication is performed pre-consensus in
+//             devnet.
+//             Enable consensus block restrictions on testnet and devnet:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
+// Version 28: Move authenticator contracts can now inspect which authenticator
+//             function the sender and sponsor used during transaction execution
+//             via new AuthContext accessors.
+//             Enable Move-based account authentication in mainnet.
+//             Enable Move-based sponsor account authentication in testnet.
+// Version 29: Keep advancing the random beacon DKG state machine on every
+//             commit while it is still pending -- regardless of whether new DKG
+//             messages or confirmations arrived that commit -- so DKG resolves
+//             from persisted state (completing, or failing once the timeout
+//             round passes) even with no fresh inbound traffic, e.g. after a
+//             validator restart. Without this it can stay pending forever and
+//             block epoch close.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for mainnet.
+//             Enable fast commit syncer for faster recovery on all networks.
+//             Enable consensus block restrictions on all networks:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
+// Version 30: Extend the protocol_config framework module with a generic
+//             `get_attr<T>` native that lets Move code read any numeric or
+//             boolean protocol parameter by name, returning T directly and
+//             aborting on error.
+//             Expose `is_feature_enabled` and `get_attr<T>` natives to the
+//             iota_system package via a new iota_system::protocol_config
+//             module.
+// Version 31: Rebuild the framework binaries for the latest iota_system
+//             validator set changes.
+//             Enable validator metadata verification v2.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on non-Mainnet/Testnet chains.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthenticationError` execution error.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -215,7 +263,15 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(
+    Default,
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    ProtocolConfigFeatureFlagsGetters,
+    ProtocolConfigOverride,
+)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -230,20 +286,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_true")]
     no_extraneous_module_bytes: bool,
 
-    // Enable zklogin auth
-    #[serde(skip_serializing_if = "is_false")]
-    zklogin_auth: bool,
-
     // How we order transactions coming out of consensus before sending to execution.
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
-
-    #[serde(skip_serializing_if = "is_false")]
-    enable_jwk_consensus_updates: bool,
-
-    // If true, multisig containing zkLogin sig is accepted.
-    #[serde(skip_serializing_if = "is_false")]
-    accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -263,7 +308,10 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
+    #[serde(
+        default = "ConsensusChoice::mysticeti_deprecated",
+        skip_serializing_if = "ConsensusChoice::is_mysticeti_deprecated"
+    )]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
@@ -271,6 +319,7 @@ struct FeatureFlags {
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
@@ -436,6 +485,10 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication: bool,
 
+    // If true, enables the authentication of a sponsor account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication_for_sponsor: bool,
+
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
     pass_validator_scores_to_advance_epoch: bool,
@@ -460,9 +513,62 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_fast_commit_sync: bool,
 
+    // If true, enables consensus block restrictions: bounds the block header size for
+    // a given committee size.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_block_restrictions: bool,
+
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
     move_native_tx_context: bool,
+
+    // If true, perform additional borrow checks
+    #[serde(skip_serializing_if = "is_false")]
+    additional_borrow_checks: bool,
+
+    // If true, only sponsor Move authentication is performed pre-consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    pre_consensus_sponsor_only_move_authentication: bool,
+
+    // If true, enables the optimistic commit rule (StarfishSpeed) in Starfish consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_starfish_speed: bool,
+
+    // If true, keep advancing the random beacon DKG state machine on every
+    // consensus commit while DKG is still pending, even when no new messages or
+    // confirmations were processed that commit. This lets a validator resolve
+    // DKG from already-persisted state (completing, or failing once the timeout
+    // round passes) with no fresh inbound traffic -- e.g. after a restart --
+    // instead of staying pending forever.
+    #[serde(skip_serializing_if = "is_false")]
+    always_advance_dkg_to_resolution: bool,
+
+    // If true, enables the P-COOL (post-consensus owned-object locking) flow:
+    // transactions bypass pre-consensus certification and owned-object locking,
+    // and conflicts are resolved deterministically post-consensus (white-flag
+    // conflict resolution) using persistent locks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_pcool_flow: bool,
+
+    // If true perform consistent verification of metadata
+    #[serde(skip_serializing_if = "is_false")]
+    validator_metadata_verify_v2: bool,
+
+    // If true, post-consensus deny checks use a consensus-governed deny rule set
+    // (validators announce proposed rules; the active set is their stake-weighted
+    // aggregate) instead of each validator's local `TransactionDenyConfig`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance: bool,
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_with_dynamic_module_metadata: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthenticationError` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -508,14 +614,28 @@ impl PerObjectCongestionControlMode {
 // Configuration options for consensus algorithm.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
+    /// Kept only so protocol-config serialization of historical epochs stays
+    /// bit-for-bit identical; no runtime code branches on it.
+    #[deprecated(note = "Mysticeti was replaced by Starfish")]
+    MysticetiDeprecated,
     #[default]
-    Mysticeti,
     Starfish,
 }
 
+#[expect(deprecated)]
 impl ConsensusChoice {
-    pub fn is_mysticeti(&self) -> bool {
-        matches!(self, ConsensusChoice::Mysticeti)
+    /// serde deserialization default: an absent `consensus_choice` field in a
+    /// historical snapshot deserializes to `MysticetiDeprecated` so that
+    /// re-serialization stays byte-identical (the skip condition below also
+    /// triggers on that variant). Decoupled from the Rust `Default` impl,
+    /// which returns `Starfish` to reflect that Starfish is the current
+    /// consensus protocol.
+    fn mysticeti_deprecated() -> Self {
+        ConsensusChoice::MysticetiDeprecated
+    }
+
+    pub fn is_mysticeti_deprecated(&self) -> bool {
+        matches!(self, ConsensusChoice::MysticetiDeprecated)
     }
     pub fn is_starfish(&self) -> bool {
         matches!(self, ConsensusChoice::Starfish)
@@ -1146,8 +1266,10 @@ pub struct ProtocolConfig {
     hmac_hmac_sha3_256_input_cost_per_block: Option<u64>,
 
     // zklogin::check_zklogin_id
+    #[deprecated]
     check_zklogin_id_cost_base: Option<u64>,
     // zklogin::check_zklogin_issuer
+    #[deprecated]
     check_zklogin_issuer_cost_base: Option<u64>,
 
     vdf_verify_vdf_cost: Option<u64>,
@@ -1195,10 +1317,12 @@ pub struct ProtocolConfig {
     // Anything above 33 (f) will not be allowed.
     consensus_bad_nodes_stake_threshold: Option<u64>,
 
+    #[deprecated]
     max_jwk_votes_per_validator_per_epoch: Option<u64>,
     // The maximum age of a JWK in epochs before it is removed from the AuthenticatorState object.
     // Applied at the end of an epoch as a delta from the new epoch value, so setting this to 1
     // will cause the new epoch to start with JWKs from the previous epoch still valid.
+    #[deprecated]
     max_age_of_jwk_in_epochs: Option<u64>,
 
     // === random beacon ===
@@ -1239,6 +1363,17 @@ pub struct ProtocolConfig {
 
     /// Minimum interval of commit timestamps between consecutive checkpoints.
     min_checkpoint_interval_ms: Option<u64>,
+
+    /// Number of recent checkpoints over which `min_checkpoint_interval_ms`
+    /// may be amortized. When set, a checkpoint is built once the full
+    /// interval elapsed since the previous checkpoint, or once the checkpoint
+    /// this many back in the current epoch is at least that many intervals
+    /// older. The windowed arm recycles the slack that discrete commit
+    /// timestamps add to the strict arm, holding the sustained rate at the
+    /// ceiling, while the strict arm keeps quiet gaps within one interval.
+    /// The window does not cross epoch boundaries; before it fills — and
+    /// always when unset — only the strict adjacent check applies.
+    checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
     checkpoint_summary_version_specific_data: Option<u64>,
@@ -1287,12 +1422,17 @@ pub struct ProtocolConfig {
     /// the MisbehaviorReports messages, where `version` determines the scoring
     /// formulas and metrics to be used. Even if set to None, the Scorer
     /// component is created, having access to metrics and being able to expose
-    /// validator scores.
+    /// validator scores. Also gates the wire format of the
+    /// `MisbehaviorReport` consensus transaction — scorer and report bump
+    /// together.
     scorer_version: Option<u16>,
 
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_data_bytes(): &vector<u8>`
+    auth_context_tx_data_bytes_cost_base: Option<u64>,
+    auth_context_tx_data_bytes_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -1300,9 +1440,17 @@ pub struct ProtocolConfig {
     auth_context_tx_inputs_cost_base: Option<u64>,
     auth_context_tx_inputs_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
-    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
+    // Cost params for the Move native functions
+    // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
+    // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
+    auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    /// Number of committed subdags between leader-schedule recomputations.
+    /// When unset, defaults to 300.
+    consensus_commits_per_schedule: Option<u32>,
 }
 
 // feature flags
@@ -1328,34 +1476,13 @@ impl ProtocolConfig {
         self.feature_flags.no_extraneous_module_bytes
     }
 
-    pub fn zklogin_auth(&self) -> bool {
-        self.feature_flags.zklogin_auth
-    }
-
     pub fn consensus_transaction_ordering(&self) -> ConsensusTransactionOrdering {
         self.feature_flags.consensus_transaction_ordering
-    }
-
-    pub fn enable_jwk_consensus_updates(&self) -> bool {
-        self.feature_flags.enable_jwk_consensus_updates
-    }
-
-    // this function only exists for readability in the genesis code.
-    pub fn create_authenticator_state_in_genesis(&self) -> bool {
-        self.enable_jwk_consensus_updates()
     }
 
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
-    }
-
-    pub fn accept_zklogin_in_multisig(&self) -> bool {
-        self.feature_flags.accept_zklogin_in_multisig
-    }
-
-    pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
-        self.feature_flags.zklogin_max_epoch_upper_bound_delta
     }
 
     pub fn hardened_otw_check(&self) -> bool {
@@ -1467,6 +1594,14 @@ impl ProtocolConfig {
 
     pub fn consensus_max_acknowledgments_per_block_or_default(&self) -> u32 {
         self.consensus_max_acknowledgments_per_block.unwrap_or(400)
+    }
+
+    pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
+        2 * committee_size
+    }
+
+    pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
+        committee_size
     }
 
     pub fn variant_nodes(&self) -> bool {
@@ -1600,6 +1735,20 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication
     }
 
+    pub fn additional_borrow_checks(&self) -> bool {
+        self.feature_flags.additional_borrow_checks
+    }
+
+    pub fn enable_move_authentication_for_sponsor(&self) -> bool {
+        let enable_move_authentication_for_sponsor =
+            self.feature_flags.enable_move_authentication_for_sponsor;
+        assert!(
+            !enable_move_authentication_for_sponsor || self.enable_move_authentication(),
+            "enable_move_authentication_for_sponsor requires enable_move_authentication to be set"
+        );
+        enable_move_authentication_for_sponsor
+    }
+
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -1643,8 +1792,83 @@ impl ProtocolConfig {
         res
     }
 
+    pub fn consensus_block_restrictions(&self) -> bool {
+        self.feature_flags.consensus_block_restrictions
+    }
+
     pub fn move_native_tx_context(&self) -> bool {
         self.feature_flags.move_native_tx_context
+    }
+
+    pub fn pre_consensus_sponsor_only_move_authentication(&self) -> bool {
+        let pre_consensus_sponsor_only_move_authentication = self
+            .feature_flags
+            .pre_consensus_sponsor_only_move_authentication;
+        if pre_consensus_sponsor_only_move_authentication {
+            assert!(
+                self.enable_move_authentication(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.enable_move_authentication_for_sponsor(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication_for_sponsor to be set"
+            );
+        }
+        pre_consensus_sponsor_only_move_authentication
+    }
+
+    pub fn consensus_starfish_speed(&self) -> bool {
+        let res = self.feature_flags.consensus_starfish_speed;
+        assert!(
+            !res || self.consensus_fast_commit_sync(),
+            "consensus_starfish_speed requires consensus_fast_commit_sync to be enabled"
+        );
+        res
+    }
+
+    pub fn always_advance_dkg_to_resolution(&self) -> bool {
+        self.feature_flags.always_advance_dkg_to_resolution
+    }
+
+    pub fn enable_pcool_flow(&self) -> bool {
+        self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn validator_metadata_verify_v2(&self) -> bool {
+        self.feature_flags.validator_metadata_verify_v2
+    }
+
+    pub fn commits_per_schedule(&self) -> u32 {
+        if cfg!(msim) {
+            // Exercise faster leader-schedule rotation in simtests.
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300))
+        } else {
+            self.consensus_commits_per_schedule.unwrap_or(300)
+        }
+    }
+
+    pub fn deny_rule_governance(&self) -> bool {
+        self.feature_flags.deny_rule_governance
+    }
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
+        );
+        res
+    }
+
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
     }
 }
 
@@ -1694,10 +1918,19 @@ impl ProtocolConfig {
             warn!(
                 "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
             );
+
+            // First, deserialize the top-level ProtocolConfig fields
             let overrides: ProtocolConfigOptional =
                 serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
                     .expect("failed to parse ProtocolConfig override env variables");
             overrides.apply_to(&mut ret);
+
+            // Then, separately deserialize FeatureFlags fields
+            let feature_flag_overrides: FeatureFlagsOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig feature flags override env variables");
+
+            feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
 
         ret
@@ -2112,7 +2345,9 @@ impl ProtocolConfig {
             group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
 
             // zklogin::check_zklogin_id
+            #[allow(deprecated)]
             check_zklogin_id_cost_base: Some(200),
+            #[allow(deprecated)]
             // zklogin::check_zklogin_issuer
             check_zklogin_issuer_cost_base: Some(200),
 
@@ -2178,8 +2413,10 @@ impl ProtocolConfig {
             consensus_bad_nodes_stake_threshold: Some(20),
 
             // Max of 10 votes per hour.
+            #[allow(deprecated)]
             max_jwk_votes_per_validator_per_epoch: Some(240),
 
+            #[allow(deprecated)]
             max_age_of_jwk_in_epochs: Some(1),
 
             consensus_max_transaction_size_bytes: Some(256 * 1024), // 256KB
@@ -2204,6 +2441,8 @@ impl ProtocolConfig {
 
             min_checkpoint_interval_ms: Some(200),
 
+            checkpoint_rate_window_size: None,
+
             checkpoint_summary_version_specific_data: Some(1),
 
             max_soft_bundle_size: Some(5),
@@ -2224,12 +2463,16 @@ impl ProtocolConfig {
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
+            auth_context_tx_data_bytes_cost_base: None,
+            auth_context_tx_data_bytes_cost_per_byte: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
             auth_context_tx_inputs_cost_per_byte: None,
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
+            auth_context_authenticator_function_info_v1_cost_base: None,
+            consensus_commits_per_schedule: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2247,12 +2490,20 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            #[allow(deprecated)]
+            {
+                cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            }
         }
 
-        // Enable Mysticeti on mainnet.
-        cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
-        // Use tonic networking for Mysticeti.
+        // Historical default: Mysticeti. Kept explicitly to match the
+        // serialized form of pre-v14/v19/v24 configs. No runtime behavior
+        // depends on this — Starfish is the only consensus protocol.
+        #[expect(deprecated)]
+        {
+            cfg.feature_flags.consensus_choice = ConsensusChoice::MysticetiDeprecated;
+        }
+        // Use tonic networking for consensus.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
 
         cfg.feature_flags.per_object_congestion_control_mode =
@@ -2683,8 +2934,122 @@ impl ProtocolConfig {
                 24 => {
                     // Switch consensus protocol to Starfish in all networks.
                     cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
-                }
 
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable Move-based sponsor account authentication in devnet.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    }
+
+                    // Add tx_data_bytes to AuthContext for intent-based signature
+                    // verification in account abstraction.
+                    cfg.auth_context_tx_data_bytes_cost_base = Some(30);
+                    cfg.auth_context_tx_data_bytes_cost_per_byte = Some(2);
+
+                    // Enable additional borrow checks.
+                    cfg.feature_flags.additional_borrow_checks = true;
+                }
+                #[allow(deprecated)]
+                25 => {
+                    // Deprecate zkLogin related parameters since zkLogin is deprecated and was
+                    // never enabled on IOTA.
+                    cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = None;
+                    cfg.check_zklogin_id_cost_base = None;
+                    cfg.check_zklogin_issuer_cost_base = None;
+                    cfg.max_jwk_votes_per_validator_per_epoch = None;
+                    cfg.max_age_of_jwk_in_epochs = None;
+                }
+                26 => {
+                    // Introduce a module to allow Move code to query protocol
+                    // feature flags at runtime.
+                }
+                27 => {
+                    if chain != Chain::Mainnet {
+                        // Enable consensus block restrictions on testnet/devnet to bound
+                        // header size by committee size.
+                        cfg.feature_flags.consensus_block_restrictions = true;
+                    }
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Only sponsor Move authentication is performed pre-consensus in devnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                }
+                28 => {
+                    // AuthenticatorFunctionInfoV1 max BCS size:
+                    // package (32) + module_name (128) + function_name (128) = 288 bytes = 9 ×
+                    // digest. auth_context_digest_cost_base = 30 for 32 bytes →
+                    // 9 × 30 = 270.
+                    cfg.auth_context_authenticator_function_info_v1_cost_base = Some(270);
+
+                    // Enable storing metadata in module bytes and then
+                    // publishing package metadata in mainnet.
+                    cfg.feature_flags.metadata_in_module_bytes = true;
+                    cfg.feature_flags.publish_package_metadata = true;
+                    // Enable Move authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication = true;
+                    // Increase the base cost for transfer receive object in mainnet, since the
+                    // implementation now does check if parent is not an account.
+                    cfg.transfer_receive_object_cost_base = Some(100);
+
+                    if chain != Chain::Unknown {
+                        // max_auth_gas is 0.00002 IOTA in testnet and mainnet.
+                        cfg.max_auth_gas = Some(20_000);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable Move-based sponsor account authentication in testnet.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                        // Only sponsor Move authentication is performed pre-consensus in testnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                }
+                29 => {
+                    // Keep advancing the random beacon DKG state machine on every commit
+                    // while it is still pending so DKG resolves from persisted state
+                    // (completing, or failing once the timeout round passes) even with no
+                    // fresh inbound traffic -- e.g. after a validator restart -- instead of
+                    // staying pending forever and blocking epoch close.
+                    cfg.feature_flags.always_advance_dkg_to_resolution = true;
+
+                    // Enable median-based commit timestamp calculation in consensus and
+                    // enforce checkpoint timestamp monotonicity for mainnet.
+                    cfg.feature_flags
+                        .consensus_median_timestamp_with_checkpoint_enforcement = true;
+
+                    // Enable fast commit syncer for faster recovery on all networks.
+                    cfg.feature_flags.consensus_fast_commit_sync = true;
+                    // Enable consensus block restrictions on all networks to bound
+                    // header size by committee size and garbage-collect the block
+                    // manager.
+                    cfg.feature_flags.consensus_block_restrictions = true;
+                }
+                30 => {
+                    // Extend the protocol_config framework module with
+                    // `get_attr<T>`, a generic native that lets Move code
+                    // read any numeric or boolean protocol parameter by name,
+                    // returning T directly and aborting on error.
+                    // Also expose `is_feature_enabled` and `get_attr<T>` to
+                    // iota_system via a new iota_system::protocol_config
+                    // module.
+                }
+                31 => {
+                    cfg.feature_flags.validator_metadata_verify_v2 = true;
+
+                    // Amortize the minimum checkpoint interval over a sliding
+                    // window so the checkpoint rate holds at the ceiling.
+                    // Enabled on non-Mainnet/Testnet chains only for now.
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
+
+                    cfg.feature_flags.report_move_authentication_error = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2701,21 +3066,37 @@ impl ProtocolConfig {
         cfg
     }
 
-    // Extract the bytecode verifier config from this protocol config. `for_signing`
-    // indicates whether this config is used for verification during signing or
-    // execution.
-    pub fn verifier_config(&self, signing_limits: Option<(usize, usize)>) -> VerifierConfig {
-        let (max_back_edges_per_function, max_back_edges_per_module) = if let Some((
+    // Extract the bytecode verifier config from this protocol config.
+    // If used during signing, `signing_limits` should be set.
+    // The third limit configures`sanity_check_with_regex_reference_safety`,
+    // which runs the new regex-based reference safety check to check that it is
+    // strictly more permissive than the current implementation.
+    pub fn verifier_config(&self, signing_limits: Option<(usize, usize, usize)>) -> VerifierConfig {
+        let (
             max_back_edges_per_function,
             max_back_edges_per_module,
+            sanity_check_with_regex_reference_safety,
+        ) = if let Some((
+            max_back_edges_per_function,
+            max_back_edges_per_module,
+            sanity_check_with_regex_reference_safety,
         )) = signing_limits
         {
             (
                 Some(max_back_edges_per_function),
                 Some(max_back_edges_per_module),
+                Some(sanity_check_with_regex_reference_safety),
             )
         } else {
-            (None, None)
+            (None, None, None)
+        };
+
+        let additional_borrow_checks = if signing_limits.is_some() {
+            // Always apply additional borrow checks during signing regardless of
+            // protocol version, to prevent accepting potentially unsafe bytecode.
+            true
+        } else {
+            self.additional_borrow_checks()
         };
 
         VerifierConfig {
@@ -2739,6 +3120,9 @@ impl ProtocolConfig {
                                                                            * no limit */
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
+            additional_borrow_checks,
+            sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
+                .map(|limit| limit as u128),
         }
     }
 
@@ -2763,17 +3147,6 @@ impl ProtocolConfig {
 // `_for_testing`. Non-feature_flags should already have test setters defined
 // through macros.
 impl ProtocolConfig {
-    pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
-        self.feature_flags.zklogin_auth = val
-    }
-    pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_jwk_consensus_updates = val
-    }
-
-    pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
-        self.feature_flags.accept_zklogin_in_multisig = val
-    }
-
     pub fn set_per_object_congestion_control_mode_for_testing(
         &mut self,
         val: PerObjectCongestionControlMode,
@@ -2787,10 +3160,6 @@ impl ProtocolConfig {
 
     pub fn set_consensus_network_for_testing(&mut self, val: ConsensusNetwork) {
         self.feature_flags.consensus_network = val;
-    }
-
-    pub fn set_zklogin_max_epoch_upper_bound_delta_for_testing(&mut self, val: Option<u64>) {
-        self.feature_flags.zklogin_max_epoch_upper_bound_delta = val
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
@@ -2902,8 +3271,51 @@ impl ProtocolConfig {
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
     }
+
+    pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
+    }
+
+    pub fn set_consensus_block_restrictions_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_block_restrictions = val;
+    }
+
+    pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pre_consensus_sponsor_only_move_authentication = val;
+    }
+
+    pub fn set_consensus_starfish_speed_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_starfish_speed = val;
+    }
+
+    pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
+        self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
+        self.consensus_commits_per_schedule = Some(val);
+    }
+
+    pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
     }
 }
 

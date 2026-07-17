@@ -12,11 +12,8 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_types::{
-    base_types::ObjectID,
-    move_package::normalize_modules,
-    object::{Data, ObjectRead},
-};
+use iota_sdk_types::{ObjectData, ObjectId};
+use iota_types::{move_package::normalize_modules, object::ObjectRead};
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
@@ -42,16 +39,16 @@ pub trait MoveUtilsInternalTrait {
 
     async fn get_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> Result<NormalizedModule, Error>;
 
     async fn get_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error>;
 
-    fn get_object_read(&self, package: ObjectID) -> Result<ObjectRead, Error>;
+    fn get_object_read(&self, package: ObjectId) -> Result<ObjectRead, Error>;
 }
 
 pub struct MoveUtilsInternal {
@@ -72,7 +69,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
 
     async fn get_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> Result<NormalizedModule, Error> {
         let mut normalized = self.get_move_modules_by_package(package).await?;
@@ -86,16 +83,16 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
 
     async fn get_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error> {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
-            warn!("failed to call get_move_modules_by_package for package: {package:?}");
+            warn!("failed to call get_move_modules_by_package for package: {package}");
         })?;
         let pool = &mut normalized::RcPool::new();
         match object_read {
             ObjectRead::Exists(_obj_ref, object, _layout) => {
                 match object.into_inner().data {
-                    Data::Package(p) => {
+                    ObjectData::Package(p) => {
                         // we are on the read path - it's OK to use VERSION_MAX of the supported
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
@@ -103,10 +100,13 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                             pool,
                             p.serialized_module_map().values(),
                             &binary_config,
-                            /* include code */ false,
+                            // include code
+                            false,
                         )
                         .map_err(|e| {
-                            error!("failed to call get_move_modules_by_package for package: {package:?}");
+                            error!(
+                                "failed to call get_move_modules_by_package for package: {package}"
+                            );
                             Error::from(e)
                         })
                     }
@@ -121,7 +121,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         }
     }
 
-    fn get_object_read(&self, package: ObjectID) -> Result<ObjectRead, Error> {
+    fn get_object_read(&self, package: ObjectId) -> Result<ObjectRead, Error> {
         self.state.get_object_read(&package).map_err(Error::from)
     }
 }
@@ -151,10 +151,10 @@ impl IotaRpcModule for MoveUtils {
 
 #[async_trait]
 impl MoveUtilsServer for MoveUtils {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         async move {
             let modules = self.internal.get_move_modules_by_package(package).await?;
@@ -167,10 +167,10 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
         async move {
@@ -181,10 +181,10 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_struct(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct> {
@@ -204,10 +204,10 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_function(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction> {
@@ -227,10 +227,10 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_move_function_arg_types(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>> {
@@ -240,7 +240,7 @@ impl MoveUtilsServer for MoveUtils {
             let pool = &mut normalized::RcPool::new();
             let normalized = match object_read {
                 ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data {
-                    Data::Package(p) => {
+                    ObjectData::Package(p) => {
                         // we are on the read path - it's OK to use VERSION_MAX of the supported
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
@@ -299,8 +299,8 @@ mod tests {
 
         use super::super::*;
 
-        fn setup() -> (ObjectID, String) {
-            (ObjectID::random(), String::from("test_module"))
+        fn setup() -> (ObjectId, String) {
+            (ObjectId::random(), String::from("test_module"))
         }
 
         #[tokio::test]

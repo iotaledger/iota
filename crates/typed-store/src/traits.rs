@@ -42,26 +42,27 @@ where
     /// Removes the entry for the given key from the map.
     fn remove(&self, key: &K) -> Result<(), Self::Error>;
 
-    /// Removes every key-value pair from the map.
-    fn unsafe_clear(&self) -> Result<(), Self::Error>;
-
     /// Uses delete range on the entire key range
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError>;
 
     /// Returns true if the map is empty, otherwise false.
     fn is_empty(&self) -> bool;
 
-    /// Same as `iter` but performs status check.
+    /// Iterates over all entries in key order.
     fn safe_iter(&'a self) -> DbIterator<'a, (K, V)>;
 
-    // Same as `iter_with_bounds` but performs status check.
+    /// Iterates over the half-open key range `[lower_bound, upper_bound)` —
+    /// the lower bound is inclusive, the upper bound exclusive, and a `None`
+    /// bound leaves that side unbounded. Equivalent to
+    /// `safe_range_iter(lower_bound..upper_bound)`.
     fn safe_iter_with_bounds(
         &'a self,
         lower_bound: Option<K>,
         upper_bound: Option<K>,
     ) -> DbIterator<'a, (K, V)>;
 
-    // Same as `range_iter` but performs status check.
+    /// Iterates over the keys within `range`, honoring the range's own bound
+    /// inclusivity (e.g. `lo..hi` excludes `hi`, `lo..=hi` includes it).
     fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
 
     /// Returns a vector of values corresponding to the keys provided,

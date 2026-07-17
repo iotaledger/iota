@@ -110,7 +110,7 @@
 //! ```
 //! ## Commands
 //! ```text
-//! 
+//!
 //! builtin ∈ Builtin ::=
 //!   | create_account(e)         // type: 'addr -> unit'
 //!                               // creates new account at the specified address, failing if it already exists

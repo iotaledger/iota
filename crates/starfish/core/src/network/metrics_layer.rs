@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use prometheus::HistogramTimer;
+use prometheus_filtered::HistogramTimer;
 
 use super::metrics::NetworkRouteMetrics;
 

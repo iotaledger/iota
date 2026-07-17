@@ -1,0 +1,225 @@
+---
+title: Customs Clearance - Audit Trails
+sidebar_label: Customs Clearance
+description: Real-world example demonstrating how to use IOTA Audit Trails to model a multi-party customs clearance process with tag-scoped roles and write locking.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Customs Clearance - Audit Trails
+
+This real-world example models a customs-clearance process for an international shipment. Multiple parties — a documents operator, export broker, import broker, inspector, and supervisor — each contribute their part of the process to a shared, tamper-proof Audit Trail. Once clearance is granted, the trail is permanently locked to prevent post-clearance modifications.
+
+## Business Context
+
+International customs clearance involves multiple stakeholders, sequential handoffs, and regulatory requirements for document retention. A blockchain-based audit trail provides:
+
+- **Regulatory Compliance**: Tamper-proof records satisfying customs data retention requirements
+- **Multi-Party Coordination**: Each stakeholder writes only the events they own, enforced by tag-scoped roles
+- **Finality Guarantee**: A write lock after clearance ensures the official record cannot be altered
+- **Auditability**: Any party can independently verify the complete clearance history
+
+## Field Usage Strategy
+
+- **`immutable_metadata`**: Shipment identity — shipment ID, route, declaration number
+- **`updatable_metadata`**: Current customs-processing status (e.g., `"Status: Awaiting Export Clearance"`)
+- **`record.data`**: Event payload describing each step of the clearance process
+- **`record.metadata`**: Structured event context (e.g., `"event:export_cleared"`)
+- **`record.tag`**: Event category — `documents`, `export`, `import`, or `inspection`
+
+### Role Design
+
+| Role | Permissions | RoleTags | Holder |
+|------|------------|----------|--------|
+| `Admin` | Full administrative control | — | Trail creator |
+| `DocsOperator` | AddRecord, DeleteRecord, CorrectRecord | `"documents"` | Shipping agent |
+| `ExportBroker` | AddRecord, DeleteRecord, CorrectRecord | `"export"` | Export customs broker |
+| `ImportBroker` | AddRecord, DeleteRecord, CorrectRecord | `"import"` | Import customs broker |
+| `Inspector` | AddRecord, DeleteRecord, CorrectRecord | `"inspection"` | Customs inspector (created on demand) |
+| `Supervisor` | UpdateMetadata, DeleteMetadata | — | Process supervisor |
+| `LockingAdmin` | UpdateLockingConfig variants | — | Process supervisor |
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trails client packages installed
+- Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx) and [tagged records](../how-tos/use-tagged-records.mdx)
+
+## Implementation Overview
+
+### 1. Set Up Multiple Wallets
+
+Create one wallet per actor in the clearance process — an admin, a documents operator, an export broker, an import broker, a supervisor, a locking admin, and an inspector — so each party signs with its own address.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs#L43-L49
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L47-L53
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the Customs Clearance Trail
+
+Create a trail with four record tags, shipment identity as immutable metadata, and a status tracker as updatable metadata.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs#L51-L78
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L57-L73
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Define Tag-Scoped Roles
+
+Create operational roles scoped to their respective tags, plus a Supervisor role for metadata updates and a LockingAdmin for final locking.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Issue Tagged Record Role](../how-tos/utility-functions.mdx#issue-tagged-record-role)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs#L80-L146
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L77-L113
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Process the Clearance Steps
+
+Each stakeholder adds records tagged with their category. The supervisor updates the status metadata at each phase transition. The Inspector role is created on demand when an inspection is required.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs#L148-L290
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L115-L237
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Lock the Trail After Clearance
+
+Once the shipment is fully cleared, apply an infinite write lock to freeze the audit record. Any attempt to add further records is rejected.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs#L292-L343
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L239-L263
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Freight Forwarding
+- **Scenario**: Multi-modal shipment tracking across sea, air, and ground with customs clearance at each border
+- **Tags**: `"bill_of_lading"`, `"customs_declaration"`, `"inspection"`, `"delivery_confirmation"`
+
+### Trade Finance
+- **Scenario**: Letter of credit lifecycle tracking with document verification at each stage
+- **Tags**: `"application"`, `"issuance"`, `"shipment_docs"`, `"payment"`, `"settlement"`
+
+### Agricultural Export
+- **Scenario**: Phytosanitary certification and export compliance for agricultural commodities
+- **Tags**: `"certification"`, `"inspection"`, `"export_permit"`, `"quarantine"`
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+    * [Issue Tagged Record Role](../how-tos/utility-functions.mdx#issue-tagged-record-role)
+</details>
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/01_customs_clearance.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts
+```
+
+</TabItem>
+</Tabs>

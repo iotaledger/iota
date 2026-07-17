@@ -35,7 +35,7 @@ RESTART_DURATION=120  # seconds a subset of validators is stopped during each no
 TOPOLOGY="geo-low"     # random | geo-high | geo-low | ring | star | non-triangle
 ROUND_SPAN=0          # duration of rounds, defaults to  2*RESTART_DURATION
 
-# healing (env override from dual-run)
+# healing (env override)
 HEAL_EVERY_ROUND=${HEAL_EVERY_ROUND:-0}   # 0 = disabled
 HEAL_NUM_ROUNDS=${HEAL_NUM_ROUNDS:-0}
 

@@ -69,7 +69,7 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
 /// Secp256k1.
 pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, anyhow::Error> {
     if !path.exists() {
-        bail!("Key file not found at path: {:?}", path);
+        bail!("Key file not found at path: {path:?}");
     }
     let file_contents = std::fs::read_to_string(path)?;
     let contents = file_contents.as_str().trim();
@@ -98,11 +98,11 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
     }
 
     // Try hex encoded Raw key `privkey`
-    if let Ok(bytes) = Hex::decode(contents).map_err(|e| anyhow!("Error decoding hex: {:?}", e)) {
+    if let Ok(bytes) = Hex::decode(contents).map_err(|e| anyhow!("Error decoding hex: {e:?}")) {
         if let Ok(key) = Secp256k1KeyPair::from_bytes(&bytes) {
             return Ok(IotaKeyPair::Secp256k1(key));
         }
     }
 
-    Err(anyhow!("Error decoding key from {:?}", path))
+    Err(anyhow!("Error decoding key from {path:?}"))
 }

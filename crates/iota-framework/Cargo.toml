@@ -14,6 +14,7 @@ serde.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
@@ -28,9 +29,11 @@ serde_json.workspace = true
 tempfile.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-move-build.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
+move-docgen.workspace = true
 move-package.workspace = true
 
 [lints]

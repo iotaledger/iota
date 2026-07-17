@@ -2,17 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod backoff;
 pub mod logging;
-#[cfg(feature = "metrics")]
-pub mod metrics;
 pub mod random;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod random_util;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod stream_ext;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod sync;
 pub mod try_iterator_ext;
-
-pub use iota_types::scoring_metrics;
+#[cfg(not(target_arch = "wasm32"))]
 pub use random_util::tempdir;
 
 #[inline(always)]

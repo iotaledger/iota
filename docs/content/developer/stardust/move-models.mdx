@@ -169,9 +169,9 @@ that were owned by the `Alias Address` in Stardust are now owned by the `Alias` 
 functionality in the new move framework](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects) that
  allows one to receive assets on the an `ObjectID` that is an `AliasID`. The following functions let an `Alias` receive
  other Stardust containers:
-  - [`unlock_alias_address_owned_basic`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_basic)
-  - [`unlock_alias_address_owned_alias`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_alias)
-  - [`unlock_alias_address_owned_nft`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_nft)
+  - [`unlock_alias_address_owned_basic`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_basic)
+  - [`unlock_alias_address_owned_alias`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_alias)
+  - [`unlock_alias_address_owned_nft`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_nft)
 
 ### Non-Fungible Tokens (NFTs)
 
@@ -181,9 +181,9 @@ that were owned by the `Nft Address` in Stardust are now owned by the `Nft` obje
 functionality in the new move framework](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects) that
  allows one to receive assets on the an `ObjectID` that is an `NftID`. The following functions let an `Nft` receive
     other Stardust containers:
-    - [`unlock_nft_address_owned_basic`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_basic)
-    - [`unlock_nft_address_owned_alias`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_alias)
-    - [`unlock_nft_address_owned_nft`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_nft)
+    - [`unlock_nft_address_owned_basic`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_basic)
+    - [`unlock_nft_address_owned_alias`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_alias)
+    - [`unlock_nft_address_owned_nft`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_nft)
 
 ## Unlock Conditions
 
@@ -226,14 +226,14 @@ However, there are outputs in Stardust with such unlock conditions that are stil
 therefore makes sure that the storage deposit amount is returned to the original sender as a `Coin<IOTA>` object during the claiming process.
 
 The move model [`StorageDepositReturnUnlockCondition`](../references/framework/stardust/storage_deposit_return_unlock_condition.mdx#struct-storagedepositreturnunlockcondition)
-is added to the containers during the migration process where applicable. The [`unlock()`](../references/framework/stardust/storage_deposit_return_unlock_condition.mdx#function-unlock)
+is added to the containers during the migration process where applicable. The [`unlock()`](../references/framework/stardust/storage_deposit_return_unlock_condition.mdx#stardust_storage_deposit_return_unlock_condition_unlock)
 function is called when assets are extracted from the container, which will return the storage deposit to the sender.
 
 ### Timelock Unlock Condition
 
 A [stardust timelock](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#timelock-unlock-condition)
 locks funds until a certain time has passed. It is modeled in move via the [`TimelockUnlockCondition`](../references/framework/stardust/timelock_unlock_condition.mdx#struct-timelockunlockcondition)
-that is added to the containers during the migration process where applicable. The [`unlock()`](../references/framework/stardust/timelock_unlock_condition.mdx#function-unlock)
+that is added to the containers during the migration process where applicable. The [`unlock()`](../references/framework/stardust/timelock_unlock_condition.mdx#stardust_timelock_unlock_condition_unlock)
 function is called when assets are extracted from the container, which checks if the timelock has expired and if so, unlocks the container.
 
 :::info
@@ -255,7 +255,7 @@ in Stardust allows one to create a conditional transfer: if the recipient doesn'
 ownership is transferred back to the sender.
 
 In move, the expiration unlock condition is modeled via the [`ExpirationUnlockCondition`](../references/framework/stardust/expiration_unlock_condition.mdx#struct-expirationunlockcondition).
-The [`unlock()`](../references/framework/stardust/expiration_unlock_condition.mdx#function-unlock) function is called when assets are extracted from the container,
+The [`unlock()`](../references/framework/stardust/expiration_unlock_condition.mdx#stardust_expiration_unlock_condition_unlock) function is called when assets are extracted from the container,
 which checks if the expiration time has passed and if so, transfers the ownership back to the sender.
 
 :::info
@@ -353,7 +353,7 @@ The indexer API can also be queried for all objects owned by an address.
 
 There are two ways to interact with `BasicOutputs` in move:
 
-1. Call the [`extract_assets()`](../references/framework/stardust/basic_output#function-extract_assets) function on
+1. Call the [`extract_assets()`](../references/framework/stardust/basic_output#stardust_basic_output_extract_assets) function on
   the object, which checks the unlock conditions, returns the assets stored in them and deletes the container. The function signature
   of the `extract_assets()` function is:
   ```move
@@ -366,8 +366,8 @@ There are two ways to interact with `BasicOutputs` in move:
 2. Receive them on an `ObjectID` address. The [Receiving Objects](../iota-101/objects/transfers/transfer-to-object.mdx#receiving-objects)
   guide explains how to receive assets on an object. In the Stardust models the following two functions are used to receive `BasicOutputs`
   that were locked in the legacy network to `Alias` or `Nft` addresses:
-   - [`unlock_alias_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_basic)
-   - [`unlock_nft_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_basic)
+   - [`unlock_alias_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_basic)
+   - [`unlock_nft_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_basic)
 
    Once a `BasicOutput` was received on an `ObjectID` address, the `extract_assets()` function can be called on it to claim it.
 
@@ -434,10 +434,10 @@ The actual `Alias` asset that can be extracted from the `AliasOutput` container 
  - The `AliasId` is preserved as the `ObjectID` of the `Alias` object in move.
  - This `Alias` object owns all other containers or `Coins` that were owned by the `Alias Address` in Stardust. One can
    receive them via the following functions:
-    -  [`unlock_alias_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_basic)
-    -  [`unlock_alias_address_owned_alias()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_alias)
-    -  [`unlock_alias_address_owned_nft()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_alias_address_owned_nft)
-    - For coins, use [transfer::public_receive()](../references/framework/iota/transfer#function-public_receive).
+    -  [`unlock_alias_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_basic)
+    -  [`unlock_alias_address_owned_alias()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_alias)
+    -  [`unlock_alias_address_owned_nft()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_alias_address_owned_nft)
+    - For coins, use [transfer::public_receive()](../references/framework/iota/transfer#iota_transfer_public_receive).
 
 The `extract_assets()` function of the `AliasOutput` container looks the following:
 ```move
@@ -515,15 +515,15 @@ The actual Non-Fungible Token is represented in move as the following:
  - The `NftID` is preserved as the `ObjectID` of the `Nft` object in move.
  - This `Nft` object owns all other containers or `Coins` that were owned by the `Nft Address` in Stardust. One can
    receive them via the following functions:
-    -  [`unlock_nft_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_basic)
-    -  [`unlock_nft_address_owned_alias()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_alias)
-    -  [`unlock_nft_address_owned_nft()`](../references/framework/stardust/address_unlock_condition.mdx#function-unlock_nft_address_owned_nft)
-    - For coins, use [transfer::public_receive()](../references/framework/iota/transfer.mdx#function-public_receive).
+    -  [`unlock_nft_address_owned_basic()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_basic)
+    -  [`unlock_nft_address_owned_alias()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_alias)
+    -  [`unlock_nft_address_owned_nft()`](../references/framework/stardust/address_unlock_condition.mdx#stardust_address_unlock_condition_unlock_nft_address_owned_nft)
+    - For coins, use [transfer::public_receive()](../references/framework/iota/transfer.mdx#iota_transfer_public_receive).
  - The immutable metadata field has been standardized as [`Irc27Metadata`](../references/framework/stardust/irc27.mdx#struct-irc27metadata),
   which is a move struct that holds the metadata of the NFT. It is parsed from the Stardust output metadata during the migration process.
   If the metadata in Stardust does not follow the IRC-27 standard, or fields are missing, the migration script uses default values.
 
-The [`extract_assets()`](../references/framework/stardust/nft_output.mdx#function-extract_assets) function of the `NftOutput` container looks the following:
+The [`extract_assets()`](../references/framework/stardust/nft_output.mdx#stardust_nft_output_extract_assets) function of the `NftOutput` container looks the following:
 ```move
 public fun extract_assets<T>(output: nft_output::NftOutput<T>, ctx: &mut tx_context::TxContext): (balance::Balance<T>, bag::Bag, nft::Nft) { ... }
 ```

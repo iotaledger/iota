@@ -7,15 +7,15 @@ use std::{fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_move::manage_package::ManagePackage;
 use iota_move_build::BuildConfig;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 
 #[tokio::test]
 async fn test_manage_package_update() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "basic_no_deps"]);
 
-    let tmp = tempfile::tempdir().expect("Could not create temp dir for Move.lock");
-    let lock_file_path = tmp.path().join("Move.lock");
+    let tmp_dir = iota_common::tempdir();
+    let lock_file_path = tmp_dir.path().join("Move.lock");
 
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.lock_file = Some(lock_file_path.clone());
@@ -30,8 +30,8 @@ async fn test_manage_package_update() {
         .update_lock_file_toolchain_version(&path, "0.0.1".into())
         .expect("Could not update lock file");
 
-    let original_id = ObjectID::from_hex_literal("0xa").unwrap();
-    let latest_id = ObjectID::from_hex_literal("0xb").unwrap();
+    let original_id = ObjectId::from_short_hex("0xa").unwrap();
+    let latest_id = ObjectId::from_short_hex("0xb").unwrap();
 
     let manage_package = ManagePackage {
         environment: "mainnet".to_string(),

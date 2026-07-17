@@ -20,7 +20,6 @@ gcp-bigquery-client = "0.28.0"
 num_enum.workspace = true
 object_store.workspace = true
 parquet = "54"
-prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 snowflake-api = "0.11"
@@ -28,7 +27,7 @@ strum.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -40,9 +39,11 @@ iota-indexer.workspace = true
 iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
 iota-package-resolver.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

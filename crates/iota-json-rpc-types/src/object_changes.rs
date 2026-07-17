@@ -4,15 +4,18 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
-    iota_serde::{IotaStructTag, SequenceNumber as AsSequenceNumber},
-    object::Owner,
-};
-use move_core_types::language_storage::StructTag;
+use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+
+use crate::{
+    iota_owner::OwnerSchema,
+    iota_primitives::{
+        Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
+        SequenceNumberString as SequenceNumberStringSchema, StructTag as StructTagSchema,
+    },
+};
 
 /// ObjectChange are derived from the object mutations in the TransactionEffect
 /// to provide richer object information.
@@ -23,100 +26,144 @@ pub enum ObjectChange {
     /// Module published
     #[serde(rename_all = "camelCase")]
     Published {
-        package_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        package_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
         modules: Vec<String>,
     },
     /// Transfer objects to new address / wrap in another object
     #[serde(rename_all = "camelCase")]
     Transferred {
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "OwnerSchema")]
+        #[serde_as(as = "OwnerSchema")]
         recipient: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     /// Object mutated.
     #[serde(rename_all = "camelCase")]
     Mutated {
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "OwnerSchema")]
+        #[serde_as(as = "OwnerSchema")]
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        previous_version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        previous_version: Version,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     /// Delete object
     #[serde(rename_all = "camelCase")]
     Deleted {
-        sender: IotaAddress,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
     },
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
     Wrapped {
-        sender: IotaAddress,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
     },
     /// Unwrapped object
     #[serde(rename_all = "camelCase")]
     Unwrapped {
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "OwnerSchema")]
+        #[serde_as(as = "OwnerSchema")]
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     /// New object creation
     #[serde(rename_all = "camelCase")]
     Created {
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
+        #[schemars(with = "OwnerSchema")]
+        #[serde_as(as = "OwnerSchema")]
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        object_id: ObjectID,
-        #[schemars(with = "AsSequenceNumber")]
-        #[serde_as(as = "AsSequenceNumber")]
-        version: SequenceNumber,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: Version,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
 }
 
 impl ObjectChange {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             ObjectChange::Published { package_id, .. } => *package_id,
             ObjectChange::Transferred { object_id, .. }
@@ -128,14 +175,14 @@ impl ObjectChange {
         }
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
+    pub fn object_ref(&self) -> ObjectReference {
         match self {
             ObjectChange::Published {
                 package_id,
                 version,
                 digest,
                 ..
-            } => (*package_id, *version, *digest),
+            } => ObjectReference::new(*package_id, *version, *digest),
             ObjectChange::Transferred {
                 object_id,
                 version,
@@ -159,17 +206,17 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => (*object_id, *version, *digest),
+            } => ObjectReference::new(*object_id, *version, *digest),
             ObjectChange::Deleted {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DIGEST_DELETED),
+            } => ObjectReference::new(*object_id, *version, ObjectDigest::OBJECT_DELETED),
             ObjectChange::Wrapped {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            } => ObjectReference::new(*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
-    pub fn mask_for_test(&mut self, new_version: SequenceNumber, new_digest: ObjectDigest) {
+    pub fn mask_for_test(&mut self, new_version: Version, new_digest: ObjectDigest) {
         match self {
             ObjectChange::Published {
                 version, digest, ..
@@ -209,7 +256,7 @@ impl Display for ObjectChange {
                     f,
                     " ┌──\n │ PackageID: {} \n │ Version: {} \n │ Digest: {}\n │ Modules: {}\n └──",
                     package_id,
-                    u64::from(*version),
+                    version,
                     digest,
                     modules.join(", ")
                 )
@@ -224,13 +271,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Recipient: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    recipient,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Recipient: {recipient}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Mutated {
@@ -244,13 +285,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    owner,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Deleted {
@@ -261,11 +296,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id,
-                    sender,
-                    object_type,
-                    u64::from(*version)
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Wrapped {
@@ -276,11 +307,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id,
-                    sender,
-                    object_type,
-                    u64::from(*version)
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Unwrapped {
@@ -293,12 +320,12 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
+                    " ┌──\n │ ObjectId: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
                     object_id,
                     sender,
                     owner,
                     object_type,
-                    u64::from(*version),
+                    version.as_u64(),
                     digest
                 )
             }
@@ -312,13 +339,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id,
-                    sender,
-                    owner,
-                    object_type,
-                    u64::from(*version),
-                    digest
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
         }

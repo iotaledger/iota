@@ -11,6 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 use iota_node_storage::GrpcStateReader;
 use iota_swarm_config::genesis_config::AccountConfig;
+use iota_types::sdk_types::Address;
 use simulacrum::Simulacrum;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
@@ -97,7 +98,7 @@ async fn main() -> Result<()> {
                     panic!("Invalid account format '{pair}', expected 'address:amount'");
                 }
 
-                let address = match parts[0].parse::<iota_types::base_types::IotaAddress>() {
+                let address = match parts[0].parse::<Address>() {
                     Ok(addr) => addr,
                     Err(e) => {
                         panic!("Invalid address '{}': {e}", parts[0]);

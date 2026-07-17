@@ -17,15 +17,8 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
-    coin::Coin,
-    digests::ObjectDigest,
-    gas_coin::GAS,
-    object::Owner,
-    quorum_driver_types::ExecuteTransactionRequestType,
-};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_types::{gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType};
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -35,13 +28,13 @@ fn assert_same_object_changes_ignoring_version_and_digest(
 ) {
     fn collect_changes_mask_version_and_digest(
         changes: Vec<ObjectChange>,
-    ) -> BTreeMap<ObjectID, ObjectChange> {
+    ) -> BTreeMap<ObjectId, ObjectChange> {
         changes
             .into_iter()
             .map(|mut change| {
                 let object_id = change.object_id();
                 // ignore the version and digest for comparison
-                change.mask_for_test(SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX);
+                change.mask_for_test(Version::MAX_VALID_EXCL, ObjectDigest::MAX);
                 (object_id, change)
             })
             .collect()
@@ -109,7 +102,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let (gas, _, _) = cluster
+    let ObjectReference { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -140,9 +133,9 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     // let amount_to_transfer = i128::from(amount_to_transfer);
     let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].owner, Owner::Address(other_address));
     assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
@@ -159,8 +152,14 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0];
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+    let ObjectReference {
+        object_id: gas_to_send,
+        ..
+    } = gas_objs[0];
+    let ObjectReference {
+        object_id: gas_to_pay_for_tx,
+        ..
+    } = gas_objs[1];
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -187,9 +186,9 @@ async fn test_pay() -> Result<(), anyhow::Error> {
 
     let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].owner, Owner::Address(other_address));
     assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
@@ -218,7 +217,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             vec![recipient_1, recipient_2],
             vec![recipient_1_amount.into(), recipient_2_amount.into()],
             budget.into(),
@@ -241,11 +243,11 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
 
     let expected_sender_balance_change = -recipient_1_amount - recipient_2_amount - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient_1));
+    assert_eq!(balance_changes[1].owner, Owner::Address(recipient_1));
     assert_eq!(balance_changes[1].amount, recipient_1_amount);
-    assert_eq!(balance_changes[2].owner, Owner::AddressOwner(recipient_2));
+    assert_eq!(balance_changes[2].owner, Owner::Address(recipient_2));
     assert_eq!(balance_changes[2].amount, recipient_2_amount);
 
     Ok(())
@@ -273,7 +275,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_all_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             recipient,
             budget.into(),
         )
@@ -292,9 +297,9 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
 
     let expected_recipient_balance_change = total_balance - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, -total_balance);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient));
+    assert_eq!(balance_changes[1].owner, Owner::Address(recipient));
     assert_eq!(balance_changes[1].amount, expected_recipient_balance_change);
 
     Ok(())
@@ -376,7 +381,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -442,7 +447,7 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -518,7 +523,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let deleted_coin_ids: Vec<ObjectID> = tx_response
+    let deleted_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .deleted()
@@ -565,7 +570,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
@@ -591,7 +596,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -630,7 +635,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             .unwrap();
         assert_eq!(
             transferred_object.owner(),
-            Some(Owner::AddressOwner(other_address))
+            Some(Owner::Address(other_address))
         );
     }
 
@@ -658,20 +663,20 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "coin".to_string(),
                     function: "split".to_string(),
-                    type_arguments: type_args![GAS::type_tag()]?,
+                    type_arguments: type_args![StructTag::new_gas()]?,
                     arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
                         .into_iter()
                         .map(PtbInput::CallArg)
                         .collect(),
                 }),
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "transfer".to_string(),
                     function: "public_transfer".to_string(),
-                    type_arguments: type_args![Coin::type_(GAS::type_tag())]?,
+                    type_arguments: type_args![StructTag::new_gas_coin()]?,
                     arguments: vec![
                         PtbInput::PtbRef(IotaArgument::Result(0)),
                         PtbInput::CallArg(call_arg!(other_address)?),
@@ -690,7 +695,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -751,7 +756,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectId::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 
@@ -797,7 +802,7 @@ async fn execute_tx(
                     .with_object_changes()
                     .with_balance_changes(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
     assert_eq!(tx_response.status_ok(), Some(true));

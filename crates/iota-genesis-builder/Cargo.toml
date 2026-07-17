@@ -25,7 +25,6 @@ num-rational = "0.4"
 packable.workspace = true
 prefix-hex.workspace = true
 primitive-types.workspace = true
-prometheus.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
 rand_seeder = "0.3"
@@ -37,7 +36,7 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
@@ -52,14 +51,18 @@ iota-genesis-common.workspace = true
 iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
+# iota-sdk-crypto is only used when compiling the test-outputs feature
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "mnemonic"], default-features = true, optional = true }
 iota-sdk-types.workspace = true
 iota-stardust-types = { path = "../iota-stardust-types", features = ["irc_27", "irc_30", "std"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
+move-docgen.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
+prometheus-filtered.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
@@ -74,10 +77,6 @@ iota-swarm-config.workspace = true
 
 [features]
 test-outputs = ["dep:iota-sdk-crypto"]
-
-[target.'cfg(not(msim))'.dependencies]
-# iota-sdk-crypto is only used when compiling test-outputs feature
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e19c78a1bee17e0bf85fcd5b16a2f080cef26274", optional = true, features = ["ed25519", "mnemonic"] }
 
 [[example]]
 name = "snapshot_add_test_outputs"

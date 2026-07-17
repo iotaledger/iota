@@ -1,4 +1,0 @@
-{
-    "{sdk,apps}/**/*.{ts,js,mjs,tsx}": "eslint -c ./linting/.eslintrc.precommit.js --fix",
-    "{sdk,apps}/**/*.{ts,js,mjs,tsx,scss,css}": "prettier --write"
-}

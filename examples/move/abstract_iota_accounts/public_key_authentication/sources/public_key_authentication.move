@@ -12,6 +12,7 @@
 /// - secp256r1
 module public_key_authentication::public_key_authentication;
 
+use iota::bcs;
 use iota::dynamic_field as df;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
@@ -69,6 +70,38 @@ public fun authenticate_ed25519(account_id: &UID, signature: vector<u8>, ctx: &T
     assert!(has_public_key(account_id), EPublicKeyMissing);
     assert!(
         ed25519::ed25519_verify(&signature, borrow_public_key(account_id), ctx.digest()),
+        EEd25519VerificationFailed,
+    );
+}
+
+/// Ed25519 signature authenticator helper for sponsorship-style flows.
+///
+/// The signed message is the byte concatenation of:
+/// 1. `ctx.digest()` — the current transaction digest,
+/// 2. `auth_ctx.sender_auth_digest()` — the sender's auth digest, and
+/// 3. (only when present) the BCS-serialized `AuthenticatorFunctionInfoV1` returned by
+///    `auth_ctx.sender_authenticator_function_info_v1()` — i.e. the sender's authenticator
+///    function identity (`package`, `module_name`, `function_name`). Senders that do not use a
+///    `MoveAuthenticator` contribute nothing for this segment.
+///
+/// Off-chain signers must produce the signature over this exact byte sequence with the keypair
+/// whose public key is attached to `account_id`.
+public fun authenticate_ed25519_for_sponsorship(
+    account_id: &UID,
+    signature: vector<u8>,
+    auth_ctx: &AuthContext,
+    ctx: &TxContext,
+) {
+    let mut msg = *ctx.digest();
+    msg.append(*auth_ctx.sender_auth_digest());
+
+    let sender_info_opt = auth_ctx.sender_authenticator_function_info_v1();
+    if (sender_info_opt.is_some()) {
+        msg.append(bcs::to_bytes(sender_info_opt.borrow()));
+    };
+
+    assert!(
+        ed25519::ed25519_verify(&signature, borrow_public_key(account_id), &msg),
         EEd25519VerificationFailed,
     );
 }

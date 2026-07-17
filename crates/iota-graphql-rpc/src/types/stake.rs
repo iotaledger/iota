@@ -4,8 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
-use iota_types::{base_types::MoveObjectType, governance::StakedIota as NativeStakedIota};
-use move_core_types::language_storage::StructTag;
+use iota_sdk_types::StructTag;
+use iota_types::governance::StakedIota as NativeStakedIota;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -179,8 +179,6 @@ impl StakedIota {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -409,7 +407,7 @@ impl StakedIota {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, StakedIota>, Error> {
-        let type_: StructTag = MoveObjectType::staked_iota().into();
+        let type_ = StructTag::new_staked_iota();
 
         let filter = ObjectFilter {
             type_: Some(type_.into()),
@@ -449,7 +447,7 @@ impl TryFrom<&MoveObject> for StakedIota {
     type Error = StakedIotaDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_staked_iota() {
+        if !move_object.native.struct_tag().is_staked_iota() {
             return Err(StakedIotaDowncastError::NotAStakedIota);
         }
 

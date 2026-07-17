@@ -19,34 +19,36 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
+use iota_core::authority_client::validator::ValidatorAPI;
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_sdk_types::crypto::Intent;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    IOTA_FRAMEWORK_PACKAGE_ID,
     crypto::{PublicKey, SignatureScheme},
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    execution_status::{ExecutionFailureStatus, MoveLocation},
-    messages_grpc::HandleCertificateRequestV1,
-    move_authenticator::MoveAuthenticator,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    error::{IotaError, UserInputError},
+    messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
+    move_authenticator::MoveAuthenticatorV1,
     move_package,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        Argument, CallArg, ObjectArg, ProgrammableTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use move_core_types::{ident_str, identifier::Identifier};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
@@ -60,6 +62,10 @@ const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
+    "authenticate_with_sponsor_and_sender";
+const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
+    "authenticate_ed25519_via_signing_digest";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -81,7 +87,7 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     let aa_ref = test_env.aa_ref.unwrap();
 
     // Retrieve the sender
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
 
     // Request faucet coins for the AbstractAccount
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -107,6 +113,50 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     test_env
         .execute_and_check_tx_correctness(aa_simple_tx)
         .await
+}
+
+/// Test that the AuthContext byte fields are correctly populated during
+/// authentication and that an ed25519 signature can be verified against
+/// `signing_digest`.
+///
+/// The Move authenticator (`authenticate_ed25519_via_signing_digest`) asserts:
+/// 1. `signing_digest` == `blake2b256(intent_tx_data_bytes)` and is 32 bytes
+/// 2. ed25519 signature over `signing_digest` is valid
+#[sim_test]
+async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build a test environment and create an abstract account with the new
+    // authenticator
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+
+    // Fund the AbstractAccount with gas
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // Create a transaction from the AA
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // sign_secure signs blake2b256(intent || bcs(TransactionData)), which is
+    // exactly what auth_ctx.signing_digest() returns on the Move side.
+    let signatures =
+        vec![test_env.create_move_authenticator_for_ed25519_via_signing_digest(&tx_data)?];
+
+    // Execute — the Move authenticator asserts all structural invariants
+    // and verifies the ed25519 signature against signing_digest.
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    test_env.execute_and_check_tx_correctness(tx).await
 }
 
 /// Test the issuance of a sponsored transaction from an Abstract Account
@@ -136,7 +186,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
 
     // Create a simple transaction from the IOTA account
     let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor))
         .await?;
@@ -199,12 +249,12 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
     // Now convert the delayed object into an actual AA account
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );
     // The AA account address is the same as the delayed object ID
-    let aa_sender: IotaAddress = delayed_aa_ref.0.into();
+    let aa_sender: Address = delayed_aa_ref.object_id.into();
 
     // Fund the AA account with gas
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -239,7 +289,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Fund AA
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -284,8 +334,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
     let error_string = format!("{:#?}", tx_result.status());
     assert!(
         error_string.contains("abort"),
-        "Expected MoveAbort error, got: {}",
-        error_string
+        "Expected MoveAbort error, got: {error_string}"
     );
 
     Ok(())
@@ -301,6 +350,10 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 /// 3) Submit the original certificate which should now fail during
 ///    post-consensus, even though validators originally run the authenticate
 ///    and it passed
+///
+/// With `report_move_authentication_error` enabled (the latest protocol config)
+/// the failure surfaces as a distinct `MoveAuthenticationError` that wraps the
+/// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -328,7 +381,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .keystore()
         .get_key(&new_aa_owner)?
         .public();
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
 
     // Step 1: create an AA TX and ask the validators to sign it
     // Create a simple transaction from the IOTA account
@@ -390,9 +443,12 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .unwrap();
     let summary = effects_cert.summary_for_debug();
 
-    assert!(summary.status.is_err(), "Expected the TX execution to fail");
     assert!(
-        summary.gas_used.gas_used() == 3401600
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+    assert!(
+        summary.gas_cost_summary.gas_used() == 3401600
             && summary.mutated_object_count == 2
             && summary.created_object_count == 0
             && summary.unwrapped_object_count == 0
@@ -401,15 +457,266 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         "Expected gas to be used in the failed transaction and that only the gas object was mutated and the TX input object was bumped in version",
     );
 
+    let (error, command) = summary.status.unwrap_err();
+    // The authenticator abort is reported as an authentication failure, not as
+    // a command of the programmable transaction, so it carries no command index.
+    assert!(
+        command.is_none(),
+        "Expected the authentication failure to carry no command index",
+    );
+    let ExecutionError::MoveAuthenticationError { error } = &error else {
+        panic!("Expected a MoveAuthenticationError, got: {error:?}");
+    };
     assert!(
         matches!(
-            summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, abort_code)
-            if module.name() == ident_str!("basic_keyed_aa")
-            && function_name == Some("authenticate_ed25519".to_string())
-            && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
+            &**error,
+            ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            if module.as_str() == "basic_keyed_aa"
+            && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
+            && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
         ),
-        "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
+        "Expected failure to be a MoveAuthenticationError wrapping a Move abort in basic_keyed_aa::authenticate_ed25519",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_abstract_account_post_consensus_failure`], but with
+/// `report_move_authentication_error` disabled: the authenticator abort
+/// surfaces as a bare Move abort attributed to the authenticator's own command
+/// index 0 -- indistinguishable from a failure of the programmable
+/// transaction's first command.
+#[sim_test]
+async fn test_abstract_account_post_consensus_failure_without_report_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Disable reporting the authentication failure as a distinct error.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_report_move_authentication_error_for_testing(false);
+        config
+    });
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // Retrieve the keystore and setup an account for rotating owner key
+    let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+    let new_aa_owner = keystore
+        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .expect("ED25519 key generation should not fail")
+        .0;
+    assert!(new_aa_owner != test_env.owner.unwrap());
+    let new_aa_owner_pk = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&new_aa_owner)?
+        .public();
+    let aa_sender = aa_ref.object_id.into();
+
+    // Step 1: create an AA TX and ask the validators to sign it
+    // Create a simple transaction from the IOTA account
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let cert = test_env
+        .test_cluster
+        .create_certificate(aa_simple_tx, Some(client_ip))
+        .await
+        .unwrap();
+
+    // Step 2: tamper with the certificate to make it invalid post-consensus; this
+    // means creating a second transaction altering the AA shared object state
+    let aa_gas2 = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt2 = test_env.craft_aa_rotate_owner_key_ptb(&new_aa_owner_pk)?;
+    let tx_data2 = test_env
+        .craft_tx_from_pt(
+            pt2, aa_gas2, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest2 = tx_data2.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_rotate_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
+    // Should succeed
+    test_env
+        .execute_and_check_tx_correctness(aa_rotate_tx)
+        .await?;
+    // Update the test environment with the new owner (this is just for
+    // completeness, not needed for this test)
+    test_env.owner = Some(new_aa_owner);
+
+    // Step 3: submit the original certificate which should now fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+    assert!(
+        summary.gas_cost_summary.gas_used() == 3401600
+            && summary.mutated_object_count == 2
+            && summary.created_object_count == 0
+            && summary.unwrapped_object_count == 0
+            && summary.deleted_object_count == 0
+            && summary.wrapped_object_count == 0,
+        "Expected gas to be used in the failed transaction and that only the gas object was mutated and the TX input object was bumped in version",
+    );
+
+    let (error, command) = summary.status.unwrap_err();
+    assert_eq!(
+        command,
+        Some(0),
+        "Without the flag, the authenticator abort is reported at command index 0",
+    );
+    assert!(
+        matches!(
+            &error,
+            ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            if module.as_str() == "basic_keyed_aa"
+            && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
+            && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
+        ),
+        "Expected failure to be a bare Move abort in basic_keyed_aa::authenticate_ed25519, got: {error:?}",
+    );
+
+    Ok(())
+}
+
+/// The pre-consensus authentication path (`authenticate_transaction`, run when
+/// a validator signs a transaction) reports a failing authenticator the same
+/// way as the execution path. With `report_move_authentication_error` enabled,
+/// the resulting `MoveAuthenticatorExecutionFailure` reads as a Move
+/// authentication failure and carries no command index.
+#[sim_test]
+async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+
+    // Sign the authenticator over a digest that does not match the transaction,
+    // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    assert!(
+        error.contains("Move authentication failed"),
+        "Expected the failure to be reported as a Move authentication error, got: {error}",
+    );
+    assert!(
+        !error.contains("command index"),
+        "Expected an authentication failure to carry no command index, got: {error}",
+    );
+
+    Ok(())
+}
+
+/// Same scenario as [`test_pre_consensus_authentication_failure`], but with
+/// `report_move_authentication_error` disabled: the pre-consensus path must
+/// still gate on the flag and surface the authenticator's bare Move abort,
+/// keeping the (misleading) command index 0.
+#[sim_test]
+async fn test_pre_consensus_authentication_failure_without_report_flag() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+
+    // Disable reporting the authentication failure as a distinct error.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_report_move_authentication_error_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.object_id.into();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+
+    // Sign the authenticator over a digest that does not match the transaction,
+    // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!("Expected MoveAuthenticatorExecutionFailure, got: {err:?}");
+    };
+    // The flag gates the pre-consensus path too: the abort is reported bare,
+    // keeping the authenticator's internal command index 0 and no wrapping.
+    assert!(
+        error.contains("command index: 0"),
+        "Without the flag, the authenticator abort must keep command index 0, got: {error}",
+    );
+    assert!(
+        !error.contains("Move authentication failed"),
+        "Without the flag, the failure must not be wrapped as an authentication error, got: {error}",
     );
 
     Ok(())
@@ -439,7 +746,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -504,7 +811,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .await
         .unwrap();
     assert!(
-        effects_cert.summary_for_debug().status.is_err(),
+        effects_cert.summary_for_debug().status.is_failure(),
         "Expected the TX execution to fail due to receiving an object owned by an AA account"
     );
 
@@ -520,7 +827,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .await
         .unwrap();
     assert!(
-        effects_cert.summary_for_debug().status.is_ok(),
+        effects_cert.summary_for_debug().status.is_success(),
         "Expected the TX execution to succeed"
     );
 
@@ -547,7 +854,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -595,7 +902,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 
     // Step 2: create a TX2 which uses the conflict Coin owned by the AA account as
     // input
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -624,7 +931,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_err(),
+        summary.status.is_failure(),
         "Expected the TX1 execution to fail execution"
     );
 
@@ -640,7 +947,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX2 execution to succeed"
     );
 
@@ -670,7 +977,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -719,13 +1026,13 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     // Step 2: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );
 
     // Step 3: create a TX2 which uses the conflict Coin owned by the AA as gas
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -754,7 +1061,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_err(),
+        summary.status.is_failure(),
         "Expected the TX1 execution to fail execution"
     );
 
@@ -770,7 +1077,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX2 execution to succeed"
     );
 
@@ -801,7 +1108,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -860,26 +1167,26 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX1 execution to succeed"
     );
     let conflict_coin_ref = effects_cert
         .all_changed_objects()
         .iter()
-        .find(|obj| obj.0.0 == conflict_coin_ref.0)
+        .find(|obj| obj.0.object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
         .0;
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );
 
     // Step 4: create a TX2 which uses the conflict Coin owned by the AA as gas
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -891,6 +1198,606 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     test_env.execute_and_check_tx_correctness(tx2).await
 }
 
+// ----------------------------------------------------------
+// ----------- Sponsor Move authentication tests ------------
+// ----------------------------------------------------------
+
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator must succeed(enable_move_authentication_for_sponsor =
+/// true).
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must succeed with both AA sender and AA sponsor.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// A sponsored TX where the sender is a regular account but the sponsor carries
+/// a MoveAuthenticator must succeed(enable_move_authentication_for_sponsor
+/// = true).
+#[sim_test]
+async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment; the AA here will be the *sponsor*, not the
+    // sender.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_aa_ref = test_env.aa_ref.unwrap();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // The sender is a regular IOTA account from the keystore.
+    let sender = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .first()
+        .cloned()
+        .unwrap();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a sponsored PTB: sender = regular account, sponsor = AA.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(sender, None);
+    let pt = builder.finish();
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender signs with a regular key; sponsor provides a MoveAuthenticator.
+    let sender_sig = GenericSignature::Signature(
+        test_env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?,
+    );
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+
+    // The TX must succeed when the sender is a regular account and AA sponsor.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator and use the same shared object must
+/// succeed(enable_move_authentication_for_sponsor = true).
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER)
+        .await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
+    // The sender object is used in both MoveAuthenticators.
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_with_sponsor_and_sender(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must succeed with both AA sender and AA sponsor.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// A sponsored TX where both sender (AA) and sponsor (AA) each carry a
+/// MoveAuthenticator must be rejected because having more than one
+/// MoveAuthenticator is not supported(enable_move_authentication_for_sponsor =
+/// false).
+#[sim_test]
+async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable Move authentication for the sponsor.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
+        config
+    });
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: >1 MoveAuthenticator is not allowed.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(msg)
+            } if msg == "SenderSignedData with more than one MoveAuthenticator is not supported"
+        ),
+        "Expected Unsupported error for >1 MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// A sponsored TX where the sender is a regular account but the sponsor carries
+/// a MoveAuthenticator must be rejected because MoveAuthenticator is only
+/// allowed for the sender(enable_move_authentication_for_sponsor = false).
+#[sim_test]
+async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable Move authentication for the sponsor.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
+        config
+    });
+
+    // Build the test environment; the AA here will be the *sponsor*, not the
+    // sender.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_aa_ref = test_env.aa_ref.unwrap();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // The sender is a regular IOTA account from the keystore.
+    let sender = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .first()
+        .cloned()
+        .unwrap();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a sponsored PTB: sender = regular account, sponsor = AA.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(sender, None);
+    let pt = builder.finish();
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender signs with a regular key; sponsor provides a MoveAuthenticator.
+    let sender_sig = GenericSignature::Signature(
+        test_env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?,
+    );
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: the single MoveAuthenticator belongs to the
+    // sponsor, not the sender, which is not allowed.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(msg)
+            } if msg == "SenderSignedData can have MoveAuthenticator only for the sender"
+        ),
+        "Expected Unsupported error for sponsor-only MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// A sponsored TX where one MoveAuthenticator is for a third AA (neither
+/// sender nor sponsor) must be rejected(enable_move_authentication_for_sponsor
+/// = true).
+#[sim_test]
+async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // Create a third AA that is unrelated to this transaction.
+    let unrelated_aa_ref = test_env.create_extra_abstract_account().await?;
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender provides a valid MoveAuthenticator; sponsor provides one for an
+    // unrelated AA instead of its own.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let unrelated_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(unrelated_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
+
+    // The TX must be rejected: the sponsor's signature is absent.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::SignerSignatureAbsent { .. }),
+        "Expected SignerSignatureAbsent for wrong signer MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator must succeed(enable_move_authentication_for_sponsor =
+/// true), but the sponsor authenticator fails.
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabled_move_auth_for_sponsor()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    // But the sponsor's signature is for ed25519 authentication, which does not
+    // match the sponsor AA's actual free access authenticator.
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: the sponsor's signature is incorrect.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure for wrong sponsor MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+// ------------------------------------------------------------------
+// --- pre_consensus_sponsor_only_move_authentication flag tests  ---
+// ------------------------------------------------------------------
+
+/// With `pre_consensus_sponsor_only_move_authentication` enabled, only the
+/// sponsor's MA runs pre-consensus for a sponsored TX. A sender MA signed over
+/// the wrong digest is therefore accepted pre-consensus (the sponsor's
+/// free-access MA passes) but fails post-consensus when the sender's MA is
+/// finally executed and the signature doesn't match.
+#[sim_test]
+async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs_pre_consensus()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Sender is an AA with ED25519 authentication; sponsor is an AA with
+    // free-access authentication.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender's MA is signed over the wrong digest — it will fail post-consensus.
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // Pre-consensus: only the sponsor's MA is executed (free-access → passes).
+    // The validator must sign the TX, producing a certificate.
+    let cert = test_env
+        .test_cluster
+        .create_certificate(tx, Some(client_ip))
+        .await?;
+
+    // Post-consensus: both MAs are executed → sender's ED25519 MA fails.
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await?;
+
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_failure(),
+        "Expected TX to fail post-consensus due to the sender's MA failure"
+    );
+    let (error, _) = summary.status.unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            ExecutionError::MoveAuthenticationError { error }
+            if matches!(&**error, ExecutionError::MoveAbort { .. })
+        ),
+        "Expected a Move authentication error wrapping the failed ED25519 authentication's abort, got: {error:?}"
+    );
+
+    // Even though the TX failed, the sponsor must have paid gas. Verify that
+    // computation was charged and that the correct gas object (the sponsor's coin)
+    // was debited.
+    assert!(
+        summary.gas_cost_summary.computation_cost > 0,
+        "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
+    );
+    assert_eq!(
+        effects_cert.data().gas_object().0.object_id,
+        sponsor_gas.object_id,
+        "Expected the sponsor's gas coin to be used for the failed TX"
+    );
+
+    Ok(())
+}
+
+/// With `pre_consensus_sponsor_only_move_authentication` disabled, both the
+/// sender's and the sponsor's MAs run pre-consensus. A sender MA signed over
+/// the wrong digest is therefore rejected immediately, before consensus.
+#[sim_test]
+async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable the flag so ALL MAs run pre-consensus.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // Pre-consensus: both MAs are executed → sender's MA fails → rejected
+    // immediately.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure from the sender's MA, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// With `pre_consensus_sponsor_only_move_authentication` enabled, the flag
+/// only skips the sender's MA pre-consensus check for *sponsored* transactions.
+/// For non-sponsored transactions, the sender's MA still runs pre-consensus, so
+/// a bad sender MA is still rejected before consensus.
+#[sim_test]
+async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_only_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Non-sponsored TX — sender pays its own gas.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sender's MA is signed over the wrong digest.
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig]);
+
+    // Pre-consensus: non-sponsored TX → sender's MA always runs pre-consensus even
+    // with the sponsor-only flag → sender's MA fails → rejected immediately.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure for non-sponsored TX, got: {err:?}"
+    );
+
+    Ok(())
+}
+
 // ---------------------------------------------------
 // --- Test Environment for Abstract Account tests ---
 // ---------------------------------------------------
@@ -898,11 +1805,11 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
 /// Test environment for Abstract Account tests
 struct TestEnvironment {
     test_cluster: TestCluster,
-    owner: Option<IotaAddress>,
+    owner: Option<Address>,
     authenticate_fn_name: Option<String>,
-    aa_package_id: Option<ObjectID>,
-    aa_package_metadata_ref: Option<ObjectRef>,
-    aa_ref: Option<ObjectRef>,
+    aa_package_id: Option<ObjectId>,
+    aa_package_metadata_ref: Option<ObjectReference>,
+    aa_ref: Option<ObjectReference>,
     aa_create_transaction: Option<Transaction>,
 }
 
@@ -987,8 +1894,8 @@ impl TestEnvironment {
                 .effects
                 .all_changed_objects()
                 .iter()
-                .map(|e| (e.0.reference.to_object_ref(), e.0.owner, e.1))
-                .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
+                .map(|e| (e.0.reference, e.0.owner, e.1))
+                .collect::<Vec<(ObjectReference, Owner, WriteKind)>>(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -1043,11 +1950,13 @@ impl TestEnvironment {
 
     /// Publish the Account Abstraction Move package and return its ID and
     /// metadata object reference.
-    async fn publish_account_abstraction_package(&mut self) -> (ObjectID, ObjectRef) {
+    async fn publish_account_abstraction_package(&mut self) -> (ObjectId, ObjectReference) {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
-        let aa_package_id = publish_package(self.test_cluster.wallet(), path).await.0;
+        let aa_package_id = publish_package(self.test_cluster.wallet(), path)
+            .await
+            .object_id;
 
         let aa_package_metadata_id = move_package::derive_package_metadata_id(aa_package_id);
         let aa_package_metadata_ref = self
@@ -1076,24 +1985,13 @@ impl TestEnvironment {
             anyhow::bail!("Owner or authenticate function name or package id not set");
         };
 
-        let transaction = if let Some(transaction) = &self.aa_create_transaction {
-            transaction.clone()
-        } else {
-            self.craft_create_abstract_account(
-                owner,
-                authenticate_fn_name,
-                aa_package_id,
-                aa_package_metadata_ref,
-            )
-            .await?
-        };
-
-        let (effects, _) = self
-            .test_cluster
-            .execute_transaction_return_raw_effects(transaction)
-            .await?;
-
-        Ok(effects)
+        self.create_abstract_account_with(
+            owner,
+            authenticate_fn_name,
+            aa_package_id,
+            aa_package_metadata_ref,
+        )
+        .await
     }
 
     /// Create the delayed abstract account object, which is not yet an account.
@@ -1108,8 +2006,8 @@ impl TestEnvironment {
             // Create the delayed abstract account object.
             builder.programmable_move_call(
                 aa_package_id,
-                ident_str!(AA_DELAYED_CREATE_MODULE_NAME).to_owned(),
-                ident_str!("create").to_owned(),
+                Identifier::from_static(AA_DELAYED_CREATE_MODULE_NAME),
+                Identifier::from_static("create"),
                 vec![],
                 vec![],
             );
@@ -1167,31 +2065,31 @@ impl TestEnvironment {
 
             // create auth function ref
             let arguments = vec![
-                builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
+                builder.obj(CallArg::ImmutableOrOwned(aa_package_metadata_ref))?,
                 builder.pure(AA_DELAYED_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("authenticator_function").to_owned(),
-                ident_str!("create_auth_function_ref_v1").to_owned(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                Identifier::from_static("authenticator_function"),
+                Identifier::from_static("create_auth_function_ref_v1"),
                 vec![delayed_abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
                 // Create the delayed abstract account.
                 let arguments = vec![
-                    builder.obj(ObjectArg::SharedObject {
-                        id: delayed_aa_ref.0,
-                        initial_shared_version: delayed_aa_ref.1,
-                        mutable: true,
-                    })?,
+                    builder.obj(CallArg::Shared(SharedObjectReference::new(
+                        delayed_aa_ref.object_id,
+                        delayed_aa_ref.version,
+                        true,
+                    )))?,
                     builder.pure(aa_owner_pk.as_ref())?,
                     Argument::Result(authenticator_function_ref_v1),
                 ];
                 builder.programmable_move_call(
                     aa_package_id,
-                    ident_str!(AA_DELAYED_AUTHENTICATE_MODULE_NAME).to_owned(),
-                    ident_str!("create").to_owned(),
+                    Identifier::from_static(AA_DELAYED_AUTHENTICATE_MODULE_NAME),
+                    Identifier::from_static("create"),
                     vec![],
                     arguments,
                 );
@@ -1268,30 +2166,11 @@ impl TestEnvironment {
         &self,
         tx_digest: &[u8; 32],
     ) -> anyhow::Result<GenericSignature> {
-        let (Some(owner), Some(aa_ref)) = (self.owner, self.aa_ref) else {
+        let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
-            mutable: false,
-        });
-        // Sign the tx data with the owner key
-        let hex_encoded_signature: String = Hex::encode(
-            self.test_cluster
-                .wallet
-                .config()
-                .keystore()
-                .sign_hashed(&owner, tx_digest)?,
-        )
-        .chars()
-        .skip(2) // flag prefix length
-        .take(Ed25519Signature::LENGTH * 2)
-        .collect();
-        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
-        Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),
-        ))
+
+        self.create_move_authenticator_for_ed25519_for_ref(aa_ref, tx_digest)
     }
 
     // Create the MoveAuthenticator for the free access authenticator:
@@ -1304,13 +2183,29 @@ impl TestEnvironment {
             anyhow::bail!("Abstract account not created yet");
         };
 
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
-            mutable: false,
-        });
+        self.create_move_authenticator_for_free_access_for_ref(aa_ref)
+    }
+
+    fn create_move_authenticator_with_sponsor_and_sender(
+        &self,
+        aa_sponsor_ref: ObjectReference,
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(aa_ref) = self.aa_ref else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let self_call_arg = CallArg::Shared(SharedObjectReference::new(
+            aa_ref.object_id,
+            aa_ref.version,
+            false,
+        ));
+
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![], vec![], self_call_arg),
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![self_call_arg],
+                vec![],
+                SharedObjectReference::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
+            )
+            .into(),
         ))
     }
 
@@ -1326,18 +2221,18 @@ impl TestEnvironment {
 
         // Random IOTA account command.
         let arguments = vec![
-            builder.obj(ObjectArg::SharedObject {
-                id: aa_ref.0,
-                initial_shared_version: aa_ref.1,
-                mutable: true,
-            })?,
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             builder.pure(1_u8)?,
             builder.pure(2_u8)?,
         ];
         builder.programmable_move_call(
             aa_package_id,
             Identifier::new(module_name)?,
-            ident_str!("add_field").to_owned(),
+            Identifier::from_static("add_field"),
             vec![TypeTag::U8, TypeTag::U8],
             arguments,
         );
@@ -1346,8 +2241,8 @@ impl TestEnvironment {
 
     fn craft_object_transfer(
         &self,
-        object_ref: ObjectRef,
-        recipient: IotaAddress,
+        object_ref: ObjectReference,
+        recipient: Address,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -1383,31 +2278,31 @@ impl TestEnvironment {
 
         // create auth function ref
         let arguments = vec![
-            builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
+            builder.obj(CallArg::ImmutableOrOwned(aa_package_metadata_ref))?,
             builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
             builder.pure(authenticate_fn_name)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
-            ident_str!("authenticator_function").to_owned(),
-            ident_str!("create_auth_function_ref_v1").to_owned(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("authenticator_function"),
+            Identifier::from_static("create_auth_function_ref_v1"),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
             // rotate the key in the abstract account.
             let arguments = vec![
-                builder.obj(ObjectArg::SharedObject {
-                    id: aa_ref.0,
-                    initial_shared_version: aa_ref.1,
-                    mutable: true,
-                })?,
+                builder.obj(CallArg::Shared(SharedObjectReference::new(
+                    aa_ref.object_id,
+                    aa_ref.version,
+                    true,
+                )))?,
                 builder.pure(new_aa_owner_pk.as_ref())?,
                 Argument::Result(authenticator_function_ref_v1),
             ];
             builder.programmable_move_call(
                 aa_package_id,
-                ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                ident_str!("rotate_public_key").to_owned(),
+                Identifier::from_static(AA_CREATE_MODULE_NAME),
+                Identifier::from_static("rotate_public_key"),
                 vec![],
                 arguments,
             );
@@ -1420,9 +2315,9 @@ impl TestEnvironment {
     async fn craft_tx_from_pt(
         &self,
         pt: ProgrammableTransaction,
-        gas_coin: ObjectRef,
-        sender: IotaAddress,
-        sponsor: Option<IotaAddress>,
+        gas_coin: ObjectReference,
+        sender: Address,
+        sponsor: Option<Address>,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.test_cluster.get_reference_gas_price().await;
 
@@ -1439,10 +2334,10 @@ impl TestEnvironment {
 
     async fn craft_create_abstract_account(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         authenticate_fn_name: &str,
-        aa_package_id: ObjectID,
-        aa_package_metadata_ref: ObjectRef,
+        aa_package_id: ObjectId,
+        aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<Transaction> {
         let aa_owner_pk = self
             .test_cluster
@@ -1457,14 +2352,14 @@ impl TestEnvironment {
 
             // create auth function ref
             let arguments = vec![
-                builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
+                builder.obj(CallArg::ImmutableOrOwned(aa_package_metadata_ref))?,
                 builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("authenticator_function").to_owned(),
-                ident_str!("create_auth_function_ref_v1").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::from_static("authenticator_function"),
+                Identifier::from_static("create_auth_function_ref_v1"),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
@@ -1475,8 +2370,8 @@ impl TestEnvironment {
                 ];
                 builder.programmable_move_call(
                     aa_package_id,
-                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                    ident_str!("create").to_owned(),
+                    Identifier::from_static(AA_CREATE_MODULE_NAME),
+                    Identifier::from_static("create"),
                     vec![],
                     arguments,
                 );
@@ -1501,7 +2396,7 @@ impl TestEnvironment {
     /// Receiving<Gas>, ctx)
     fn craft_aa_receive_gas_ptb(
         &self,
-        gas_ref: ObjectRef,
+        gas_ref: ObjectReference,
         module_name: &str,
         receive_fn_name: &str,
     ) -> anyhow::Result<ProgrammableTransaction> {
@@ -1511,14 +2406,14 @@ impl TestEnvironment {
         let mut b = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            b.obj(ObjectArg::SharedObject {
-                id: aa_ref.0,
-                initial_shared_version: aa_ref.1,
-                mutable: true,
-            })?,
+            b.obj(CallArg::Shared(SharedObjectReference::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`
             // yields a Receiving PTB arg (SDK converts when building the call).
-            b.obj(ObjectArg::Receiving(gas_ref))?,
+            b.obj(CallArg::Receiving(gas_ref))?,
         ];
         b.programmable_move_call(
             aa_package_id,
@@ -1533,6 +2428,153 @@ impl TestEnvironment {
     // -----------------------------------------------
     // --- Utilities ---------------------------------
     // -----------------------------------------------
+
+    /// Creates an extra AA (not stored in `aa_ref`) and returns its object ref.
+    /// This requires if it is necessary to create more AAs in a test.
+    async fn create_extra_abstract_account(&self) -> anyhow::Result<ObjectReference> {
+        let effects = self.create_abstract_account().await?;
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
+    /// Creates an extra AA with the specified parameters (not stored in
+    /// `aa_ref`) and returns its object ref.
+    /// This requires if it is necessary to create more AAs in a test.
+    async fn create_extra_abstract_account_with(
+        &self,
+        authenticate_fn_name: &str,
+    ) -> anyhow::Result<ObjectReference> {
+        let (Some(owner), Some(aa_package_id), Some(aa_package_metadata_ref)) =
+            (self.owner, self.aa_package_id, self.aa_package_metadata_ref)
+        else {
+            anyhow::bail!("Owner or authenticate function name or package id not set");
+        };
+
+        let effects = self
+            .create_abstract_account_with(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?;
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
+    /// Create an Abstract Account on the ledger with the specified parameters.
+    async fn create_abstract_account_with(
+        &self,
+        owner: Address,
+        authenticate_fn_name: &str,
+        aa_package_id: ObjectId,
+        aa_package_metadata_ref: ObjectReference,
+    ) -> anyhow::Result<TransactionEffects> {
+        let transaction = if let Some(transaction) = &self.aa_create_transaction {
+            transaction.clone()
+        } else {
+            self.craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?
+        };
+
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+
+        Ok(effects)
+    }
+
+    /// Create a free-access MoveAuthenticator for an explicit object reference
+    /// (not necessarily the stored `aa_ref`).
+    fn create_move_authenticator_for_free_access_for_ref(
+        &self,
+        aa_obj_ref: ObjectReference,
+    ) -> anyhow::Result<GenericSignature> {
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![],
+                vec![],
+                SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
+            )
+            .into(),
+        ))
+    }
+
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator for an
+    // explicit object reference (not necessarily the stored `aa_ref`):
+    // public fun authenticate_ed25519(
+    //    self: &AbstractAccount,
+    //    signature: vector<u8>,
+    //    _: &AuthContext,
+    //    ctx: &TxContext,
+    fn create_move_authenticator_for_ed25519_for_ref(
+        &self,
+        aa_obj_ref: ObjectReference,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(owner) = self.owner else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&owner, tx_digest)?;
+        Self::move_authenticator_from_ed25519_sig(aa_obj_ref, signature)
+    }
+
+    /// Create the MoveAuthenticator for the ed25519 authenticator that verifies
+    /// against `auth_ctx.signing_digest()`. Uses `sign_secure` which signs
+    /// `blake2b256(intent || bcs(TransactionData))` — exactly what
+    /// `signing_digest` returns on the Move side.
+    fn create_move_authenticator_for_ed25519_via_signing_digest(
+        &self,
+        tx_data: &TransactionData,
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(aa_ref) = self.aa_ref else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let Some(owner) = self.owner else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self.test_cluster.wallet.config().keystore().sign_secure(
+            &owner,
+            tx_data,
+            Intent::iota_transaction(),
+        )?;
+        Self::move_authenticator_from_ed25519_sig(aa_ref, signature)
+    }
+
+    /// Build a `GenericSignature::MoveAuthenticator` from a raw ed25519
+    /// `Signature` and the abstract-account object reference.
+    fn move_authenticator_from_ed25519_sig(
+        aa_obj_ref: ObjectReference,
+        signature: iota_types::crypto::Signature,
+    ) -> anyhow::Result<GenericSignature> {
+        let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
+            .chars()
+            .skip(2) // flag prefix length
+            .take(Ed25519Signature::LENGTH * 2)
+            .collect();
+        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![signature_call_arg],
+                vec![],
+                SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
+            )
+            .into(),
+        ))
+    }
 
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
         let transaction_response = self.test_cluster.execute_transaction(tx).await;
@@ -1549,18 +2591,30 @@ impl TestEnvironment {
         assert!(errors.is_empty());
         Ok(())
     }
+
+    async fn handle_tx(&self, tx: Transaction) -> Result<HandleTransactionResponse, IotaError> {
+        let aggregator = self.test_cluster.authority_aggregator();
+        aggregator
+            .authority_clients
+            .values()
+            .next()
+            .unwrap()
+            .authority_client()
+            .handle_transaction(tx, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await
+    }
 }
 
 // ---------------------------------------------------
 // --- Utilities -------------------------------------
 // ---------------------------------------------------
 
-fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
 }
 
-fn delayed_abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(
         format!("{aa_package_id}::{AA_DELAYED_MODULE_NAME}::{AA_DELAYED_ACCOUNT_NAME}").as_str(),
     )
@@ -1568,13 +2622,13 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
 }
 
 fn abstract_account_from_all_changed_objects(
-    all_changed_objects: &[(ObjectRef, Owner, WriteKind)],
-) -> ObjectRef {
+    all_changed_objects: &[(ObjectReference, Owner, WriteKind)],
+) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
     all_changed_objects
         .iter()
         .find_map(|change| match change {
-            (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
+            (_, Owner::Shared(_), WriteKind::Create) => Some(change.0),
             _ => None,
         })
         .expect("Expected a shared object in the transaction response")

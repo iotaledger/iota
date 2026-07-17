@@ -4,18 +4,18 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
 use tap::Pipe;
 use tracing::error;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, TransactionDigest},
+    base_types::{EpochId, ExecutionData},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,
@@ -90,23 +90,7 @@ impl ReadStore for SharedInMemoryStore {
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>> {
-        // First look to see if we saved the complete contents already.
-        let inner = self.inner();
-        let contents = inner
-            .get_sequence_number_by_contents_digest(digest)
-            .and_then(|seq_num| inner.full_checkpoint_contents.get(&seq_num).cloned());
-        if contents.is_some() {
-            return Ok(contents);
-        }
-
-        // Otherwise gather it from the individual components.
-        inner
-            .get_checkpoint_contents(digest)
-            .map(|contents| {
-                FullCheckpointContents::try_from_checkpoint_contents(self, contents.to_owned())
-            })
-            .transpose()
-            .map(|contents| contents.flatten())
+        Ok(self.inner().get_full_checkpoint_contents(digest))
     }
 
     fn try_get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
@@ -166,14 +150,14 @@ impl ReadStore for SharedInMemoryStore {
 impl ObjectStore for SharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &iota_sdk_types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &iota_sdk_types::ObjectId,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
@@ -270,6 +254,38 @@ impl InMemoryStore {
             .and_then(|digest| self.get_checkpoint_by_digest(digest))
     }
 
+    fn get_full_checkpoint_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Option<FullCheckpointContents> {
+        let contents = self
+            .get_sequence_number_by_contents_digest(digest)
+            .and_then(|seq_num| self.full_checkpoint_contents.get(&seq_num).cloned());
+        if contents.is_some() {
+            return contents;
+        }
+
+        let contents = self.get_checkpoint_contents(digest)?;
+
+        let mut transactions = Vec::with_capacity(contents.len());
+
+        for tx in contents.iter() {
+            if let (Some(t), Some(e)) = (
+                self.get_transaction_block(&tx.transaction),
+                self.get_transaction_effects(&tx.transaction),
+            ) {
+                transactions.push(ExecutionData::new((*t).clone().into_inner(), e.clone()))
+            } else {
+                return None;
+            }
+        }
+
+        Some(FullCheckpointContents::from_contents_and_execution_data(
+            contents.to_owned(),
+            transactions.into_iter(),
+        ))
+    }
+
     /// Get checkpoint sequence number by contents digest.
     pub fn get_sequence_number_by_contents_digest(
         &self,
@@ -320,19 +336,18 @@ impl InMemoryStore {
                 .insert(*tx.transaction.digest(), tx.effects.to_owned());
         }
         self.contents_digest_to_sequence_number
-            .insert(checkpoint.content_digest, *checkpoint.sequence_number());
+            .insert(checkpoint.content_digest, checkpoint.sequence_number());
         let contents = contents.into_inner();
         self.full_checkpoint_contents
-            .insert(*checkpoint.sequence_number(), contents.clone());
+            .insert(checkpoint.sequence_number(), contents.clone());
         let contents = contents.into_checkpoint_contents();
-        self.checkpoint_contents
-            .insert(*contents.digest(), contents);
+        self.checkpoint_contents.insert(contents.digest(), contents);
     }
 
     pub fn insert_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         self.insert_certified_checkpoint(checkpoint);
         let digest = *checkpoint.digest();
-        let sequence_number = *checkpoint.sequence_number();
+        let sequence_number = checkpoint.sequence_number();
 
         if Some(sequence_number) > self.highest_verified_checkpoint.map(|x| x.0) {
             self.highest_verified_checkpoint = Some((sequence_number, digest));
@@ -344,16 +359,13 @@ impl InMemoryStore {
     // watermark.
     pub fn insert_certified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         let digest = *checkpoint.digest();
-        let sequence_number = *checkpoint.sequence_number();
+        let sequence_number = checkpoint.sequence_number();
 
         if let Some(end_of_epoch_data) = &checkpoint.data().end_of_epoch_data {
-            let next_committee = end_of_epoch_data
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                &end_of_epoch_data.next_epoch_committee,
+            );
             self.insert_committee(committee);
         }
 
@@ -371,7 +383,7 @@ impl InMemoryStore {
             .get(&sequence_number)
             .unwrap()
             .clone();
-        let contents_digest = *contents.checkpoint_contents().digest();
+        let contents_digest = contents.checkpoint_contents().digest();
         for content in contents.iter() {
             let tx_digest = content.transaction.digest();
             self.effects.remove(tx_digest);
@@ -394,8 +406,7 @@ impl InMemoryStore {
                 return;
             }
         }
-        self.highest_synced_checkpoint =
-            Some((*checkpoint.sequence_number(), *checkpoint.digest()));
+        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn update_highest_verified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
@@ -408,7 +419,7 @@ impl InMemoryStore {
             }
         }
         self.highest_verified_checkpoint =
-            Some((*checkpoint.sequence_number(), *checkpoint.digest()));
+            Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn checkpoints(&self) -> &HashMap<CheckpointDigest, VerifiedCheckpoint> {
@@ -478,14 +489,14 @@ impl SingleCheckpointSharedInMemoryStore {
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &iota_sdk_types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &crate::base_types::ObjectID,
+        _object_id: &iota_sdk_types::ObjectId,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
         todo!()

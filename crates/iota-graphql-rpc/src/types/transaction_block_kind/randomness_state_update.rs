@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::transaction::RandomnessStateUpdate as NativeRandomnessStateUpdate;
+use iota_sdk_types::RandomnessStateUpdate as NativeRandomnessStateUpdate;
 
 use crate::types::{base64::Base64, epoch::Epoch, uint53::UInt53};
 
@@ -26,7 +26,7 @@ impl RandomnessStateUpdateTransaction {
 
     /// Randomness round of the update.
     async fn randomness_round(&self) -> UInt53 {
-        self.native.randomness_round.0.into()
+        self.native.randomness_round.value().into()
     }
 
     /// Updated random bytes, encoded as Base64.
@@ -38,7 +38,7 @@ impl RandomnessStateUpdateTransaction {
     async fn randomness_obj_initial_shared_version(&self) -> UInt53 {
         self.native
             .randomness_obj_initial_shared_version
-            .value()
+            .as_u64()
             .into()
     }
 }

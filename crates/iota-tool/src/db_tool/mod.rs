@@ -13,14 +13,12 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::{EpochId, ObjectID},
-    digests::{CheckpointContentsDigest, TransactionDigest},
-    effects::TransactionEffectsAPI,
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    storage::ObjectStore,
+    base_types::EpochId, effects::TransactionEffectsAPI,
+    messages_checkpoint::CheckpointSequenceNumber, storage::ObjectStore,
 };
-use typed_store::rocks::MetricConf;
+use typed_store::rocks::{MetricConf, safe_drop_db};
 
 use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
@@ -104,7 +102,7 @@ pub struct PrintTransactionOptions {
 #[derive(Parser)]
 pub struct PrintObjectOptions {
     #[arg(long, help = "The object id to print")]
-    id: ObjectID,
+    id: ObjectId,
     #[arg(long, help = "The object version to print")]
     version: Option<u64>,
 }
@@ -141,7 +139,7 @@ pub struct RemoveTransactionOptions {
 #[derive(Parser)]
 pub struct RemoveObjectLockOptions {
     #[arg(long, help = "The object ID to remove")]
-    id: ObjectID,
+    id: ObjectId,
 
     #[arg(long, help = "The object version to remove")]
     version: u64,
@@ -191,7 +189,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
         DbToolCommand::PrintCheckpointContent(d) => print_checkpoint_content(&db_path, d),
-        DbToolCommand::ResetDB => reset_db_to_genesis(&db_path),
+        DbToolCommand::ResetDB => reset_db_to_genesis(&db_path).await,
         DbToolCommand::RewindCheckpointExecution(d) => {
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
@@ -323,7 +321,7 @@ pub fn print_checkpoint_content(
     Ok(())
 }
 
-pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
+pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // Follow the below steps to test:
     //
     // Get a db snapshot. Either generate one by running stress locally and enabling
@@ -340,44 +338,14 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
     // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
-    // A sample fullnode.yaml config would be:
-    // ---
-    // db-path:  /opt/iota/db/authorities_db
-    // network-address: /ip4/0.0.0.0/tcp/8080/http
-    // json-rpc-address: "0.0.0.0:9000"
-    // websocket-address: "0.0.0.0:9001"
-    // metrics-address: "0.0.0.0:9184"
-    // admin-interface-address: "127.0.0.1:1337"
-    // grpc-load-shed: ~
-    // grpc-concurrency-limit: ~
-    // p2p-config:
-    //   listen-address: "0.0.0.0:8084"
-    // genesis:
-    //   genesis-file-location:  <path to genesis blob for the network>
-    // authority-store-pruning-config:
-    //   num-latest-epoch-dbs-to-retain: 3
-    //   epoch-db-pruning-period-secs: 3600
-    //   num-epochs-to-retain: 18446744073709551615
-    //   max-checkpoints-in-batch: 10
-    //   max-transactions-in-batch: 1000
-    let perpetual_db = AuthorityPerpetualTables::open_tables_read_write(
+    safe_drop_db(
         path.join("store").join("perpetual"),
-        MetricConf::default(),
-        None,
-        None,
-    );
-    perpetual_db.reset_db_for_execution_since_genesis()?;
+        std::time::Duration::from_secs(60),
+    )
+    .await?;
 
     let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
     checkpoint_db.reset_db_for_execution_since_genesis()?;
-
-    let epoch_db = AuthorityEpochTables::open_tables_read_write(
-        path.join("store"),
-        MetricConf::default(),
-        None,
-        None,
-    );
-    epoch_db.reset_db_for_execution_since_genesis()?;
 
     Ok(())
 }
@@ -410,9 +378,7 @@ pub fn rewind_checkpoint_execution(
         .unwrap_or_default();
     if checkpoint_sequence_number > highest_executed_sequence_number {
         bail!(
-            "Must rewind checkpoint execution to be not later than highest executed ({} > {})!",
-            checkpoint_sequence_number,
-            highest_executed_sequence_number
+            "Must rewind checkpoint execution to be not later than highest executed ({checkpoint_sequence_number} > {highest_executed_sequence_number})!"
         );
     }
     checkpoint_db.set_highest_executed_checkpoint_subtle(&checkpoint)?;
@@ -487,6 +453,18 @@ pub fn set_checkpoint_watermark(
         else {
             bail!("Checkpoint {highest_synced} not found");
         };
+        // Verify that checkpoint contents exist, since the checkpoint executor
+        // will panic if it tries to execute a checkpoint whose contents are
+        // missing from the store.
+        if checkpoint_db
+            .get_checkpoint_contents(&checkpoint.content_digest)?
+            .is_none()
+        {
+            bail!(
+                "Checkpoint contents not found for checkpoint {highest_synced}. \
+                 Setting highest_synced without contents would cause the executor to panic."
+            );
+        }
         checkpoint_db.update_highest_synced_checkpoint(&checkpoint)?;
     }
     Ok(())

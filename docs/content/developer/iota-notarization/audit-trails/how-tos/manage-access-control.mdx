@@ -1,0 +1,244 @@
+---
+title: Manage Access Control
+sidebar_label: Manage Access Control
+description: How to create roles, issue constrained capabilities, revoke and destroy capabilities, and remove roles from an Audit Trail.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Manage Access Control
+
+This guide covers the full capability lifecycle: creating and updating roles, issuing capabilities with constraints, revoking and destroying capabilities, and removing roles. For conceptual background, see [Role-Based Access Control](../explanations/role-based-access-control.mdx).
+
+## Prerequisites
+
+- An existing Audit Trail on the IOTA network
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and an operations-user wallet that will receive a custom role.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L28-L29
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L28-L29
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Custom Role
+
+Define a new role with a specific set of permissions. Here we create an "Operations" role with record admin permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L46-L54
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L34-L41
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Update Role Permissions
+
+Modify the permission set of an existing role. This replaces the previous permissions entirely.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L57-L72
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L44-L56
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Issue a Constrained Capability
+
+Issue a capability that is bound to a specific wallet address and has an expiration timestamp. The capability can only be used by the specified address and only until the expiry time.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L78-L89
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L63-L71
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Revoke a Capability
+
+Revocation is immediate — the holder can no longer use the capability. The revoked capability ID is recorded in the trail's revoked-capability registry.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L104-L109
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L87-L95
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Destroy a Capability
+
+Unlike revocation, destroying a capability permanently removes it without adding it to the revoked registry.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L114-L132
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L101-L113
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 7. Clean Up Revoked Capabilities
+
+Remove stale entries from the revoked-capability registry. This is required before a role can be deleted.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L138-L143
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L117-L122
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 8. Delete a Role
+
+Remove the role from the trail entirely. All capabilities for the role must be revoked/destroyed and cleaned up first.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs#L146-L152
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L126-L132
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Roles can be created, updated, and deleted using the Admin capability.
+- Capabilities can be constrained by address (`issued_to`), start time (`valid_from_ms`), and expiry time (`valid_until_ms`).
+- Revocation is immediate and blocks all further use of the capability.
+- A role cannot be deleted until all its capabilities are destroyed and the revoked registry is cleaned up.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/05_manage_access.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts
+```
+
+</TabItem>
+</Tabs>

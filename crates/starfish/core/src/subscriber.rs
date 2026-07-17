@@ -44,6 +44,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         authority_service: Arc<S>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Self {
+        // Drop label combos left over from previous epochs whose hostnames
+        // are no longer in the current committee — otherwise IntGaugeVec
+        // keeps re-emitting the last value (typically 1) forever.
+        context.metrics.node_metrics.subscribed_to.reset();
         let subscriptions = (0..context.committee.size())
             .map(|_| None)
             .collect::<Vec<_>>();
@@ -224,7 +228,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone(), &mut encoder)
+                            .handle_subscribed_block_bundle(peer, block, &mut encoder)
                             .await;
                         if let Err(e) = result {
                             match e {
@@ -356,7 +360,7 @@ mod test {
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));
         let network_client = Arc::new(SubscriberTestClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let subscriber = Subscriber::new(
             context.clone(),

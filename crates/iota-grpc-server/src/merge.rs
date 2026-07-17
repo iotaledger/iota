@@ -17,7 +17,7 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::SdkTypeConversionError};
+use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 use crate::{error::RpcError, validation::object_id_proto};
 
@@ -249,7 +249,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id = Some(object_id_proto(&ObjectID::from(source.package_id)));
+            self.package_id = Some(object_id_proto(&source.package_id));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -318,11 +318,11 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id());
+                    ref_builder = ref_builder.with_object_id(source.id());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
-                    ref_builder = ref_builder.with_version(source.version());
+                    ref_builder = ref_builder.with_version(source.version().as_u64());
                 }
 
                 if reference_mask.contains(ObjectReference::DIGEST_FIELD.name) {
@@ -333,8 +333,8 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id())
-                    .with_version(source.version())
+                    .with_object_id(source.id())
+                    .with_version(source.version().as_u64())
                     .with_digest(source.digest())
             };
 
@@ -580,27 +580,16 @@ impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
         source: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        // Convert iota_types to iota_sdk_types types for external compatibility
-        let sdk_effects: iota_sdk_types::TransactionEffects =
-            source.try_into().map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert effects")
-            })?;
-
-        Merge::merge(self, &sdk_effects, mask)
+        Merge::merge(self, &source, mask)
     }
 }
 
-impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
+impl Merge<&iota_types::effects::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEffects,
+        source: &iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Set digest if requested
@@ -634,28 +623,6 @@ impl Merge<&TransactionEffects> for TransactionEffects {
         }
 
         Ok(())
-    }
-}
-
-impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: iota_types::effects::TransactionEvents,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::EVENTS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        let sdk_events: iota_sdk_types::TransactionEvents =
-            source.try_into().map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert events")
-            })?;
-
-        Merge::merge(self, &sdk_events, mask)
     }
 }
 
@@ -781,15 +748,7 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             return Ok(());
         }
 
-        let sdk_transaction: iota_sdk_types::Transaction = source
-            .transaction_data()
-            .clone()
-            .try_into()
-            .map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert transaction")
-            })?;
-
-        Merge::merge(self, &sdk_transaction, mask)
+        Merge::merge(self, source.transaction_data(), mask)
     }
 }
 

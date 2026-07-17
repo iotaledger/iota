@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
@@ -15,14 +15,17 @@ use std::{
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 use tokio::{
     sync::{mpsc::error::TrySendError, watch},
     time::Instant,
 };
 use tracing::{debug, error, info, trace, warn};
 
+#[cfg(feature = "dag-visualizer")]
+use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
+    authority_set::AuthoritySet,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
         TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
@@ -34,7 +37,9 @@ use crate::{
     },
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
+    error::ConsensusResult,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
@@ -91,6 +96,46 @@ pub(crate) enum DataSource {
 }
 
 impl DataSource {
+    /// Whether headers from this source are subject to the far-future round
+    /// bound — the live header-ingress paths, as opposed to certified catch-up,
+    /// locally produced, or transaction/shard sources.
+    pub(crate) fn is_subject_to_far_future_bound(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizer => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
+    /// Whether the `quorum_receive_latency` metric should be recorded for
+    /// headers from this source. That metric is `now - proposal_timestamp`, so
+    /// only live network ingress reflects real propagation timing; recovery and
+    /// commit/fast sync replay stored headers whose old timestamps would skew
+    /// it.
+    pub(crate) fn records_receive_latency(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizer => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
     /// Returns the string label used for metrics reporting.
     /// This ensures consistency with existing metrics that may be monitored.
     pub(crate) fn as_str(&self) -> &'static str {
@@ -113,6 +158,45 @@ impl DataSource {
 impl std::fmt::Display for DataSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+/// Number of recent leader rounds whose strong-vote complaints contribute to
+/// the adaptive-acknowledgment exclusion score for StarfishSpeed.
+const STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS: usize = 10;
+
+/// Per-leader-round complaint history derived from the strong-vote masks of
+/// blocks that voted for that leader. The first mask we observe from each
+/// voter is folded into `complaint_stakes` (which authorities the voter blamed,
+/// weighted by the voter's stake) and the voter is recorded in
+/// `voters_counted`; subsequent masks from the same voter — i.e. equivocations
+/// — are ignored, capping each voter's contribution at its own stake per
+/// blamed authority.
+#[derive(Default)]
+struct StarfishSpeedLeaderRoundHints {
+    voters_counted: AuthoritySet,
+    complaint_stakes: Vec<Stake>,
+}
+
+impl StarfishSpeedLeaderRoundHints {
+    fn new(committee_size: usize) -> Self {
+        Self {
+            voters_counted: AuthoritySet::new(),
+            complaint_stakes: vec![0; committee_size],
+        }
+    }
+
+    /// Records `voter`'s blame mask, accumulating `voter_stake` against each
+    /// authority in the mask. No-op if `voter` has already contributed to
+    /// this round (equivocations are ignored).
+    fn add_vote(&mut self, voter: AuthorityIndex, voter_stake: Stake, mask: AuthoritySet) {
+        if !self.voters_counted.insert(voter) {
+            return;
+        }
+        for authority in mask.iter() {
+            let stake = &mut self.complaint_stakes[authority.value()];
+            *stake = stake.saturating_add(voter_stake);
+        }
     }
 }
 
@@ -191,8 +275,12 @@ pub(crate) struct DagState {
     /// used for leader schedule yet.
     scoring_subdag: ScoringSubdag,
 
-    /// Commit votes pending to be included in new blocks.
-    pending_commit_votes: VecDeque<CommitVote>,
+    /// Commit votes pending to be included in new blocks. Ordered by
+    /// `(index, digest)` so eviction below a threshold uses `split_off`.
+    pending_commit_votes: BTreeSet<CommitVote>,
+
+    /// Latest quorum commit index
+    last_known_quorum_commit_index: CommitIndex,
 
     /// Acknowledgments pending to be included in new blocks. These represent
     /// votes indicating the availability of transaction data from the
@@ -221,6 +309,9 @@ pub(crate) struct DagState {
     /// the previous window.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
+    /// Misbehavior scoring metrics (in-memory + persisted buckets).
+    misbehavior_store: Arc<MisbehaviorStore>,
+
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
 
@@ -229,11 +320,34 @@ pub(crate) struct DagState {
 
     /// Cordial Knowledge senders (main updates, eviction rounds).
     cordial_knowledge_senders: Option<(Sender<CordialKnowledgeMessage>, watch::Sender<Vec<Round>>)>,
+
+    /// History of strong-vote complaint masks against this node's own
+    /// leader rounds, keyed by leader round.
+    starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
+
+    /// Broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
 }
 
 impl DagState {
-    /// Initializes DagState from storage.
+    /// Initializes DagState from storage with a freshly constructed
+    /// `MisbehaviorStore`. Production code uses `new_with_misbehavior_store`
+    /// to share the store with other components; this constructor exists
+    /// for tests that don't need the shared instance.
+    #[cfg(test)]
     pub(crate) fn new(context: Arc<Context>, store: Arc<dyn Store>) -> Self {
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        Self::new_with_misbehavior_store(context, store, misbehavior_store)
+    }
+
+    /// Initializes DagState from storage with an externally-provided
+    /// MisbehaviorStore, allowing it to be shared with other components.
+    pub(crate) fn new_with_misbehavior_store(
+        context: Arc<Context>,
+        store: Arc<dyn Store>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+    ) -> Self {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
@@ -267,7 +381,9 @@ impl DagState {
             };
 
         // Read fast sync flag from storage
-        let fast_sync_ongoing = store.read_fast_sync_ongoing();
+        let fast_sync_ongoing = store
+            .read_fast_sync_ongoing()
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
         let mut unscored_committed_subdags = Vec::new();
         let mut scoring_subdag = ScoringSubdag::new(context.clone());
@@ -287,7 +403,10 @@ impl DagState {
                         }
 
                         let committed_subdag =
-                            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+                            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![])
+                                .unwrap_or_else(|e| {
+                                    panic!("Failed to recover pending subdag: {e:?}")
+                                });
                         unscored_committed_subdags.push(committed_subdag.base);
                     });
             }
@@ -316,7 +435,8 @@ impl DagState {
             last_committed_rounds: last_committed_rounds.clone(),
             last_solid_subdag_base: None, /* Later the commit observer might update
                                            * this value during recovery process. */
-            pending_commit_votes: VecDeque::new(),
+            pending_commit_votes: BTreeSet::new(),
+            last_known_quorum_commit_index: GENESIS_COMMIT_INDEX,
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
             commits_to_write: vec![],
@@ -325,10 +445,14 @@ impl DagState {
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
+            misbehavior_store,
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
+            starfish_speed_leader_hints: BTreeMap::new(),
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_sender: None,
         };
 
         // Load cached data for each authority from storage
@@ -336,6 +460,21 @@ impl DagState {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
             state.load_cached_data_for_authority(authority_index, round, DataSource::Recover);
         }
+
+        // Restore persisted counts from storage and compute in-memory counts
+        // from the block refs already loaded into the cache.
+        let recovered_misbehavior_counts = store
+            .scan_misbehavior_counts()
+            .expect("reading misbehavior counts from storage should not fail");
+        state.misbehavior_store.initialize_misbehavior_counts(
+            recovered_misbehavior_counts,
+            &state.recent_headers_refs_by_authority,
+            &state.evicted_rounds,
+            state.threshold_clock_round(),
+            &state.context,
+        );
+
+        state.replay_strong_vote_complaints_from_recovered_headers();
         state
     }
 
@@ -345,6 +484,56 @@ impl DagState {
         eviction_sender: watch::Sender<Vec<Round>>,
     ) {
         self.cordial_knowledge_senders = Some((sender, eviction_sender));
+    }
+
+    /// Sets the broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    pub fn set_dag_visualizer_sender(
+        &mut self,
+        sender: tokio::sync::broadcast::Sender<DagVisualizerEvent>,
+    ) {
+        if self.context.committee.size() > u8::MAX as usize + 1 {
+            warn!(
+                "DAG visualizer disabled: authority indices are encoded as u8 but committee \
+                 size {} exceeds 256",
+                self.context.committee.size()
+            );
+            return;
+        }
+        self.dag_visualizer_sender = Some(sender);
+    }
+
+    /// Emits a DAG visualizer event if the sender is configured and has
+    /// subscribers.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_dag_visualizer_event(&self, event: DagVisualizerEvent) {
+        if let Some(sender) = &self.dag_visualizer_sender {
+            if sender.receiver_count() > 0 {
+                let _ = sender.send(event);
+            }
+        }
+    }
+
+    /// Returns true if there are active DAG visualizer subscribers.
+    /// Use this to skip expensive event construction when nobody is listening.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn has_dag_visualizer_subscribers(&self) -> bool {
+        self.dag_visualizer_sender
+            .as_ref()
+            .is_some_and(|s| s.receiver_count() > 0)
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderSkipped`] event for the given slot.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_skipped_event(&self, slot: Slot) {
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderSkipped(slot));
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderCommitted`] event for the given
+    /// leader block reference.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_committed_event(&self, leader: &BlockRef) {
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderCommitted(*leader));
     }
 
     /// Loads cached data (block headers and transactions) for a single
@@ -371,7 +560,7 @@ impl DagState {
         // Reload transactions from storage
         let transactions = self
             .store
-            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
+            .scan_transactions_by_author(authority_index, eviction_round + 1)
             .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
@@ -410,6 +599,8 @@ impl DagState {
         self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
+        self.misbehavior_store.reset();
+        self.starfish_speed_leader_hints.clear();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -425,9 +616,24 @@ impl DagState {
             );
         }
 
+        // 4. Re-initialize misbehavior counts from storage
+        let recovered_misbehavior_counts = self
+            .store
+            .scan_misbehavior_counts()
+            .expect("reading misbehavior counts from storage should not fail");
+        self.misbehavior_store.initialize_misbehavior_counts(
+            recovered_misbehavior_counts,
+            &self.recent_headers_refs_by_authority,
+            &self.evicted_rounds,
+            self.threshold_clock_round(),
+            &self.context,
+        );
+
         // Rebuild scoring_subdag from stored commits so leader schedule state
         // matches peers after fast sync reinitialization.
         self.rebuild_scoring_subdag_from_store();
+
+        self.replay_strong_vote_complaints_from_recovered_headers();
 
         info!("DagState reinitialized successfully");
     }
@@ -451,7 +657,8 @@ impl DagState {
         let mut unscored_subdags = Vec::with_capacity(commits.len());
         for commit in commits {
             let pending_subdag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
+                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"));
             unscored_subdags.push(pending_subdag.base);
         }
 
@@ -506,7 +713,7 @@ impl DagState {
         // TODO: Move this check to core
         // Ensure we don't write multiple blocks per slot for our own index
         if block_ref.author == self.context.own_index {
-            let existing_blocks = self.get_uncommitted_block_headers_at_slot(block_ref.into());
+            let existing_blocks = self.get_recent_block_headers_at_slot(block_ref.into());
             assert!(
                 existing_blocks.is_empty(),
                 "Block header Rejected! Attempted to add block header {block_header:#?} to own slot where \
@@ -518,6 +725,19 @@ impl DagState {
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
         );
+
+        // Emit DAG visualizer event before moving block_header.
+        #[cfg(feature = "dag-visualizer")]
+        if self.has_dag_visualizer_subscribers() {
+            use std::sync::Arc;
+            self.emit_dag_visualizer_event(DagVisualizerEvent::BlockAccepted {
+                block_ref,
+                timestamp_ms: block_header.timestamp_ms(),
+                ancestors: Arc::from(block_header.ancestors()),
+                acknowledgments: Arc::from(block_header.acknowledgments()),
+            });
+        }
+
         self.block_headers_to_write.push(block_header);
         let author_label = if self.context.own_index == block_ref.author {
             "own"
@@ -539,15 +759,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
         {
             if transactions.has_transactions() {
@@ -595,7 +807,9 @@ impl DagState {
     }
 
     pub(crate) fn fast_sync_ongoing(&self) -> bool {
-        self.store.read_fast_sync_ongoing()
+        self.store
+            .read_fast_sync_ongoing()
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
     /// Returns the leader round of the last solid commit (backward
@@ -652,7 +866,40 @@ impl DagState {
             (block_ref.round, block_header.transactions_commitment()),
             block_ref.digest,
         );
-        self.threshold_clock.add_block_header(block_ref);
+        #[cfg(feature = "dag-visualizer")]
+        let clock_before = self.threshold_clock.get_round();
+        if self.threshold_clock.add_block_header(block_ref) {
+            // Quorum latency is `now - proposal_timestamp`, so it only makes sense
+            // for live network ingress. Recovery and commit/fast sync replay stored
+            // headers whose old timestamps would record `now - old_proposal_ts`.
+            //
+            // Also only measure when the local node proposed in the round that just
+            // reached quorum, to avoid skewing the metric during idle rounds.
+            if source.records_receive_latency() {
+                let last_proposed = self.get_last_proposed_block_header();
+                if last_proposed.round() == block_ref.round {
+                    let quorum_delay_ms = self
+                        .context
+                        .clock
+                        .timestamp_utc_ms()
+                        .saturating_sub(last_proposed.timestamp_ms());
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .quorum_receive_latency
+                        .observe((quorum_delay_ms as f64) / 1000.0);
+                }
+            }
+        }
+        #[cfg(feature = "dag-visualizer")]
+        {
+            let clock_after = self.threshold_clock.get_round();
+            if clock_after > clock_before {
+                self.emit_dag_visualizer_event(DagVisualizerEvent::RoundAdvanced {
+                    round: clock_after,
+                });
+            }
+        }
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
@@ -691,11 +938,7 @@ impl DagState {
                 // Fetch transaction commitments for all acknowledged blocks in batch
                 let acknowledgments = block_header.acknowledgments();
                 let ack_transactions_commitments =
-                    if self.context.protocol_config.consensus_fast_commit_sync() {
-                        self.get_transactions_commitments_batch(acknowledgments)
-                    } else {
-                        vec![None; acknowledgments.len()]
-                    };
+                    self.get_transactions_commitments_batch(acknowledgments);
 
                 let cordial_message = CordialKnowledgeMessage::NewHeader {
                     header: block_header.clone(),
@@ -714,23 +957,17 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[transaction_ref.author]
             .insert(generic_ref, transactions.clone());
         tracing::debug!("Adding transactions for {generic_ref}");
 
         // Handle pending acknowledgments for recent blocks
         let has_transactions = transactions.has_transactions();
+        let block_digest = transactions.block_ref().map(|br| br.digest);
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
+
         let hostname = self
             .context
             .committee
@@ -758,11 +995,7 @@ impl DagState {
                 && source != DataSource::CommitSyncer
                 && source != DataSource::Recover
             {
-                self.add_pending_acknowledgment(
-                    transaction_ref,
-                    transactions.block_ref().map(|br| br.digest),
-                    source,
-                );
+                self.add_pending_acknowledgment(transaction_ref, block_digest, source);
             }
         } else {
             self.context
@@ -846,6 +1079,18 @@ impl DagState {
         &self,
         transactions_refs: &[GenericTransactionRef],
     ) -> Vec<Option<VerifiedTransactions>> {
+        self.try_get_verified_transactions(transactions_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+    }
+
+    /// Returns verified transactions from memory or storage.
+    ///
+    /// # Errors
+    /// Returns a storage error when persisted transactions cannot be read.
+    pub(crate) fn try_get_verified_transactions(
+        &self,
+        transactions_refs: &[GenericTransactionRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
         let mut transactions = vec![None; transactions_refs.len()];
         let mut missing = Vec::new();
 
@@ -867,17 +1112,14 @@ impl DagState {
         }
 
         if missing.is_empty() {
-            return transactions;
+            return Ok(transactions);
         }
 
         let missing_refs = missing
             .iter()
             .map(|(_, block_ref)| **block_ref)
             .collect::<Vec<_>>();
-        let store_results = self
-            .store
-            .read_verified_transactions(&missing_refs)
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        let store_results = self.store.read_verified_transactions(&missing_refs)?;
         self.context
             .metrics
             .node_metrics
@@ -885,32 +1127,11 @@ impl DagState {
             .with_label_values(&["get_verified_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             transactions[index] = result;
         }
 
-        transactions
-    }
-
-    /// Returns all verified transactions or the list of missing transaction
-    /// refs. This is the canonical way to load transactions for
-    /// CommittedSubDag construction.
-    pub(crate) fn try_get_all_verified_transactions(
-        &self,
-        tx_refs: &[GenericTransactionRef],
-    ) -> Result<Vec<VerifiedTransactions>, Vec<GenericTransactionRef>> {
-        let results = self.get_verified_transactions(tx_refs);
-        let mut missing = Vec::new();
-        for (i, tx_opt) in results.iter().enumerate() {
-            if tx_opt.is_none() {
-                missing.push(tx_refs[i]);
-            }
-        }
-        if missing.is_empty() {
-            Ok(results.into_iter().map(|tx| tx.unwrap()).collect())
-        } else {
-            Err(missing)
-        }
+        Ok(transactions)
     }
 
     /// Gets serialized transactions by checking cached recent transactions in
@@ -962,7 +1183,7 @@ impl DagState {
             .with_label_values(&["get_serialized_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             transactions[index] = result;
         }
 
@@ -1091,7 +1312,7 @@ impl DagState {
             .with_label_values(&["get_verified_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             block_headers[index] = result;
         }
 
@@ -1134,7 +1355,7 @@ impl DagState {
             .read_verified_block_headers(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             if let Some(header) = result {
                 commitments[index] = Some(header.transactions_commitment());
             }
@@ -1186,7 +1407,7 @@ impl DagState {
             .with_label_values(&["get_serialized_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             block_headers[index] = result;
         }
 
@@ -1267,17 +1488,8 @@ impl DagState {
         shards
     }
 
-    /// Gets all uncommitted block headers in a slot.
-    /// Uncommitted block headers must exist in memory, so only in-memory block
-    /// headers are checked.
-    pub(crate) fn get_uncommitted_block_headers_at_slot(
-        &self,
-        slot: Slot,
-    ) -> Vec<VerifiedBlockHeader> {
-        // TODO: either panic below when the slot is at or below the last committed
-        // round, or support reading from storage while limiting storage reads
-        // to edge cases.
-
+    /// Returns headers from `recent_block_headers` at `slot`.
+    pub(crate) fn get_recent_block_headers_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut block_headers = vec![];
         for (_block_ref, block_header) in self.recent_block_headers.range((
             Included(BlockRef::new(
@@ -1296,16 +1508,33 @@ impl DagState {
         block_headers
     }
 
-    /// Gets all uncommitted block headers in a round.
-    /// Uncommitted block headers must exist in memory, so only in-memory block
-    /// headers are checked.
-    pub(crate) fn get_uncommitted_block_headers_at_round(
+    /// Same as `get_recent_block_headers_at_slot` but asserts the slot is
+    /// strictly above last committed round. The caller, e.g. committer, must
+    /// ensure that the invariant holds.
+    pub(crate) fn get_block_headers_at_slot_above_last_commit(
+        &self,
+        slot: Slot,
+    ) -> Vec<VerifiedBlockHeader> {
+        assert!(
+            slot.round > self.last_commit_round(),
+            "slot {slot:?} must be above last commit round {}",
+            self.last_commit_round()
+        );
+        self.get_recent_block_headers_at_slot(slot)
+    }
+
+    /// Returns headers from `recent_block_headers` at `round`. The caller must
+    /// pass `round > last_commit_round()` so the lookup stays inside the
+    /// not-yet-committed portion of the DAG.
+    pub(crate) fn get_block_headers_at_round_above_last_commit(
         &self,
         round: Round,
     ) -> Vec<VerifiedBlockHeader> {
-        if round <= self.last_commit_round() {
-            panic!("Round {round} have committed block headers!");
-        }
+        assert!(
+            round > self.last_commit_round(),
+            "round {round} must be above last commit round {}",
+            self.last_commit_round()
+        );
 
         let mut block_headers = vec![];
         for (_block_ref, block_header) in self.recent_block_headers.range((
@@ -1325,25 +1554,28 @@ impl DagState {
         block_headers
     }
 
-    /// Gets all ancestors in the history of a block at a certain round.
-    pub(crate) fn ancestors_at_round(
+    /// Returns block headers at exactly `earlier_round` that are reachable
+    /// from `later_block` through ancestor links (transitive closure stopped
+    /// at the target round). The caller must ensure that the earlier round is
+    /// strictly above last committed round.
+    pub(crate) fn reachable_headers_at_round_above_last_commit(
         &self,
         later_block: &VerifiedBlockHeader,
         earlier_round: Round,
     ) -> Vec<VerifiedBlockHeader> {
         // Iterate through ancestors of later_block in round descending order.
-        let mut linked: BTreeSet<BlockRef> = later_block.ancestors().iter().cloned().collect();
-        while !linked.is_empty() {
-            let round = linked.last().unwrap().round;
+        let mut reachable: BTreeSet<BlockRef> = later_block.ancestors().iter().cloned().collect();
+        while !reachable.is_empty() {
+            let round = reachable.last().unwrap().round;
             // Stop after finishing traversal for ancestors above earlier_round.
             if round <= earlier_round {
                 break;
             }
-            let block_ref = linked.pop_last().unwrap();
+            let block_ref = reachable.pop_last().unwrap();
             let Some(block) = self.get_verified_block_header(&block_ref) else {
                 panic!("Block Header {block_ref:?} should exist in DAG!");
             };
-            linked.extend(
+            reachable.extend(
                 block
                     .ancestors()
                     .iter()
@@ -1352,7 +1584,7 @@ impl DagState {
             );
         }
         let block_headers =
-            self.get_verified_block_headers(&linked.iter().cloned().collect::<Vec<_>>());
+            self.get_verified_block_headers(&reachable.iter().cloned().collect::<Vec<_>>());
         block_headers
             .into_iter()
             .map(|opt| opt.unwrap_or_else(|| panic!("Block should exist in DAG!")))
@@ -1368,16 +1600,11 @@ impl DagState {
             if last.round > GENESIS_ROUND {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
-                    let transaction_ref =
-                        if self.context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::from(TransactionRef {
-                                round: last.round,
-                                author: last.author,
-                                transactions_commitment: last_header.transactions_commitment(),
-                            })
-                        } else {
-                            GenericTransactionRef::from(*last)
-                        };
+                    let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                        round: last.round,
+                        author: last.author,
+                        transactions_commitment: last_header.transactions_commitment(),
+                    });
 
                     if let Some(last_transactions) =
                         self.recent_transactions_by_authority[last.author].get(&transaction_ref)
@@ -1438,15 +1665,11 @@ impl DagState {
             let header_opt = self.recent_block_headers.get(block_ref);
             let mut block_constructed = false;
             if let Some(header) = header_opt {
-                let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-                    GenericTransactionRef::from(TransactionRef {
-                        round: block_ref.round,
-                        author: block_ref.author,
-                        transactions_commitment: header.transactions_commitment(),
-                    })
-                } else {
-                    GenericTransactionRef::from(*block_ref)
-                };
+                let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    transactions_commitment: header.transactions_commitment(),
+                });
                 let transactions_opt =
                     self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);
                 if let Some(transactions) = transactions_opt {
@@ -1465,7 +1688,6 @@ impl DagState {
     /// Block headers returned are limited to round >= `start`, and cached.
     /// NOTE: caller should not assume returned block headers are always
     /// chained.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn get_cached_block_headers_since_round(
         &self,
         authority: AuthorityIndex,
@@ -1628,38 +1850,43 @@ impl DagState {
         block_headers.into_iter().zip(equivocating_blocks).collect()
     }
 
-    /// Checks whether a block header exists in the slot. The method checks only
-    /// against the cached data. If the user asks for a slot that is not
-    /// within the cached data then a panic is thrown.
-    pub(crate) fn contains_cached_block_header_at_slot(&self, slot: Slot) -> bool {
-        // Always return true for genesis slots.
+    /// Returns the cached block header at the given slot, or `None` if no
+    /// such block is cached (including when the slot is older than the
+    /// authority's last evicted round). If multiple equivocating blocks
+    /// exist at the same slot, returns the one with the largest
+    /// `BlockHeaderDigest` — matching the selection rule used by
+    /// `get_last_cached_block_header_per_authority`.
+    pub(crate) fn get_cached_block_header_at_slot(
+        &self,
+        slot: Slot,
+    ) -> Option<VerifiedBlockHeader> {
         if slot.round == GENESIS_ROUND {
-            return true;
+            return self
+                .genesis
+                .iter()
+                .find(|(k, _)| k.author == slot.authority)
+                .map(|(_, b)| (**b).clone());
         }
 
-        let eviction_round = self.evicted_rounds[slot.authority];
-        if slot.round <= eviction_round {
-            panic!(
-                "{}",
-                format!(
-                    "Attempted to check for slot {slot} that is <= the last evicted round {eviction_round}"
-                )
-            );
+        if slot.round <= self.evicted_rounds[slot.authority] {
+            return None;
         }
 
-        let mut result = self.recent_headers_refs_by_authority[slot.authority].range((
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MIN,
-            )),
-            Included(BlockRef::new(
-                slot.round,
-                slot.authority,
-                BlockHeaderDigest::MAX,
-            )),
-        ));
-        result.next().is_some()
+        self.recent_headers_refs_by_authority[slot.authority]
+            .range((
+                Included(BlockRef::new(
+                    slot.round,
+                    slot.authority,
+                    BlockHeaderDigest::MIN,
+                )),
+                Included(BlockRef::new(
+                    slot.round,
+                    slot.authority,
+                    BlockHeaderDigest::MAX,
+                )),
+            ))
+            .next_back()
+            .and_then(|block_ref| self.recent_block_headers.get(block_ref).cloned())
     }
 
     /// Checks whether the required block headers are in cache; if not, then
@@ -1705,7 +1932,7 @@ impl DagState {
             .with_label_values(&["contains_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             exist[index] = result;
         }
 
@@ -1759,7 +1986,7 @@ impl DagState {
             .with_label_values(&["contains_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             exist[index] = result;
         }
 
@@ -1776,6 +2003,14 @@ impl DagState {
 
     pub(crate) fn highest_accepted_round(&self) -> Round {
         self.highest_accepted_round
+    }
+
+    /// Highest round a header from a far-future-bounded source may have, given
+    /// the current accepted frontier, to still be close enough to ever connect.
+    pub(crate) fn far_future_round_ceiling(&self) -> Round {
+        self.context
+            .parameters
+            .far_future_round_ceiling(self.highest_accepted_round())
     }
 
     /// Highest round where a block is committed, which is last commit's leader
@@ -1893,11 +2128,29 @@ impl DagState {
     }
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
-        let mut votes = Vec::new();
-        while !self.pending_commit_votes.is_empty() && votes.len() < limit {
-            votes.push(self.pending_commit_votes.pop_front().unwrap());
+        self.evict_pending_commit_votes();
+        if self.pending_commit_votes.len() <= limit {
+            return std::mem::take(&mut self.pending_commit_votes)
+                .into_iter()
+                .collect();
         }
-        votes
+        let pivot = *self.pending_commit_votes.iter().nth(limit).unwrap();
+        let kept = self.pending_commit_votes.split_off(&pivot);
+        let taken = std::mem::replace(&mut self.pending_commit_votes, kept);
+        taken.into_iter().collect()
+    }
+
+    /// Check if a block's transactions are locally available.
+    pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
+        let Some(header) = self.recent_block_headers.get(block_ref) else {
+            return false;
+        };
+        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment: header.transactions_commitment(),
+        });
+        self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
     /// Clean up old cached data for each authority, all cached blocks
@@ -1928,19 +2181,11 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: eviction_round + 1,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    eviction_round + 1,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: eviction_round + 1,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_shards_by_authority[authority_index] =
                 self.recent_shards_by_authority[authority_index].split_off(&split_key);
         }
@@ -1952,36 +2197,41 @@ impl DagState {
     /// (protocol_config.gc_depth)" and the eviction round of corresponding
     /// authority
     pub(crate) fn evict_transactions(&mut self) {
+        let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            // Take minimum between transaction_gc_round and eviction_round
-            let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
+            // During fast sync, recent_headers_refs_by_authority is frozen (no
+            // headers are added), so calculate_authority_eviction_round returns
+            // a stale value near GENESIS_ROUND. Use the commit-based GC round
+            // directly — all transactions are persisted before eviction runs.
+            let transaction_eviction_round = if fast_sync {
+                transaction_gc_round
+            } else {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                min(transaction_gc_round, eviction_round + 1)
+            };
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: transaction_eviction_round,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    transaction_eviction_round,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: transaction_eviction_round,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
         }
     }
 
     pub(crate) fn evict_tx_ref_to_block_digests(&mut self) {
+        let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let eviction_round = min(transaction_gc_round, eviction_round + 1);
+            let eviction_round = if fast_sync {
+                transaction_gc_round
+            } else {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                min(transaction_gc_round, eviction_round + 1)
+            };
             let split_key = (eviction_round, TransactionsCommitment::MIN);
             self.tx_ref_to_block_digest_by_authority[authority_index] =
                 self.tx_ref_to_block_digest_by_authority[authority_index].split_off(&split_key);
@@ -1997,6 +2247,23 @@ impl DagState {
         } else {
             GENESIS_ROUND
         }
+    }
+
+    /// Records the latest quorum commit index observed by `Core` from
+    /// `CommitVoteMonitor`. Drives `evict_pending_commit_votes`.
+    pub(crate) fn set_last_known_quorum_commit_index(&mut self, idx: CommitIndex) {
+        self.last_known_quorum_commit_index = idx;
+    }
+
+    /// Drops queued commit votes whose index is at or below the network's
+    /// quorum commit index minus `gc_depth`. Those votes carry no new
+    /// information for peers and only bloat the in-memory tracker.
+    pub(crate) fn evict_pending_commit_votes(&mut self) {
+        let gc_threshold = self
+            .last_known_quorum_commit_index
+            .saturating_sub(self.context.protocol_config.gc_depth());
+        let pivot = CommitRef::new(gc_threshold + 1, CommitDigest::MIN);
+        self.pending_commit_votes = self.pending_commit_votes.split_off(&pivot);
     }
 
     /// Function removes stalled pending acknowledgments that are older than
@@ -2052,27 +2319,51 @@ impl DagState {
         self.pending_acknowledgments.insert(block_ref);
     }
 
-    /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
-    /// ensuring they are from rounds below `clock_round`.
-    pub(crate) fn take_acknowledgments(&mut self, limit: usize) -> Vec<BlockRef> {
+    /// Takes at most `limit` acknowledgments from `pending_acknowledgments`
+    /// from rounds below `clock_round`. Refs whose author is in `exclude` are
+    /// skipped over and stay pending so they can be acked later.
+    pub(crate) fn take_acknowledgments(
+        &mut self,
+        limit: usize,
+        exclude: AuthoritySet,
+    ) -> Vec<BlockRef> {
         self.evict_pending_acknowledgments();
         let clock_round = self.threshold_clock_round();
         let mut taken = Vec::with_capacity(limit);
-        let mut last_ack = None;
 
-        for ack in self.pending_acknowledgments.iter() {
-            if taken.len() >= limit || ack.round >= clock_round {
-                break;
+        if exclude.is_empty() {
+            for ack in self.pending_acknowledgments.iter() {
+                if taken.len() >= limit || ack.round >= clock_round {
+                    break;
+                }
+                taken.push(*ack);
             }
-            taken.push(*ack);
-        }
-
-        if let Some(last) = taken.last() {
-            last_ack = Some(*last);
-        }
-
-        if let Some(last_ack) = last_ack {
-            self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
+            if let Some(&last_ack) = taken.last() {
+                self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
+                self.pending_acknowledgments.remove(&last_ack);
+            }
+        } else {
+            let mut dropped: u64 = 0;
+            for ack in self.pending_acknowledgments.iter() {
+                if taken.len() >= limit || ack.round >= clock_round {
+                    break;
+                }
+                if exclude.contains(ack.author) {
+                    dropped += 1;
+                    continue;
+                }
+                taken.push(*ack);
+            }
+            if dropped > 0 {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .adaptive_ack_acks_dropped
+                    .inc_by(dropped);
+            }
+            for ack in &taken {
+                self.pending_acknowledgments.remove(ack);
+            }
         }
 
         taken
@@ -2174,7 +2465,6 @@ impl DagState {
             .with_label_values(&["DagState::flush"])
             .start_timer();
 
-        // Take ownership of buffered data efficiently using mem::take
         let transactions = std::mem::take(&mut self.transactions_to_write);
         let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
@@ -2182,61 +2472,65 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
-        // Early return if there's nothing to flush
-        if transactions.is_empty()
-            && block_headers.is_empty()
-            && commits.is_empty()
-            && commit_info.is_empty()
-            && voting_block_headers.is_empty()
-            && fast_commit_sync_flag.is_none()
-        {
-            return;
-        }
+        let misbehavior_counts = self.misbehavior_counts_to_write();
 
-        debug!(
-            "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
-            block_headers.len(),
-            block_headers
-                .iter()
-                .map(|b| b.reference().to_string())
-                .join(","),
-            transactions.len(),
-            transactions
-                .iter()
-                .map(|b| b.transactions_commitment().to_string())
-                .join(","),
-            commits.len(),
-            commits.iter().map(|c| c.reference().to_string()).join(","),
-            commit_info.len(),
-            commit_info
-                .iter()
-                .map(|(commit_ref, _)| commit_ref.to_string())
-                .join(","),
-            fast_commit_sync_flag
-                .map(|f| f.to_string())
-                .unwrap_or_else(|| "unchanged".to_string())
-        );
+        let has_data_to_write = !transactions.is_empty()
+            || !block_headers.is_empty()
+            || !commits.is_empty()
+            || !commit_info.is_empty()
+            || !voting_block_headers.is_empty()
+            || fast_commit_sync_flag.is_some()
+            || !misbehavior_counts.is_empty();
 
-        // Write all buffered data to storage
-        self.store
-            .write(
-                WriteBatch::new(
+        if has_data_to_write {
+            debug!(
+                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) and {} score updates ({}) to storage.",
+                block_headers.len(),
+                block_headers
+                    .iter()
+                    .map(|b| b.reference().to_string())
+                    .join(","),
+                transactions.len(),
+                transactions
+                    .iter()
+                    .map(|b| b.transactions_commitment().to_string())
+                    .join(","),
+                commits.len(),
+                commits.iter().map(|c| c.reference().to_string()).join(","),
+                commit_info.len(),
+                commit_info
+                    .iter()
+                    .map(|(commit_ref, _)| commit_ref.to_string())
+                    .join(","),
+                fast_commit_sync_flag
+                    .map(|f| f.to_string())
+                    .unwrap_or_else(|| "unchanged".to_string()),
+                misbehavior_counts.len(),
+                misbehavior_counts
+                    .keys()
+                    .map(|idx| idx.to_string())
+                    .join(","),
+            );
+
+            // Write all buffered data to storage
+            self.store
+                .write(WriteBatch {
                     transactions,
                     block_headers,
                     commits,
                     commit_info,
                     voting_block_headers,
                     fast_commit_sync_flag,
-                ),
-                self.context.clone(),
-            )
-            .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
+                    misbehavior_counts,
+                })
+                .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_write_count
-            .inc();
+            self.context
+                .metrics
+                .node_metrics
+                .dag_state_store_write_count
+                .inc();
+        }
 
         // Clean up old headers
         self.evict_headers();
@@ -2252,6 +2546,9 @@ impl DagState {
 
         // Clean up old acknowledgments.
         self.evict_pending_acknowledgments();
+
+        // Drop queued commit votes already certified by the network.
+        self.evict_pending_commit_votes();
 
         // Clean up old cordial knowledge.
         self.evict_cordial_knowledge();
@@ -2342,14 +2639,45 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        let commit_round = self.last_committed_rounds[authority_index];
-        Self::eviction_round(commit_round, self.cached_rounds)
+        let last_round = self.recent_headers_refs_by_authority[authority_index]
+            .last()
+            .map(|block_ref| block_ref.round)
+            .unwrap_or(GENESIS_ROUND);
+        // Keep at least cached_rounds of blocks, but never evict above the
+        // global GC round derived from the last commit.
+        self.gc_round_for_last_commit()
+            .min(Self::eviction_round(last_round, self.cached_rounds))
     }
 
     /// Calculates the last eviction round based on the provided `commit_round`.
     /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
+    }
+
+    /// Computes misbehavior counts for all authorities and returns those that
+    /// need to be persisted (where the eviction boundary advanced).
+    fn misbehavior_counts_to_write(&self) -> BTreeMap<AuthorityIndex, MisbehaviorCounts> {
+        let mut metrics_to_write = BTreeMap::new();
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, _) in self.context.committee.authorities() {
+            let last_eviction_round = self.evicted_rounds[authority_index];
+            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            if let Some(metrics) = self
+                .misbehavior_store
+                .update_misbehavior_counts_on_eviction(
+                    authority_index,
+                    &self.recent_headers_refs_by_authority[authority_index],
+                    current_eviction_round,
+                    last_eviction_round,
+                    threshold_clock_round,
+                    &self.context,
+                )
+            {
+                metrics_to_write.insert(authority_index, metrics);
+            }
+        }
+        metrics_to_write
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
@@ -2370,7 +2698,7 @@ impl DagState {
 
             // Since the wave length is 3 we expect to find a quorum in the
             // uncommitted rounds.
-            let blocks = self.get_uncommitted_block_headers_at_round(round);
+            let blocks = self.get_block_headers_at_round_above_last_commit(round);
             for block in &blocks {
                 if quorum.add(block.author(), &self.context.committee) {
                     return blocks;
@@ -2403,13 +2731,125 @@ impl DagState {
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
+
+    pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
+        &self.misbehavior_store
+    }
+
+    /// Seeds adaptive-ack hints from strong-blame masks already present in
+    /// `recent_block_headers` so the heuristic survives a restart.
+    fn replay_strong_vote_complaints_from_recovered_headers(&mut self) {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return;
+        }
+        let own_index = self.context.own_index;
+        // Snapshot before mutating self via record_strong_vote_complaint.
+        let to_replay: Vec<(AuthorityIndex, Round, AuthoritySet)> = self
+            .recent_block_headers
+            .values()
+            .filter_map(|h| {
+                if !h.is_strong_blame_for(own_index) {
+                    return None;
+                }
+                let leader_round = h.round().saturating_sub(1);
+                if leader_round == GENESIS_ROUND {
+                    return None;
+                }
+                Some((h.author(), leader_round, h.strong_vote()?.missing))
+            })
+            .collect();
+        for (voter, leader_round, mask) in to_replay {
+            self.record_strong_vote_complaint(voter, leader_round, mask);
+        }
+    }
+
+    /// Records a strong-vote complaint from `voter` against this node when
+    /// it was the leader at `leader_round`. Caller is responsible for
+    /// confirming `leader_round`'s leader was the local authority. No-op
+    /// when the feature is off.
+    pub(crate) fn record_strong_vote_complaint(
+        &mut self,
+        voter: AuthorityIndex,
+        leader_round: Round,
+        mask: AuthoritySet,
+    ) {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return;
+        }
+        let committee_size = self.context.committee.size();
+        let voter_stake = self.context.committee.stake(voter);
+        let entry = self
+            .starfish_speed_leader_hints
+            .entry(leader_round)
+            .or_insert_with(|| StarfishSpeedLeaderRoundHints::new(committee_size));
+        entry.add_vote(voter, voter_stake, mask);
+
+        while self.starfish_speed_leader_hints.len() > STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS {
+            let Some(&oldest) = self.starfish_speed_leader_hints.keys().next() else {
+                break;
+            };
+            self.starfish_speed_leader_hints.remove(&oldest);
+        }
+    }
+
+    /// Returns the set of authorities the local node should drop from the
+    /// `acknowledgments` field of new blocks: those whose aggregated
+    /// complaint stake over the last `STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS`
+    /// of the local node's leader rounds reaches
+    /// `Committee::validity_threshold` (= f+1 in stake). Returns an empty set
+    /// when the feature is off.
+    pub(crate) fn starfish_speed_excluded_ack_authorities(&self) -> AuthoritySet {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return AuthoritySet::new();
+        }
+        let committee_size = self.context.committee.size();
+        let mut scores: Vec<Stake> = vec![0; committee_size];
+        for hints in self
+            .starfish_speed_leader_hints
+            .iter()
+            .rev()
+            .take(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS)
+            .map(|(_, h)| h)
+        {
+            for (auth, score) in scores.iter_mut().enumerate() {
+                *score = score.saturating_add(hints.complaint_stakes[auth]);
+            }
+        }
+        let threshold = self.context.committee.validity_threshold();
+        let mut mask = AuthoritySet::new();
+        for (auth, score) in scores.into_iter().enumerate() {
+            if score >= threshold {
+                mask.insert(AuthorityIndex::from(auth as u8));
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .adaptive_ack_excluded_authorities
+            .set(mask.len() as i64);
+        mask
+    }
 }
 #[cfg(test)]
 mod test {
     use std::vec;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -2428,7 +2868,7 @@ mod test {
     async fn test_get_block_header() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
         let own_index = AuthorityIndex::new_for_test(0);
 
@@ -2489,7 +2929,7 @@ mod test {
                         .to_authority_index(author as usize)
                         .unwrap(),
                 );
-                let block_headers = dag_state.get_uncommitted_block_headers_at_slot(slot);
+                let block_headers = dag_state.get_block_headers_at_slot_above_last_commit(slot);
 
                 // We only write one block per slot for own index
                 if AuthorityIndex::new_for_test(author) == own_index {
@@ -2515,13 +2955,13 @@ mod test {
         let slot = Slot::new(non_existent_round, AuthorityIndex::ZERO);
         assert!(
             dag_state
-                .get_uncommitted_block_headers_at_slot(slot)
+                .get_block_headers_at_slot_above_last_commit(slot)
                 .is_empty()
         );
 
         // Check rounds with uncommitted blocks.
         for round in 1..=num_rounds {
-            let block_headers = dag_state.get_uncommitted_block_headers_at_round(round);
+            let block_headers = dag_state.get_block_headers_at_round_above_last_commit(round);
             // Expect 3 blocks per authority except for own authority which should
             // have 1 block.
             assert_eq!(
@@ -2536,7 +2976,7 @@ mod test {
         // Check rounds without uncommitted block headers.
         assert!(
             dag_state
-                .get_uncommitted_block_headers_at_round(non_existent_round)
+                .get_block_headers_at_round_above_last_commit(non_existent_round)
                 .is_empty()
         );
     }
@@ -2546,7 +2986,7 @@ mod test {
         // Initialize DagState.
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context, store);
 
         // Populate DagState.
@@ -2683,7 +3123,7 @@ mod test {
         }
 
         // Check ancestors connected to anchor.
-        let ancestors = dag_state.ancestors_at_round(&anchor, 11);
+        let ancestors = dag_state.reachable_headers_at_round_above_last_commit(&anchor, 11);
         let mut ancestors_refs: Vec<BlockRef> = ancestors.iter().map(|b| b.reference()).collect();
         ancestors_refs.sort();
         let mut expected_refs = vec![
@@ -2709,8 +3149,8 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -2730,10 +3170,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block_header]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header], DataSource::Test);
@@ -2770,127 +3207,11 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_contains_cached_block_header_at_slot() {
-        /// Only keep elements up to 2 rounds before the last committed round
-        const CACHED_ROUNDS: Round = 2;
-
-        let num_authorities: u8 = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store);
-
-        // Create test block headers for round 1 ~ 10
-        let num_rounds: u32 = 10;
-        let mut block_headers = Vec::new();
-
-        for round in 1..=num_rounds {
-            for author in 0..num_authorities {
-                let block_header =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                block_headers.push(block_header.clone());
-                dag_state.accept_block_header(block_header, DataSource::Test);
-            }
-        }
-
-        // Query for genesis round 0, genesis block headers should be returned
-        for (author, _) in context.committee.authorities() {
-            assert!(
-                dag_state.contains_cached_block_header_at_slot(Slot::new(GENESIS_ROUND, author)),
-                "Genesis should always be found"
-            );
-        }
-
-        // Now when trying to query whether we have all the block headers, we should
-        // receive a positive answer for all headers
-        let mut block_refs = block_headers
-            .iter()
-            .map(|block_header| block_header.reference())
-            .collect::<Vec<_>>();
-
-        for block_ref in block_refs.clone() {
-            let slot = block_ref.into();
-            let found = dag_state.contains_cached_block_header_at_slot(slot);
-            assert!(found, "A block should be found at slot {slot}");
-        }
-
-        // Now try to ask also for one block ref that is not in the cache
-        // Then all should be found apart from the last one
-        block_refs.insert(
-            3,
-            BlockRef::new(
-                11,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
-        );
-        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
-        expected.insert(3, false);
-
-        // Attempt to check the same for via the contains slot method
-        for block_ref in block_refs {
-            let slot = block_ref.into();
-            let found = dag_state.contains_cached_block_header_at_slot(slot);
-
-            assert_eq!(expected.remove(0), found);
-        }
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
-    )]
-    async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
-        /// Only keep elements up to 2 rounds before the last committed round
-        const CACHED_ROUNDS: Round = 2;
-
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store);
-
-        // Create test block headers for round 1 ~ 10 for authority 0
-        let mut block_headers = Vec::new();
-        for round in 1..=10 {
-            let block_header =
-                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
-            block_headers.push(block_header.clone());
-            dag_state.accept_block_header(block_header, DataSource::Test);
-        }
-
-        // Now add a commit and flush to trigger an eviction
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            &context,
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            block_headers.last().unwrap().reference(),
-            block_headers
-                .into_iter()
-                .map(|block_header| block_header.reference())
-                .collect::<Vec<_>>(),
-            vec![],
-        ));
-
-        dag_state.flush();
-
-        // When trying to request a header from authority 0 at round 8, it should panic,
-        // as anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should be
-        // evicted.
-        let _ = dag_state
-            .contains_cached_block_header_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
-    }
-
-    #[tokio::test]
     async fn test_get_block_headers_in_cache_or_store() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -2910,10 +3231,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block_header]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header], DataSource::Test);
@@ -2982,18 +3300,13 @@ mod test {
         assert_eq!(result, expected_headers);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    async fn test_flush_and_recovery() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let (context, _) = Context::new_for_test(num_authorities as usize);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks and commits for round 1 ~ 10
@@ -3069,17 +3382,10 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
-        let transactions_refs = if consensus_fast_commit_sync {
-            all_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = all_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(transactions_refs.as_slice())
             .into_iter()
@@ -3120,17 +3426,10 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
-        let transactions_refs = if consensus_fast_commit_sync {
-            block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3157,17 +3456,10 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
-        let transactions_refs = if consensus_fast_commit_sync {
-            missing_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = missing_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let retrieved_transactions = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3195,7 +3487,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = 5;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
@@ -3337,7 +3629,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
@@ -3471,25 +3763,27 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
+        expected = "Attempted to request for blocks of rounds < 4, when the last evicted round is 3 for authority [2]"
     )]
     async fn test_get_cached_last_block_header_per_authority_requesting_out_of_round_range() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
+        const GC_DEPTH: Round = 3;
+
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
-        // Create one block header (round 1) for authority 1
-        // Create two block headers (rounds 1,2) for authority 2
-        // Create three block headers (rounds 1,2,3) for authority 3
+        // Create block headers for authorities 1..=3, scaled so gc_round > 0.
+        // auth 1: rounds 1..=3, auth 2: rounds 1..=6, auth 3: rounds 1..=9
         let mut all_blocks_headers = Vec::new();
-        for author in 1..=3 {
-            for round in 1..=author {
+        for author in 1..=3u32 {
+            for round in 1..=(author * 3) {
                 let block_header = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author as u8).build(),
                 );
@@ -3511,13 +3805,13 @@ mod test {
             vec![],
         ));
 
-        // Flush to the store so we keep in memory only the last 1 round from the last
-        // commit for each authority.
+        // Flush: gc_round = 9 - 6 = 3. Authority 2 (last_round=6): eviction = min(3, 5)
+        // = 3.
         dag_state.flush();
 
-        // THEN the method should panic, as some authorities have already evicted rounds
-        // <= round 2
-        let end_round = 2;
+        // THEN the method should panic, as authority 2 has evicted round 3
+        // and end_round - 1 = 3 <= 3.
+        let end_round = 4;
         dag_state.get_last_cached_block_header_per_authority(end_round);
     }
 
@@ -3526,7 +3820,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -3570,7 +3864,9 @@ mod test {
                 .write()
                 .accept_block_header(block_header, DataSource::Test);
 
-            let round_4_block_headers = dag_state.read().get_uncommitted_block_headers_at_round(4);
+            let round_4_block_headers = dag_state
+                .read()
+                .get_block_headers_at_round_above_last_commit(4);
 
             let last_quorum = dag_state.read().last_quorum();
 
@@ -3583,7 +3879,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -3640,16 +3936,11 @@ mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_contains_transactions(#[values(true, false)] consensus_fast_commit_sync: bool) {
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+    async fn test_contains_transactions() {
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks for round 1 ~ 10
@@ -3670,10 +3961,7 @@ mod test {
         blocks.clone().into_iter().for_each(|block| {
             if block.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().transactions(vec![block.verified_transactions]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().transactions(vec![block.verified_transactions]))
                     .unwrap();
             } else {
                 dag_state.add_transactions(block.verified_transactions, DataSource::Test);
@@ -3685,13 +3973,7 @@ mod test {
         // is from DagState.
         let mut transactions_refs = blocks
             .iter()
-            .map(|block| {
-                if consensus_fast_commit_sync {
-                    GenericTransactionRef::from(block.transaction_ref())
-                } else {
-                    GenericTransactionRef::from(block.reference())
-                }
-            })
+            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs.clone());
 
@@ -3700,19 +3982,11 @@ mod test {
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        let non_existent_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::from(TransactionRef {
-                round: 11,
-                author: AuthorityIndex::new_for_test(0),
-                transactions_commitment: TransactionsCommitment::default(),
-            })
-        } else {
-            GenericTransactionRef::from(BlockRef::new(
-                11,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ))
-        };
+        let non_existent_ref = GenericTransactionRef::from(TransactionRef {
+            round: 11,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::default(),
+        });
         transactions_refs.insert(3, non_existent_ref);
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -3728,13 +4002,7 @@ mod test {
 
         let transactions_refs = blocks
             .iter()
-            .map(|block| {
-                if consensus_fast_commit_sync {
-                    GenericTransactionRef::from(block.transaction_ref())
-                } else {
-                    GenericTransactionRef::from(block.reference())
-                }
-            })
+            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -3746,12 +4014,40 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_are_transactions_available() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        let block = VerifiedBlock::new_for_test(TestBlockHeader::new(5, 1).build());
+        let block_ref = block.reference();
+
+        // Empty DagState.
+        assert!(!dag_state.are_transactions_available(&block_ref));
+
+        // Header without transactions.
+        dag_state.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
+        assert!(!dag_state.are_transactions_available(&block_ref));
+
+        // Header and transactions both present.
+        dag_state.add_transactions(block.verified_transactions, DataSource::Test);
+        assert!(dag_state.are_transactions_available(&block_ref));
+
+        // Transactions without a header: availability requires the header.
+        let other = VerifiedBlock::new_for_test(TestBlockHeader::new(6, 2).build());
+        let other_ref = other.reference();
+        dag_state.add_transactions(other.verified_transactions, DataSource::Test);
+        assert!(!dag_state.are_transactions_available(&other_ref));
+    }
+
+    #[tokio::test]
     async fn test_no_panic_on_future_timestamp() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         let future_timestamp = context.clock.timestamp_utc_ms() + 100_000;
@@ -3770,20 +4066,15 @@ mod test {
         assert_eq!(accepted_header, &block_header);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_eviction(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    async fn test_eviction() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test blocks and commits for round 1 ~ 200
@@ -3834,7 +4125,7 @@ mod test {
         let expected_block_headers = all_block_headers
             .iter()
             .filter(|x| {
-                x.round() > last_committed_round[x.author().value()] - CACHED_ROUNDS
+                x.round() > dag_state.evicted_rounds[x.author().value()]
                     || x.round() == GENESIS_ROUND
             })
             .cloned()
@@ -3853,27 +4144,13 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
         let gc_round = dag_state.gc_round_for_last_commit();
 
-        let block_refs_with_transactions_in_dag: Vec<BlockRef> = block_refs
-            .iter()
-            .filter(|x| x.round > gc_round)
-            .cloned()
-            .collect();
-
         // Get block headers above GC round
         let block_headers_above_gc = dag_builder.block_headers(gc_round + 1..=num_rounds);
 
-        // Create appropriate transaction refs based on the flag
-        let transaction_refs = if consensus_fast_commit_sync {
-            block_headers_above_gc
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs_with_transactions_in_dag
-                .iter()
-                .map(|br| GenericTransactionRef::from(*br))
-                .collect::<Vec<_>>()
-        };
+        let transaction_refs = block_headers_above_gc
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
 
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
@@ -3897,17 +4174,10 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
-        let transaction_refs = if consensus_fast_commit_sync {
-            all_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|br| GenericTransactionRef::from(*br))
-                .collect::<Vec<_>>()
-        };
+        let transaction_refs = all_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
 
         let result = dag_state
             .get_verified_transactions(&transaction_refs)
@@ -3963,10 +4233,219 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_gc_eviction_advances_for_skipped_authority() {
+        telemetry_subscribers::init_for_testing();
+
+        const COMMITTEE_SIZE: usize = 10;
+        const CACHED_ROUNDS: Round = 5;
+        const GC_DEPTH: Round = 3;
+
+        let (mut context, _) = Context::new_for_test(COMMITTEE_SIZE);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let authority_to_skip = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 2) as u8);
+        let catch_up_index = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 1) as u8);
+        let active_authorities = (0..(COMMITTEE_SIZE - 1) as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect::<Vec<_>>();
+
+        let total_rounds = 2 * (CACHED_ROUNDS + GC_DEPTH);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=total_rounds)
+            .authorities(active_authorities)
+            .skip_ancestor_links(vec![authority_to_skip, catch_up_index])
+            .build();
+
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=total_rounds);
+        let subdag_bases = subdags_and_commits
+            .iter()
+            .map(|(subdag, _)| subdag.base.clone())
+            .collect::<Vec<_>>();
+        let commits = subdags_and_commits
+            .into_iter()
+            .map(|(_, commit)| commit)
+            .collect::<Vec<_>>();
+
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(1..=total_rounds),
+            DataSource::Test,
+        );
+        for verified_transactions in dag_builder.transactions(1..=total_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for commit in commits {
+            dag_state.add_commit(commit);
+        }
+        dag_state.update_last_solid_subdag_base(
+            subdag_bases
+                .last()
+                .expect("expected at least one committed subdag")
+                .clone(),
+        );
+
+        let last_accepted_round = dag_builder
+            .block_headers(1..=total_rounds)
+            .into_iter()
+            .filter(|header| header.author() == authority_to_skip)
+            .map(|header| header.round())
+            .max()
+            .expect("skipped authority should have blocks");
+        let skipped_committed_round = dag_state.last_committed_rounds()[authority_to_skip];
+        assert!(skipped_committed_round < last_accepted_round);
+
+        dag_state.flush();
+
+        let expected_eviction_round = dag_state
+            .gc_round_for_last_commit()
+            .min(last_accepted_round.saturating_sub(CACHED_ROUNDS));
+        assert_eq!(
+            dag_state.evicted_rounds[authority_to_skip],
+            expected_eviction_round
+        );
+
+        let cached_headers =
+            dag_state.get_cached_block_headers_since_round(authority_to_skip, GENESIS_ROUND + 1);
+        assert_eq!(
+            cached_headers.first().map(|header| header.round()),
+            Some(expected_eviction_round + 1)
+        );
+        assert_eq!(
+            cached_headers.last().map(|header| header.round()),
+            Some(last_accepted_round)
+        );
+    }
+
+    /// Ensures `flush()` performs eviction even when there is nothing to write,
+    /// so changes in `last_solid_subdag_base` take effect.
+    #[tokio::test]
+    async fn test_flush_evicts_transactions_without_pending_writes() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        const CACHED_ROUNDS: Round = 5;
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let num_rounds: u32 = 200;
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=num_rounds).build();
+        let mut subdag_bases = vec![];
+        let mut commits = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
+            commits.push(commit);
+        }
+
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds), DataSource::Test);
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for commit in &commits {
+            dag_state.add_commit(commit.clone());
+        }
+
+        // First flush before updating the solid base.
+        dag_state.flush();
+
+        let transactions_after_first_flush: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        // Advance the solid base.
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
+
+        // Second flush: no pending writes, but the solid base has advanced.
+        dag_state.flush();
+
+        let transactions_after_second_flush: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        // The second flush should evict additional transactions because the
+        // solid base advanced.
+        assert!(
+            transactions_after_second_flush < transactions_after_first_flush,
+            "Second flush should evict transactions when solid base advances. \
+             Before: {transactions_after_first_flush}, after: {transactions_after_second_flush}"
+        );
+    }
+
+    /// Ensures transaction eviction during fast sync does not depend on cached
+    /// headers (so `recent_headers_refs_by_authority` may be empty).
+    #[tokio::test]
+    async fn test_fast_sync_transaction_eviction_without_headers() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        const CACHED_ROUNDS: Round = 5;
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let num_rounds: u32 = 200;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        let mut subdag_bases = vec![];
+        let mut commits = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
+            commits.push(commit);
+        }
+
+        // Simulate fast sync: add transactions and commits but no headers,
+        // leaving recent_headers_refs_by_authority empty.
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::FastCommitSyncer);
+        }
+        for commit in &commits {
+            dag_state.add_commit(commit.clone());
+        }
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
+        // Set the fast sync flag. It is persisted on flush so
+        // fast_sync_ongoing() returns true when eviction runs.
+        dag_state.set_fast_sync_ongoing_flag(true);
+
+        dag_state.flush();
+
+        let total_cached: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        let gc_depth = context.protocol_config.gc_depth();
+        // Transactions are expected to be bounded by the GC window, not by
+        // num_rounds.
+        // With gc_round = last_solid_leader_round - gc_depth * 2, the cached
+        // count is roughly authorities * 2 * gc_depth (plus a small margin for
+        // leader-round alignment).
+        let max_expected = num_authorities as usize * (2 * gc_depth as usize + 2);
+        assert!(
+            total_cached <= max_expected,
+            "Expected cached transactions ({total_cached}) to be <= ~{max_expected}; \
+             would be {} without eviction (authorities * rounds)",
+            num_authorities as usize * num_rounds as usize,
+        );
+    }
+
+    #[tokio::test]
     async fn test_accept_block_not_panics_when_timestamp_is_ahead() {
         // GIVEN
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
@@ -3983,7 +4462,7 @@ mod test {
     async fn test_skip_acknowledgments_all_empty_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context, store);
 
         // Create test blocks for round 1 ~ 10
@@ -4011,7 +4490,7 @@ mod test {
     async fn test_skip_acknowledgments_some_contain_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut encoder = create_encoder(&context);
         let mut dag_state = DagState::new(context.clone(), store);
 
@@ -4052,6 +4531,340 @@ mod test {
         );
         for block_ref in block_refs_with_transactions.iter() {
             assert!(dag_state.pending_acknowledgments.contains(block_ref));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_evict_pending_commit_votes() {
+        let (context, _) = Context::new_for_test(4);
+        let gc_depth = context.protocol_config.gc_depth();
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // The threshold is driven by `last_known_quorum_commit_index`,
+        // which `Core` would normally push from `CommitVoteMonitor`.
+        let quorum: CommitIndex = 500;
+        dag_state.set_last_known_quorum_commit_index(quorum);
+
+        let gc_threshold = quorum.saturating_sub(gc_depth);
+        let lowest_kept = gc_threshold + 1;
+        let highest = lowest_kept + 5;
+        let votes: Vec<CommitRef> = (1..=highest)
+            .map(|i| CommitRef::new(i, CommitDigest::MIN))
+            .collect();
+        dag_state.update_pending_commit_votes(votes);
+        assert_eq!(dag_state.pending_commit_votes.len(), highest as usize);
+
+        dag_state.evict_pending_commit_votes();
+
+        let kept: Vec<CommitIndex> = dag_state
+            .pending_commit_votes
+            .iter()
+            .map(|v| v.index)
+            .collect();
+        assert_eq!(kept, (lowest_kept..=highest).collect::<Vec<_>>());
+
+        // Field defaults to GENESIS_COMMIT_INDEX (= 0): saturating sub gives 0,
+        // pivot = (1, MIN), so all index >= 1 are kept (no real eviction).
+        let mut unset = DagState::new(context, Arc::new(MemStore::new()));
+        let votes: Vec<CommitRef> = (1..=10)
+            .map(|i| CommitRef::new(i, CommitDigest::MIN))
+            .collect();
+        unset.update_pending_commit_votes(votes);
+        unset.evict_pending_commit_votes();
+        assert_eq!(unset.pending_commit_votes.len(), 10);
+    }
+
+    /// Builds a 4-authority context with `consensus_starfish_speed` toggled
+    /// per the argument and the local adaptive-ack parameter unchanged from
+    /// its default (`true`).
+    fn adaptive_ack_test_context(starfish_speed: bool) -> Arc<Context> {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        Arc::new(ctx)
+    }
+
+    /// Single-authority `AuthoritySet` mask blaming `target`.
+    fn blame_mask(target: AuthorityIndex) -> AuthoritySet {
+        let mut mask = AuthoritySet::new();
+        mask.insert(target);
+        mask
+    }
+
+    /// Round-1 placeholder ref for an authority — only `(round, author)`
+    /// matters for the adaptive-ack filter; the digest is incidental.
+    fn ref_for(author: AuthorityIndex) -> BlockRef {
+        BlockRef::new(1, author, BlockHeaderDigest::MIN)
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_excludes_authority_at_validity_threshold() {
+        let context = adaptive_ack_test_context(true);
+        assert_eq!(
+            context.committee.validity_threshold(),
+            2,
+            "this test assumes f+1 = 2 (n=4)"
+        );
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        let target = AuthorityIndex::from(2u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let leader_round = 5;
+        let mask = blame_mask(target);
+
+        // First voter: count = 1, below f+1 = 2.
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, mask);
+        assert!(
+            !dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "single voter must not exclude — below validity threshold"
+        );
+
+        // Second distinct voter: count = 2 = f+1 → exclude.
+        dag_state.record_strong_vote_complaint(voter_1, leader_round, mask);
+        assert!(
+            dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "two distinct voters reached validity threshold, target should be excluded"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_same_voter_counts_once_per_leader_round() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        let target_x = AuthorityIndex::from(2u8);
+        let target_y = AuthorityIndex::from(3u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let leader_round = 5;
+
+        // Voter 0 records `{X}`.
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, blame_mask(target_x));
+        // Same voter 0 records a second, different mask `{X, Y}` for the same
+        // leader round — first-vote-wins, the second mask is dropped entirely
+        // (Y stays at 0; X stays at 1).
+        let mut second_mask = AuthoritySet::new();
+        second_mask.insert(target_x);
+        second_mask.insert(target_y);
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, second_mask);
+
+        // Add one more distinct voter blaming X. X reaches f+1 = 2 → excluded;
+        // Y is still at 0 → not excluded. If equivocations were counted, Y's
+        // count would be 1 here.
+        dag_state.record_strong_vote_complaint(voter_1, leader_round, blame_mask(target_x));
+
+        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
+        assert!(excluded.contains(target_x), "X must be excluded");
+        assert!(
+            !excluded.contains(target_y),
+            "Y must not be excluded — voter_0's second mask was dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_prunes_complaints_outside_window() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        let target = AuthorityIndex::from(2u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let initial_leader_round = 5;
+
+        // Two voters blame target at the initial leader round → would exclude.
+        dag_state.record_strong_vote_complaint(voter_0, initial_leader_round, blame_mask(target));
+        dag_state.record_strong_vote_complaint(voter_1, initial_leader_round, blame_mask(target));
+        assert!(
+            dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "target excluded before window slides"
+        );
+
+        // Record complaints at 10 later leader rounds with unrelated masks
+        // (blame voter_0 instead of target). The window keeps the most recent
+        // 10 entries — `initial_leader_round` is pruned.
+        for r in 1..=(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS as Round) {
+            dag_state.record_strong_vote_complaint(
+                voter_0,
+                initial_leader_round + r,
+                blame_mask(voter_0),
+            );
+        }
+        assert!(
+            !dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "initial leader round was pruned out of the window — target no longer excluded"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_feature_gating() {
+        // Sweep all 4 (protocol_flag, local_param) combinations. Feature is
+        // active iff both are true; in every other combination both
+        // `record_strong_vote_complaint` and
+        // `starfish_speed_excluded_ack_authorities` short-circuit.
+        for (starfish_speed, adaptive_acks) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (mut ctx, _) = Context::new_for_test(4);
+            ctx.protocol_config
+                .set_consensus_starfish_speed_for_testing(starfish_speed);
+            ctx.parameters
+                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+            let context = Arc::new(ctx);
+            let store = Arc::new(MemStore::new());
+            let mut dag_state = DagState::new(context, store);
+
+            let target = AuthorityIndex::from(2u8);
+            let leader_round = 5;
+            dag_state.record_strong_vote_complaint(
+                AuthorityIndex::from(0u8),
+                leader_round,
+                blame_mask(target),
+            );
+            dag_state.record_strong_vote_complaint(
+                AuthorityIndex::from(1u8),
+                leader_round,
+                blame_mask(target),
+            );
+
+            let feature_active = starfish_speed && adaptive_acks;
+            let case = format!("(starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks})");
+            assert_eq!(
+                dag_state
+                    .starfish_speed_excluded_ack_authorities()
+                    .contains(target),
+                feature_active,
+                "{case}: target excluded iff feature active",
+            );
+            assert_eq!(
+                !dag_state.starfish_speed_leader_hints.is_empty(),
+                feature_active,
+                "{case}: hints recorded iff feature active",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_filter_drops_blamed_authority_refs() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        // Pending acknowledgments: one ref per authority.
+        let auth = |i: u8| AuthorityIndex::from(i);
+        let raw_acks = vec![
+            ref_for(auth(0)),
+            ref_for(auth(1)),
+            ref_for(auth(2)),
+            ref_for(auth(3)),
+        ];
+
+        // Two distinct voters blame authority 2 → exclude.
+        let target = auth(2);
+        let leader_round = 5;
+        dag_state.record_strong_vote_complaint(auth(0), leader_round, blame_mask(target));
+        dag_state.record_strong_vote_complaint(auth(1), leader_round, blame_mask(target));
+
+        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
+        let filtered: Vec<BlockRef> = raw_acks
+            .into_iter()
+            .filter(|r| !excluded.contains(r.author))
+            .collect();
+
+        assert_eq!(filtered.len(), 3, "blamed authority's ref dropped");
+        assert!(
+            filtered.iter().all(|r| r.author != target),
+            "filtered acks must not contain target"
+        );
+        for kept in [auth(0), auth(1), auth(3)] {
+            assert!(
+                filtered.iter().any(|r| r.author == kept),
+                "non-blamed authority {kept} kept in acks"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_take_acknowledgments_skips_masked_authors() {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config.set_gc_depth_for_testing(20);
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context, store);
+
+        // Advance threshold_clock to round 5 — quorum (3 of 4) at round 4.
+        for author in 0..3u8 {
+            dag_state.threshold_clock.add_block_header(BlockRef::new(
+                4,
+                author.into(),
+                BlockHeaderDigest::MIN,
+            ));
+        }
+        assert_eq!(dag_state.threshold_clock_round(), 5);
+
+        let r =
+            |round: Round, author: u8| BlockRef::new(round, author.into(), BlockHeaderDigest::MIN);
+
+        // Eligible: rounds 1..=4 × 4 authors (16). Above clock: round 6 × 4 authors.
+        let mut seeded = Vec::new();
+        for round in 1..=4u32 {
+            for author in 0..4u8 {
+                seeded.push(r(round, author));
+            }
+        }
+        for author in 0..4u8 {
+            seeded.push(r(6, author));
+        }
+        dag_state.set_pending_acknowledgments(seeded);
+
+        // First call: mask authors 1 and 3.
+        let mut mask = AuthoritySet::new();
+        mask.insert(AuthorityIndex::from(1u8));
+        mask.insert(AuthorityIndex::from(3u8));
+        let taken = dag_state.take_acknowledgments(1024, mask);
+        assert_eq!(taken.len(), 8, "2 unmasked authors × 4 eligible rounds");
+        assert!(taken.iter().all(
+            |x| x.author == AuthorityIndex::from(0u8) || x.author == AuthorityIndex::from(2u8)
+        ));
+        assert!(taken.iter().all(|x| x.round < 5));
+
+        // Masked refs and round-6 refs stay pending.
+        for round in 1..=4u32 {
+            for author in [1u8, 3u8] {
+                assert!(
+                    dag_state
+                        .pending_acknowledgments
+                        .contains(&r(round, author))
+                );
+            }
+        }
+        for author in 0..4u8 {
+            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
+        }
+
+        // Empty mask + capped limit: exactly `limit` returned.
+        let taken_limited = dag_state.take_acknowledgments(3, AuthoritySet::new());
+        assert_eq!(taken_limited.len(), 3);
+
+        // Empty mask + no cap: drains the remaining 5 previously-skipped refs;
+        // round-6 refs stay pending (above clock_round).
+        let taken_rest = dag_state.take_acknowledgments(1024, AuthoritySet::new());
+        assert_eq!(taken_rest.len(), 5);
+        for author in 0..4u8 {
+            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
         }
     }
 }

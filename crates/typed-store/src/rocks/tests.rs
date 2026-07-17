@@ -8,13 +8,7 @@ use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::{reopen, traits::Map};
-
-fn temp_dir() -> std::path::PathBuf {
-    tempfile::tempdir()
-        .expect("Failed to open temporary directory")
-        .keep()
-}
+use crate::traits::Map;
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -24,17 +18,15 @@ where
     db.safe_iter().map(|item| item.unwrap())
 }
 
-fn get_reverse_iter<K, V>(
-    db: &DBMap<K, V>,
-    lower_bound: Option<K>,
-    upper_bound: Option<K>,
-) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + use<'_, K, V>
+fn get_reverse_iter<'a, K, V>(
+    db: &'a DBMap<K, V>,
+    range: impl RangeBounds<K> + 'a,
+) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + 'a
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
-    db.reversed_safe_iter_with_bounds(lower_bound, upper_bound)
-        .unwrap()
+    db.safe_range_iter_reversed(range)
 }
 
 fn get_iter_with_bounds<K, V>(
@@ -63,13 +55,15 @@ where
 
 #[tokio::test]
 async fn test_open() {
-    let _db = open_map::<_, u32, String>(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let _db = open_map::<_, u32, String>(tmp_dir.path(), None);
 }
 
 #[tokio::test]
 async fn test_reopen() {
+    let tmp_dir = iota_common::tempdir();
     let arc = {
-        let db = open_map::<_, u32, String>(temp_dir(), None);
+        let db = open_map::<_, u32, String>(tmp_dir.path(), None);
         db.insert(&123456789, &"123456789".to_string())
             .expect("Failed to insert");
         db
@@ -83,36 +77,9 @@ async fn test_reopen() {
 }
 
 #[tokio::test]
-async fn test_reopen_macro() {
-    const FIRST_CF: &str = "First_CF";
-    const SECOND_CF: &str = "Second_CF";
-
-    let rocks = open_cf_opts(
-        temp_dir(),
-        None,
-        MetricConf::default(),
-        &[
-            (FIRST_CF, rocksdb::Options::default()),
-            (SECOND_CF, rocksdb::Options::default()),
-        ],
-    )
-    .unwrap();
-
-    let (db_map_1, db_map_2) = reopen!(&rocks, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
-
-    let keys_vals_cf1 = (1..100).map(|i| (i, i.to_string()));
-    let keys_vals_cf2 = (1..100).map(|i| (i, i.to_string()));
-
-    assert_eq!(db_map_1.cf_name(), FIRST_CF);
-    assert_eq!(db_map_2.cf_name(), SECOND_CF);
-
-    assert!(db_map_1.multi_insert(keys_vals_cf1).is_ok());
-    assert!(db_map_2.multi_insert(keys_vals_cf2).is_ok());
-}
-
-#[tokio::test]
 async fn test_contains_key() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -128,17 +95,23 @@ async fn test_contains_key() {
 
 #[tokio::test]
 async fn test_safe_drop_db() {
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
     {
-        let db: DBMap<i32, String> = open_map(path.clone(), Some("table"));
+        let db: DBMap<i32, String> = open_map(path, Some("table"));
         db.insert(&777, &"123".to_string()).unwrap();
     }
-    assert!(safe_drop_db(path, Duration::from_secs(5)).await.is_ok());
+    assert!(
+        safe_drop_db(path.to_path_buf(), Duration::from_secs(5))
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
 async fn test_multi_contain() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -167,7 +140,8 @@ async fn test_multi_contain() {
 
 #[tokio::test]
 async fn test_get() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -180,7 +154,8 @@ async fn test_get() {
 
 #[tokio::test]
 async fn test_multi_get() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -197,7 +172,8 @@ async fn test_multi_get() {
 
 #[tokio::test]
 async fn test_skip() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -217,7 +193,7 @@ async fn test_skip() {
 
     // Skip to last
     assert_eq!(
-        get_reverse_iter(&db, None, None).next(),
+        get_reverse_iter(&db, ..).next(),
         Some(Ok((789, "789".to_string()))),
     );
 
@@ -228,7 +204,8 @@ async fn test_skip() {
 
 #[tokio::test]
 async fn test_reverse_iter_with_bounds() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
     db.insert(&456, &"456".to_string())
@@ -236,21 +213,22 @@ async fn test_reverse_iter_with_bounds() {
     db.insert(&789, &"789".to_string())
         .expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((789, "789".to_string())));
 
     db.insert(&999, &"999".to_string())
         .expect("Failed to insert");
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 }
 
 #[tokio::test]
 async fn test_remove() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -262,7 +240,8 @@ async fn test_remove() {
 
 #[tokio::test]
 async fn test_iter() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
     db.insert(&987654321, &"987654321".to_string())
@@ -277,13 +256,14 @@ async fn test_iter() {
 
 #[tokio::test]
 async fn test_iter_reverse() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     db.insert(&1, &"1".to_string()).expect("Failed to insert");
     db.insert(&2, &"2".to_string()).expect("Failed to insert");
     db.insert(&3, &"3".to_string()).expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(Some(Ok((3, "3".to_string()))), iter.next());
     assert_eq!(Some(Ok((2, "2".to_string()))), iter.next());
     assert_eq!(Some(Ok((1, "1".to_string()))), iter.next());
@@ -296,7 +276,8 @@ async fn test_iter_reverse() {
 
 #[tokio::test]
 async fn test_insert_batch() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
     let keys_vals = (1..100).map(|i| (i, i.to_string()));
     let mut insert_batch = db.batch();
     insert_batch
@@ -311,7 +292,8 @@ async fn test_insert_batch() {
 
 #[tokio::test]
 async fn test_insert_batch_across_cf() {
-    let rocks = open_rocksdb(temp_dir(), &["First_CF", "Second_CF"]);
+    let tmp_dir = iota_common::tempdir();
+    let rocks = open_rocksdb(tmp_dir.path(), &["First_CF", "Second_CF"]);
 
     let db_cf_1 = DBMap::reopen(
         &rocks,
@@ -352,8 +334,10 @@ async fn test_insert_batch_across_cf() {
 
 #[tokio::test]
 async fn test_insert_batch_across_different_db() {
-    let rocks = open_rocksdb(temp_dir(), &["First_CF", "Second_CF"]);
-    let rocks2 = open_rocksdb(temp_dir(), &["First_CF", "Second_CF"]);
+    let tmp_dir1 = iota_common::tempdir();
+    let rocks = open_rocksdb(tmp_dir1.path(), &["First_CF", "Second_CF"]);
+    let tmp_dir2 = iota_common::tempdir();
+    let rocks2 = open_rocksdb(tmp_dir2.path(), &["First_CF", "Second_CF"]);
 
     let db_cf_1: DBMap<i32, String> = DBMap::reopen(
         &rocks,
@@ -385,7 +369,8 @@ async fn test_insert_batch_across_different_db() {
 
 #[tokio::test]
 async fn test_delete_batch() {
-    let db = open_map::<_, u32, String>(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map::<_, u32, String>(tmp_dir.path(), None);
 
     let keys_vals = (1..100).map(|i| (i, i.to_string()));
     let mut batch = db.batch();
@@ -408,9 +393,10 @@ async fn test_delete_batch() {
 
 #[tokio::test]
 async fn test_delete_range() {
-    let options = ReadWriteOptions::default().set_ignore_range_deletions(false);
+    let tmp_dir = iota_common::tempdir();
+    let options = ReadWriteOptions::default();
     let db: DBMap<i32, String> = DBMap::reopen(
-        &open_rocksdb(temp_dir(), &[rocksdb::DEFAULT_COLUMN_FAMILY_NAME]),
+        &open_rocksdb(tmp_dir.path(), &[rocksdb::DEFAULT_COLUMN_FAMILY_NAME]),
         None,
         &options,
         false,
@@ -442,36 +428,9 @@ async fn test_delete_range() {
 }
 
 #[tokio::test]
-async fn test_clear() {
-    let db: DBMap<i32, String> = open_map(temp_dir(), Some("table"));
-    // Test clear of empty map
-    let _ = db.unsafe_clear();
-
-    let keys_vals = (0..101).map(|i| (i, i.to_string()));
-    let mut insert_batch = db.batch();
-    insert_batch
-        .insert_batch(&db, keys_vals)
-        .expect("Failed to batch insert");
-
-    insert_batch.write().expect("Failed to execute batch");
-
-    // Check we have multiple entries
-    assert!(db.safe_iter().count() > 1);
-    let _ = db.unsafe_clear();
-    assert_eq!(db.safe_iter().count(), 0);
-    // Clear again to ensure safety when clearing empty map
-    let _ = db.unsafe_clear();
-    assert_eq!(db.safe_iter().count(), 0);
-    // Clear with one item
-    let _ = db.insert(&1, &"e".to_string());
-    assert_eq!(db.safe_iter().count(), 1);
-    let _ = db.unsafe_clear();
-    assert_eq!(db.safe_iter().count(), 0);
-}
-
-#[tokio::test]
 async fn test_iter_with_bounds() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     // Add [1, 50) and (50, 100) in the db
     for i in 1..100 {
@@ -535,7 +494,8 @@ async fn test_iter_with_bounds() {
 #[rstest]
 #[tokio::test]
 async fn test_range_iter() {
-    let db = open_map(temp_dir(), None);
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
 
     // Add [1, 50) and (50, 100) in the db
     for i in 1..100 {
@@ -574,12 +534,357 @@ async fn test_range_iter() {
 }
 
 #[tokio::test]
-async fn test_is_empty() {
-    let db: DBMap<i32, String> = open_map(temp_dir(), Some("table"));
+async fn test_safe_range_iter_inclusive_upper_bound_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
 
+    let results: Vec<_> = get_range_iter(&db, 100u8..=u8::MAX).collect();
+    assert_eq!(
+        vec![(100u8, "100".to_string()), (u8::MAX, "max".to_string())],
+        results,
+        "Range ..=u8::MAX must include the entry at u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_reversed_safe_iter_inclusive_upper_bound_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> = get_reverse_iter(&db, ..=u8::MAX)
+        .map(|item| item.unwrap())
+        .collect();
+    assert_eq!(
+        vec![(u8::MAX, "max".to_string()), (100u8, "100".to_string())],
+        results,
+        "safe_range_iter_reversed with ..=u8::MAX must include the entry at u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_exclusive_lower_bound_at_max() {
+    use std::ops::Bound;
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> =
+        get_range_iter(&db, (Bound::Excluded(u8::MAX), Bound::Unbounded)).collect();
+    assert_eq!(
+        Vec::<(u8, String)>::new(),
+        results,
+        "Range (Excluded(u8::MAX), Unbounded) must yield no entries -- there is no key strictly greater than u8::MAX",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper() {
+    use std::ops::Bound;
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u8, String> = open_map(tmp_dir.path(), None);
+    db.insert(&100u8, &"100".to_string()).unwrap();
+    db.insert(&u8::MAX, &"max".to_string()).unwrap();
+
+    let results: Vec<_> =
+        get_range_iter(&db, (Bound::Excluded(u8::MAX), Bound::Included(u8::MAX))).collect();
+    assert_eq!(
+        Vec::<(u8, String)>::new(),
+        results,
+        "Range (Excluded(u8::MAX), Included(u8::MAX)) must yield no entries -- the lower bound excludes the only candidate",
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_reversed_matches_forward() {
+    use std::ops::Bound::{self, Excluded, Included, Unbounded};
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    // [1, 100) so that bounds like 20 / 50 land on existing keys, exercising the
+    // exclusive-upper "skip the boundary key" path of the reverse seek.
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    let check = |range: (Bound<u32>, Bound<u32>)| {
+        let forward: Vec<_> = db.safe_range_iter(range).map(|r| r.unwrap()).collect();
+        let mut reversed: Vec<_> = db
+            .safe_range_iter_reversed(range)
+            .map(|r| r.unwrap())
+            .collect();
+        reversed.reverse();
+        assert_eq!(
+            forward, reversed,
+            "reversed(range) must equal forward(range) reversed; range = {range:?}",
+        );
+    };
+
+    check((Included(10), Excluded(20))); // 10..20, boundary key 20 exists
+    check((Included(10), Included(20))); // 10..=20
+    check((Excluded(10), Excluded(20))); // (10, 20)
+    check((Unbounded, Excluded(20))); // ..20
+    check((Unbounded, Included(20))); // ..=20
+    check((Included(50), Unbounded)); // 50..
+    check((Excluded(50), Unbounded)); // (50, ..)
+    check((Unbounded, Unbounded)); // full table
+    check((Included(40), Excluded(40))); // empty
+    check((Included(50), Included(50))); // single element
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1), (2, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    let forward: Vec<_> = db
+        .safe_iter_with_prefix(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((1, 1), "1-1".to_string()),
+            ((1, 2), "1-2".to_string()),
+            ((1, 3), "1-3".to_string()),
+        ],
+        forward,
+        "prefix scan must yield exactly the entries under the prefix",
+    );
+
+    let reversed: Vec<_> = db
+        .safe_iter_with_prefix_reversed(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    let mut expected = forward;
+    expected.reverse();
+    assert_eq!(
+        expected, reversed,
+        "reversed prefix scan must be forward reversed"
+    );
+
+    // The neighbouring prefix must not leak in.
+    let other: Vec<_> = db
+        .safe_iter_with_prefix(&2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((2, 1), "2-1".to_string()), ((2, 2), "2-2".to_string())],
+        other,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, u8), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(254u8, 9u8), (255, 1), (255, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Prefix 0xFF has no representable upper bound; the scan runs to the end of
+    // the column family and must still exclude the lower neighbour.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix(&u8::MAX)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((255, 1), "255-1".to_string()),
+            ((255, 2), "255-2".to_string()),
+        ],
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_multi_field() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b, c) in [
+        (1u64, 1u64, 9u64), // different second field
+        (1, 2, 0),
+        (1, 2, 7),
+        (1, 2, u64::MAX), // boundary at the third field's max
+        (1, 3, 0),        // next second field
+        (2, 2, 0),        // different first field
+    ] {
+        db.insert(&(a, b, c), &format!("{a}-{b}-{c}")).unwrap();
+    }
+
+    // A two-field prefix must select exactly the keys whose first two fields
+    // match, equivalent to the closed range over the whole third-field space.
+    let by_prefix: Vec<_> = db
+        .safe_iter_with_prefix(&(1u64, 2u64))
+        .map(|r| r.unwrap())
+        .collect();
+    let by_range: Vec<_> = db
+        .safe_range_iter((1u64, 2u64, u64::MIN)..=(1u64, 2u64, u64::MAX))
+        .map(|r| r.unwrap())
+        .collect();
+
+    assert_eq!(by_prefix, by_range);
+    assert_eq!(
+        vec![(1, 2, 0), (1, 2, 7), (1, 2, u64::MAX)],
+        by_prefix.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_surfaces_deserialization_error() {
+    // A bad VALUE: store <u32, u8>, reopen with a wider value type. The stored
+    // 1-byte values cannot deserialize into (u64, u64). Forward and reverse
+    // iteration share `SafeIter::next`, so both must surface the error rather
+    // than silently ending the scan.
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u32, u8>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db.insert(&2, &8).unwrap();
+            db
+        };
+        let db =
+            DBMap::<u32, (u64, u64)>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let forward = db.safe_iter().next();
+        assert!(
+            matches!(forward, Some(Err(TypedStoreError::Serialization(_)))),
+            "forward iteration must yield Some(Err(..)) on a bad value; got {forward:?}",
+        );
+        let reverse = db.safe_range_iter_reversed(..).next();
+        assert!(
+            matches!(reverse, Some(Err(TypedStoreError::Serialization(_)))),
+            "reverse iteration must yield Some(Err(..)) on a bad value; got {reverse:?}",
+        );
+    }
+
+    // A bad KEY: store <u8, u32>, reopen with a wider key type so the key itself
+    // fails to deserialize (exercises the other error arm of `SafeIter::next`).
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u8, u32>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db
+        };
+        let db =
+            DBMap::<(u64, u64), u32>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let first = db.safe_iter().next();
+        assert!(
+            matches!(first, Some(Err(TypedStoreError::Serialization(_)))),
+            "a key that fails to deserialize must yield Some(Err(..)); got {first:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_prefix_from_matches_old_bounded_scan() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 10u64), (1, 20), (1, 30), (2, 5)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Old approach: explicit bounds [(1, cursor), (1, u64::MAX)) -- upper
+    // EXCLUSIVE.
+    let old = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_bounds(Some((1u64, cursor.unwrap_or(0))), Some((1u64, u64::MAX)))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+    // New approach: prefix-from with the same cursor as the key remainder.
+    let new = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_from(&1u64, &cursor.unwrap_or(0))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    // For all realistic data the prefix scan is equivalent to the old bounds.
+    for cursor in [None, Some(10u64), Some(20), Some(30)] {
+        assert_eq!(old(cursor), new(cursor), "cursor {cursor:?}");
+    }
+
+    // The only divergence: the old exclusive `(1, u64::MAX)` upper bound dropped
+    // an entry sitting exactly at that tail; the prefix scan correctly keeps it.
+    db.insert(&(1u64, u64::MAX), &"max".to_string()).unwrap();
+    assert!(!old(None).contains(&(1, u64::MAX)));
+    assert!(new(None).contains(&(1, u64::MAX)));
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Resume the prefix-1 scan from cursor 2 (inclusive); the upper bound is still
+    // the end of prefix 1, so (1, 1) and the whole prefix 2 are excluded.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix_from(&1u64, &2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((1, 2), "1-2".to_string()), ((1, 3), "1-3".to_string())],
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_range_iter_reversed_inclusive_ranges() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    // Closed range: [10, 20] in descending order.
+    let got: Vec<_> = db
+        .safe_range_iter_reversed(10..=20)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (10..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
+    );
+
+    // Upper-only inclusive range: [.., 20] in descending order.
+    let got: Vec<_> = db
+        .safe_range_iter_reversed(..=20)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (1..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_is_empty() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp_dir.path(), Some("table"));
     // Test empty map is truly empty
-    assert!(db.is_empty());
-    let _ = db.unsafe_clear();
     assert!(db.is_empty());
 
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
@@ -593,17 +898,13 @@ async fn test_is_empty() {
     // Check we have multiple entries and not empty
     assert!(db.safe_iter().count() > 1);
     assert!(!db.is_empty());
-
-    // Clear again to ensure empty works after clearing
-    let _ = db.unsafe_clear();
-    assert_eq!(db.safe_iter().count(), 0);
-    assert!(db.is_empty());
 }
 
 #[tokio::test]
 async fn test_multi_insert() {
     // Init a DB
-    let db: DBMap<i32, String> = open_map(temp_dir(), Some("table"));
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp_dir.path(), Some("table"));
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
 
@@ -618,7 +919,8 @@ async fn test_multi_insert() {
 
 #[tokio::test]
 async fn test_checkpoint() {
-    let path_prefix = temp_dir();
+    let tmp_dir = iota_common::tempdir();
+    let path_prefix = tmp_dir.path();
     let db_path = path_prefix.join("db");
     let db: DBMap<i32, String> = open_map(db_path, Some("table"));
     // Create kv pairs
@@ -657,7 +959,8 @@ async fn test_checkpoint() {
 #[tokio::test]
 async fn test_multi_remove() {
     // Init a DB
-    let db: DBMap<i32, String> = open_map(temp_dir(), Some("table"));
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp_dir.path(), Some("table"));
 
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
@@ -685,10 +988,11 @@ async fn test_multi_remove() {
 
 #[tokio::test]
 async fn open_as_secondary_test() {
-    let primary_path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
+    let primary_path = tmp_dir.path();
 
     // Init a DB
-    let primary_db: DBMap<i32, String> = open_map(primary_path.clone(), Some("table"));
+    let primary_db: DBMap<i32, String> = open_map(primary_path, Some("table"));
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
 

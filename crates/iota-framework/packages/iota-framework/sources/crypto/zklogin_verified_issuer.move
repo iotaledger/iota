@@ -2,19 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(unused_const)]
+#[allow(unused_const, unused_function)]
 module iota::zklogin_verified_issuer;
 
 use std::string::String;
 
-/// Error if the proof consisting of the inputs provided to the verification function is invalid.
-const EInvalidInput: u64 = 0;
-
-/// Error if the proof consisting of the inputs provided to the verification function is invalid.
-const EInvalidProof: u64 = 1;
+const EFunctionDisabled: u64 = 0;
 
 /// Possession of a VerifiedIssuer proves that the user's address was created using zklogin and with the given issuer
 /// (identity provider).
+#[deprecated]
 public struct VerifiedIssuer has key {
     /// The ID of this VerifiedIssuer
     id: UID,
@@ -25,48 +22,37 @@ public struct VerifiedIssuer has key {
 }
 
 /// Returns the address associated with the given VerifiedIssuer
+#[deprecated, allow(deprecated_usage)]
 public fun owner(verified_issuer: &VerifiedIssuer): address {
     verified_issuer.owner
 }
 
 /// Returns the issuer associated with the given VerifiedIssuer
+#[deprecated, allow(deprecated_usage)]
 public fun issuer(verified_issuer: &VerifiedIssuer): &String {
     &verified_issuer.issuer
 }
 
 /// Delete a VerifiedIssuer
+#[deprecated, allow(deprecated_usage)]
 public fun delete(verified_issuer: VerifiedIssuer) {
     let VerifiedIssuer { id, owner: _, issuer: _ } = verified_issuer;
     id.delete();
 }
 
-/// Verify that the caller's address was created using zklogin with the given issuer. If so, a VerifiedIssuer object
-/// with the issuers id transferred to the caller.
-///
-/// Aborts with `EInvalidProof` if the verification fails.
-public fun verify_zklogin_issuer(address_seed: u256, issuer: String, ctx: &mut TxContext) {
-    let sender = ctx.sender();
-    assert!(check_zklogin_issuer(sender, address_seed, &issuer), EInvalidProof);
-    transfer::transfer(
-        VerifiedIssuer {
-            id: object::new(ctx),
-            owner: sender,
-            issuer,
-        },
-        sender,
-    )
+/// This function has been disabled.
+#[deprecated]
+public fun verify_zklogin_issuer(_address_seed: u256, _issuer: String, _ctx: &mut TxContext) {
+    assert!(false, EFunctionDisabled);
 }
 
-/// Returns true if `address` was created using zklogin with the given issuer and address seed.
-public fun check_zklogin_issuer(address: address, address_seed: u256, issuer: &String): bool {
-    check_zklogin_issuer_internal(address, address_seed, issuer.as_bytes())
+/// This function has been disabled.
+#[deprecated]
+public fun check_zklogin_issuer(
+    _address: address,
+    _address_seed: u256,
+    _issuer: &String,
+): bool {
+    assert!(false, EFunctionDisabled);
+    false
 }
-
-/// Returns true if `address` was created using zklogin with the given issuer and address seed.
-///
-/// Aborts with `EInvalidInput` if the `iss` input is not a valid UTF-8 string.
-native fun check_zklogin_issuer_internal(
-    address: address,
-    address_seed: u256,
-    issuer: &vector<u8>,
-): bool;

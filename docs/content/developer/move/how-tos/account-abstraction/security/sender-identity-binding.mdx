@@ -1,0 +1,100 @@
+---
+description: "How sponsor authenticators must cryptographically bind their approval to the sender's identity — the sender's authenticator function and auth digest — to prevent sender-side identity swaps after the sponsor has signed."
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
+---
+
+# Binding Sponsor Approval to Sender Identity
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to explains why anything that authorizes sponsorship must commit to **who is sending the transaction** — not just **what the transaction is** — shows why a standard protocol-created sponsor cannot do this on its own, and demonstrates the canonical Sponsor AA helper that closes the gap.
+
+:::tip Recommended reading
+
+This guide builds on [Transaction Data Cryptographic Protection](./tx-data-cryptographic-protection.mdx) and [Cryptographic Protection for Authenticator Inputs](./inputs-cryptographic-protection.mdx). Read those first to understand the baseline `ctx.digest()` commitment that every authenticator already needs.
+
+:::
+
+## Setting: Sponsoring an Abstract Account's Transaction
+
+A sponsored transaction can be paid for by either of two kinds of sponsor:
+
+- A **standard protocol-created account** (a regular keypair-, multisig-, or passkey-backed address). Sponsorship is authorized by a standard `GenericSignature` over the transaction; the protocol's signature check is the only validation the sponsor goes through.
+- An **Abstract Account** whose Move authenticator runs at sponsor-validation time and can inspect the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) — including the sender's authentication info — before deciding to pay.
+
+What each sponsor kind can verify is shaped by when in the transaction lifecycle their authorization runs. The protocol performs sponsor verification (the standard signature check or the sponsor's AA Move authenticator) at **both the pre-consensus and the post-consensus phases**. The sender's Move authenticator, on the other hand, runs **only at post-consensus, and only when a sponsor is present** — on the **sponsor's gas budget**. So by the time the sponsor's pre-consensus approval lands, the sponsor has already committed to pay for whatever sender-authentication code path runs after consensus.
+
+For a **standard protocol-created sponsor**, the only material the sponsor's signature covers is `ctx.digest()`. This commits to the sender's *address* but not to which authenticator function the sender will use at post-consensus execution time, and the sender can rotate that authenticator function on-chain between sponsor signing and submission. There is no Move-side fix on the sponsor's side in this case — the signature scheme inherently can't be extended. The mitigation is either to restrict standard-sponsor flows to senders whose authenticator cannot rotate (e.g. immutable accounts), or to delegate sponsorship to a Sponsor AA that can do better.
+
+A **Sponsor AA** can do better because its authenticator is real Move code running at pre-consensus with access to the full `AuthContext`. The pattern shown in the rest of this guide pins the sponsor's pre-shared signature to the sender's actual authentication info — the auth digest and (when present) the authenticator function identity — so a post-signing rotation invalidates the sponsor's commitment instead of silently redirecting the sponsor's gas. (A simpler, no-signature alternative is to let an on-chain policy *be* the sponsor's standing approval — see [Sponsor Transactions with a Whitelist and Per-User Gas Allowances](../authenticator/create-whitelist-sponsorship-account.mdx).)
+
+## The Vulnerability
+
+The transaction digest (`ctx.digest()`) cryptographically commits to the sender's *address*, but it does **not** commit to:
+
+- The sender's **authenticator function** — which Move function actually runs to authorize the transaction on the sender's behalf, identified by `(package, module, function)`.
+- The sender's **auth digest** — the specific authentication instance (signature material, call args, …) the sender used to authorize this transaction.
+
+For an abstract account, both can change without changing the transaction digest. The authenticator function ref is a dynamic field that the account itself can rotate. The auth digest changes whenever the sender uses different call args (e.g., a different signature, a different Merkle proof, a different key in an M-of-N multisig).
+
+If a sponsor's signature only covers the transaction digest, an attacker can convince the sponsor to sign for a sender authenticated *one way* and submit the same transaction authenticated *a different way* — funneling the sponsor's gas into transactions the sponsor never approved.
+
+## Attack Scenario
+
+Consider a sponsor that pays gas for transactions of a specific abstract account, on the strength of a pre-shared Ed25519 signature from the user. The sponsor's authenticator verifies the user's signature over `ctx.digest()` only.
+
+1. The user prepares a benign sponsored transaction (e.g. `transfer(funds, recipient_A)`). Under the sender's current authenticator function — say, a single Ed25519 verify — authenticating the transaction costs only a few hundred gas units.
+2. The sponsor receives the digest, **sizes the sponsored gas budget against that cheap authentication cost**, signs the digest, and authorizes sponsorship.
+3. Before submission, the user **rotates their account's authenticator function** to a far more expensive variant that still accepts the same transaction — for example, one that runs additional zk-proof verifications, walks a large dynamic-field tree, or hashes a long preimage. Authentication now consumes orders of magnitude more gas, eating most of the sponsor's budget.
+4. The user **submits the same transaction**. The validator runs the new, expensive authenticator for the sender — passes. The sponsor's signature still verifies against the (unchanged) tx digest, so the sponsor is committed. The sponsor pays the inflated gas bill, draining a budget that was set under the assumption of cheap authentication.
+
+A weaker variant: the user re-authenticates the same transaction with a different signing key, a different Merkle proof, or a different M-of-N subset, without telling the sponsor. The transaction body is unchanged, but the *authentication trail* is different — and the sponsor's commitment doesn't catch it.
+
+## Secure Implementation
+
+The `public_key_authentication::authenticate_ed25519_for_sponsorship` helper binds the sponsor's signature to the full sender identity in a single message:
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L77-L109
+```
+
+**Why this is secure**: the verified message is the byte concatenation of:
+
+1. **`ctx.digest()`** — protects the transaction body itself (the baseline covered by [Transaction Data Cryptographic Protection](./tx-data-cryptographic-protection.mdx)).
+2. **`auth_ctx.sender_auth_digest()`** — pins the sponsor's approval to the **specific authentication instance** the sender used. For a `MoveAuthenticator`-signed sender, this is the digest of the sender's authenticator (its call args and signer object ref); for any other signature type, it's the Blake2b256 of the serialized (flag-prefixed) signature bytes. Swapping the sender's signature, Merkle proof, or any other authenticator input changes this digest and invalidates the sponsor's signature.
+3. **`bcs(auth_ctx.sender_authenticator_function_info_v1())`**, only when present — pins the sponsor's approval to the **specific authenticator function** identified by `(package, module, function)`. Rotating the sender's authenticator function on-chain after the sponsor signed changes these bytes and invalidates the sponsor's signature.
+
+For senders that don't use a `MoveAuthenticator` (regular Ed25519 keys, multisig, …) the function info is `None`, so the third segment is omitted — the sender's signature type is already deterministic and rotation isn't possible.
+
+## Client-Side Signing
+
+Off-chain signers (the sponsor's signing flow) must reconstruct the same byte sequence:
+
+```text
+msg = ctx.digest()                              // 32 bytes
+   || auth_ctx.sender_auth_digest()             // 32 bytes
+   || bcs(sender_authenticator_function_info)   // optional: 32-byte package
+                                                //  || ULEB128-length-prefixed module name bytes
+                                                //  || ULEB128-length-prefixed function name bytes
+```
+
+…and produce the Ed25519 signature over `msg` with the keypair whose public key is attached to the sponsor account. Any drift between the on-chain reconstruction and the off-chain construction surfaces as `EEd25519VerificationFailed` at sponsor verification time.
+
+## Key Takeaways
+
+✅ **Commit to the sender's authenticator function**: a transaction's digest does not pin the *code path* that authorizes the sender.
+
+✅ **Commit to the sender's auth digest**: a transaction's digest does not pin which *authentication instance* (signature, proof, key subset) the sender used.
+
+✅ **Use `AuthContext` accessors, not your own derivations**: `sender_auth_digest()` and `sender_authenticator_function_info_v1()` are the authoritative on-chain values — clients must mirror their byte layouts exactly.
+
+✅ **Handle `None` deterministically**: when the sender doesn't use a `MoveAuthenticator`, contribute *nothing* to the message — both sides must agree on the omission.
+
+❌ **Don't reuse a non-sponsorship signature helper for sponsors**: helpers like `authenticate_ed25519` only cover the transaction digest and are unsafe when used to authorize sponsorship.
+
+❌ **Don't roll your own serialization for `AuthenticatorFunctionInfoV1`**: use `bcs::to_bytes` on both sides so any future field additions stay in sync.

@@ -5,11 +5,9 @@
 use std::collections::BTreeMap;
 
 use async_graphql::*;
-use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
-    iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary as NativeSystemStateSummary, IotaValidatorSummary,
-    },
+use iota_sdk_types::{Address as NativeAddress, ObjectId};
+use iota_types::iota_system_state::iota_system_state_summary::{
+    IotaSystemStateSummary as NativeSystemStateSummary, IotaValidatorSummary,
 };
 
 use super::validator_set::ValidatorSet;
@@ -30,16 +28,16 @@ pub(crate) struct SystemStateSummary {
 pub(crate) struct NativeStateValidatorInfo {
     pub active_validators: Vec<IotaValidatorSummary>,
     pub committee_members: Vec<u64>,
-    pub at_risk_validators: Vec<(NativeIotaAddress, u64)>,
-    pub validator_report_records: Vec<(NativeIotaAddress, Vec<NativeIotaAddress>)>,
+    pub at_risk_validators: Vec<(NativeAddress, u64)>,
+    pub validator_report_records: Vec<(NativeAddress, Vec<NativeAddress>)>,
     pub pending_removals: Vec<u64>,
-    pub pending_active_validators_id: ObjectID,
+    pub pending_active_validators_id: ObjectId,
     pub pending_active_validators_size: u64,
-    pub staking_pool_mappings_id: ObjectID,
+    pub staking_pool_mappings_id: ObjectId,
     pub staking_pool_mappings_size: u64,
-    pub inactive_pools_id: ObjectID,
+    pub inactive_pools_id: ObjectId,
     pub inactive_pools_size: u64,
-    pub validator_candidates_id: ObjectID,
+    pub validator_candidates_id: ObjectId,
     pub validator_candidates_size: u64,
 }
 

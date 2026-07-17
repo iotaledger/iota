@@ -4,7 +4,9 @@ expression: "sig.instantiate(&[T::U64, T::Bool]).unwrap()"
 ---
 Struct(
     StructTag {
-        address: 0000000000000000000000000000000000000000000000000000000000000002,
+        address: Address(
+            "0x0000000000000000000000000000000000000000000000000000000000000002",
+        ),
         module: Identifier(
             "table",
         ),
@@ -16,7 +18,9 @@ Struct(
             Vector(
                 Struct(
                     StructTag {
-                        address: 0000000000000000000000000000000000000000000000000000000000000001,
+                        address: Address(
+                            "0x0000000000000000000000000000000000000000000000000000000000000001",
+                        ),
                         module: Identifier(
                             "option",
                         ),

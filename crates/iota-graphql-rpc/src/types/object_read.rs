@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::base_types::ObjectRef as NativeObjectRef;
+use iota_sdk_types::ObjectReference as NativeObjectRef;
 
 use crate::types::{iota_address::IotaAddress, object::Object, uint53::UInt53};
 
@@ -31,7 +31,7 @@ impl ObjectRead {
     /// 32-byte hash that identifies the object's contents at this version,
     /// encoded as a Base58 string.
     async fn digest(&self) -> String {
-        self.native.2.base58_encode()
+        self.native.digest.to_base58()
     }
 
     /// The object at this version.  May not be available due to pruning.
@@ -48,10 +48,10 @@ impl ObjectRead {
 
 impl ObjectRead {
     fn address_impl(&self) -> IotaAddress {
-        IotaAddress::from(self.native.0)
+        IotaAddress::from(self.native.object_id)
     }
 
     fn version_impl(&self) -> u64 {
-        self.native.1.value()
+        self.native.version.as_u64()
     }
 }

@@ -219,6 +219,20 @@ impl Multiaddr {
         new
     }
 
+    pub fn rewrite_http_to_https(&self) -> Self {
+        let mut new = Self::empty();
+
+        for component in self.iter() {
+            if let Protocol::Http = component {
+                new.push(Protocol::Https);
+            } else {
+                new.push(component);
+            }
+        }
+
+        new
+    }
+
     /// Checks if the multiaddr contains a private/unroutable IP address or
     /// invalid DNS. Returns true if the address should is private or
     /// unroutable.

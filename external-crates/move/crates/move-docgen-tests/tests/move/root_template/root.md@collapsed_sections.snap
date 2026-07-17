@@ -8,7 +8,7 @@ info:
   no_collapsed_sections: true
   include_dep_diagrams: false
   include_call_diagrams: false
-input_file: crates/move-docgen-tests/tests/move/root_template/Move.toml
+  include_module_toc: true
 ---
 <a name="@A_Root_Documentation_Template_0"></a>
 
@@ -21,12 +21,10 @@ The function <code>yet_another</code> is documented in its own file.
 
 -  [Some other scripts from a module](#@Some_other_scripts_from_a_module_1)
     -  [Module `a::a`](#a_a)
-        -  [Function `script1`](#a_a_script1)
-        -  [Function `script2`](#a_a_script2)
+        -  [Module Functions](#@Module_Functions_2)
     -  [Module `a::b`](#a_b)
-        -  [Function `script3`](#a_b_script3)
-        -  [Function `script4`](#a_b_script4)
--  [Index](#@Index_2)
+        -  [Module Functions](#@Module_Functions_3)
+-  [Index](#@Index_4)
 
 
 
@@ -46,9 +44,14 @@ The function <code>yet_another</code> is documented in its own file.
 
 
 
+<a name="@Module_Functions_2"></a>
+
+#### Module Functions
+
+
 <a name="a_a_script1"></a>
 
-#### Function `script1`
+##### <span class="move-vis move-vis-entry">entry</span> `script1`
 
 This is a script
 
@@ -68,7 +71,7 @@ This is a script
 
 <a name="a_a_script2"></a>
 
-#### Function `script2`
+##### <span class="move-vis move-vis-entry">entry</span> `script2`
 
 This is another script
 
@@ -100,9 +103,14 @@ This is another module full of funs too:
 
 
 
+<a name="@Module_Functions_3"></a>
+
+#### Module Functions
+
+
 <a name="a_b_script3"></a>
 
-#### Function `script3`
+##### <span class="move-vis move-vis-entry">entry</span> `script3`
 
 This is a script
 
@@ -122,7 +130,7 @@ This is a script
 
 <a name="a_b_script4"></a>
 
-#### Function `script4`
+##### <span class="move-vis move-vis-entry">entry</span> `script4`
 
 This is another script
 
@@ -142,7 +150,7 @@ This is another script
 
 
 
-<a name="@Index_2"></a>
+<a name="@Index_4"></a>
 
 ## Index
 

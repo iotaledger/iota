@@ -23,20 +23,42 @@ use crate::object_store::{
 };
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
+pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
 
 #[derive(Serialize, Deserialize)]
-
-pub struct Manifest {
-    pub available_epochs: Vec<u64>,
+pub struct RootManifest {
+    /// Epoch number paired with its end timestamp in ms (or 0 when unknown).
+    pub available_epochs: Vec<(u64, u64)>,
 }
 
-impl Manifest {
-    pub fn new(available_epochs: Vec<u64>) -> Self {
-        Manifest { available_epochs }
+impl RootManifest {
+    pub fn new(available_epochs: Vec<(u64, u64)>) -> Self {
+        RootManifest { available_epochs }
     }
 
     pub fn epoch_exists(&self, epoch: u64) -> bool {
-        self.available_epochs.contains(&epoch)
+        self.available_epochs.iter().any(|(e, _)| *e == epoch)
+    }
+
+    /// Parse a root MANIFEST from its JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    /// Serialize this root MANIFEST into its JSON bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EpochMetadata {
+    pub epoch_end_timestamp_ms: u64,
+}
+
+impl EpochMetadata {
+    pub fn to_bytes(&self) -> Result<Bytes> {
+        Ok(Bytes::from(serde_json::to_vec(self)?))
     }
 }
 
@@ -84,10 +106,6 @@ pub async fn get<S: ObjectStoreGetExt>(store: &S, src: &Path) -> Result<Bytes> {
     })
     .await?;
     Ok(bytes)
-}
-
-pub async fn exists<S: ObjectStoreGetExt>(store: &S, src: &Path) -> bool {
-    store.get_bytes(src).await.is_ok()
 }
 
 /// Writes bytes in the store with specified path.
@@ -260,8 +278,10 @@ pub async fn find_all_dirs_with_epoch_prefix(
     Ok(dirs)
 }
 
-/// Finds all epochs in the store and returns them as a sorted list.
-pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u64>> {
+/// Finds all epochs in the store and returns them as a sorted list, paired
+/// with each epoch's end timestamp in ms when its metadata file is present, or
+/// 0 otherwise.
+pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, u64)>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];
     let mut success_marker_found = false;
@@ -275,7 +295,18 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u6
                 }
             }
             Ok(_) => {
-                out.push(*epoch);
+                let metadata_path = path.child(EPOCH_METADATA_FILENAME);
+                let epoch_end_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
+                    Ok(bytes) => match serde_json::from_slice::<EpochMetadata>(&bytes) {
+                        Ok(metadata) => metadata.epoch_end_timestamp_ms,
+                        Err(err) => {
+                            warn!("Failed to parse epoch metadata for epoch {epoch}: {err}");
+                            0
+                        }
+                    },
+                    Err(_) => 0,
+                };
+                out.push((*epoch, epoch_end_timestamp_ms));
                 success_marker_found = true;
             }
         }
@@ -295,11 +326,10 @@ pub async fn run_manifest_update_loop(
     loop {
         tokio::select! {
             _now = update_interval.tick() => {
-                if let Ok(epochs) = list_all_epochs(store.clone()).await {
+                if let Ok(available_epochs) = list_all_epochs(store.clone()).await {
                     let manifest_path = Path::from(MANIFEST_FILENAME);
-                    let manifest = Manifest::new(epochs);
-                    let bytes = serde_json::to_string(&manifest)?;
-                    put(&store, &manifest_path, Bytes::from(bytes)).await?;
+                    let manifest = RootManifest { available_epochs };
+                    put(&store, &manifest_path, Bytes::from(manifest.to_bytes()?)).await?;
                 }
             },
              _ = recv.recv() => break,

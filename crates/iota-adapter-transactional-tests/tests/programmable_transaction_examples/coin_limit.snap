@@ -10,7 +10,7 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6657600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6657600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 27-30:
 //# programmable --sender A --inputs 100  --gas-budget 10000000000
@@ -18,11 +18,11 @@ task 2, lines 27-30:
 //> 1: test::m1::purchase(Result(0));
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3237600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3237600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 32:
 //# view-object 2,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 2
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -37,7 +37,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 4, lines 34-36:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: test::m1::CoolMarker {
     id: iota::object::UID {
@@ -53,7 +53,7 @@ task 5, lines 37-42:
 //> 1: test::m1::purchase_(Result(0));
 // call a non-entry function, and transfer the object
 Error: Transaction Effects Status: Unused result without the drop ability. Command result 1, return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result_idx: 1, secondary_idx: 0 }, source: None, command: None } }
+Execution Error: UnusedValueWithoutDrop: Unused result without the drop ability. Command result 1, return value 0
 
 task 6, lines 43-48:
 //# programmable --sender A --inputs 100 @A  --gas-budget 10000000000
@@ -63,11 +63,11 @@ task 6, lines 43-48:
 //> TransferObjects([Result(1), Result(2)], Input(1));
 created: object(6,0), object(6,1), object(6,2), object(6,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5494800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5494800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 50:
 //# view-object 6,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -82,7 +82,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 8, line 52:
 //# view-object 6,1
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -97,7 +97,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 9, line 54:
 //# view-object 6,2
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: test::m1::CoolMarker {
     id: iota::object::UID {
@@ -109,7 +109,7 @@ Contents: test::m1::CoolMarker {
 
 task 10, line 56:
 //# view-object 6,3
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: test::m1::CoolMarker {
     id: iota::object::UID {

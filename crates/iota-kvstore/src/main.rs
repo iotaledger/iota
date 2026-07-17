@@ -10,7 +10,8 @@ use std::{
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use iota_kvstore::{BigTableClient, KeyValueStoreReader};
-use iota_types::{base_types::ObjectID, digests::TransactionDigest, storage::ObjectKey};
+use iota_sdk_types::{ObjectId, TransactionDigest};
+use iota_types::storage::ObjectKey;
 use telemetry_subscribers::TelemetryConfig;
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum, strum::Display)]
@@ -72,12 +73,13 @@ async fn run_fetch(instance_id: String, column_family: String, entry: Entry) -> 
         column_family,
         None,
     )
-    .await?;
+    .await?
+    .with_backoff(BigTableClient::default_backoff());
 
     let result = match entry {
         Entry::Object { id, version } => {
             let objects = client
-                .get_objects(&[ObjectKey(ObjectID::from_str(&id)?, version.into())])
+                .get_objects(&[ObjectKey(ObjectId::from_str(&id)?, version.into())])
                 .await?;
             objects.first().map(bcs::to_bytes)
         }

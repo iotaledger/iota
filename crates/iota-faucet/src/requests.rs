@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -13,7 +13,7 @@ pub enum FaucetRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FixedAmountRequest {
-    pub recipient: IotaAddress,
+    pub recipient: Address,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct GetBatchSendStatusRequest {
 }
 
 impl FaucetRequest {
-    pub fn new_fixed_amount_request(recipient: impl Into<IotaAddress>) -> Self {
+    pub fn new_fixed_amount_request(recipient: impl Into<Address>) -> Self {
         Self::FixedAmountRequest(FixedAmountRequest {
             recipient: recipient.into(),
         })

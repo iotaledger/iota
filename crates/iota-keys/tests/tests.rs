@@ -12,9 +12,10 @@ use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
-    crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
+    base_types::IOTA_ADDRESS_LENGTH,
+    crypto::{DefaultHash, SignatureScheme},
 };
 use tempfile::TempDir;
 
@@ -161,7 +162,7 @@ fn mnemonic_test() {
     let imported_address = keystore2
         .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
-    assert_eq!(scheme.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(scheme.flag(), SignatureScheme::ED25519.flag());
     assert_eq!(address, imported_address);
 }
 
@@ -170,9 +171,8 @@ fn mnemonic_test() {
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
-    let expected_address = IotaAddress::from_str(
-        "0x61d6b774051d92c8c4863782933e915f88c433e9542ca534b233dc8ef1155137",
-    )?;
+    let expected_address =
+        Address::from_str("0x61d6b774051d92c8c4863782933e915f88c433e9542ca534b233dc8ef1155137")?;
 
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("iota.keystore");
@@ -183,14 +183,14 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
         .unwrap();
 
     let pubkey = keystore.keys()[0].public();
-    assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(pubkey.flag(), SignatureScheme::ED25519.flag());
 
     let mut hasher = DefaultHash::default();
     hasher.update(pubkey);
     let g_arr = hasher.finalize();
     let mut res = [0u8; IOTA_ADDRESS_LENGTH];
     res.copy_from_slice(&AsRef::<[u8]>::as_ref(&g_arr)[..IOTA_ADDRESS_LENGTH]);
-    let address = IotaAddress::try_from(res.as_slice())?;
+    let address = Address::from_bytes(res.as_slice())?;
 
     assert_eq!(expected_address, address);
 
@@ -269,7 +269,7 @@ fn test_migrate_v1_to_v2_no_aliases() {
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
         *keystore
-            .get_key(&IotaAddress::from(&keypair.public()))
+            .get_key(&Address::from(&keypair.public()))
             .unwrap()
             .as_keypair()
             .unwrap(),
@@ -313,7 +313,7 @@ fn test_migrate_v1_to_v2_with_aliases() {
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
         *keystore
-            .get_key(&IotaAddress::from(&keypair.public()))
+            .get_key(&Address::from(&keypair.public()))
             .unwrap()
             .as_keypair()
             .unwrap(),
@@ -321,7 +321,7 @@ fn test_migrate_v1_to_v2_with_aliases() {
     );
     assert_eq!(
         keystore
-            .get_alias_by_address(&IotaAddress::from(&keypair.public()))
+            .get_alias_by_address(&Address::from(&keypair.public()))
             .unwrap(),
         "test_alias"
     );

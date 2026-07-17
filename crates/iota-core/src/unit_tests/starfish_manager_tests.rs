@@ -12,7 +12,7 @@ use iota_types::{
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_core::{
     CommitDigest as StarfishCommitDigest, CommitRef as StarfishCommitRef,
     CommittedSubDag as StarfishCommittedSubDag, TestBlockHeader, VerifiedBlockHeader,
@@ -30,15 +30,15 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, starfish_manager::StarfishManager,
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
+    global_state_hasher::GlobalStateHasher,
     starfish_adapter::LazyStarfishClient,
-    state_accumulator::StateAccumulator,
 };
 
 pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<CheckpointService> {
     let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
     let epoch_store = state.epoch_store_for_testing();
-    let accumulator = Arc::new(StateAccumulator::new_for_tests(
-        state.get_accumulator_store().clone(),
+    let accumulator = Arc::new(GlobalStateHasher::new_for_tests(
+        state.get_global_state_hash_store().clone(),
     ));
     let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 
@@ -54,7 +54,7 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
         3,
         100_000,
     );
-    checkpoint_service.spawn().now_or_never().unwrap();
+    checkpoint_service.spawn(None).now_or_never().unwrap();
     checkpoint_service
 }
 
@@ -174,6 +174,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 
     let consensus_handler = ConsensusHandler::new(
         epoch_store.clone(),
+        state.clone(),
         checkpoint_service_for_testing(state.clone()),
         state.transaction_manager().clone(),
         state.get_object_cache_reader().clone(),
@@ -200,6 +201,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
                 vec![],
                 1000 + commit_idx * 1000,
                 StarfishCommitRef::new(commit_idx as u32, StarfishCommitDigest::MIN),
+                vec![],
                 vec![],
             )
         })
@@ -234,7 +236,6 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
     let highest_handled = commit_consumer_monitor.highest_handled_commit();
     assert_eq!(
         highest_handled, 10,
-        "Expected highest handled commit to be 10, got {}",
-        highest_handled
+        "Expected highest handled commit to be 10, got {highest_handled}"
     );
 }

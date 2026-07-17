@@ -40,6 +40,83 @@ It is acceptable to use short, non-descriptive variables in some situations. For
 - Indexes in loops (`i`, `j`, `k`, `idx`, etc)
 - Single-line mapping closures
 
+### Comments
+
+These rules apply to every comment, and matter especially for comments authored from chat context, which tend to be
+verbose, restate the visible code, and embed conversational history that becomes stale once the PR is merged.
+
+#### Doc Comments Are For The Caller
+
+Function- and item-level doc comments (`///`, `//!`, `/** */`) are written for the **caller**, not the implementer. They
+should answer "what do I need to know to call this correctly?" — nothing more.
+
+Include:
+
+- One short sentence describing what the function or type does, from the caller's point of view.
+- Invariants the caller must uphold (preconditions on arguments or state).
+- Surprising postconditions, side effects, or ordering guarantees.
+- `# Errors`, `# Panics`, `# Safety` sections where they apply (see [Justify Panics](#justify-panics) and [Document Potential Panics](#document-potential-panics)).
+
+Do not include:
+
+- A step-by-step list of what the function does internally — that's the body.
+- Rationale for design choices, rejected alternatives, or trade-offs considered.
+- References to change history: "added for X flow", "used by Y", "as discussed", PR or issue numbers.
+- Restatements of what well-named parameters or return types already convey.
+
+#### Inline Comments Explain Why, Not What
+
+Default to **no** inline comments inside a function body. A line of code with a good name does not need a comment
+explaining what it does.
+
+Add an inline comment **only** when:
+
+- There is a non-obvious _why_: a workaround for a known bug, a constraint imposed by code elsewhere, or a deliberate departure from the obvious approach.
+- An invariant holds at that exact point that a future reader would otherwise have to re-derive.
+- The behavior at that line would surprise a careful reader.
+
+Implementation details belong next to the implementation, not in the function header. If a fact only matters at one
+specific line, comment that line — do not lift the explanation into the docstring.
+
+#### Comment Anti-Patterns
+
+Never write these, even when asked to "document thoroughly":
+
+- "This function was added to handle the X case discussed with the team."
+- "We chose approach A over B because B would have required ..."
+- "TODO: revisit per the conversation on YYYY-MM-DD."
+- Multi-paragraph rationale blocks attached to a function signature.
+- Section headers (`# Implementation`, `# Notes`, `# Design`) that introduce a content dump rather than a documented contract.
+- A comment immediately before `let x = foo();` that says "Get foo and assign it to x."
+
+If rationale needs to live somewhere, it lives in the PR description, the commit message, or a design doc — never in a
+doc comment that future readers must scroll past every time they look up the function's contract.
+
+The following doc comment is bad — it records change history, narrates the body, and justifies a design choice:
+
+```rust
+/// Computes the next epoch's committee.
+///
+/// This function was added as part of the consensus rework discussed in #1234.
+/// It first loads the validator set, then filters out validators that have been
+/// slashed, then sorts them by stake, then picks the top N. We chose to sort
+/// by stake rather than by VRF output because the team agreed that stake-based
+/// selection is more predictable for testing.
+pub fn next_committee(epoch: Epoch) -> Committee { ... }
+```
+
+The following is good — it states the contract the caller needs and nothing else:
+
+```rust
+/// Returns the committee that will be active in `epoch`.
+///
+/// `epoch` must be the current epoch or the immediate next one; older or
+/// further-future epochs return `Err(EpochOutOfRange)`.
+pub fn next_committee(epoch: Epoch) -> Result<Committee, EpochError> { ... }
+```
+
+If the stake-vs-VRF choice matters for a reader of the body, the comment goes inside the function at the sort step — not in the header.
+
 ### Organization
 
 #### Absolute Imports

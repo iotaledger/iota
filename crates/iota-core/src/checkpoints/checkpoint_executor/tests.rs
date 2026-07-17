@@ -6,17 +6,16 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
+use iota_sdk_types::{CheckpointCommitment, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
-    gas::GasCostSummary,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
         ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
-use tempfile::tempdir;
 use tokio::time::timeout;
 use typed_store::Map;
 
@@ -27,9 +26,117 @@ use crate::{
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         test_authority_builder::TestAuthorityBuilder,
     },
-    checkpoints::CheckpointStore,
-    state_accumulator::StateAccumulator,
+    checkpoints::{
+        CheckpointStore, FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
+        test_checkpoint_with_contents,
+    },
+    global_state_hasher::GlobalStateHasher,
 };
+
+/// The fallback (per-item) load path runs when contents were not synced via
+/// state sync — the validator case. It must populate the contents cache so
+/// state-sync peers can be served without reconstruction.
+#[tokio::test]
+pub async fn test_fallback_load_populates_contents_cache() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    // sync_new_checkpoints persists only the digest-form contents, like a
+    // validator's checkpoint builder, so the executor takes the fallback path.
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+
+    executor.load_checkpoint_transactions(checkpoint.clone());
+
+    let cached = checkpoint_store
+        .get_full_checkpoint_contents_by_sequence_number(seq)
+        .expect("fallback load should populate the contents cache");
+    assert_eq!(
+        cached.checkpoint_contents().digest(),
+        checkpoint.content_digest
+    );
+    // The peer-serving lookup by contents digest must hit too.
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_digest(&checkpoint.content_digest)
+            .is_some()
+    );
+}
+
+/// With the cache disabled (budget 0), the fallback load must not populate it.
+#[tokio::test]
+pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new_with_contents_cache(
+        tmp_dir.path(),
+        FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
+    );
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    executor.load_checkpoint_transactions(checkpoint);
+
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+}
+
+/// During deep catch-up the cache window rides the state-sync frontier far
+/// ahead of the executor; the fallback load must not displace it with entries
+/// that lowest-seq eviction would remove immediately.
+#[tokio::test]
+pub async fn test_fallback_load_skips_contents_cache_below_window() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new_with_contents_cache(
+        tmp_dir.path(),
+        // A 1-byte budget any real entry exceeds, so the cache is at budget
+        // as soon as the frontier entry below lands.
+        FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
+    );
+    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+
+    // Simulate the state-sync frontier far ahead of the executor.
+    let frontier_seq = 10_000;
+    let frontier_contents = FullCheckpointContents::random_for_testing();
+    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
+    checkpoint_store.cache_full_checkpoint_contents(
+        frontier_checkpoint.sequence_number(),
+        frontier_checkpoint.content_digest,
+        frontier_contents,
+    );
+
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    executor.load_checkpoint_transactions(checkpoint);
+
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(seq)
+            .is_none()
+    );
+    assert!(
+        checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(frontier_seq)
+            .is_some()
+    );
+}
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.
@@ -38,13 +145,13 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     telemetry_subscribers::init_for_testing();
 
     let buffer_size = num_cpus::get() * 2;
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     let (state, executor, accumulator, committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -132,13 +239,13 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 pub async fn test_checkpoint_executor_cross_epoch() {
     let buffer_size = 10;
     let num_to_sync_per_epoch = buffer_size * 2;
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     let (authority_state, executor, accumulator, first_committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -185,7 +292,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .epoch_last_checkpoint_map
         .insert(
             &end_of_epoch_0_checkpoint.epoch,
-            end_of_epoch_0_checkpoint.sequence_number(),
+            &end_of_epoch_0_checkpoint.sequence_number(),
         )
         .unwrap();
     authority_state
@@ -193,7 +300,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .tables
         .certified_checkpoints
         .insert(
-            end_of_epoch_0_checkpoint.sequence_number(),
+            &end_of_epoch_0_checkpoint.sequence_number(),
             end_of_epoch_0_checkpoint.serializable_ref(),
         )
         .unwrap();
@@ -210,8 +317,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     // Ensure root state hash for epoch does not exist before we close epoch
     assert!(
         authority_state
-            .get_accumulator_store()
-            .get_root_state_accumulator_for_epoch(0)
+            .get_global_state_hash_store()
+            .get_root_state_hash_for_epoch(0)
             .unwrap()
             .is_none()
     );
@@ -236,8 +343,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 
     // Ensure root state hash for epoch exists at end of epoch
     authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(first_epoch)
+        .get_global_state_hash_store()
+        .get_root_state_hash_for_epoch(first_epoch)
         .unwrap()
         .expect("root state hash for epoch should exist");
 
@@ -296,8 +403,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     assert!(second_epoch == new_epoch_store.epoch());
 
     authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(second_epoch)
+        .get_global_state_hash_store()
+        .get_root_state_hash_for_epoch(second_epoch)
         .unwrap()
         .expect("root state hash for epoch should exist");
 }
@@ -311,14 +418,14 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 #[tokio::test]
 #[ignore]
 pub async fn test_reconfig_crash_recovery() {
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     // new Node (syncing from checkpoint 0)
     let (authority_state, executor, accumulator, first_committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -362,7 +469,7 @@ pub async fn test_reconfig_crash_recovery() {
             .get_highest_executed_checkpoint_seq_number()
             .unwrap()
             .unwrap(),
-        *end_of_epoch_checkpoint.sequence_number(),
+        end_of_epoch_checkpoint.sequence_number(),
     );
 
     // Drop and re-instantiate checkpoint executor without performing reconfig. This
@@ -389,7 +496,7 @@ pub async fn test_reconfig_crash_recovery() {
             .get_highest_executed_checkpoint_seq_number()
             .unwrap()
             .unwrap(),
-        *end_of_epoch_checkpoint.sequence_number(),
+        end_of_epoch_checkpoint.sequence_number(),
     );
 }
 
@@ -398,7 +505,7 @@ async fn init_executor_test(
 ) -> (
     Arc<AuthorityState>,
     CheckpointExecutor,
-    Arc<StateAccumulator>,
+    Arc<GlobalStateHasher>,
     CommitteeFixture,
 ) {
     let network_config =
@@ -408,7 +515,7 @@ async fn init_executor_test(
         .build()
         .await;
 
-    let accumulator = StateAccumulator::new_for_tests(state.get_accumulator_store().clone());
+    let accumulator = GlobalStateHasher::new_for_tests(state.get_global_state_hash_store().clone());
     let accumulator = Arc::new(accumulator);
 
     let executor = CheckpointExecutor::new_for_tests(
@@ -455,9 +562,11 @@ async fn sync_end_of_epoch_checkpoint(
     let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
         previous_checkpoint,
         Some(EndOfEpochData {
-            next_epoch_committee: new_committee.committee().voting_rights.clone(),
-            next_epoch_protocol_version: ProtocolVersion::MIN,
-            epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
+            next_epoch_committee: new_committee.committee().committee_members(),
+            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
+            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
+                digest: ECMHLiveObjectSetDigest::default().digest,
+            }],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
             // obtain this number from the SystemEpochInfoEvent.
@@ -468,7 +577,7 @@ async fn sync_end_of_epoch_checkpoint(
         .create_and_execute_advance_epoch_tx(
             &authority_state.epoch_store_for_testing().clone(),
             &GasCostSummary::new(0, 0, 0, 0, 0),
-            *checkpoint.sequence_number(),
+            checkpoint.sequence_number(),
             0,      // epoch_start_timestamp_ms
             vec![], // scores
         )
